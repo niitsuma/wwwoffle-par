@@ -1,4 +1,4 @@
-TITLE WWWOFFLE - Configuration File - Version 2.8d
+TITLE WWWOFFLE - Configuration File - Version 2.8e
 HEAD
 <h2><a name="Introduction">Introduction</a></h2> The configuration file (wwwoffle.conf) specifies all of the parameters that control the operation of the proxy server.  The file is split into sections each containing a series of parameters as described below.  The file CHANGES.CONF explains the changes in the configuration file between this version of the program and previous ones. <p> The file is split into sections, each of which can be empty or contain one or more lines of configuration information.  The sections are named and the order that they appear in the file is not important. <p> The general format of each of the sections is the same.  The name of the section is on a line by itself to mark the start.  The contents of the section are enclosed between a pair of lines containing only the '{' and '}' characters or the '[' and ']' characters.  When the '{' and '}' characters are used the lines between contain configuration information.  When the '[' and ']' characters are used then there must only be a single non-empty line between them that contains the name of a file (in the same directory) containing the configuration information for the section. <p> Comments are marked by a '#' character at the start of the line and they are ignored.  Blank lines are also allowed and ignored. <p> The phrases <a href="/configuration/#URL-SPECIFICATION">URL-SPECIFICATION</a> (or <a href="/configuration/#URL-SPECIFICATION">URL-SPEC</a> for short) and <a href="/configuration/#WILDCARD">WILDCARD</a> have specific meanings in the configuration file and are described at the end.  Any item enclosed in '(' and ')' in the descriptions means that it is a parameter supplied by the user, anything enclosed in '[' and ']' is optional, the '|' symbol is used to denote alternate choices.  Some options apply to specific URLs only, this is indicated by having a <a href="/configuration/#URL-SPECIFICATION">URL-SPECIFICATION</a> enclosed between '&lt;' &amp; '&gt;' in the option, the first <a href="/configuration/#URL-SPECIFICATION">URL-SPECIFICATION</a> to match is used.  If no <a href="/configuration/#URL-SPECIFICATION">URL-SPECIFICATION</a> is given then it matches all URLs.
 SECTION StartUp
@@ -94,6 +94,9 @@ Whether to request a new copy of a page if the request from the client has 'Prag
 ITEM cache-control-no-cache
 [<URL-SPEC>] cache-control-no-cache = yes | no
 Whether to request a new copy of a page if the request from the client has 'Cache-Control: no-cache' (default=yes).
+ITEM cache-control-max-age-0
+[<URL-SPEC>] cache-control-max-age-0 = yes | no
+Whether to request a new copy of a page if the request from the client has 'Cache-Control: max-age=0' (default=yes).
 ITEM request-changed
 [<URL-SPEC>] request-changed = (time)
 While online pages will only be fetched if the cached version is older than this specified time in seconds (default=600).  Setting this value negative will indicate that cached pages are always used while online. Longer times can be specified with a 'm', 'h', 'd' or 'w' suffix for minutes, hours, days or weeks (e.g. 10m=600).
@@ -147,6 +150,9 @@ Whether to request a new copy of a page if the request from the client has 'Prag
 ITEM cache-control-no-cache
 [<URL-SPEC>] cache-control-no-cache = yes | no
 Whether to request a new copy of a page if the request from the client has 'Cache-Control: no-cache' (default=yes).  This option should be set to 'no' if when browsing offline all pages are re-requested by a 'broken' browser.
+ITEM cache-control-max-age-0
+[<URL-SPEC>] cache-control-max-age-0 = yes | no
+Whether to request a new copy of a page if the request from the client has 'Cache-Control: max-age=0' (default=yes).  This option should be set to 'no' if when browsing offline all pages are re-requested by a 'broken' browser.
 ITEM confirm-requests
 [<URL-SPEC>] confirm-requests = yes | no
 Whether to return a page requiring user confirmation instead of automatically recording requests made while offline (default=no).
@@ -218,10 +224,10 @@ ITEM anchor-cached-end
 Anchors (links) in the spooled page that are in the cache are to have the specified HTML inserted at the end (default="").
 ITEM anchor-requested-begin
 [<URL-SPEC>] anchor-requested-begin = (HTML code) | 
-Anchors (links) in the spooled page that have been requested for download are to have the specified HTML inserted at the beginning (default="").
+Anchors (links) in the spooled page that are not in the cache but have been requested for download are to have the specified HTML inserted at the beginning (default="").
 ITEM anchor-requested-end
 [<URL-SPEC>] anchor-requested-end = (HTML code) | 
-Anchors (links) in the spooled page that have been requested for download are to have the specified HTML inserted at the end (default="").
+Anchors (links) in the spooled page that are not in the cache but have been requested for download are to have the specified HTML inserted at the end (default="").
 ITEM anchor-not-cached-begin
 [<URL-SPEC>] anchor-not-cached-begin = (HTML code) | 
 Anchors (links) in the spooled page that are not in the cache or requested are to have the specified HTML inserted at the beginning (default="").

@@ -1,17 +1,17 @@
-.\" $Header: /home/amb/wwwoffle/doc/RCS/wwwoffle.conf.man.template 2.79 2001/09/04 19:13:21 amb Exp $
+.\" $Header: /home/amb/wwwoffle/doc/RCS/wwwoffle.conf.man.template 2.80 2004/10/24 13:26:54 amb Exp $
 .\"
-.\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7.
+.\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
 .\"
 .\"  Manual page for wwwoffle.conf
 .\"
 .\"  Written by Andrew M. Bishop
 .\"
-.\"  This file Copyright 1997,98,99,2000,01 Andrew M. Bishop
+.\"  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
 .\"  It may be distributed under the GNU Public License, version 2, or
 .\"  any higher version.  See section COPYING of the GNU Public license
 .\"  for conditions under which this file may be redistributed.
 .\"
-.TH wwwoffle.conf 5 "May 23, 2001"
+.TH wwwoffle.conf 5 "Oct 24, 2004"
 
 .SH NAME
 
@@ -217,6 +217,10 @@ has 'Pragma: no\-cache' (default=yes)\.
 Whether to request a new copy of a page if the request from the client
 has 'Cache\-Control: no\-cache' (default=yes)\.
 .TP
+.B [<URL\-SPEC>] cache\-control\-max\-age\-0 = yes | no
+Whether to request a new copy of a page if the request from the client
+has 'Cache\-Control: max\-age=0' (default=yes)\.
+.TP
 .B [<URL\-SPEC>] request\-changed = (time)
 While online pages will only be fetched if the cached version is older
 than this specified time in seconds (default=600)\.  Setting this value
@@ -305,6 +309,12 @@ browser\.
 .B [<URL\-SPEC>] cache\-control\-no\-cache = yes | no
 Whether to request a new copy of a page if the request from the client
 has 'Cache\-Control: no\-cache' (default=yes)\.  This option should be
+set to 'no' if when browsing offline all pages are re\-requested by a
+'broken' browser\.
+.TP
+.B [<URL\-SPEC>] cache\-control\-max\-age\-0 = yes | no
+Whether to request a new copy of a page if the request from the client
+has 'Cache\-Control: max\-age=0' (default=yes)\.  This option should be
 set to 'no' if when browsing offline all pages are re\-requested by a
 'broken' browser\.
 .TP
@@ -401,14 +411,14 @@ Anchors (links) in the spooled page that are in the cache are to have
 the specified HTML inserted at the end (default="")\.
 .TP
 .B [<URL\-SPEC>] anchor\-requested\-begin = (HTML code) | 
-Anchors (links) in the spooled page that have been requested for
-download are to have the specified HTML inserted at the beginning
-(default="")\.
+Anchors (links) in the spooled page that are not in the cache but have
+been requested for download are to have the specified HTML inserted at
+the beginning (default="")\.
 .TP
 .B [<URL\-SPEC>] anchor\-requested\-end = (HTML code) | 
-Anchors (links) in the spooled page that have been requested for
-download are to have the specified HTML inserted at the end
-(default="")\.
+Anchors (links) in the spooled page that are not in the cache but have
+been requested for download are to have the specified HTML inserted at
+the end (default="")\.
 .TP
 .B [<URL\-SPEC>] anchor\-not\-cached\-begin = (HTML code) | 
 Anchors (links) in the spooled page that are not in the cache or
@@ -954,4 +964,4 @@ wwwoffle(1), wwwoffled(8).
 
 .SH AUTHOR
 
-Andrew M. Bishop 1996,97,98,99,2000,01 (amb@gedanken.demon.co.uk)
+Andrew M. Bishop 1996,97,98,99,2000,01,02,03,04 (amb@gedanken.demon.co.uk)

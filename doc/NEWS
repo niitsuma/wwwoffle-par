@@ -1,3 +1,19 @@
+Version 2.8e of WWWOFFLE released : Sat Jan 29 16:00:00 2005
+------------------------------------------------------------
+
+Bug Fixes:
+ Remove some spurious error messages.  Fetching of an aliased page now works.
+ Updated some documentation.  Improve display of page contents on info page.
+
+New Features:
+ The wwwoffle-mv program now allows changing the URL path.
+ Added a new option cache-control-max-age-0 to ignore 'Cache-Control: max-age=0'.
+ Handle HEAD requests more intelligently when online.
+
+
+*NOTE* See the important notes for version 2.8 as well.
+
+
 Version 2.8d of WWWOFFLE released : Sun Oct 17 14:30:00 2004
 ------------------------------------------------------------
 
@@ -40,6 +56,7 @@ Bug Fixes:
  spacing in the monitor form.  Make sure that new temporary files and log file
  have sensible permissions.  Remove possible crash using configuration pages
  adding item to empty section.  Clarify some error messages and documentation.
+
 
 *NOTE* See the important notes for version 2.8 as well.
 

@@ -1,3 +1,77 @@
+2005-01-29  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	Version 2.8e of WWWOFFLE released.
+
+2005-01-29  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/version.h, doc/NEWS: Update to version 2.8e.
+
+2005-01-26  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/wwwoffle-tools.c:
+	Fix previous wwwoffle-mv change and preserve timestamps.
+
+2004-12-09  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/configdata.c:
+	Make the default value for reply-chunked-data match the documentation.
+
+2004-11-29  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/info.c: Indicate on the info page if the URL has been requested.
+
+2004-11-28  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/wwwoffles.c: Handle HEAD requests more intelligently.
+	When online send HEAD don't cache them, when offline convert to GET if not cached.
+
+2004-11-22  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* doc/README: Updated description of wwwoffle-mv program.
+
+	* src/configdata.c, src/wwwoffles.c, conf/upgrade-config.pl,
+	conf/wwwoffle.conf.template, doc/CHANGES.CONF, doc/README.CONF,
+	src/config.h:
+	Added a new option cache-control-max-age-0 to OnlineOptions and OfflineOptions.
+
+	* doc/FAQ: Another solution to the infamous libc resolver problem.
+
+2004-11-21  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/wwwoffles.c: No functional changes.
+	Added more comments relating to Fetch mode, and on mode for else statements.
+	Rearranged code so that mode==Fetch is evaluated with others in else branch.
+
+	* src/wwwoffles.c:
+	Fix two places where being in Fetch mode would go wrong
+	(aliased URL and unauthenticated proxy request).
+
+2004-11-09  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* doc/README, doc/README.CONF: Some text changes.
+
+2004-11-07  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/wwwoffle-tools.c: Allow moving files and changing the path.
+
+2004-11-06  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/control.c: Fix spurious error message.
+
+2004-10-24  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* doc/wwwoffle.conf.man.template:
+	Updated the dates in the footer/header.
+
+2004-10-23  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/spool.c:
+	Only print an error for a missing monitor time file if the URL is monitored.
+
+2004-10-17  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	Version 2.8d of WWWOFFLE released.
+
 2004-10-17  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
 
 	* doc/NEWS, src/version.h: Update to version 2.8d.

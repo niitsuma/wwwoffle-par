@@ -409,7 +409,12 @@ initialise the resolver library, nowhere that I have seen does it say
 that it is safe to call it more than once or that it can be used to
 change the DNS lookup method.
 
-One solution is to run a local DNS server.  The bind package contains the
+One solution is to install nscd (Name Service Cache Daemon) if it is available
+for your operating system (it is available for Solaris, Linux and other systems
+using GNU libc).  Running 'nscd -i hosts' will cause the cache of hostnames in
+used by the resolver library to be re-read.
+
+Another solution is to run a local DNS server.  The bind package contains the
 standard DNS server, but there are simpler alternatives for end-user systems.
 One option is pdnsd (<a href="http://home.t-online.de/home/Moestl/">http://home.t-online.de/home/Moestl/</a>) which is a caching
 DNS server.  Whichever option you choose you will need to make localhost be the

@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configdata.c 2.149 2004/09/29 18:07:35 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configdata.c 2.151 2004/12/09 19:02:37 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
   Configuration data functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -146,7 +146,7 @@ static ConfigItemDef options_itemdefs[]={
  {"run-fetch"            ,&RunFetch           ,0,0,Fixed,PathName   ,NULL       },
  {"lock-files"           ,&LockFiles          ,0,0,Fixed,Boolean    ,"no"       },
  {"reply-compressed-data",&ReplyCompressedData,0,0,Fixed,Boolean    ,"no"       },
- {"reply-chunked-data"   ,&ReplyChunkedData   ,0,0,Fixed,Boolean    ,"no"       },
+ {"reply-chunked-data"   ,&ReplyChunkedData   ,0,0,Fixed,Boolean    ,"yes"      },
  {"exec-cgi"             ,&ExecCGI            ,0,1,Fixed,Url        ,NULL       }
 };
 
@@ -163,6 +163,9 @@ ConfigItem PragmaNoCacheOnline;
 
 /*+ The option to allow or ignore the 'Cache-Control: no-cache' request when online. +*/
 ConfigItem CacheControlNoCacheOnline;
+
+/*+ The option to allow or ignore the 'Cache-Control: max-age=0' request online. +*/
+ConfigItem CacheControlMaxAge0Online;
 
 /*+ The maximum age of a cached page to use in preference while online. +*/
 ConfigItem RequestChanged;
@@ -211,6 +214,7 @@ ConfigItem RequestChunkedData;
 static ConfigItemDef onlineoptions_itemdefs[]={
  {"pragma-no-cache"        ,&PragmaNoCacheOnline      ,1,0,Fixed,Boolean   ,"yes"},
  {"cache-control-no-cache" ,&CacheControlNoCacheOnline,1,0,Fixed,Boolean   ,"yes"},
+ {"cache-control-max-age-0",&CacheControlMaxAge0Online,1,0,Fixed,Boolean   ,"yes"},
  {"request-changed"        ,&RequestChanged           ,1,0,Fixed,TimeSecs  ,"10m"},
  {"request-changed-once"   ,&RequestChangedOnce       ,1,0,Fixed,Boolean   ,"yes"},
  {"request-expired"        ,&RequestExpired           ,1,0,Fixed,Boolean   ,"no" },
@@ -242,6 +246,9 @@ ConfigItem PragmaNoCacheOffline;
 /*+ The option to allow or ignore the 'Cache-Control: no-cache' request when offline. +*/
 ConfigItem CacheControlNoCacheOffline;
 
+/*+ The option to allow or ignore the 'Cache-Control: nax-age=0' request offline. +*/
+ConfigItem CacheControlMaxAge0Offline;
+
 /*+ The option to not automatically make requests while offline but to need confirmation. +*/
 ConfigItem ConfirmRequests;
 
@@ -250,10 +257,11 @@ ConfigItem DontRequestOffline;
 
 /*+ The item definitions in the OfflineOptions section. +*/
 static ConfigItemDef offlineoptions_itemdefs[]={
- {"pragma-no-cache"       ,&PragmaNoCacheOffline      ,1,0,Fixed,Boolean,"yes"},
- {"cache-control-no-cache",&CacheControlNoCacheOffline,1,0,Fixed,Boolean,"yes"},
- {"confirm-requests"      ,&ConfirmRequests           ,1,0,Fixed,Boolean,"no" },
- {"dont-request"          ,&DontRequestOffline        ,1,0,Fixed,Boolean,"no" }
+ {"pragma-no-cache"        ,&PragmaNoCacheOffline      ,1,0,Fixed,Boolean,"yes"},
+ {"cache-control-no-cache" ,&CacheControlNoCacheOffline,1,0,Fixed,Boolean,"yes"},
+ {"cache-control-max-age-0",&CacheControlMaxAge0Offline,1,0,Fixed,Boolean,"yes"},
+ {"confirm-requests"       ,&ConfirmRequests           ,1,0,Fixed,Boolean,"no" },
+ {"dont-request"           ,&DontRequestOffline        ,1,0,Fixed,Boolean,"no" }
 };
 
 /*+ OfflineOptions section. +*/

@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/spool.c 2.81 2004/02/14 14:03:18 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/spool.c 2.82 2004/10/23 11:23:39 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
   Handle all of the spooling of files in the spool directory.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -1601,7 +1601,9 @@ long ReadMonitorTimesSpoolFile(URL *Url,char MofY[13],char DofM[32],char DofW[8]
    {
     /* file missing. */
 
-    PrintMessage(Warning,"Monitor time file is missing for %s.",Url->name);
+    *file='U';
+    if(!stat(file,&buf))
+       PrintMessage(Warning,"Monitor time file is missing for %s.",Url->name);
 
     /* force fetching again. */
 

@@ -1,4 +1,4 @@
-          WWWOFFLE - World Wide Web Offline Explorer - Version 2.7
+          WWWOFFLE - World Wide Web Offline Explorer - Version 2.8
           ========================================================
 
 These are miscellaneous files/scripts that can be used with WWWOFFLE.
@@ -23,8 +23,7 @@ Contents:
         DontGet list converter
         Example entries for the DontGet section
         Invoke wwwoffle from emacs to request URLs
-        Delete requests from the outgoing directory and cache by regexp
-        Chop the WWWOFFLE lasttime index into parts
+        Dan Jacobson's WWWOFFLE tools
         An example CGI script, useful for testing CGI interfaces
         An example spec file for creating RPMs
         Redhat spec files and startup files
@@ -352,35 +351,15 @@ replace this function with the ability to request URLs using WWWOFFLE instead of
 browsing them then the emacs lisp will help.
 
 
-Delete requests from the outgoing directory and cache by regexp
----------------------------------------------------------------
+Dan Jacobson's WWWOFFLE tools
+-----------------------------
 
-Filename:    wwwoffle-jidanni/wwwoffle-outgoing-regexp-rm
-Filename:    wwwoffle-jidanni/wwwoffle-cache-regexp-rm
+Webpage:     http://jidanni.org/comp/wwwoffle/
 Contributed: Dan Jacobson <jidanni@jidanni.org>
 
-These scripts delete files from the outgoing directory or the cache based on
-regular expression matching.
-
-The latest versions of these scripts can be found at:
-http://jidanni.org/comp/wwwoffle/
-
-
-Chop the WWWOFFLE lasttime index into parts
--------------------------------------------
-
-Filename:    wwwoffle-jidanni/wwwoffle-chunks
-Contributed: Dan Jacobson <jidanni@jidanni.org>
-
-> wchunks: chop the wwwoffle index into smaller chunks to
-> save wear and tear and waiting each time i hit the BACK key in my
-> 'favorite' browser.  jidanni 8/2001
-
-> usage: after going offline run this program, then one points their browser
-> to $TMPDIR ...
-
-The latest versions of these scripts can be found at:
-http://jidanni.org/comp/wwwoffle/
+Dan Jacobson has made several tools for WWWOFFLE.  These do a number of
+different things, for example delete requests from the outgoing directory and
+cache by regexp or chop the WWWOFFLE lasttime index into parts.
 
 
 An example CGI script, useful for testing CGI interfaces

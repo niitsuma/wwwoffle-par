@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/config.h 2.102 2004/09/29 18:07:35 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/config.h 2.103 2004/11/22 19:13:55 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
   Configuration file management functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -130,6 +130,9 @@ extern /*@null@*/ ConfigItem PragmaNoCacheOnline;
 /*+ The option to allow or ignore the 'Cache-Control: no-cache' request online. +*/
 extern /*@null@*/ ConfigItem CacheControlNoCacheOnline;
 
+/*+ The option to allow or ignore the 'Cache-Control: max-age=0' request online. +*/
+extern /*@null@*/ ConfigItem CacheControlMaxAge0Online;
+
 /*+ The maximum age of a cached page to use in preference while online. +*/
 extern /*@null@*/ ConfigItem RequestChanged;
 
@@ -181,6 +184,9 @@ extern /*@null@*/ ConfigItem PragmaNoCacheOffline;
 
 /*+ The option to allow or ignore the 'Cache-Control: no-cache' request offline. +*/
 extern /*@null@*/ ConfigItem CacheControlNoCacheOffline;
+
+/*+ The option to allow or ignore the 'Cache-Control: nax-age=0' request offline. +*/
+extern /*@null@*/ ConfigItem CacheControlMaxAge0Offline;
 
 /*+ The option to not automatically make requests while offline but to need confirmation. +*/
 extern /*@null@*/ ConfigItem ConfirmRequests;
