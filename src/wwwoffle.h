@@ -52,7 +52,7 @@ char /*@observer@*/ *DeleteWebpageSpoolFile(URL *Url,int all);
 void TouchWebpageSpoolFile(URL *Url,time_t when);
 time_t ExistsWebpageSpoolFile(URL *Url);
 
-void CreateBackupWebpageSpoolFile(URL *Url);
+void CreateBackupWebpageSpoolFile(URL *Url, int overwrite);
 void RestoreBackupWebpageSpoolFile(URL *Url);
 void DeleteBackupWebpageSpoolFile(URL *Url);
 

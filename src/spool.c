@@ -701,9 +701,10 @@ changedir_back:
   Create a backup copy of a file in a spool subdirectory.
 
   URL *Url The URL to make a copy of.
+  int overwrite  If true, overwrite a possible existing backup. 
   ++++++++++++++++++++++++++++++++++++++*/
 
-void CreateBackupWebpageSpoolFile(URL *Url)
+void CreateBackupWebpageSpoolFile(URL *Url, int overwrite)
 {
  struct stat buf;
 
@@ -727,7 +728,7 @@ void CreateBackupWebpageSpoolFile(URL *Url)
 
      {char *p= mempcpy(bakfile,orgfile,org_len); *p++='~'; *p=0;}
 
-     if(!stat(bakfile,&buf))
+     if(!overwrite && !stat(bakfile,&buf))
        PrintMessage(Inform,"Backup already exists for '%s'.",Url->name);
      else
        {

@@ -1,0 +1,79 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost  = The hostname of the server running wwwoffled (='$localhost').
+url        = The URL that was asked for (='$url').
+cache      = A flag to indicate if the page is being written to the cache or browser (='$cache').
+backup     = A flag to indicate if there is a backup page in the cache (='$backup').
+replystatus= Status code returned by the remote server (='$replystatus').
+replynote  = The status note returned by the remote server (='$replynote').
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Requested Resource Gone</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Requested Resource Gone</H1>
+
+<p align=center>
+Your request for URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+has not been cached because
+
+<br>
+the remote server replied with <b>$replystatus $replynote</b>
+</p>
+
+<p>
+$cache?
+{This error message has now been deleted from the cache.}
+{}
+
+<p>
+$backup?
+{Reloading this page will revert to the previous version if you are offline or try again if you are online.}
+{Reloading this page will cause it to be re-requested.}
+
+<h2>Help</h2>
+
+The WWWOFFLE server was configured not to cache error messages or redirections from the remote server for this URL, but to keep the previously cached version.
+<br>
+Reloading this page while you're offline should display the backuped version.
+<br>
+If it does not, report the problem to <a href="mailto:p.a.rombouts@home.nl">Paul Rombouts</a>.
+
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Welcome Page</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

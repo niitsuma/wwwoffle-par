@@ -1,4 +1,4 @@
-	  Alternative WWWOFFLE implementation - version 2.7f-par-2
+	  Alternative WWWOFFLE implementation - version 2.7f-par-3
 	  ======================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
@@ -10,9 +10,9 @@ AMB's code.
 
 Before compiling and installing WWWOFFLE according to AMB's installation
 instructions described in the INSTALL file you must first apply my patch file
-wwwoffled-2.7f-par.diff.gz using the command:
+wwwoffled-2.7f-par-3.diff.gz using the command:
 
-gzip -cd <path_to_patch>/wwwoffle-2.7f-par-2.diff.gz | patch -p2 -N -E
+gzip -cd <path_to_patch>/wwwoffle-2.7f-par-3.diff.gz | patch -p2 -N -E
 
 Note: because I have used GNU extensions you will need to compile with gcc and
 link with glibc. This will not be a problem with most Linux distributions.

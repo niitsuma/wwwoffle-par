@@ -628,7 +628,13 @@ int wwwoffles(int online,int browser,int client)
 
        else if(mode==Real || mode==SpoolOrReal)
          {
-          DeleteWebpageSpoolFile(newUrl,0);
+	  if(ConfigBooleanURL(KeepCacheIfNotFound,newUrl) && SpooledPageStatus(newUrl)==200) {
+	    PrintMessage(Debug,"keep-cache-if-not-found is enabled for '%s', keeping the spool file as backup.",newUrl->name);
+	    CreateBackupWebpageSpoolFile(newUrl,1);
+	  }
+	  else
+	    DeleteWebpageSpoolFile(newUrl,0);
+		  
           mode=RealRefresh;
          }
 
@@ -1376,7 +1382,7 @@ passwordagain:
  if(mode==Real || mode==Fetch)
    {
     if(spool_exists)
-       CreateBackupWebpageSpoolFile(Url);
+       CreateBackupWebpageSpoolFile(Url,0);
 
     spool=OpenWebpageSpoolFile(0,Url);
     /* init_buffer(spool); */
@@ -1816,7 +1822,7 @@ passwordagain:
       {
        mode=RealNoPassword;
       }
-    else if((mode==Fetch || mode==Real) && reply_status>=300 && spool_exists && ConfigBooleanURL(KeepCacheIfNotFound,Url) && SpooledBackupStatus(Url)==200)
+    else if((mode==Fetch || mode==Real) && reply_status>=300 && ConfigBooleanURL(KeepCacheIfNotFound,Url) && SpooledBackupStatus(Url)==200)
       {
 	PrintMessage(Debug,"Reply status of '%s' was %d, keeping backup spool file.",Url->name,reply_status);
 
