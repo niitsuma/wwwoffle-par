@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/info.c,v 1.3 2002/11/27 19:00:46 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/info.c 1.5 2002/12/30 19:52:29 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7h.
   Generate information about the contents of the web pages that are cached in the system.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -45,8 +45,6 @@
 #include "document.h"
 
 
-static void InfoSelectPage(int fd,URL *Url,Body *request_body);
-
 static void InfoCachedPage(int fd,URL *Url,Header *request_head,int which);
 
 static void InfoCached(int fd,int spool,URL *Url,Header *spooled_head);
@@ -75,8 +73,6 @@ void InfoPage(int fd,URL *Url,Header *request_head,Body *request_body)
 {
  if(!Url->local)
     InfoRequestedPage(fd,Url,request_head,request_body);
- else if(!strcmp(Url->path,"/info/"))
-    InfoSelectPage(fd,Url,request_body);
  else if(!strcmp(Url->path,"/info/request") && Url->args)
     InfoRequestPage(fd,Url);
  else if(!strcmp(Url->path,"/info/url") && Url->args)
@@ -89,21 +85,6 @@ void InfoPage(int fd,URL *Url,Header *request_head,Body *request_body)
     HTMLMessage(fd,404,"WWWOFFLE Illegal Info Page",NULL,"InfoIllegal",
                 "url",Url->pathp,
                 NULL);
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Allows the user to select a page to get information about.
-
-  int fd The file descriptor to write to.
-
-  URL *Url The URL that was requested for the info.
-
-  Body *request_body The body of the original request.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-static void InfoSelectPage(int fd,URL *Url,Body *request_body)
-{
 }
 
 
@@ -410,15 +391,17 @@ static void InfoSource(int fd,int spool,URL *Url,Header *spooled_head)
 
 static void InfoRequestPage(int fd,URL *Url)
 {
- char *refurl=NULL;
+ char *url=NULL;
 
- refurl=URLDecodeFormArgs(Url->args);
+ url=URLDecodeFormArgs(Url->args);
 
- HTMLMessage(fd,302,"WWWOFFLE Refresh Redirect",refurl,"Redirect",
-             "location",refurl,
+ HTMLMessage(fd,200,"WWWOFFLE Info Request",
+             NULL,
+             "InfoRequest",
+             "url",url,
              NULL);
 
- free(refurl);
+ free(url);
 }
 
 
@@ -462,12 +445,13 @@ static void InfoRequestedPage(int fd,URL *Url,Header *request_head,Body *request
  head2=HeaderString(request_head,&headlen);
  head2[headlen-4]=0;
 
- HTMLMessageHead(fd,200,"WWWOFFLE Info Request",
+ HTMLMessageHead(fd,200,"WWWOFFLE Info Requested",
 		 "Cache-Control","no-cache",
+                 "Pragma","no-cache",
 		 NULL);
 
  if(out_err!=-1)
-   HTMLMessageBody(fd,"InfoRequest",
+   HTMLMessageBody(fd,"InfoRequested",
 		   "url",Url->name,
 		   "head1",head1,
 		   "head2",head2,

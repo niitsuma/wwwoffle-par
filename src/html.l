@@ -11,9 +11,9 @@ K               [a-z0-9-]
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/html.l 2.71 2002/06/23 15:05:22 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/html.l 2.72 2003/01/03 08:52:24 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7h.
   Parse the HTML and look for the images, links and other things.
   ******************/ /******************
   Written by Andrew M. Bishop

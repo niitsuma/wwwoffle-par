@@ -121,6 +121,9 @@ If the requests that are made to the server are to request compressed data (defa
 ITEM keep-cache-if-not-found
 [<URL-SPEC>] keep-cache-if-not-found = yes | no
 If the remote server replies with an error message or a redirection while there is a cached version with status 200 the previously cached  version should be kept (default=no). This option was added by Paul Rombouts.
+ITEM always-use-etag
+[<URL-SPEC>] always-use-etag = yes | no
+If WWWOFFLE should always use ETag headers (if present) when a page is requested, and a copy exists in the cache (default=yes). This could cause pages/images to be re-fetched almost each time WWWOFFLE verifies their validity with the origin server. If they are hosted on a pool of servers that use different ETags for the same entity (which, unfortunately is often) it is highly possible. If set to no, WWWOFFLE will determine if the "Last-Modified" header is strong enough to be used alone. (Option added by Marc Boucher)
 SECTION OfflineOptions
 Options that control how WWWOFFLE behaves when it is offline.
 ITEM pragma-no-cache
@@ -221,7 +224,7 @@ ITEM disable-style
 Removes all stylesheets and style references (default=no).
 ITEM disable-blink
 [<URL-SPEC>] disable-blink = yes | no
-Removes the &lt;blink&gt; tag (default=no).
+Removes the &lt;blink&gt; tag from HTML but does not disable blink in stylesheets (default=no).
 ITEM disable-flash
 [<URL-SPEC>] disable-flash = yes | no
 Removes any Shockwave Flash animations (default=no).

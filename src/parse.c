@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/parse.c 2.103 2002/08/04 10:26:06 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/parse.c 2.104 2002/12/08 16:54:27 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7h.
   Functions to parse the HTTP requests.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -119,7 +119,7 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
 
  /* Timeout or Connection lost? */
  
- if(!line)
+ if(!line || !*request_head)
    {PrintMessage(Warning,"Nothing to read from the wwwoffle proxy socket; timed out or connection lost? [%!s]."); return(NULL);}
  else
    free(line);
@@ -176,14 +176,15 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
       }
    }
 
- if(!*request_head)
-    return(NULL);
-
  if(!strcmp((*request_head)->method,"POST") ||
     !strcmp((*request_head)->method,"PUT"))
    {
     if(length<0)
-      {free(url);return(NULL);}
+      {
+       PrintMessage(Warning,"POST or PUT request must have a valid Content-Length header.");
+       free(url);
+       return(NULL);
+      }
 
     *request_body=CreateBody(length);
 
@@ -198,7 +199,11 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
        while(m>0 && (l-=m));
 
        if(l)
-         {free(url);return(NULL);}
+         {
+          PrintMessage(Warning,"POST or PUT request must have data length specified in Content-Length header.");
+          free(url);
+          return(NULL);
+         }
       }
 
     (*request_body)->content[length]=0;
@@ -338,26 +343,26 @@ int RequireChanges(int fd,Header *request_head,URL *Url)
          }
        else
          {
-	   {
-	     char *etag=GetHeader(spooled_head,"Etag");
+	   char *date;
+	   char *lastmodified=GetHeader(spooled_head,"Last-Modified");
+	   char *etag=GetHeader(spooled_head,"Etag");
 
-	     if(etag)
-	       {
-		 AddToHeader(request_head,"If-None-Match",etag);
+	   if(etag &&
+	      (ConfigBooleanURL(AlwaysUseETag,Url) ||
+               !(lastmodified && (date=GetHeader(spooled_head,"Date")) &&
+                 (DateToTimeT(date)-DateToTimeT(lastmodified))>=60  ) ) )
+	     {
+	       AddToHeader(request_head,"If-None-Match",etag);
 
-		 PrintMessage(Debug,"Requesting URL (Conditional request with If-None-Match).");
-	       }
-	   }
-	   {
-	     char *lastmodified=GetHeader(spooled_head,"Last-Modified");
+	       PrintMessage(Debug,"Requesting URL (Conditional request with If-None-Match).");
+	     }
 
-	     AddToHeader(request_head,"If-Modified-Since",
-			 lastmodified?lastmodified:RFC822Date(buf.st_mtime,1));
+	   AddToHeader(request_head,"If-Modified-Since",
+		       lastmodified?lastmodified:RFC822Date(buf.st_mtime,1));
 
-             PrintMessage(Debug,"Requesting URL (Conditional request with If-Modified-Since).");
-	   }
+	   PrintMessage(Debug,"Requesting URL (Conditional request with If-Modified-Since).");
 
-          retval=1;
+	   retval=1;
          }
       }
    }

@@ -1,3 +1,47 @@
+2003-01-12  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	Version 2.7h of WWWOFFLE released.
+
+2003-01-12  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/version.h, doc/NEWS: Updated to version 2.7h.
+
+2003-01-10  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/local.c:
+	Handle Accept-Language header more robustly (problem description and solution from Bjoern Voigt).
+
+2003-01-03  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/html.l:
+	Set string to NULL after freeing it (suggested by Paul A. Rombouts).
+
+2002-12-30  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/info.c:
+	Add headers to the Info Requested page to stop it being cached by the browser (suggested by Marc Boucher).
+
+2002-12-28  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/info.c: Remove an unused web-page.
+	Change the way that the user selects to see the request headers.
+
+2002-12-22  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* doc/README.CONF:
+	Indicate that HTML blink tags are removed not stylesheet blink.
+
+2002-12-14  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* conf/upgrade-config.pl:
+	Add in the new create-history-indexes option commented out since upgrading the
+	no-lasttime-index option will create a duplicate.
+
+2002-12-08  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/parse.c:
+	More error messages for POST requests with invalid bodies.
+
 2002-11-30  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
 
 	Version 2.7g of WWWOFFLE released.

@@ -1,4 +1,4 @@
-          WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g
+          WWWOFFLE - World Wide Web Offline Explorer - Version 2.7h
           =========================================================
 
 
@@ -125,41 +125,26 @@ Configuration
 Changes
 -------
 
-Since version 2.7f:
+Since version 2.7g:
 
 Bug Fixes:
- When modifying HTML links to same page are displayed as cached.  Only censor
- headers for SSL if using another proxy.  Don't refetch FTP files of the same
- date as cached one.  Change some HTTP error codes to 500 instead of 200.
- Insert empty ALT tags when removing images.  Delete zero length cached files
- when requested offline.  Fix parsing of '-c' option in wwwoffle-tools.
-
-New Features:
- Added a cache-control-no-cache option which works like pragma-no-cache.
- Renamed no-lasttime-index to create-history-indexes and reversed its meaning.
- If a CGI returns a HTTP status line at the top then keep it.
- Added some web pages that will show the headers and content of cached pages.
- Allow -1 to be used for max-size and min-free to ignore the options.
- Write the unmodified header from the server to the cache when online.
+ Have more verbose error messages for invalid POST requests.  Fix the way the
+ upgrade-config script handles the no-lasttime-index to create-history-indexes
+ change.  Change the way that the user selects to view request headers on the
+ info pages.  Handle Accept-Language header more robustly.
 
 
-*NOTE* The URL for the URL specific index has changed.
-       Instead of '/index/url/?xxx' it is '/index/url?xxx'.
-
-*NOTE* The URL for configuration page editing a specific URL has changed.
-       Instead of '/configuration/xxx?url=yyy' it is '/configuration/xxx?yyy'.
-
-*NOTE* A lot of the message pages have been modified, if any of the WWWOFFLE
-       generated HTML pages look different it may be a bug has been introduced.
+*NOTE* This version contains some security related fixes and should be used in
+       preference to earlier versions.
 
 
 Availability
 ------------
 
-Version 2.7g uploaded, but may not be available yet
+Version 2.7h uploaded, but may not be available yet
 
-FTP server: ftp://ftp.ibiblio.org/pub/Linux/apps/www/servers/wwwoffle-2.7g.tgz
-FTP server: ftp://ftp.demon.co.uk/pub/unix/httpd/wwwoffle-2.7g.tgz
+FTP server: ftp://ftp.ibiblio.org/pub/Linux/apps/www/servers/wwwoffle-2.7h.tgz
+FTP server: ftp://ftp.demon.co.uk/pub/unix/httpd/wwwoffle-2.7h.tgz
 
 Web page: http://www.gedanken.demon.co.uk/wwwoffle/
 

@@ -7,15 +7,11 @@ Available WWWOFFLE Variables (all with a '$' prefix).
 
 localhost = The hostname of the server running wwwoffled (='$localhost').
 url       = The URL that the request was for (='$url').
-head1     = The headers of the request (before modification).
-head2     = The headers of the request (after modification).
-anybody   = A flag to indicate if there was a body in the request (='$anybody').
-body      = The body of the request if there was one.
 
 -->
 
 <HEAD>
-<TITLE>WWWOFFLE Request Information</TITLE>
+<TITLE>WWWOFFLE Request Link</TITLE>
 </HEAD>
 
 <BODY>
@@ -30,51 +26,28 @@ body      = The body of the request if there was one.
 
 <!-- Standard WWWOFFLE Message Page Top Banner -->
 
-<H1 align=center>WWWOFFLE Request Information</H1>
+<H1 align=center>WWWOFFLE Request Link</H1>
 
-The URL that you requested <b><tt>$url</tt></b> sent a <tt>Referer</tt>
-header that showed it came from the WWWOFFLE info page.  This page shows you the
-information that your browser was trying to send to the real web server.
-
-<h2>Header</h2>
-
-The request header from the browser contained the following items (this is
-before WWWOFFLE has modified it).
-<p>
-
-<pre>
-%html[head1]
-</pre>
-
-The request header that WWWOFFLE would send to the server would contain the
-following items.
-<p>
-
-<pre>
-%html[head2]
-</pre>
-
-<h2>Body</h2>
-
-$anybody?{
-The request contained a body that had the following information in it (form
-contents or file uploads etc).
-<p>
-
-<pre>
-%html[body]
-</pre>
-}{
-The request did not have any body contents (no form contents or file uploads etc).
-}
+Any requests that you make from this page for URLs that are cached by WWWOFFLE
+will not show the URL that was requested but will show the headers that were
+sent by the browser to WWWOFFLE.
 
 <p align=center>
-[<a href="http://$localhost/info/url?%encode[url]">Back to the Information about this URL</a>]
+<a href="$url"><b><tt>%decode[url]</tt></b></a>
 </p>
 
-<p align=center>
-[<a href="$url">The original URL that you requested</a>]
-</p>
+<h2>Help</h2>
+
+If the browser displays its own cached version of the page you will not see the
+headers sent to WWWOFFLE.  This is because the browser does not make a request
+but is just using the copy of the page that it has already got cached.  There is
+no way to force a browser re-fetch this URL from WWWOFFLE, it is purely the
+browser's decision.
+<p>
+If you have this problem then the only solution is to force the browser to
+reload the URL when this link is followed.  This can be done by forcing the
+browser to clear its cache.
+
 
 <!-- Standard WWWOFFLE Message Page Bottom Buttons -->
 

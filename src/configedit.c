@@ -52,6 +52,7 @@ static ConfigItem *URLConfigItems[]={
  &TimeoutDownloadKeep,
  &RequestCompressedData,
  &KeepCacheIfNotFound,
+ &AlwaysUseETag,
 
  /* OfflineOptions */
 

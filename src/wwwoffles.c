@@ -103,7 +103,7 @@ Mode;
 int wwwoffles(int online,int browser,int client)
 {
  int outgoing=-1,spool=-1,tmpclient=-1,server=-1,is_server=0;
- int fetch_again=0;
+ int exitval=-1,fetch_again=0;
  Header *request_head=NULL,*reply_head=NULL;
  Body *request_body=NULL,*reply_body=NULL;
  int reply_status=-1,head_only=0;
@@ -170,8 +170,7 @@ int wwwoffles(int online,int browser,int client)
        HTMLMessage(client,500,"WWWOFFLE Server Error",NULL,"ServerError",
                    "error","Cannot open temporary file.",
                    NULL);
-       CloseSocket(client);
-       exit(1);
+       exitval=1; goto close_client;
       }
    }
 
@@ -184,7 +183,7 @@ int wwwoffles(int online,int browser,int client)
     if(outgoing==-1)
       {
        PrintMessage(Inform,"No more outgoing requests.");
-       exit(3);
+       exitval=3; goto close_client;
       }
 
     /* init_buffer(outgoing); */
@@ -231,10 +230,9 @@ int wwwoffles(int online,int browser,int client)
                    "error",request_head?"Cannot parse the HTTP request":"The HTTP request was empty",
                    NULL);
        CloseTempSpoolFile(tmpclient);
-       CloseSocket(client);
     }
 
-    exit(1);
+    exitval=1; goto free_request_head_body;
    }
 
  Url=SplitURL(url);
@@ -356,8 +354,8 @@ int wwwoffles(int online,int browser,int client)
 	    SSL_Close();
 	  }
 
-          CloseTempSpoolFile(tmpclient);
-          exit(0);
+          /* CloseTempSpoolFile(tmpclient); */
+          exitval=0; goto clean_up;
          }
       }
     else /* mode==Fetch || mode==Spool */
@@ -367,7 +365,7 @@ int wwwoffles(int online,int browser,int client)
          {
           if(client!=-1)
              write_formatted(client,"Cannot fetch %s [HTTP method 'CONNECT' not supported in this mode]\n",Url->name);
-          exit(1);
+          exitval=1; goto clean_up;
          }
        else
          {
@@ -392,7 +390,7 @@ int wwwoffles(int online,int browser,int client)
       {
        if(client!=-1)
           write_formatted(client,"Cannot fetch %s [The %s method is not supported]\n",Url->name,request_head->method);
-       exit(1);
+       exitval=1; goto clean_up;
       }
     else
       {
@@ -463,7 +461,7 @@ int wwwoffles(int online,int browser,int client)
     if(!replace)
       {
        if(mode==Fetch)
-          exit(0);
+	 {exitval=0; goto clean_up;}
        else
          {
           HTMLMessage(tmpclient,404,"WWWOFFLE Host Not Got",NULL,"HostNotGot",
@@ -494,7 +492,7 @@ int wwwoffles(int online,int browser,int client)
       {
        if(client!=-1)
           write_formatted(client,"Cannot fetch %s [Protocol not available]\n",Url->name);
-       exit(1);
+       exitval=1; goto clean_up;
       }
     else
       {
@@ -516,7 +514,7 @@ int wwwoffles(int online,int browser,int client)
       {
        if(client!=-1)
           write_formatted(client,"Cannot fetch %s [The %s method is not supported for %s]\n",Url->name,request_head->method,Url->Protocol->name);
-       exit(1);
+       exitval=1; goto clean_up;
       }
     else
       {
@@ -553,7 +551,7 @@ int wwwoffles(int online,int browser,int client)
             {
              if(client!=-1)
                 write_formatted(client,"Cannot fetch %s [Error with refresh URL]\n",Url->name);
-             exit(1);
+             exitval=1; goto clean_up;
             }
           else
             {
@@ -578,7 +576,7 @@ int wwwoffles(int online,int browser,int client)
             {
              if(client!=-1)
                 write_formatted(client,"Cannot fetch %s [Reply from a POST/PUT method]\n",Url->name);
-             exit(1);
+             exitval=1; goto clean_up;
             }
           else
             {
@@ -651,7 +649,7 @@ int wwwoffles(int online,int browser,int client)
          {
           if(client!=-1)
              write_formatted(client,"Cannot fetch %s [Error with refresh URL]\n",Url->name);
-          exit(1);
+          exitval=1; goto clean_up;
          }
 
        /* Swap to the new URL if it is different. */
@@ -679,7 +677,7 @@ int wwwoffles(int online,int browser,int client)
        PrintMessage(Inform,"The request to fetch a page from the local host is ignored.");
        if(client!=-1)
           write_formatted(client,"Cannot fetch %s [On local host]\n",Url->name);
-       exit(1);
+       exitval=1; goto clean_up;
       }
 
     /* The index pages. */
@@ -783,7 +781,7 @@ int wwwoffles(int online,int browser,int client)
        if(!replace)
          {
           if(mode==Fetch)
-             exit(0);
+	    {exitval=0; goto clean_up;}
           else
             {
              HTMLMessage(tmpclient,404,"WWWOFFLE Host Not Got",NULL,"HostNotGot",
@@ -814,7 +812,7 @@ int wwwoffles(int online,int browser,int client)
          {
           if(client!=-1)
              write_formatted(client,"Cannot fetch %s [Protocol not available]\n",Url->name);
-          exit(1);
+          exitval=1; goto clean_up;
          }
        else
          {
@@ -836,7 +834,7 @@ int wwwoffles(int online,int browser,int client)
          {
           if(client!=-1)
              write_formatted(client,"Cannot fetch %s [The %s method is not supported for %s]\n",Url->name,request_head->method,Url->Protocol->name);
-          exit(1);
+          exitval=1; goto clean_up;
          }
        else
          {
@@ -855,11 +853,11 @@ int wwwoffles(int online,int browser,int client)
    {
     char *referer=GetHeader(request_head,"Referer");
 
-    if(referer && strstr(referer,"/info/url"))
+    if(referer && strstr(referer,"/info/request"))
       {
        URL *refUrl=SplitURL(referer);
 
-       if(refUrl->local && !strcmp_litbeg(refUrl->path,"/info/url"))
+       if(refUrl->local && !strcmp_litbeg(refUrl->path,"/info/request"))
          {
           InfoPage(tmpclient,Url,request_head,request_body);
           FreeURL(refUrl);
@@ -1048,7 +1046,7 @@ passwordagain:
        PrintMessage(Inform,"The request to fetch a page from the local network host '%s' is ignored.",Url->host);
        if(client!=-1)
           write_formatted(client,"Cannot fetch %s [On local network]\n",Url->name);
-       exit(1);
+       exitval=1; goto clean_up;
       }
 
     /* Do nothing for the refresh modes, they will come through again. */
@@ -1070,7 +1068,7 @@ passwordagain:
        PrintMessage(Inform,"The request to fetch the page '%s' is ignored because it is not to be cached.",Url->name);
        if(client!=-1)
           write_formatted(client,"Cannot fetch %s [caching disallowed]\n",Url->name);
-       exit(1);
+       exitval=1; goto clean_up;
       }
 
     /* Give an error if in a spooling mode */
@@ -1130,7 +1128,7 @@ passwordagain:
        PrintMessage(Inform,"It is not possible to fetch a URL that used the POST/PUT method.");
        if(client!=-1)
           write_formatted(client,"Cannot fetch %s [Reply from a POST/PUT method]\n",Url->name);
-       exit(1);
+       exitval=1; goto clean_up;
       }
 
     /* If they don't already exist then they can't be requested. */
@@ -1205,7 +1203,7 @@ passwordagain:
     PrintMessage(Debug,"Already fetching URL.");
     if(client!=-1)
        write_formatted(client,"Cannot fetch %s [Already fetching]\n",Url->name);
-    exit(fetch_again?4:0);
+    exitval=fetch_again?4:0; goto clean_up;
    }
 
  /* If a forced refresh then change to an appropriate mode. */
@@ -1276,17 +1274,17 @@ passwordagain:
 		if(ParseDocument(spool,Url))
 		  RecurseFetch(Url,0);
 
-		close(spool);
+		/* close(spool); spool=-1; */
 
-		exit(4);
+		exitval=4; goto clean_up;
 	      }
 
 	    /* Otherwise just exit. */
 
 	    else
 	      {
-		close(spool);
-		exit(0);
+		/* close(spool); spool=-1; */
+		exitval=0; goto clean_up;
 	      }
 
 	    close(spool);
@@ -1437,7 +1435,7 @@ passwordagain:
          {
           if(client!=-1)
              write_formatted(client,"Internal Error %s [Cannot open spool file]\n",Url->name);
-          exit(1);
+          exitval=1; goto clean_up;
          }
       }
 
@@ -1533,7 +1531,7 @@ passwordagain:
          {
           if(client!=-1)
              write_formatted(client,"Fetch Failure %s [Server Connection Failed]\n",Url->name);
-          exit(1);
+          exitval=1; goto clean_up;
          }
 
        /* Write the error to the browser. */
@@ -1623,7 +1621,7 @@ passwordagain:
          {
           if(client!=-1)
              write_formatted(client,"Fetch Failure %s [Server Connection Error]\n",Url->name);
-          exit(1);
+          exitval=1; goto clean_up;
          }
 
        /* Write the error to the browser. */
@@ -1727,7 +1725,7 @@ passwordagain:
          {
           if(client!=-1)
              write_formatted(client,"Fetch Failure %s [Server Reply Error]\n",Url->name);
-          exit(1);
+          exitval=1; goto clean_up;
          }
 
        /* Write the error to the browser. */
@@ -1818,13 +1816,15 @@ passwordagain:
              spool=OpenWebpageSpoolFile(1,Url);
              /* init_buffer(spool); */
 
-             if(spool!=-1 && ParseDocument(spool,Url))
-                RecurseFetch(Url,1);
+             if(spool!=-1) {
+	       if(ParseDocument(spool,Url))
+		 RecurseFetch(Url,1);
 
-             close(spool);
+	       /* close(spool); spool=-1; */
+	     }
             }
 
-          exit(fetch_again?4:0);
+          exitval=fetch_again?4:0; goto clean_up;
          }
 
        /* If in Real mode then tell the browser or spool the page to the browser. */
@@ -1889,7 +1889,7 @@ passwordagain:
 	  {
 	    if(client!=-1)
 	      write_formatted(client,"Not fetching %s [Keeping cached version]\n",Url->name);
-	    exit(1);
+	    exitval=1; goto clean_up;
 	  }
 	else /* if(mode==Real) */
 	  mode=RealNoCache;
@@ -1931,14 +1931,9 @@ passwordagain:
        CloseOutgoingSpoolFile(outgoing,Url);
    }
 
-
- /* Create an entry in the last time spool directory (if appropriate). */
-
- if(createlasttimespoolfile) CreateLastTimeSpoolFile(Url);
-
  /* Initialise the body. */
 
- reply_body=CreateBody(READ_BUFFER_SIZE);
+ if(!reply_body) reply_body=CreateBody(READ_BUFFER_SIZE);
 
  /*----------------------------------------
    mode = Spool, SpoolGet, SpoolPragma, SpoolRefresh, Real, RealRefresh, RealNoCache, RealNoPassword, Fetch or FetchNoPassword
@@ -2709,6 +2704,8 @@ passwordagain:
 			   PrintMessage(Debug,"While in mode SpoolInternal the reply head contains redirection to a local page '%s'.",val);
 
 			   FreeHeader(reply_head); reply_head=NULL;
+			   FreeBody(reply_body); reply_body=NULL;
+			   createlasttimespoolfile=0;
 
 			   /* restore original mode */
 			   if(online==1 && browser)       mode=Real;
@@ -2838,11 +2835,6 @@ passwordagain:
    Tidy up and exit.
    ----------------------------------------*/
 
- /* Delete the outgoing spool file if we just got it from the server. */
-
- if(is_server && outgoing_exists)
-    DeleteOutgoingSpoolFile(Url);
-
  /* If we had a connection to a server then close it. */
 
  if(is_server)
@@ -2858,6 +2850,15 @@ passwordagain:
  if(spool>=0)
     close(spool);
 
+  /* Delete the outgoing spool file if we just got it from the server. */
+
+ if(is_server && outgoing_exists)
+    DeleteOutgoingSpoolFile(Url);
+
+ /* Create an entry in the last time spool directory (if appropriate). */
+
+ if(createlasttimespoolfile) CreateLastTimeSpoolFile(Url);
+
  /* If we were searched then reset the cache file time. */
 
  if(is_client_searcher && request_head && spool_exists)
@@ -2865,14 +2866,19 @@ passwordagain:
 
  /* If there is a reply head and body free them. */
 
- if(reply_head)
+ if(reply_head) {
     FreeHeader(reply_head);
- if(reply_body)
+    reply_head=NULL;
+ }
+
+ if(reply_body) {
     FreeBody(reply_body);
+    reply_body=NULL;
+ }
 
  /* If we have fetched a version of a URL without a password then fetch the real one. */
 
- if(mode==RealNoPassword || mode==FetchNoPassword)
+ if(exitval==-1 && (mode==RealNoPassword || mode==FetchNoPassword))
    {
     FreeURL(Url);
     Url=Urlpw;
@@ -2880,9 +2886,7 @@ passwordagain:
 
     spool_exists=spool_exists_pw;
     spool_exists_pw=0;
-
-    reply_head=NULL;
-    reply_body=NULL;
+    createlasttimespoolfile=0;
 
     if(mode==RealNoPassword)
        mode=Real;
@@ -2899,6 +2903,7 @@ passwordagain:
 
  /* If there is a request head and body then free them. */
 
+free_request_head_body:
  if(request_head)
     FreeHeader(request_head);
  if(request_body)
@@ -2906,9 +2911,10 @@ passwordagain:
 
  /* If there is a client then empty the contents and close it down. */
 
+close_client:
  if(client>=0)
    {
-    empty_buffer(client);
+    if(mode!=Fetch) empty_buffer(client);
 #ifdef __CYGWIN__
     CloseCygwinSocket(client);
 #else
@@ -2922,10 +2928,10 @@ passwordagain:
 
  /* If we need to fetch more then tell the parent process. */
 
- if(fetch_again)
-    return(4);
+ if(exitval!=-1)
+   exit(exitval);
  else
-    return(0);
+   return(fetch_again?4:0);
 }
 
 

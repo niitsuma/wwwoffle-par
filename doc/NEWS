@@ -1,3 +1,19 @@
+Version 2.7h of WWWOFFLE released : Sun Jan 12 09:30:00 2003
+------------------------------------------------------------
+
+Bug Fixes:
+ Have more verbose error messages for invalid POST requests.  Fix the way the
+ upgrade-config script handles the no-lasttime-index to create-history-indexes
+ change.  Change the way that the user selects to view request headers on the
+ info pages.  Handle Accept-Language header more robustly.
+
+
+*NOTE* This version contains some security related fixes and should be used in
+       preference to earlier versions.
+
+*NOTE* See also the important notes for version 2.7 listed below.
+
+
 Version 2.7g of WWWOFFLE released : Sat Nov 30 09:30:00 2002
 ------------------------------------------------------------
 

@@ -1,0 +1,91 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that the request was for (='$url').
+head1     = The headers of the request (before modification).
+head2     = The headers of the request (after modification).
+anybody   = A flag to indicate if there was a body in the request (='$anybody').
+body      = The body of the request if there was one.
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE Request Information</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Request Information</H1>
+
+The URL that you requested <b><tt>$url</tt></b> sent a <tt>Referer</tt>
+header that showed it came from the WWWOFFLE info page.  This page shows you the
+information that your browser was trying to send to the real web server.
+
+<h2>Header</h2>
+
+The request header from the browser contained the following items (this is
+before WWWOFFLE has modified it).
+<p>
+
+<pre>
+%html[head1]
+</pre>
+
+The request header that WWWOFFLE would send to the server would contain the
+following items.
+<p>
+
+<pre>
+%html[head2]
+</pre>
+
+<h2>Body</h2>
+
+$anybody?{
+The request contained a body that had the following information in it (form
+contents or file uploads etc).
+<p>
+
+<pre>
+%html[body]
+</pre>
+}{
+The request did not have any body contents (no form contents or file uploads etc).
+}
+
+<p align=center>
+[<a href="http://$localhost/info/url?%encode[url]">Back to the Information about this URL</a>]
+</p>
+
+<p align=center>
+[<a href="$url">%decode[url]</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Welcome Page</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

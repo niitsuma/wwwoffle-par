@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/local.c 1.4 2002/10/26 11:04:04 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/local.c 1.5 2003/01/10 19:23:25 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7h.
   Serve the local web-pages and handle the language selection.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -338,11 +338,21 @@ static char **get_languages(int *ndirs)
        lang_dirs=(char**)malloc(sizeof(char*)*(accept_languages->n));
 
        for(i=0;i<accept_languages->n;++i)
-          if(accept_languages->item[i].qval>0)
-            {
-             lang_dirs[num_lang_dirs++]= x_asprintf("html/%s/",accept_languages->item[i].val);
-            }
+	 {
+	   HeaderListItem *item=&(accept_languages->item[i]);
+	   if(item->qval>0 && isalpha(*(item->val)) && !strchr(item->val,'/'))
+	     {
+	       char *p,*q;
 
+	       lang_dirs[num_lang_dirs++]= p= (char*)malloc(strlen(item->val)+sizeof("html//"));
+	       p= stpcpy(p,"html/");
+	       q= item->val;
+	       while(*q && isalpha(*q))
+		 *p++=tolower(*q++);
+	       *p++='/';
+	       *p=0;
+	     }
+	 }
       }
    }
 

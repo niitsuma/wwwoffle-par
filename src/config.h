@@ -160,6 +160,9 @@ extern /*@null@*/ ConfigItem RequestCompressedData;
     them with an error message from the remote server. +*/
 extern /*@null@*/ ConfigItem KeepCacheIfNotFound;
 
+/*+ The option to always use ETag (if present) in requests to server (If-None-Match:) +*/
+extern /*@null@*/ ConfigItem AlwaysUseETag;
+
 
 /* OfflineOptions section */
 

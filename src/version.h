@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/version.h 1.43 2002/11/30 09:23:53 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/version.h 1.44 2003/01/12 09:11:40 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7h.
   The current version number.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -18,6 +18,6 @@
 
 /* The initials "par" stand for Paul A. Rombouts.
    I've customized large portions of code to suit my own taste. */
-#define WWWOFFLE_VERSION "2.7g-par"
+#define WWWOFFLE_VERSION "2.7h-par"
 
 #endif /* VERSION_H */
