@@ -1,4 +1,4 @@
-                      WWWOFFLE TRANSLATIONS - Version 2.7
+                      WWWOFFLE TRANSLATIONS - Version 2.8
                       ===================================
 
 There are several non-English language options for WWWOFFLE.  These consist of
@@ -33,6 +33,10 @@ that you translate the files is as follows:
 
 To automatically update the html/FAQ.html and html/README.CONF.html files from
 the plain text versions run 'make' in the doc directory.
+
+From version 2.8 I have changed all of the HTML files to use the HTML 4.01
+Transitional DTD (look at one of the English messages DOCTYPE header).  I have
+also been through all of the pages to ensure that they produce valid HTML.
 
 
 German = de
@@ -158,7 +162,7 @@ Antonio Fragola <mrshark@tiscalinet.it>
 Dutch = nl
 ----------
 
-WWWOFFLE Version: 2.7-beta
+WWWOFFLE Version: 2.8a
 
 Paul Slootman <paul@debian.org>
 

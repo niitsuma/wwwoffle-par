@@ -1,8 +1,9 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <HEAD>
-<TITLE>WWWOFFLE Version 2.7 - Proxy Welcome Page</TITLE>
+<TITLE>WWWOFFLE Version 2.8 - Proxy Welcome Page</TITLE>
+<LINK href="/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
 <BODY>
@@ -76,9 +77,18 @@ While Online
   <li>Control which pages are not to be stored in the cache.
       <a href="README.CONF.html#DontCache">[CONF]</a>
       <a href="/configuration/DontCache">[EDIT]</a>
+  <li>Create backups of cached pages when server cannot be contacted.
+      <ul>
+        <li>Option to create backup when server sends back an error page.
+            <a href="README.CONF.html#OnlineOptions_keep-cache-if-not-found">[CONF]</a>
+            <a href="/configuration/OnlineOptions/keep-cache-if-not-found">[EDIT]</a>
+      </ul>
   <li>Requests compressed pages from web servers (compile time option).
       <a href="README.CONF.html#OnlineOptions_request-compressed-data">[CONF]</a>
       <a href="/configuration/OnlineOptions/request-compressed-data">[EDIT]</a>
+  <li>Requests chunked transfer-encoding from web servers.
+      <a href="README.CONF.html#OnlineOptions_request-chunked-data">[CONF]</a>
+      <a href="/configuration/OnlineOptions/request-chunked-data">[EDIT]</a>
 </ul>
 
 While Offline
@@ -181,6 +191,9 @@ Convenience
         <li>Stop animated GIFs.
             <a href="README.CONF.html#ModifyHTML_disable-animated-gif">[CONF]</a>
             <a href="/configuration/ModifyHTML/disable-animated-gif">[EDIT]</a>
+        <li>Remove Cookies in meta tags.
+            <a href="README.CONF.html#ModifyHTML_disable-meta-set-cookie">[CONF]</a>
+            <a href="/configuration/ModifyHTML/disable-meta-set-cookie">[EDIT]</a>
       </ul>
       <li>Provides information about cached pages
       <ul>
@@ -198,8 +211,8 @@ Convenience
       <a href="/local/">[URL]</a>
       <ul>
         <li>Allows CGI scripts
-            <a href="README.CONF.html#Options_allow-cgi">[CONF]</a>
-            <a href="/configuration/Options/allow-cgi">[EDIT]</a>
+            <a href="README.CONF.html#Options_exec-cgi">[CONF]</a>
+            <a href="/configuration/Options/exec-cgi">[EDIT]</a>
       </ul>
   <li>Timeouts to stop proxy lockups
       <a href="README.CONF.html#Options">[CONF]</a>
@@ -244,6 +257,9 @@ Convenience
   <li>Provides compressed pages to web browser (compile time option).
       <a href="README.CONF.html#Options_reply-compressed-data">[CONF]</a>
       <a href="/configuration/Options/reply-compressed-data">[EDIT]</a>
+  <li>Use chunked transfer-encoding to web browser.
+      <a href="README.CONF.html#Options_reply-chunked-data">[CONF]</a>
+      <a href="/configuration/Options/reply-chunked-data">[EDIT]</a>
 </ul>
 
 Indexes
@@ -297,7 +313,7 @@ Security
 Configuration
 <ul>
   <li>All options controlled using a configuration file.
-      <a href="README.CONF.html">[CONF]</a>
+      <a href="README.CONF.html">[URL]</a>
   <li>Interactive web page to allow editing of the configuration file.
       <a href="/configuration/">[EDIT]</a>
   <li>User customisable error and information pages.
@@ -388,20 +404,20 @@ it is possible to search the pages in the WWWOFFLE cache.
 <h2><a name="links">WWWOFFLE Internet Links</a></h2>
 
 The <a href="FAQ.html">WWWOFFLE FAQ</a> is provided with the program and there is also an online version at
-<a href="http://www.gedanken.demon.co.uk/wwwoffle/version-2.7/FAQ.html">http://www.gedanken.demon.co.uk/wwwoffle/version-2.7/FAQ.html</a>
+<a href="http://www.gedanken.demon.co.uk/wwwoffle/version-2.8/FAQ.html">http://www.gedanken.demon.co.uk/wwwoffle/version-2.8/FAQ.html</a>
 <p>
 The WWWOFFLE homepage on the internet is available at
 <a href="http://www.gedanken.demon.co.uk/wwwoffle/">http://www.gedanken.demon.co.uk/wwwoffle/</a>
 and contains the latest information about the program in general.
 <p>
-The latest information about using this version of WWWOFFLE is on the WWWOFFLE Version 2.7 Users Page at
-<a href="http://www.gedanken.demon.co.uk/wwwoffle/version-2.7/user.html">http://www.gedanken.demon.co.uk/wwwoffle/version-2.7/user.html</a>
+The latest information about using this version of WWWOFFLE is on the WWWOFFLE Version 2.8 Users Page at
+<a href="http://www.gedanken.demon.co.uk/wwwoffle/version-2.8/user.html">http://www.gedanken.demon.co.uk/wwwoffle/version-2.8/user.html</a>
 <p>
 A description of the compatibility of WWWOFFLE with various browsers is at
-<a href="http://www.gedanken.demon.co.uk/wwwoffle/version-2.7/browser.html">http://www.gedanken.demon.co.uk/wwwoffle/version-2.7/browser.html</a>
+<a href="http://www.gedanken.demon.co.uk/wwwoffle/version-2.8/browser.html">http://www.gedanken.demon.co.uk/wwwoffle/version-2.8/browser.html</a>
 <p>
 A page containing useful information and advice about how to use WWWOFFLE is at
-<a href="http://www.gedanken.demon.co.uk/wwwoffle/version-2.7/hints-tips.html">http://www.gedanken.demon.co.uk/wwwoffle/version-2.7/hints-tips.html</a>
+<a href="http://www.gedanken.demon.co.uk/wwwoffle/version-2.8/hints-tips.html">http://www.gedanken.demon.co.uk/wwwoffle/version-2.8/hints-tips.html</a>
 
 <h2><a name="mail">WWWOFFLE E-Mail</a></h2>
 
@@ -427,10 +443,9 @@ There are three mailing lists that WWWOFFLE users are invited to join:
       to ask questions.
 </dl>
 
-To join one of these mailing lists send an e-mail to
-<a href="mailto:majordomo@gedanken.demon.co.uk">majordomo@gedanken.demon.co.uk</a>
-with the phrase <tt>subscribe wwwoffle-announce</tt> or <tt>subscribe
-wwwoffle-users</tt> or <tt>subscribe wwwoffle-win32</tt> in the message body.
+To join one of these mailing lists send an e-mail to one of
+wwwoffle-announce-request, wwwoffle-user-request or wwwoffle-win32-request
+@gedanken.demon.co.uk with the subject 'subscribe'.
 
 <hr>
 <p align=center>

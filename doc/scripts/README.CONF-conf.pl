@@ -1,10 +1,9 @@
 #!/usr/bin/perl
-#-*-perl-*-
 
 #
 # Copyright Andrew M. Bishop 1996.97,98,2001.
 #
-# $Header: /home/amb/wwwoffle/doc/scripts/RCS/README.CONF-conf.pl 1.2 2001/09/23 13:27:40 amb Exp $
+# $Header: /home/amb/wwwoffle/doc/scripts/RCS/README.CONF-conf.pl 1.3 2003/06/15 11:08:22 amb Exp $
 #
 # Usage: README.CONF-man.pl wwwoffle.conf.template < README.CONF > wwwoffle.conf
 #
@@ -35,119 +34,119 @@ while(<STDIN>)
   {
    chop;
 
-# Separator
+   # Separator
 
    if ($_ eq "--------------------------------------------------------------------------------")
-       {
-        $hr=1;
-        $intro=0;
-       }
+     {
+      $hr=1;
+      $intro=0;
+     }
 
-# Underlines
+   # Underlines
 
-   elsif(m/^ *[-=]+ *$/)
-       {
-        print "# $_\n" if(m/-+/);
-        next;
-       }
+   elsif (m/^ *[-=]+ *$/)
+     {
+      print "# $_\n" if(m/-+/);
+      next;
+     }
 
-# Section heading
+   # Section heading
 
    elsif ($hr==1 && m/^([-A-Za-z0-9]+)$/)
-       {
-        $section = $1;
+     {
+      $section = $1;
 
-        if(!$intro)
-            {
-             print "\n$prevsection\n" if($prevsection);
+      if (!$intro)
+        {
+         print "\n$prevsection\n" if($prevsection);
 
-             while(<TEMPLATE>)
-                 {
-                  chop;
-                  $inbracket=1 if(m%^{%);
-                  $inbracket=0 if(m%^}%);
-                  next if(!$inbracket && m%^$%);
-                  last if(m%^($section)$%);
-                  print "$_\n";
-                 }
-             $prevsection=$section;
-            }
+         while (<TEMPLATE>)
+           {
+            chop;
+            $inbracket=1 if(m%^{%);
+            $inbracket=0 if(m%^}%);
+            next if(!$inbracket && m%^$%);
+            last if(m%^($section)$%);
+            print "$_\n";
+           }
+         $prevsection=$section;
+        }
 
-        if($section eq "WILDCARD")
-            {
-             $appendix=1;
-             $prevsection="";
-            }
+      if ($section eq "WILDCARD")
+        {
+         $appendix=1;
+         $prevsection="";
+        }
 
-        $intro=1 if($intro==-1);
+      $intro=1 if($intro==-1);
 
-        print "\n\n#\n# $section\n";
+      print "\n\n#\n# $section\n";
 
-        $hr=0;
-        $blank=0;
-        $first=1;
-       }
+      $hr=0;
+      $blank=0;
+      $first=1;
+     }
 
-# Item
+   # Item
 
    elsif (!$intro && !$appendix && m/^(\[?<URL-SPEC>\]? *)?(.?[-()a-z0-9]+)( *= *.+)?$/)
-       {
-        print "# $_\n";
+     {
+      print "# $_\n";
 
-        $blank=0;
-        $first=1;
-       }
+      $blank=0;
+      $first=1;
+     }
 
-# Item
+   # Item
 
-   elsif(!$intro && !$appendix && (m/^(\[!\])?URL-SPECIFICATION/ || m/^\(/))
-       {
-        print "# $_\n";
+   elsif (!$intro && !$appendix && (m/^(\[!\])?URL-SPECIFICATION/ || m/^\(/))
+     {
+      print "# $_\n";
 
-        $blank=0;
-        $first=1;
-       }
+      $blank=0;
+      $first=1;
+     }
 
-# Blank
+   # Blank
 
    elsif (m/^$/)
-       {
-        print "#\n" if(!$blank);
-        $blank=1 if(!$first);
-        $dl=0;
-       }
+     {
+      print "#\n" if(!$blank);
+      $blank=1 if(!$first);
+      $dl=0;
+     }
 
-# Text list
+   # Text list
 
-   elsif($appendix && m%^([-a-zA-Z0-9():?*/.]+)   +(.+)%)
-       {
-        $thing=$1;
-        $descrip=$2;
+   elsif ($appendix && m%^([-a-zA-Z0-9():?*/.]+)   +(.+)%)
+     {
+      $thing=$1;
+      $descrip=$2;
 
-        print "# $thing\n#         $descrip\n";
+      print "# $thing\n#         $descrip\n";
 
-        $blank=0;
-        $first=0;
-        $dl=1;
-       }
+      $blank=0;
+      $first=0;
+      $dl=1;
+     }
 
-# Text
+   # Text
 
    else
-       {
-        if($dl)
-            {
-             s/^ *//;
-             print "#         $_\n";
-            }
-        else
-            {
-             print "# $_\n";
-            }
+     {
+      if ($dl)
+        {
+         s/^ *//;
+         print "#         $_\n";
+        }
+      else
+        {
+         print "# $_\n";
+        }
 
-        $blank=0;
-        $first=0;
-       }
+      $blank=0;
+      $first=0;
+     }
   }
 
 print "#\n";

@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/misc.h 2.39 2002/08/04 08:38:03 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/misc.h 2.44 2004/01/17 16:22:18 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Miscellaneous HTTP / HTML functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -18,11 +18,13 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <alloca.h>
 #include <string.h>
 #include <ctype.h>
 
 /*+ A forward definition of the protocol type. +*/
 typedef struct _Protocol *ProtocolP;
+
 
 /*+ A URL data type. +*/
 typedef struct _URL
@@ -78,7 +80,7 @@ typedef struct _HeaderList HeaderList;
 
 URL /*@only@*/ /*@unique@*/ *SplitURL(const char *url);
 void AddURLPassword(URL *Url,char *user,/*@null@*/ char *pass);
-void FreeURL(/*@only@*/ URL *Url);
+void FreeURL(/*@special@*/ URL *Url) /*@releases Url@*/;
 
 char *LinkURL(URL *Url,char *link);
 
@@ -138,6 +140,8 @@ char /*@only@*/ *URLEncodePassword(const char *str);
 
 char /*@only@*/ **SplitFormArgs(char *str);
 
+char *TrimArgs(/*@returned@*/ char *str);
+
 char /*@only@*/ *MakeHash(const char *args);
 
 /* Added by Paul Rombouts:
@@ -158,48 +162,11 @@ void DurationToString_r(const long duration,char *buf);
 char /*@only@*/ *Base64Decode(const char *str,/*@out@*/ int *l);
 char /*@only@*/ *Base64Encode(const char *str,int l);
 
+void URLReplaceAmp(char *string);
+
 char /*@only@*/ *HTMLString(const char* c,int nbsp);
 char /*@only@*/ *HTML_url(char *url);
 
-
-
-/* In io.c */
-
-/*+ The buffer size for reading lines. +*/
-#define BUFSIZE 256
-
-void set_read_timeout(int timeout);
-
-char /*@null@*/ /*@only@*/ *fgets_realloc(/*@out@*/ /*@returned@*/ /*@null@*/ /*@only@*/ char *buffer,FILE *file);
-
-void init_buffer(int fd);
-
-int /*@alt void@*/ empty_buffer(int fd);
-
-int read_data(int fd,/*@out@*/ char *buffer,int n);
-int read_data_or_timeout(int fd,/*@out@*/ char *buffer,int n);
-
-char /*@null@*/ *read_line(int fd,/*@out@*/ /*@returned@*/ /*@null@*/ char *line);
-char /*@null@*/ *read_line_or_timeout(int fd,/*@out@*/ /*@returned@*/ /*@null@*/ char *line);
-
-int /*@alt void@*/ write_data(int fd,const char *data,int n);
-
-int /*@alt void@*/ write_string(int fd,const char *str);
-
-#ifdef __GNUC__
-int /*@alt void@*/ write_formatted(int fd,const char *fmt,...) /*@printflike@*/ __attribute__ ((format (printf,2,3)));
-#else
-int /*@alt void@*/ write_formatted(int fd,const char *fmt,...) /*@printflike@*/;
-#endif
-
-#if USE_ZLIB
-int init_zlib_buffer(int fd,int direction);
-int finish_zlib_buffer(int fd);
-#endif
-
-int write_all(int fd,const char *data,int n);  /* placed here by Paul Rombouts */
-
-off_t buffered_seek_cur(int fd);  /* added by Paul Rombouts */
 
 
 
@@ -261,9 +228,6 @@ inline static void chomp_str(char *str)
 #define x_asprintf(...)  \
  ({ char *_result; (asprintf(&_result, __VA_ARGS__) >= 0) ? _result : NULL; })
   
-#define sprintf_strdupa(format,str)  \
- ({ char *_str=(str); char *_result= (char *)alloca((sizeof(format)-2)+strlen(_str)); sprintf(_result,(format),_str); _result; })
-
 #define STRDUP2(p,q)  strndup(p, (q)-(p))
 #define STRDUPA2(p,q)  strndupa(p, (q)-(p))
 

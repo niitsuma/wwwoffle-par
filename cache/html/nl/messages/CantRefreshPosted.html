@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <!--
@@ -6,6 +6,7 @@
 Available WWWOFFLE Variables (all with a '$' prefix).
 
 localhost = The hostname of the server running wwwoffled (='$localhost').
+version   = The version of the WWWOFFLE server (='$version').
 url       = The URL that was asked for (='$url').
 
 $decurl=%decode[url]
@@ -14,48 +15,57 @@ $decurl=%decode[url]
 
 <HEAD>
 <TITLE>WWWOFFLE - Refresh van POST/PUT method onmogelijk</TITLE>
+<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
-<BODY>
+<BODY class="wwwoffle-message">
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<!-- Standard WWWOFFLE Message Page Header Start -->
 
-<p align=center>
-<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
-</p>
+<div class="wwwoffle-header" align="center">
+<b>WWWOFFLE</b> <b>-</b> <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer <b>-</b> <b>v$version</b>
+</div>
+<hr class="wwwoffle-header">
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Header End -->
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<H1 align="center">WWWOFFLE Refresh (verversen) van POST/PUT method onmogelijk</H1>
 
-<H1 align=center>WWWOFFLE Refresh (verversen) van POST/PUT method onmogelijk</H1>
-
-<p align=center>
+<div class="wwwoffle-message" align="center">
 Uw aanvraag om URL
-<br>
+<p class="wwwoffle-url">
 <b><tt>$decurl</tt></b>
-<br>
+</p>
 te verversen is mislukt omdat het niet mogelijk is om paginas te verversen
 die resulteren uit de POST of PUT methods.
+</div>
 
-<h2>Help</h2>
+<!-- Standard WWWOFFLE Message Page Inline Help Start -->
 
+<h2 class="wwwoffle-inline-help">Help</h2>
+
+<div class="wwwoffle-inline-help">
 De informatie die nodig is voor het verversen van deze pagina is niet
 meer beschikbaar. De browser heeft informatie (afkomstig van een formulier
 of een web pagina die geupload is) gestuurd aan de server, en zulke informatie
 wordt niet opgeslagen door WWWOFFLE. Het enige manier om deze pagina te
 verversen is om de originele formulier te vinden en de gegevens opnieuw in
 te vullen, of door de pagina opnieuw te uploaden.
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Inline Help End -->
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
-<p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Welkomst Pagina</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
-</p>
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
+WWWOFFLE - [ \
+<a href="http://$localhost/Welcome.html" title="Een introductie tot WWWOFFLE">Welkomst Pagina</a>| \
+<a href="http://$localhost/FAQ.html" title="Frequent Aangekaarte Questies over WWWOFFLE">FAQ</a> \
+] - WWWOFFLE
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

@@ -3,8 +3,12 @@
 
 </dl>
 
-<hr width="50%">
+$anyerrors?{
+<!-- Standard WWWOFFLE Message Page Inline Help Start -->
 
+<h2 class="wwwoffle-inline-help">Help</h2>
+
+<div class="wwwoffle-inline-help">
 Sollten eine oder mehrere der angefragten Sieten nicht gel&ouml;scht werden 
 k&ouml;nnen, liegt es daran, da&szlig; sie durch ein Passwort gesch&uuml;tzt wurden.
 Das Formular unten erlaubt, die Anfrage unter Angabe eines Usernamens und
@@ -15,40 +19,39 @@ Username: <input type="text" name="username">
 <br>
 Passwort: <input type="password" name="password">
 <p>
-<input type="submit" value="Delete with Username/Password">
+<input type="submit" value="L&ouml;schen mit Username/Passwort">
+
+</div>
+
+<!-- Standard WWWOFFLE Message Page Inline Help End -->
+}{}
 </form>
 
-<!--
+<div class="wwwoffle-nav" align="center">
+$url?{[<a href="http://$localhost/index/?sort=alpha">Index</a>]}{}
+$mon?{[<a href="http://$localhost/index/monitor/?sort=alpha">Index</a>]}{}
+$req?{[<a href="http://$localhost/index/outgoing/?sort=alpha">Index</a>]}{}
+</div>
 
-Useful WWWOFFLE Buttons
-
-$url?{$index = http://$localhost/index/?sort=alpha}{}
-$mon?{$index = http://$localhost/index/monitor/?sort=alpha}{}
-$req?{$index = http://$localhost/index/outgoing/?sort=alpha}{}
-
--->
-
-<p align=center>
-[<a href="$index">Index</a>]
-</p>
-
-<script language="JAVASCRIPT">
+<script type="text/javascript">
 <!--//
-document.write("<p align=center>");
-document.write("[<a href='javascript:history.go(-2)'>Go back two pages<\/a>]");
-document.write("<\/p>");
+document.write("<div class='wwwoffle-nav' align='center'>");
+document.write("[<a href='javascript:history.go(-2)'>Zwei Seiten zur&uuml;ck<\/a>]");
+document.write("<\/div>");
 //-->
 </script>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
-<hr>
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
+WWWOFFLE - [ \
+<a href="http://$localhost/Welcome.html">Willkommensseite</a>| \
+<a href="http://$localhost/FAQ.html">FAQ</a> \
+] - WWWOFFLE
+</div>
 
-<p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Willkommensseite</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
-</p>
-
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <!--
@@ -6,32 +6,27 @@
 Available WWWOFFLE Variables (all with a '$' prefix).
 
 localhost = The hostname of the server running wwwoffled (='$localhost').
-
-
-WWWOFFLE Control page Prefix
-
-$control=http://$localhost/control
-$configuration=http://$localhost/configuration
+version   = The version of the WWWOFFLE server (='$version').
 
 -->
 
 <HEAD>
 <TITLE>WWWOFFLE - Pagina Interattiva delle Impostazioni</TITLE>
+<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
-<BODY>
+<BODY class="wwwoffle-message">
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<!-- Standard WWWOFFLE Message Page Header Start -->
 
-<p align=center>
-<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
-</p>
+<div class="wwwoffle-header" align="center">
+<b>WWWOFFLE</b> <b>-</b> <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer <b>-</b> <b>v$version</b>
+</div>
+<hr class="wwwoffle-header">
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Header End -->
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
-
-<H1 align=center>WWWOFFLE Pagina Interattiva delle Impostazioni</H1>
+<H1 align="center">WWWOFFLE Pagina Interattiva delle Impostazioni</H1>
 
 Il programma demone <tt>wwwoffled</tt> pu&ograve; essere controllato da questa pagina.
 
@@ -40,38 +35,38 @@ Il programma demone <tt>wwwoffled</tt> pu&ograve; essere controllato da questa p
 Tutte le impostazioni disponibili per il programma <tt>wwwoffle</tt> sono in questa pagina.
 
 <p>
-<form action="$control/online" method=post>
+<form action="http://$localhost/control/online" method=post>
 <input type="hidden" name=action value="online">
 <input type="submit" value="Online"> Metti il programma <tt>wwwoffled</tt> online.
 </form>
 
 <p>
-<form action="$control/autodial" method=post>
+<form action="http://$localhost/control/autodial" method=post>
 <input type="hidden" name=action value="autodial">
 <input type="submit" value="Autodial"> Metti il programma <tt>wwwoffled</tt> in modo collegamento-automatico.
 </form>
 
 <p>
-<form action="$control/offline" method=post>
+<form action="http://$localhost/control/offline" method=post>
 <input type="hidden" name=action value="offline">
 <input type="submit" value="Offline"> Metti il programma <tt>wwwoffled</tt> offline.
 </form>
 
 <p>
-<form action="$control/fetch" method=post>
+<form action="http://$localhost/control/fetch" method=post>
 <input type="hidden" name=action value="fetch">
 <input type="submit" value="Fetch"> Scarica le pagine sono state richieste a <tt>wwwoffled</tt> quando si
 era offline.
 </form>
 
 <p>
-<form action="$control/purge" method=post>
+<form action="http://$localhost/control/purge" method=post>
 <input type="hidden" name=action value="purge">
 <input type="submit" value="Purge"> Forza lo svuotamento della cache di <tt>wwwoffled</tt>.
 </form>
 
 <p>
-<form action="$control/status" method=post>
+<form action="http://$localhost/control/status" method=post>
 <input type="hidden" name=action value="status">
 <input type="submit" value="Status"> Get the status of the <tt>wwwoffled</tt> server.
 </form>
@@ -81,27 +76,29 @@ era offline.
 Il file di configurazione <tt>wwwoffle.conf</tt> pu&ograve; essere modificato dalla pagina seguente.
 
 <p>
-<a href="$control/edit/">Traditional</a>: One web page with all sections
+<a href="http://$localhost/control/edit/">Traditional</a>: One web page with all sections
 individually editable.
 <br>
-<a href="$configuration/">Modern</a>: Easy to use with lists of sections, items
+<a href="http://$localhost/configuration/">Modern</a>: Easy to use with lists of sections, items
 in each section and editing of individual entries for each item.
 <p>
 
-<form action="$control/config" method=post>
+<form action="http://$localhost/control/config" method=post>
 <input type="hidden" name=action value="config">
 <input type="submit" value="Config"> Forza <tt>wwwoffled</tt> a rileggere il file di configurazione.
 </form>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
-<hr>
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
+WWWOFFLE - [ \
+<a href="http://$localhost/Welcome.html">Pagina di Benvenuto</a>| \
+<a href="http://$localhost/FAQ.html">FAQ</a> \
+] - WWWOFFLE
+</div>
 
-<p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Pagina di Benvenuto</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
-</p>
-
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

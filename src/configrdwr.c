@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configrdwr.c 1.51 2002/11/03 09:35:59 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configrdwr.c 1.62 2004/05/21 08:51:38 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
   Configuration file reading and writing functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -20,30 +20,49 @@
 #include <string.h>
 #include <ctype.h>
 
+#if TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# if HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+
 #include <limits.h>
-#include <unistd.h>
 #include <sys/types.h>
+#include <unistd.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 #include <pwd.h>
 #include <grp.h>
 #include <errno.h>
 
+#include "io.h"
 #include "misc.h"
-#include "configpriv.h"
-#include "wwwoffle.h"
 #include "errors.h"
+#include "configpriv.h"
+#include "config.h"
 
+
+/*+ Need this for Win32 to use binary mode +*/
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
 #endif
+
 
 /* Local functions */
 
 static char *new_filename_or_symlink_target(char *name);
 
 static /*@null@*/ char *InitParser(void);
-static /*@null@*/ char *ParseLine(/*@out@*/ /*@null@*/ char **line);
+static /*@null@*/ char *ParseLine(/*@out@*/ char **line);
 static /*@null@*/ char *ParseItem(char *line,/*@out@*/ char **url_str,/*@out@*/ char **key_str,/*@out@*/ char **val_str);
 static /*@null@*/ char *ParseEntry(ConfigItemDef *itemdef,/*@out@*/ ConfigItem *item,/*@null@*/ char *url_str,char *key_str,/*@null@*/ char *val_str);
 
@@ -54,31 +73,31 @@ inline static int is_host_delimiter(char c)
   return(c==0 || c==':' || c=='/' || c==';' || c=='?');
 }
 
-/* The state of the parser */
+/*+ The state of the parser +*/
 
 typedef enum _ParserState
 {
- OutsideSection,
+ OutsideSection,                /*+ Outside of a section, (a comment or blank). +*/
 
- StartSection,
- StartSectionCurly,
- StartSectionSquare,
- StartSectionIncluded,
+ StartSection,                  /*+ After seeing the sectio nname before deciding the type. +*/
+ StartSectionCurly,             /*+ After seeing the curly bracket '{'. +*/
+ StartSectionSquare,            /*+ After seeing the square bracket '['. +*/
+ StartSectionIncluded,          /*+ After opening the included file. +*/
 
- InsideSectionCurly,
- InsideSectionSquare,
- InsideSectionIncluded,
+ InsideSectionCurly,            /*+ Parsing within a normal section delimited by '{' & '}'. +*/
+ InsideSectionSquare,           /*+ Looking for the included filename within a section delimited by '[' & ']'. +*/
+ InsideSectionIncluded,         /*+ Parsing within an included file. +*/
 
- Finished
+ Finished                       /*+ At end of file. +*/
 }
 ParserState;
 
 static char *parse_name;        /*+ The name of the configuration file. +*/
-static FILE *parse_file;        /*+ The file handle of the configuration file. +*/
+static int parse_file;          /*+ The file descriptor of the configuration file. +*/
 static int parse_line;          /*+ The line number in the configuration file. +*/
 
 static char *parse_name_org;    /*+ The name of the original configuration file when parsing an included one. +*/
-static FILE *parse_file_org;    /*+ The file handle of the original configuration file when parsing an included one. +*/
+static int parse_file_org;      /*+ The file descriptor of the original configuration file when parsing an included one. +*/
 static int parse_line_org;      /*+ The line number in the original configuration file when parsing an included one. +*/
 
 static int parse_section;       /*+ The current section of the configuration file. +*/
@@ -130,10 +149,16 @@ char *ReadConfigFile(void)
    if(line) free(line);
  }
 
- if(parse_file)
-    fclose(parse_file);
- if(parse_file_org)
-    fclose(parse_file_org);
+ if(parse_file!=-1)
+   {
+    finish_io(parse_file);
+    close(parse_file);
+   }
+ if(parse_file_org!=-1)
+   {
+    finish_io(parse_file_org);
+    close(parse_file_org);
+   }
 
  if(errmsg)
    {
@@ -151,13 +176,46 @@ char *ReadConfigFile(void)
  else
     PurgeBackupConfigFile(!first_time);
 
-#if CONFIG_DEBUG_DUMP
- DumpConfigFile();
-#endif
-
  first_time=0;
 
  return(errmsg);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Dump the contents of the configuration file
+
+  int fd The file descriptor to write to.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+void DumpConfigFile(int fd)
+{
+ int s,i,e;
+
+ write_string(fd,"# WWWOFFLE CURRENT CONFIGURATION\n");
+
+ for(s=0;s<CurrentConfig.nsections;s++)
+   {
+    write_formatted(fd,"\n%s\n{\n",CurrentConfig.sections[s]->name);
+
+    for(i=0;i<CurrentConfig.sections[s]->nitemdefs;i++)
+      {
+       if(*CurrentConfig.sections[s]->itemdefs[i].name)
+          write_formatted(fd,"# Item %s\n",CurrentConfig.sections[s]->itemdefs[i].name);
+       else
+          write_string(fd,"# Item [default]\n");
+
+       if(*CurrentConfig.sections[s]->itemdefs[i].item)
+          for(e=0;e<(*CurrentConfig.sections[s]->itemdefs[i].item)->nentries;e++)
+            {
+             char *string=ConfigEntryString(*CurrentConfig.sections[s]->itemdefs[i].item,e);
+             write_formatted(fd,"    %s\n",string);
+             free(string);
+            }
+      }
+
+    write_string(fd,"}\n");
+   }
 }
 
 
@@ -183,7 +241,7 @@ char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char 
 {
  char *errmsg=NULL;
  char **names=(char**)calloc((1+CurrentConfig.nsections),sizeof(char*));
- FILE *file=NULL,*file_org=NULL;
+ int file=-1,file_org=-1;
  ConfigItem dummy=NULL;
  int matched=0;
  int s;
@@ -196,11 +254,14 @@ char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char 
    {
     names[0]=new_filename_or_symlink_target(parse_name);
 
-    file=fopen(names[0],"w");
-    if(!file)
+    file=open(names[0],O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,0600);
+
+    if(file==-1)
       {
        errmsg=x_asprintf("Cannot open the configuration file '%s' for writing [%s].",names[0],strerror(errno));
       }
+    else
+       init_io(file);
    }
 
  /* Parse the file */
@@ -232,7 +293,7 @@ char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char 
                                    url_str,key_str,val_str)))
                 break;
 
-             fprintf(file,"\n# WWWOFFLE Configuration Edit Inserted: %s\n %s\n\n",RFC822Date(time(NULL),0),newentry);
+             write_formatted(file,"\n# WWWOFFLE Configuration Edit Inserted: %s\n %s\n\n",RFC822Date(time(NULL),0),newentry);
 
              matched=1;
             }
@@ -268,8 +329,8 @@ char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char 
 					  url_str,key_str,val_str)))
 		      break;
 
-		    fprintf(file,"\n# WWWOFFLE Configuration Edit Inserted: %s\n %s\n\n",RFC822Date(time(NULL),0),newentry);
-		    fprintf(file,"%s",line);
+		    write_formatted(file,"\n# WWWOFFLE Configuration Edit Inserted: %s\n %s\n\n",RFC822Date(time(NULL),0),newentry);
+		    write_string(file,line);
 
 		    matched=1;
 		  }
@@ -288,8 +349,8 @@ char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char 
 					  url_str,key_str,val_str)))
 		      break;
 
-		    fprintf(file,"%s",line);
-		    fprintf(file,"\n# WWWOFFLE Configuration Edit Inserted: %s\n %s\n\n",RFC822Date(time(NULL),0),newentry);
+		    write_string(file,line);
+		    write_formatted(file,"\n# WWWOFFLE Configuration Edit Inserted: %s\n %s\n\n",RFC822Date(time(NULL),0),newentry);
 
 		    matched=1;
 		  }
@@ -298,7 +359,7 @@ char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char 
 
 		else if(!newentry && sameentry && !strcmp(thisentry,sameentry))
 		  {
-		    fprintf(file,"\n# WWWOFFLE Configuration Edit Deleted: %s\n#%s",RFC822Date(time(NULL),0),line);
+		    write_formatted(file,"\n# WWWOFFLE Configuration Edit Deleted: %s\n#%s",RFC822Date(time(NULL),0),line);
 
 		    matched=1;
 		  }
@@ -324,40 +385,44 @@ char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char 
 					  url_str,key_str,val_str)))
 		      break;
 
-		    fprintf(file,"# WWWOFFLE Configuration Edit Changed: %s\n#%s",RFC822Date(time(NULL),0),line);
-		    fprintf(file," %s\n",newentry);
+		    write_formatted(file,"# WWWOFFLE Configuration Edit Changed: %s\n#%s",RFC822Date(time(NULL),0),line);
+		    write_formatted(file," %s\n",newentry);
 
 		    matched=1;
 		  }
 		else
-		  fprintf(file,"%s",line);
+		  write_string(file,line);
 
 		free(thisentry);
 	      }
 	    else
-	      fprintf(file,"%s",line);
+	      write_string(file,line);
 	  }
          }
        else if(line)
-          fprintf(file,"%s",line);
+          write_string(file,line);
 
-       if(parse_state==StartSectionIncluded && !file_org)
+       if(parse_state==StartSectionIncluded && file_org==-1)
          {
           names[parse_section+1]=new_filename_or_symlink_target(parse_name);
 
           file_org=file;
-          file=fopen(names[parse_section+1],"w");
-          if(!file)
+          file=open(names[parse_section+1],O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,0600);
+
+          if(file==-1)
             {
              errmsg=x_asprintf("Cannot open the included file '%s' for writing [%s].",names[parse_section+1],strerror(errno));
              break;
             }
+
+          init_io(file);
          }
-       else if(parse_state==StartSectionSquare && file_org)
+       else if(parse_state==StartSectionSquare && file_org!=-1)
          {
-          fclose(file);
+          finish_io(file);
+          close(file);
           file=file_org;
-          file_org=NULL;
+          file_org=-1;
          }
       }
     while(parse_state!=Finished);
@@ -365,10 +430,26 @@ char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char 
     if(line) free(line);
  }
 
- if(file) fclose(file);
- if(file_org) fclose(file_org);
- if(parse_file) fclose(parse_file);
- if(parse_file_org) fclose(parse_file_org);
+ if(file!=-1)
+   {
+    finish_io(file);
+    close(file);
+   }
+ if(file_org!=-1)
+   {
+    finish_io(file_org);
+    close(file_org);
+   }
+ if(parse_file!=-1)
+   {
+    finish_io(parse_file);
+    close(parse_file);
+   }
+ if(parse_file_org!=-1)
+   {
+    finish_io(parse_file_org);
+    close(parse_file_org);
+   }
  if(parse_state==StartSectionIncluded || parse_state==InsideSectionIncluded) {
    free(parse_name);
  }
@@ -385,11 +466,18 @@ char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char 
       {
        if(!errmsg)
          {
+          struct stat buf;
 	  int name_len=strlen(names[s])-strlitlen(".new");
           char name[name_len+1], name_bak[name_len+sizeof(".bak")];
 
           *((char *)mempcpy(name,names[s],name_len))=0;
           mempcpy(mempcpy(name_bak,names[s],name_len),".bak",sizeof(".bak"));
+
+          if(!stat(name,&buf))
+            {
+             chown(names[s],buf.st_uid,buf.st_gid);
+             chmod(names[s],buf.st_mode&(~S_IFMT));
+            }
 
           if(rename(name,name_bak)<0) {
 	    errmsg=x_asprintf("Can't rename '%s' as '%s' [%s].",name,name_bak,strerror(errno));
@@ -446,21 +534,23 @@ static char *InitParser(void)
  char *errmsg=NULL;
 
  parse_name=CurrentConfig.name;
- parse_file=fopen(parse_name,"r");
+ parse_file=open(parse_name,O_RDONLY|O_BINARY);
  parse_line=0;
 
  parse_name_org=NULL;
- parse_file_org=NULL;
+ parse_file_org=-1;
  parse_line_org=0;
 
  parse_section=-1;
  parse_item=-1;
  parse_state=OutsideSection;
 
- if(!parse_file)
+ if(parse_file==-1)
    {
     errmsg=x_asprintf("Cannot open the configuration file '%s' for reading [%s].",parse_name,strerror(errno));
    }
+ else
+   init_io(parse_file);
 
  return(errmsg);
 }
@@ -480,7 +570,7 @@ static char *ParseLine(char **line)
 
  /* Read from the line and make a copy */
 
- *line=fgets_realloc(*line,parse_file);
+ *line=read_line(parse_file,*line);
 
  ++parse_line;
 
@@ -496,11 +586,12 @@ static char *ParseLine(char **line)
       }
     else if(parse_state==StartSectionIncluded || parse_state==InsideSectionIncluded)
       {
-       fclose(parse_file);
+       finish_io(parse_file);
+       close(parse_file);
        free(parse_name);
 
        parse_file=parse_file_org;
-       parse_file_org=NULL;
+       parse_file_org=-1;
 
        parse_name=parse_name_org;
        parse_name_org=NULL;
@@ -609,7 +700,7 @@ static char *ParseLine(char **line)
 	 }
        else if(*l!=0 && *l!='#')
          {
-	  char *parse_name_new; FILE *parse_file_new;
+	  char *parse_name_new; int parse_file_new;
 
 	  if(*l=='/') parse_name_new=STRDUP2(l,r);
 	  else {
@@ -620,15 +711,17 @@ static char *ParseLine(char **line)
 	    *((char *)mempcpy(mempcpy(parse_name_new,CurrentConfig.name,pathlen),l,r-l))=0;
 	  }
 
-          parse_file_new=fopen(parse_name_new,"r");
+          parse_file_new=open(parse_name_new,O_RDONLY|O_BINARY);
 
-          if(!parse_file_new)
+          if(parse_file_new==-1)
             {
              errmsg=x_asprintf("Cannot open included file '%s' for reading [%s].",parse_name_new,strerror(errno));
 	     free(parse_name_new);
             }
           else
 	    {
+	      init_io(parse_file_new);
+
 	      parse_name_org=parse_name;
 	      parse_file_org=parse_file;
 	      parse_line_org=parse_line;
@@ -670,6 +763,8 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
  *url_str=NULL;
  *key_str=NULL;
  *val_str=NULL;
+
+ parse_item=-1;
 
  if(parse_state==InsideSectionCurly || parse_state==InsideSectionIncluded)
    {
@@ -1173,7 +1268,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
     else if(!isanumber(text) || *text!='0')
       {errmsg=x_asprintf("Expecting a file permissions mode, got '%s'.",text);}
     else
-       sscanf(text,"%o",&pointer->integer);
+       sscanf(text,"%o",(unsigned *)&pointer->integer);
     break;
 
    case MIMEType:

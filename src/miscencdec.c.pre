@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/miscencdec.c 1.5 2002/04/13 14:45:24 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/miscencdec.c 1.9 2004/01/11 10:28:20 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Miscellaneous HTTP / HTML Encoding & Decoding functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -19,9 +19,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-
-#include <sys/types.h>
-#include <unistd.h>
 
 #if TIME_WITH_SYS_TIME
 # include <sys/time.h>
@@ -439,6 +436,41 @@ char **SplitFormArgs(char *str)
 
 
 /*++++++++++++++++++++++++++++++++++++++
+  Trim any leading or trailing whitespace from an argument string
+
+  char *TrimArgs The string to modify
+
+  char *str The modified string (modifications made in-place).
+  ++++++++++++++++++++++++++++++++++++++*/
+
+char *TrimArgs(char *str)
+{
+ char *l=str,*r;
+
+ if(isspace(*l))
+   {
+    l++;
+
+    while(isspace(*l))
+       l++;
+
+    r=str;
+    while(*l)
+       *r++=*l++;
+
+    *r=0;
+   }
+ else
+    r=strchrnul(str,0);
+
+ while(--r>=str && isspace(*r))
+   *r=0;
+
+ return(str);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
   Generate a hash value for a string.
 
   char *MakeHash Returns a string that can be used as the hashed string.
@@ -475,8 +507,10 @@ char *MakeHash(const char *args)
 }
 
 
-/*+ Conversion from time_t to date string and back +*/
+/*+ Conversion from time_t to date string and back (day of week). +*/
 static const char *weekdays[7]={"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+
+/*+ Conversion from time_t to date string and back (month of year). +*/
 static const char *months[12]={"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
 
 
@@ -749,6 +783,56 @@ char *Base64Encode(const char *str,int l)
  encoded[j]=0;
 
  return(encoded);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Replace all occurences of '&amp;' with '&' by modifying the string in place.
+
+  char *string The string to be modified.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+void URLReplaceAmp(char *string)
+{
+ char *q,*p=string;
+
+ while(*p)
+   {
+    if(*p=='&' &&
+       (*(p+1)=='a' || *(p+1)=='A') &&
+       (*(p+2)=='m' || *(p+2)=='M') &&
+       (*(p+3)=='p' || *(p+3)=='P') &&
+       *(p+4)==';')
+      {
+       q=++p;
+       p+=4;
+       goto shift;
+      }
+
+    ++p;
+   }
+
+ return;
+
+shift:
+ while(*p)
+   {
+    if(*p=='&' &&
+       (*(p+1)=='a' || *(p+1)=='A') &&
+       (*(p+2)=='m' || *(p+2)=='M') &&
+       (*(p+3)=='p' || *(p+3)=='P') &&
+       *(p+4)==';')
+      {
+       *q++=*p++;
+       p+=4;
+      }
+    else
+      {
+       *q++=*p++;
+      }
+   }
+
+ *q=0;
 }
 
 

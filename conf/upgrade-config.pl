@@ -1,12 +1,12 @@
 #!/bin/sh
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
 #
-# A Perl script to update the configuration file to version 2.7[abcdefg] standard (from version 2.6).
+# A Perl script to update the configuration file to version 2.8 standard (from version 2.7).
 #
 # Written by Andrew M. Bishop
 #
-# This file Copyright 2000,01,02 Andrew M. Bishop
+# This file Copyright 2000,01,02,03,04 Andrew M. Bishop
 # It may be distributed under the GNU Public License, version 2, or
 # any higher version.  See section COPYING of the GNU Public license
 # for conditions under which this file may be redistributed.
@@ -22,87 +22,78 @@ $#ARGV==0 || die "Usage: $0 wwwoffle.conf\n";
 
 $conf=$ARGV[0];
 
-$version="2.7";
+$version="2.8";
 
-$urlspec="[^ \t\r\n:<!]+://[^ \t\r\n/=]+/?[^ \t\r\n=>]*";
-$urlspec1="([^ \t\r\n:<!]+)://([^ \t\r\n/=]+)(/?[^ \t\r\n=>]*)";
+$urlspec="[^ \t:<!]+://[^ \t/=]+/?[^ \t=>]*";
+$urlspec1="([^ \t:<!]+)://([^ \t/=]+)(/?[^ \t=>]*)";
 
-# The new options that have been added (since version 2.6).
+# The new options that have been added (since version 2.7).
 
 %new_Options=(
-              "exec-cgi *=" , "#exec-cgi = /local/cgi-bin/*\n #exec-cgi = /local/*.cgi"
+              "reply-chunked-data *=" , "reply-chunked-data = yes"
              );
 
+%new_OnlineOptions=(
+                    "pragma-no-cache *="        , "pragma-no-cache = yes",
+                    "cache-control-no-cache *=" , "cache-control-no-cache = yes",
+                    "request-conditional *="    , "request-conditional = yes",
+                    "validate-with-etag *="     , "validate-with-etag = yes",
+                    "keep-cache-if-not-found *=", "keep-cache-if-not-found = no",
+                    "request-chunked-data *="   , "request-chunked-data = yes"
+                   );
+
 %new_FetchOptions=(
-                   "only-same-host-images *=" , "only-same-host-images = no"
+                   "icon-images *=" , "icon-images = no"
                   );
 
-%new_OfflineOptions=(
-                     "cache-control-no-cache *=" , "cache-control-no-cache = yes"
-                    );
-
-%new_IndexOptions=(
-                   "create-history-indexes *=", "#create-history-indexes = yes\n"
+%new_CensorHeader=(
+                   "force-user-agent *=" , "force-user-agent = no"
                   );
-
-%new_MIMETypes=(
-                ".exe *=" , ".exe = application/octet-stream"
-                );
 
 %new_ModifyHTML=(
-                "disable-dontget-iframes *=" , "disable-dontget-iframes = no",
-                "disable-flash *="           , "disable-flash = no"
-                );
-
-%new_LocalHost=(
-                "ip6-localhost"    , "ip6-localhost",
-                "::1"              , "::1",
-                "::ffff:127.0.0.1" , "::ffff:127.0.0.1"
-               );
+                 "disable-marquee *="         , "disable-marquee = no",
+                 "disable-meta-set-cookie *=" , "disable-meta-set-cookie = no",
+                 "fix-mixed-cyrillic *="      , "fix-mixed-cyrillic = no"
+                  );
 
 %new_options=(
               "Options"        , \%new_Options,
+              "OnlineOptions"  , \%new_OnlineOptions,
               "FetchOptions"   , \%new_FetchOptions,
-              "OfflineOptions" , \%new_OfflineOptions,
-              "IndexOptions"   , \%new_IndexOptions,
-              "MIMETypes"      , \%new_MIMETypes,
-              "ModifyHTML"     , \%new_ModifyHTML,
-              "LocalHost"      , \%new_LocalHost
+              "CensorHeader"   , \%new_CensorHeader,
+              "ModifyHTML"     , \%new_ModifyHTML
               );
 
-# The options that have changed (since version 2.6).
+# The options that have changed (since version 2.7).
 
 %changed_CensorHeader=(
-                       "^#? *(<$urlspec>) *User-Agent *= *WWWOFFLE/[0-9.]+(.*)", " \$1 User-Agent = WWWOFFLE/$version\$2\n",
-                       "^#? *User-Agent *= *WWWOFFLE/[0-9.]+(.*)"              , " User-Agent = WWWOFFLE/$version\$1\n",
-                       "^#? *(<$urlspec>) *User-Agent *= *WWWOFFLE/[0-9. ]+\$" , " \$1 User-Agent = WWWOFFLE/$version\n",
-                       "^#? *User-Agent *= *WWWOFFLE/[0-9. ]+\$"               , " User-Agent = WWWOFFLE/$version\n"
+                       "^#? *(<$urlspec>) *User-Agent *= *WWWOFFLE/[0-9.]+[a-z]*(.*)", " \$1 User-Agent = WWWOFFLE/$version\$2",
+                       "^#? *User-Agent *= *WWWOFFLE/[0-9.]+[a-z]*(.*)"              , " User-Agent = WWWOFFLE/$version\$1",
                        );
 
 %changed_IndexOptions=(
-                       "^#? *no-lasttime-index *= (yes|true|1)", " create-history-indexes = no\n",
-                       "^#? *no-lasttime-index *= (no|false|0)", " create-history-indexes = yes\n"
+                       "^#? *no-lasttime-index *= (yes|true|1)", " create-history-indexes = no",
+                       "^#? *no-lasttime-index *= (no|false|0)", " create-history-indexes = yes"
                        );
-
-%changed_Purge=(
-                "^#? *max-size *= 0", " max-size = -1\n",
-                "^#? *min-free *= 0", " min-free = -1\n"
-               );
 
 %changed_options=(
                   "CensorHeader"   , \%changed_CensorHeader,
-                  "IndexOptions"   , \%changed_IndexOptions,
-                  "Purge"          , \%changed_Purge
+                  "IndexOptions"   , \%changed_IndexOptions
                   );
 
-# The options that have been moved (since version 2.6).
+# The options that have been moved (since version 2.7).
 
 %moved_options=(
                 );
 
-# The options that have been deleted (since version 2.6).
+# The options that have been deleted (since version 2.7).
+
+@deleted_ModifyHTML=(
+                     "enable-modify-online *="
+                    );
 
 %deleted_options=(
+                  "ModifyHTML" , deleted_ModifyHTML
                   );
 
 # The sections in the configuration file.
@@ -170,11 +161,15 @@ if(open(CURR,"<$conf"))
    while(<CURR>)
        {
         $lineno++;
-        if(m/^\# WWWOFFLE - World Wide Web Offline Explorer - (Version 2\.[0-58-9][a-z]?)/)
+        s/\r*\n/\n/;
+
+        if(m/^\# WWWOFFLE - World Wide Web Offline Explorer - (Version 2\.[0-69][a-z]?)/)
             {
-             die "\nExisting configuration file is not for version 2.6 or 2.7.\n".
+             die "\nExisting configuration file is not for version 2.7 or 2.8.\n".
                  "(The header line says that it is '$1')\n".
-                 "Try running upgrade-config-2.x-2.5.pl and/or upgrade-config-2.5-2.6.pl first.\n\n";
+                 "Try running upgrade-config-2.x-2.5.pl\n".
+                 "     and/or upgrade-config-2.5-2.6.pl\n".
+                 "     and/or upgrade-config-2.6-2.7.pl.\n\n";
             }
         next if(/^[ \t]*\#/);
         next if(/^[ \t]*$/);
@@ -184,6 +179,7 @@ if(open(CURR,"<$conf"))
              while(<CURR>)
                  {
                   $lineno++;
+                  s/\r*\n/\n/;
                   last if(/^[ \t]*\}/);
 
                   push(@{$options{$section}},$_);
@@ -206,9 +202,9 @@ if(open(CURR,"<$conf"))
              while(<CURR>)
                  {
                   $lineno++;
-                  s/\r*\n//;
+                  s/\r*\n/\n/;
                   s/\t/    /;
-                  $incconf=$1,last if(m/^[ \t]*([^ \t\#]+)[ \t]*$/);
+                  $incconf=$1,last if(m/^[ \t]*([^ \t\n\#]+)[ \t]*$/);
                  }
 
              @conf=split('/',$conf);
@@ -221,6 +217,8 @@ if(open(CURR,"<$conf"))
 
              while(<INC>)
                  {
+                  s/\r*\n/\n/;
+
                   push(@{$options{$section}},$_);
 
                   # Warn about URL-SPECIFICATION changes: http://www.foo/ is not http://www.foo/*
@@ -239,6 +237,7 @@ if(open(CURR,"<$conf"))
              while(<CURR>)
                  {
                   $lineno++;
+                  s/\r*\n/\n/;
                   last if(/^[ \t]*\]/);
                  }
 
@@ -246,7 +245,7 @@ if(open(CURR,"<$conf"))
              next;
             }
 
-        if(!$section && /^[ \t]*([a-zA-Z]+)[ \t\r\n]*$/)
+        if(!$section && /^[ \t]*([a-zA-Z]+)[ \t]*$/)
             {
              $section=$1;
              next;
@@ -272,7 +271,9 @@ if(open(INST,"<wwwoffle.conf.install") || open(INST,"<$conf.install"))
 
    while(<INST>)
        {
-        if(!$section && (/^[ \t]*[\#{]/ || /^[ \t\r\n]*$/))
+        s/\r*\n/\n/;
+
+        if(!$section && (/^[ \t]*[\#{]/ || /^[ \t]*$/))
              {
               $comment.=$_;
               next;
@@ -284,7 +285,7 @@ if(open(INST,"<wwwoffle.conf.install") || open(INST,"<$conf.install"))
              next;
             }
 
-        if(!$section && /^[ \t]*([a-zA-Z]+)[ \t\r\n]*$/)
+        if(!$section && /^[ \t]*([a-zA-Z]+)[ \t]*$/)
             {
              $section=$1;
              $comments{$section}=$comment;
@@ -347,7 +348,7 @@ foreach $section (keys(%moved_options))
              if($line =~ m/$regexp_option/)
                  {
                   $new_section=$ {$moved_options{$section}}{$regexp_option};
-                  $old_line=$line; $old_line =~ s/ *\r*\n//g; $old_line =~ s/^ *//;
+                  $old_line=$line; $old_line =~ s/[ \t]*\n//g; $old_line =~ s/^[ \t]*//;
                   print "$section\t- Moved option '$old_line' -> $new_section\n";
 
                   if(!defined $first{$new_section})
@@ -375,7 +376,7 @@ foreach $section (keys(%changed_options))
             {
              if($line =~ m/$regexp_option/)
                  {
-                  $old_line=$line; $old_line =~ s/ *\r*\n//g; $old_line =~ s/^ *//;
+                  $old_line=$line; $old_line =~ s/[ \t]*\n//g; $old_line =~ s/^[ \t]*//;
                   $line =~ m/$regexp_option/;
                   $line=$ {$changed_options{$section}}{$regexp_option};
                   $one=$1;
@@ -385,7 +386,8 @@ foreach $section (keys(%changed_options))
                   $line =~ s/\$2/$two/g;
                   $line =~ s/\$3/$three/g;
                   $line="#".$line if($old_line =~ /^\#/);
-                  $new_line=$line; $new_line =~ s/ *\r*\n//g; $new_line =~ s/^ *//;
+                  $line.="\n";
+                  $new_line=$line; $new_line =~ s/[ \t]*\n$//g; $new_line =~ s/^[ \t]*//;
                   print "$section\t- Changed option '$old_line' -> '$new_line'\n" if($old_line ne $new_line);
                  }
             }
@@ -404,7 +406,7 @@ foreach $section (keys(%deleted_options))
             {
              if($line =~ m/$regexp_option/ && $line !~ m/^\#\#\#/)
                  {
-                  $old_line=$line; $old_line =~ s/ *\r*\n//g; $old_line =~ s/^ *//;
+                  $old_line=$line; $old_line =~ s/[ \t]*\n//g; $old_line =~ s/^[ \t]*//;
                   print "$section\t- Deleted option '$old_line'\n";
 
                   if(!defined $first{$section})

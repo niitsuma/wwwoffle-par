@@ -1,13 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/cgi.c 1.5 2002/08/04 10:24:43 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/cgi.c 1.18 2004/06/17 18:47:45 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   CGI Execution functions.
   ******************/ /******************
   Written by Paul A. Rombouts
   Modified by Andrew M. Bishop
 
-  This file Copyright 2002 Paul A. Rombouts & Andrew M. Bishop
+  This file Copyright 2002,03,04 Paul A. Rombouts & Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -16,6 +16,7 @@
 
 #include "autoconfig.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -32,13 +33,17 @@ int getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid);
 
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
 
-#include "version.h"
 #include "wwwoffle.h"
+#include "io.h"
+#include "misc.h"
 #include "errors.h"
 #include "config.h"
-#include "misc.h"
 #include "headbody.h"
+#include "sockets.h"
+#include "version.h"
 
 
 /*--------------------------------------------------------------------------------
@@ -81,13 +86,20 @@ extern int online;          /*+ The online / offline / autodial status. +*/
 
 
 /* A macro definition that makes environment variable setting a little easier. */
-#define putenv_var_val(varname,value,failaction) \
-{ \
-  char *envstr = (char *)malloc(sizeof(varname "=")+strlen(value)); \
-  stpcpy(stpcpy(envstr,varname "="),value); \
-  if(putenv(envstr) == -1) failaction; \
+#define putenv_string(str)			\
+{						\
+  if(putenv(str) == -1) {			\
+    CLEANUP_HANDLER;				\
+    return -1;					\
+  }						\
 }
-
+#define putenv_var_val(varname,value)					\
+{									\
+  char *envstr = (char *)malloc(sizeof(varname "=")+strlen(value));	\
+  stpcpy(stpcpy(envstr,varname "="),value);				\
+  putenv_string(envstr);						\
+}
+#define CLEANUP_HANDLER
 
 /*++++++++++++++++++++++++++++++++++++++
   Put information of request headers into environment according to CGI-specification.
@@ -102,62 +114,66 @@ extern int online;          /*+ The online / offline / autodial status. +*/
   Body *request_body The body of the request (only if POST or PUT).
   ++++++++++++++++++++++++++++++++++++++*/
 
-/*inline*/ static int putenv_request(char *file, URL *Url, Header *request_head, /*@null@*/ Body *request_body)
+static int putenv_request(char *file, URL *Url, Header *request_head, /*@null@*/ Body *request_body)
 {
-  int retval=0;
 
-  if(putenv("SERVER_SOFTWARE=WWWOFFLE/" WWWOFFLE_VERSION) == -1) return -1;
+  putenv_string("SERVER_SOFTWARE=WWWOFFLE/" WWWOFFLE_VERSION);
 
   {
     char *localhost=GetLocalHost(0);
-    putenv_var_val("SERVER_NAME",localhost, retval=-1);
-    free(localhost);
-    if(retval) return retval;
+#   undef  CLEANUP_HANDLER
+#   define CLEANUP_HANDLER free(localhost)
+    putenv_var_val("SERVER_NAME",localhost);
+    CLEANUP_HANDLER;
+#   undef  CLEANUP_HANDLER
+#   define CLEANUP_HANDLER
   }
 
-  if(putenv("GATEWAY_INTERFACE=CGI/1.1") == -1) return -1;
+  putenv_string("GATEWAY_INTERFACE=CGI/1.1");
 
-  putenv_var_val("SERVER_PROTOCOL",request_head->version, return -1);
+  putenv_var_val("SERVER_PROTOCOL",request_head->version);
 
   {
     char portstr[12];
     sprintf(portstr,"%d",ConfigInteger(HTTP_Port));
-    putenv_var_val("SERVER_PORT",portstr, return -1);
+    putenv_var_val("SERVER_PORT",portstr);
   }
 
-  putenv_var_val("REQUEST_METHOD",request_head->method, return -1);
+  putenv_var_val("REQUEST_METHOD",request_head->method);
 
-  putenv_var_val("REQUEST_URI",request_head->url, return -1);
+  putenv_var_val("REQUEST_URI",request_head->url);
 
-  {    
+  {
     URL *request_Url=SplitURL(request_head->url);
+#   undef  CLEANUP_HANDLER
+#   define CLEANUP_HANDLER FreeURL(request_Url)
 
     if(!GetHeader(request_head,"Host"))
-      putenv_var_val("HTTP_HOST",request_Url->hostport, {retval=-1; goto cleanupURL;});
+      putenv_var_val("HTTP_HOST",request_Url->hostport);
 
-    putenv_var_val("PATH_INFO",request_Url->path, {retval=-1; goto cleanupURL;});
+    putenv_var_val("PATH_INFO",request_Url->path);
 
     if (request_Url->args)
-      putenv_var_val("QUERY_STRING",request_Url->args, retval=-1);
+      putenv_var_val("QUERY_STRING",request_Url->args);
 
-  cleanupURL:
-    FreeURL(request_Url);
-    if(retval) return retval;
+    CLEANUP_HANDLER;
+#   undef  CLEANUP_HANDLER
+#   define CLEANUP_HANDLER
   }
 
-  putenv_var_val("SCRIPT_NAME",Url->path, return -1);
+  putenv_var_val("SCRIPT_NAME",Url->path);
 
-  putenv_var_val("PATH_TRANSLATED",file, return -1);
+  putenv_var_val("PATH_TRANSLATED",file);
 
   if(client_hostname)
-    putenv_var_val("REMOTE_HOST",client_hostname, return -1);
+    putenv_var_val("REMOTE_HOST",client_hostname);
 
   if(client_ip)
-    putenv_var_val("REMOTE_ADDR",client_ip, return -1);
+    putenv_var_val("REMOTE_ADDR",client_ip);
 
   if(proxy_user) {
-    if(putenv("AUTH_TYPE=Basic") == -1) return -1;
-    putenv_var_val("REMOTE_USER",proxy_user, return -1);
+    putenv_string("AUTH_TYPE=Basic");
+    putenv_var_val("REMOTE_USER",proxy_user);
   }
 
   {
@@ -175,7 +191,7 @@ extern int online;          /*+ The online / offline / autodial status. +*/
 	  if(strcasecmp(line[j].key,line[i].key)) break;
 	  key_val_len += strlen(line[j].val)+2;  /* extra room for ", " */
 	}
-    
+
  	if(!strcasecmp(line[i].key,"Content-Type")) {
 	  envstr = (char *)malloc(key_val_len+sizeof("="));
 	  p = envstr;
@@ -205,7 +221,7 @@ extern int online;          /*+ The online / offline / autodial status. +*/
 	    p = stpcpy(stpcpy(p, ", "), line[l].val);
 	}
 
- 	if(putenv(envstr) == -1) return -1;
+ 	putenv_string(envstr);
       }
     nexti:
       i=j;
@@ -216,23 +232,23 @@ extern int online;          /*+ The online / offline / autodial status. +*/
     {
       char length[12];
       sprintf(length,"%d",request_body->length);
-      putenv_var_val("CONTENT_LENGTH",length, return -1);
+      putenv_var_val("CONTENT_LENGTH",length);
     }
 
   {
     char onlinestr[12];
     sprintf(onlinestr,"%d",online);
-    putenv_var_val("ONLINE",onlinestr, return -1);
+    putenv_var_val("ONLINE",onlinestr);
   }
 
-  return retval;
+  return 0;
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Execute a local file as CGI program.
 
-  int ExecLocalCGI returns 1 on success, 0 on failure.
+  int exec_cgi returns 1 on success, 0 on failure.
 
   int fd The file descriptor to write the output to.
 
@@ -263,28 +279,54 @@ inline static int exec_cgi(int fd, char *file, URL *Url, Header *request_head, /
     PrintMessage(Warning, "Cannnot fork to execute local CGI program '%s' [%!s].", file);
   else if(childpid == 0)   /* The child */
     {
-      if(request_body)
-	{
-	  if(fdpipe[0]!=0)
-	    {
-	      if(dup2(fdpipe[0],0) == -1)
-		{
-		  PrintMessage(Warning, "Cannnot dup standard input for local CGI program '%s' [%!s].", file);
-		  exit(2);
-		}
-	      close(fdpipe[0]);
-	    }
-	  close(fdpipe[1]);
+      int cgi_in;
+      if(request_body) {
+	cgi_in=fdpipe[0];
+	close(fdpipe[1]);
+      }
+      else {
+	cgi_in=open("/dev/null",O_RDONLY);
+	if(cgi_in==-1) {
+	      PrintMessage(Warning, "Cannnot open /dev/null for local CGI program '%s' [%!s].", file);
+	      exit(2);
 	}
-      if(fd!=1)
+      }
+
+      if(cgi_in!=STDIN_FILENO)
 	{
-	  if(dup2(fd,1) == -1)
+	  if(dup2(cgi_in,STDIN_FILENO) == -1)
+	    {
+	      PrintMessage(Warning, "Cannnot dup standard input for local CGI program '%s' [%!s].", file);
+	      exit(2);
+	    }
+	  close(cgi_in);
+	}
+
+      if(fd!=STDOUT_FILENO)
+	{
+	  if(dup2(fd,STDOUT_FILENO) == -1)
 	    {
 	      PrintMessage(Warning, "Cannnot dup standard output for local CGI program '%s' [%!s].", file);
 	      exit(2);
 	    }
 	  close(fd);
 	}
+
+    if(fcntl(STDERR_FILENO,F_GETFL,0)==-1 && errno==EBADF) /* stderr is not open */
+      {
+       int cgi_err=open("/dev/null",O_WRONLY);
+
+       if(cgi_err!=STDERR_FILENO)
+         {
+          if(dup2(cgi_err,STDERR_FILENO)==-1)
+	    {
+	      PrintMessage(Warning, "Cannnot create standard error for local CGI program '%s' [%!s].",file);
+	      exit(2);
+	    }
+          close(cgi_err);
+         }
+      }
+
       if(putenv_request(file,Url,request_head,request_body) == -1)
 	PrintMessage(Warning, "Failed to create environment for local CGI program '%s' [%!s].", file);
       execl(file, file, NULL);
@@ -309,19 +351,18 @@ inline static int exec_cgi(int fd, char *file, URL *Url, Header *request_head, /
 
       if(waitpid(childpid, &statval, 0) != -1)
 	{
-	  if(WIFEXITED(statval)) 
+	  if(WIFEXITED(statval))
 	    {
 	      int exitstatus = WEXITSTATUS(statval);
 	      PrintMessage(exitstatus?Warning:Inform,
 			   "Local CGI program '%s' (pid=%d) exited with status %d.", file,childpid,exitstatus);
 	      if(exitstatus <=1) return 1;
 	    }
-	  else 
+	  else
 	    PrintMessage(Warning, "Local CGI program '%s' (pid=%d) terminated by signal %d.", file,childpid,WTERMSIG(statval));
 	}
       else
 	PrintMessage(Warning, "wait failed for local CGI program '%s' (pid=%d) [%!s].", file,childpid);
-
     }
 
   return 0;
@@ -329,7 +370,8 @@ inline static int exec_cgi(int fd, char *file, URL *Url, Header *request_head, /
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  LocalCGI outputs the results of a local CGI script.
+  LocalCGI writes the results of a local CGI script,
+  and returns 1 if it succeeds otherwise 0.
 
   int fd The file descriptor to write to.
 
@@ -342,7 +384,7 @@ inline static int exec_cgi(int fd, char *file, URL *Url, Header *request_head, /
   Body *request_body The body of the request that was made for this page.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void LocalCGI(int fd, char *file, URL *Url, Header *request_head, Body *request_body)
+int LocalCGI(int fd, char *file, URL *Url, Header *request_head, Body *request_body)
 {
  int exec_success=0;
 #if HAVE_GETRESUID
@@ -372,13 +414,5 @@ void LocalCGI(int fd, char *file, URL *Url, Header *request_head, Body *request_
  else
     PrintMessage(Warning,"Refuse to run local CGI program file '%s' with root privileges.",file);
 
- if(!exec_success)
-   {
-    lseek(fd,0,SEEK_SET);
-    ftruncate(fd,0);
-
-    HTMLMessage(fd,500,"WWWOFFLE Local Program Execution Error",NULL,"ExecCGIFailed",
-                "url",Url->path,
-                NULL);
-   }
+ return exec_success;
 }

@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <!--
@@ -6,6 +6,7 @@
 WWWOFFLE : Variables disponibles (mettre le prefixe '$').
 
 localhost = Le serveur sur lequel wwwoffled tourne (='$localhost').
+version   = The version of the WWWOFFLE server (='$version').
 url       = L'URL demande (='$url').
 
 $decurl=%decode[url]
@@ -14,32 +15,35 @@ $decurl=%decode[url]
 
 <HEAD>
 <TITLE>WWWOFFLE - Fichier Verouill&eacute;</TITLE>
+<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
-<BODY>
+<BODY class="wwwoffle-message">
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<!-- Standard WWWOFFLE Message Page Header Start -->
 
-<p align=center>
-<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
-</p>
+<div class="wwwoffle-header" align="center">
+<b>WWWOFFLE</b> <b>-</b> <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer <b>-</b> <b>v$version</b>
+</div>
+<hr class="wwwoffle-header">
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Header End -->
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<H1 align="center">WWWOFFLE - Fichier Verrouill&eacute;</H1>
 
-<H1 align=center>WWWOFFLE - Fichier Verrouill&eacute;</H1>
-
-<p align=center>
-<br>L'URL
-
+<div class="wwwoffle-message" align="center">
+L'URL
+<p class="wwwoffle-url">
 <b><tt>$decurl</tt></b>
-<br>
-est actuellement utilis&eacute; par un autre processus de WWWOFFLE.
-
-
 </p>
-<p>
+est actuellement utilis&eacute; par un autre processus de WWWOFFLE.
+</div>
+
+<!-- Standard WWWOFFLE Message Page Inline Help Start -->
+
+<h2 class="wwwoffle-inline-help">Help</h2>
+
+<div class="wwwoffle-inline-help">
 La page que vous avez demand&eacute; est actuellement modifi&eacute;e par un autre
 processus ; le rechargement de cette page ne s'effectuera que lorsque l'autre processus
 aura ferm&eacute; le fichier.
@@ -59,16 +63,21 @@ page se termine anormalement. Il est donc important que vous laissiez
 le temps &agrave; tous les processus WWWOFFLE de se terminer avant de les
 interrompre ou d'arr&ecirc;ter la machine. Pour supprimer un fichier verrou,
 il est n&eacute;cessaire de purger le cache de WWWOFFLE.
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Inline Help End -->
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
-<p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Page d'accueil</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
-</p>
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
+WWWOFFLE - [ \
+<a href="http://$localhost/Welcome.html">Page d'accueil</a>| \
+<a href="http://$localhost/FAQ.html">FAQ</a> \
+] - WWWOFFLE
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/sockets6.c 1.10 2002/07/28 10:06:02 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/sockets6.c 1.15 2004/01/17 16:29:37 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   IPv4+IPv6 Socket manipulation routines.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -33,12 +33,11 @@
 # endif
 #endif
 
-#include <errno.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #include <netdb.h>
 #include <sys/param.h>
-#include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -53,19 +52,24 @@
 /* Local functions */
 
 static void sigalarm(int signum);
-static struct addrinfo *getaddrinfo_or_timeout(char *name,char *port,int ai_flags);
-static int getnameinfo_or_timeout(struct sockaddr *addr,int len,char **host,char **ip,char **port);
+static struct addrinfo /*@null@*/ *getaddrinfo_or_timeout(char *name,char *port,int ai_flags);
+static int getnameinfo_or_timeout(struct sockaddr *addr,int len,/*@null@*/ /*@out@*/ char **host,/*@null@*/ /*@out@*/ char **ip,/*@null@*/ /*@out@*/ char **port);
 static int connect_or_timeout(int sockfd,struct addrinfo *addr);
 
 /* Local variables */
 
+/*+ The timeout on DNS lookups. +*/
 static int timeout_dns=0;
+
+/*+ The timeout for socket connections. +*/
 static int timeout_connect=0;
 
+/*+ A longjump variable for aborting DNS lookups. +*/
 static jmp_buf dns_jmp_env;
 
 /* Global variables */
 
+/*+ The global IPv6 error number. +*/
 int gai_errno=0;
 
 
@@ -305,46 +309,58 @@ int CloseSocket(int socket)
 }
 
 
-#ifdef __CYGWIN__
-
 /*++++++++++++++++++++++++++++++++++++++
-  Closes a previously opened socket, a workaround for cygwin on sockets carried across a fork().
+  Shuts down a previously opened socket cleanly.
 
-  int CloseCygwinSocket Returns 0 on success, -1 on error.
+  int ShutdownSocket Returns 0 on success, -1 on error.
 
   int socket The socket to close
   ++++++++++++++++++++++++++++++++++++++*/
 
-int CloseCygwinSocket(int socket)
+int ShutdownSocket(int socket)
 {
- /* Workaround winsock bug - "David McNab" <david@rebirthing.co.nz> */
-
- int sock_flags;
  struct linger lingeropt;
 
- /* flush out the socket - set it to blocking, then write to it */
- sock_flags=fcntl(socket,F_GETFL,0);
- if(sock_flags!=-1)
-   {
-    /* reset NONBLOCK bit to enable blocking */
-    fcntl(socket,F_SETFL,sock_flags & ~O_NONBLOCK);
-   }
-
- /* this is the guts of the workaround for Winsock close bug */
  shutdown(socket, 1);
 
- /* enable lingering */
- lingeropt.l_onoff = 1;
- lingeropt.l_linger = 15;
- if (setsockopt(socket, SOL_SOCKET, SO_LINGER, &lingeropt, sizeof(lingeropt)) < 0)
-    PrintMessage(Important, "Cygwin setsockopt() error [%!s].");
+ /* Check socket and read until end or error. */
 
- /* Winsock bug averted - now we're safe to close the socket */
+ while(1)
+   {
+    char buffer[1024];
+    int n;
+    fd_set readfd;
+    struct timeval tv;
+
+    FD_ZERO(&readfd);
+
+    FD_SET(socket,&readfd);
+
+    tv.tv_sec=tv.tv_usec=0;
+
+    n=select(socket+1,&readfd,NULL,NULL,&tv);
+
+    if(n>0)
+      {
+       n=read(socket,buffer,1024);
+
+       if(n<=0)
+          break;
+      }
+    else if(n==0 || errno!=EINTR)
+       break;
+   }
+
+ /* Enable lingering */
+
+ lingeropt.l_onoff=1;
+ lingeropt.l_linger=15;
+
+ if(setsockopt(socket,SOL_SOCKET,SO_LINGER,&lingeropt,sizeof(lingeropt))<0)
+    PrintMessage(Important,"Failed to set socket SO_LINGER option [%!s].");
 
  return(CloseSocket(socket));
 }
-
-#endif
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -377,6 +393,7 @@ char *GetFQDN(void)
     if(errno!=ETIMEDOUT)
        errno=ERRNO_USE_GAI_ERRNO;
     PrintMessage(Warning,"Failed to get name/IP address for host '%s' [%!s].",fqdn);
+    return("localhost");
    }
  else
     if(server->ai_canonname && strchr(server->ai_canonname,'.'))
@@ -463,7 +480,7 @@ start:
  /* DNS with timeout */
 
  action.sa_handler = sigalarm;
- sigemptyset (&action.sa_mask);
+ sigemptyset(&action.sa_mask);
  action.sa_flags = 0;
  if(sigaction(SIGALRM, &action, NULL) != 0)
    {
@@ -488,7 +505,7 @@ start:
 
  alarm(0);
  action.sa_handler = SIG_IGN;
- sigemptyset (&action.sa_mask);
+ sigemptyset(&action.sa_mask);
  action.sa_flags = 0;
  if(sigaction(SIGALRM, &action, NULL) != 0)
     PrintMessage(Warning, "Failed to clear SIGALRM.");
@@ -500,7 +517,7 @@ start:
 /*++++++++++++++++++++++++++++++++++++++
   Perform a name lookup with a timeout.
 
-  struct addrinfo *getnameinfo_or_timeout Returns the host information.
+  int getnameinfo_or_timeout Returns the host information.
 
   struct sockaddr *addr The address of the host.
 

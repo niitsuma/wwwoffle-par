@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/config.h 2.88 2002/11/03 09:35:53 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/config.h 2.102 2004/09/29 18:07:35 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   Configuration file management functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -15,8 +15,6 @@
 
 #ifndef CONFIG_H
 #define CONFIG_H    /*+ To stop multiple inclusions. +*/
-
-#include <sys/types.h>
 
 #include "misc.h"
 
@@ -34,14 +32,16 @@ void InitConfigurationFile(/*@null@*/ char *name);
 void FinishConfigurationFile(void);
 int ReadConfigurationFile(int fd);
 
+void DumpConfigFile(int fd);
+
 int ConfigInteger(/*@null@*/ ConfigItem item);
-#define ConfigBoolean ConfigInteger
+#define ConfigBoolean(item) (ConfigInteger(item)!=0)
 /*@observer@*/ /*@null@*/ char *ConfigString(/*@null@*/ ConfigItem item);
 
 int ConfigIntegerURL(/*@null@*/ ConfigItem item,/*@null@*/ URL *Url);
 int ConfigIntegerProtoHostPort(/*@null@*/ ConfigItem item,char *proto,char *hostport);
-#define ConfigBooleanURL ConfigIntegerURL
-#define ConfigBooleanProtoHostPort ConfigIntegerProtoHostPort
+#define ConfigBooleanURL(item,Url) (ConfigIntegerURL(item,Url)!=0)
+#define ConfigBooleanProtoHostPort(item,proto,hostport) (ConfigIntegerProtoHostPort(item,proto,hostport)!=0)
 /*@observer@*/ /*@null@*/ char *ConfigStringURL(/*@null@*/ ConfigItem item,/*@null@*/ URL *Url);
 /*@observer@*/ /*@null@*/ char *ConfigStringProtoHostPort(/*@null@*/ ConfigItem item,char *proto,char *hostport);
 
@@ -78,9 +78,9 @@ extern /*@null@*/ ConfigItem UseSyslog;
 /*+ The password required for demon configuration. +*/
 extern /*@null@*/ ConfigItem PassWord;
 
-/*+ Maximum number of servers  +*/
-extern /*@null@*/ ConfigItem MaxServers;          /*+ in total. +*/
-extern /*@null@*/ ConfigItem MaxFetchServers;     /*+ for fetching. +*/
+/*+ Maximum number of servers +*/
+extern /*@null@*/ ConfigItem MaxServers,          /*+ in total. +*/
+                             MaxFetchServers;     /*+ for fetching. +*/
 
 
 /* Options Section */
@@ -104,26 +104,35 @@ extern /*@null@*/ ConfigItem ConnectRetry;
 extern /*@null@*/ ConfigItem SSLAllowPort;
 
 /*+ The permissions for creation of +*/
-extern /*@null@*/ ConfigItem DirPerm;             /*+ directories. +*/
-extern /*@null@*/ ConfigItem FilePerm;            /*+ files. +*/
+extern /*@null@*/ ConfigItem DirPerm,             /*+ directories. +*/
+                             FilePerm;            /*+ files. +*/
 
 /*+ The name of a progam to run when changing mode to +*/
-extern /*@null@*/ ConfigItem RunOnline;           /*+ online. +*/
-extern /*@null@*/ ConfigItem RunOffline;          /*+ offline. +*/
-extern /*@null@*/ ConfigItem RunAutodial;         /*+ auto dial. +*/
-extern /*@null@*/ ConfigItem RunFetch;            /*+ fetch (start or stop). +*/
+extern /*@null@*/ ConfigItem RunOnline,           /*+ online. +*/
+                             RunOffline,          /*+ offline. +*/
+                             RunAutodial,         /*+ auto dial. +*/
+                             RunFetch;            /*+ fetch (start or stop). +*/
 
 /*+ The option to have lock files to stop some problems. +*/
 extern /*@null@*/ ConfigItem LockFiles;
 
-/*+ The option to reply with compressed content encoding. +*/
+/*+ The option to reply to the browser with compressed content encoding. +*/
 extern /*@null@*/ ConfigItem ReplyCompressedData;
+
+/*+ The option to reply to the browser with chunked transfer encoding. +*/
+extern /*@null@*/ ConfigItem ReplyChunkedData;
 
 /*+ The paths or file extensions that are allowed to be used for CGIs. +*/
 extern /*@null@*/ ConfigItem ExecCGI;
 
 
 /* OnlineOptions section. */
+
+/*+ The option to allow or ignore the 'Pragma: no-cache' request when online. +*/
+extern /*@null@*/ ConfigItem PragmaNoCacheOnline;
+
+/*+ The option to allow or ignore the 'Cache-Control: no-cache' request online. +*/
+extern /*@null@*/ ConfigItem CacheControlNoCacheOnline;
 
 /*+ The maximum age of a cached page to use in preference while online. +*/
 extern /*@null@*/ ConfigItem RequestChanged;
@@ -140,6 +149,12 @@ extern /*@null@*/ ConfigItem RequestNoCache;
 /*+ The option to re-request pages that have status code 302 (temporary redirection).+*/
 extern /*@null@*/ ConfigItem RequestRedirection;
 
+/*+ The option to re-request pages with a conditional request.+*/
+extern /*@null@*/ ConfigItem RequestConditional;
+
+/*+ The option to use Etags as a cache validator.+*/
+extern /*@null@*/ ConfigItem ValidateWithEtag;
+
 /*+ The option to try and get the requested URL without a password as well as with. +*/
 extern /*@null@*/ ConfigItem TryWithoutPassword;
 
@@ -147,30 +162,30 @@ extern /*@null@*/ ConfigItem TryWithoutPassword;
 extern /*@null@*/ ConfigItem IntrDownloadKeep;
 
 /*+ The option to keep on downloading interrupted pages if +*/
-extern /*@null@*/ ConfigItem IntrDownloadSize;           /*+ smaller than a given size. +*/
-extern /*@null@*/ ConfigItem IntrDownloadPercent;        /*+ more than a given percentage complete. +*/
+extern /*@null@*/ ConfigItem IntrDownloadSize,           /*+ smaller than a given size. +*/
+                             IntrDownloadPercent;        /*+ more than a given percentage complete. +*/
 
 /*+ The option to keep downloads that time out. +*/
 extern /*@null@*/ ConfigItem TimeoutDownloadKeep;
-
-/*+ The option to request compressed content encoding. +*/
-extern /*@null@*/ ConfigItem RequestCompressedData;
 
 /*+ The option to keep previously cached pages instead of overwriting
     them with an error message from the remote server. +*/
 extern /*@null@*/ ConfigItem KeepCacheIfNotFound;
 
-/*+ The option to always use ETag (if present) in requests to server (If-None-Match:) +*/
-extern /*@null@*/ ConfigItem AlwaysUseETag;
+/*+ The option to request from the server compressed content encoding. +*/
+extern /*@null@*/ ConfigItem RequestCompressedData;
+
+/*+ The option to request from the server chunked transfer encoding. +*/
+extern /*@null@*/ ConfigItem RequestChunkedData;
 
 
 /* OfflineOptions section */
 
-/*+ The option to allow or ignore the 'Pragma: no-cache' request. +*/
-extern /*@null@*/ ConfigItem PragmaNoCache;
+/*+ The option to allow or ignore the 'Pragma: no-cache' request when offline. +*/
+extern /*@null@*/ ConfigItem PragmaNoCacheOffline;
 
-/*+ The option to allow or ignore the 'Cache-Control: no-cache' or 'Cache-Control: max-age=0' request. +*/
-extern /*@null@*/ ConfigItem CacheControlNoCache;
+/*+ The option to allow or ignore the 'Cache-Control: no-cache' or 'Cache-Control: max-age=0' request offline. +*/
+extern /*@null@*/ ConfigItem CacheControlNoCacheOffline;
 
 /*+ The option to not automatically make requests while offline but to need confirmation. +*/
 extern /*@null@*/ ConfigItem ConfirmRequests;
@@ -189,6 +204,9 @@ extern /*@null@*/ ConfigItem FetchImages;
 
 /*+ The option to also fetch webbug images. +*/
 extern /*@null@*/ ConfigItem FetchWebbugImages;
+
+/*+ The option to also fetch icon images (favourite/shortcut icons). +*/
+extern /*@null@*/ ConfigItem FetchIconImages;
 
 /*+ The option to only fetch images from the same host. +*/
 extern /*@null@*/ ConfigItem FetchSameHostImages;
@@ -238,9 +256,9 @@ extern /*@null@*/ ConfigItem EnableModificationsOnline;
 /*+ The option of a tag that can be added to the bottom of the spooled pages with the date and some buttons. +*/
 extern /*@null@*/ ConfigItem AddCacheInfo;
 
-/*+ The options to modify the anchor tags in the HTML. +*/
-extern ConfigItem AnchorModifyBegin[3];
-extern ConfigItem AnchorModifyEnd[3];
+/*+ The options to modify the anchor tags in the HTML +*/
+extern ConfigItem AnchorModifyBegin[3], /*+ (before the start tag). +*/
+                  AnchorModifyEnd[3];   /*+ (after the end tag). +*/
 
 /*+ The option to disable scripts and scripted actions. +*/
 extern /*@null@*/ ConfigItem DisableHTMLScript;
@@ -254,14 +272,20 @@ extern /*@null@*/ ConfigItem DisableHTMLStyle;
 /*+ The option to disable the <blink> tag. +*/
 extern /*@null@*/ ConfigItem DisableHTMLBlink;
 
+/*+ The option to disable the <marquee> tag. +*/
+extern /*@null@*/ ConfigItem DisableHTMLMarquee;
+
 /*+ The option to disable Shockwave Flash animations. +*/
 extern /*@null@*/ ConfigItem DisableHTMLFlash;
 
-/*+ The option to disable any <meta http-equiv=refresh content=""> tags. +*/
+/*+ The option to disable any <meta http-equiv=Refresh content=""> tags. +*/
 extern /*@null@*/ ConfigItem DisableHTMLMetaRefresh;
 
-/*+ The option to disable any <meta http-equiv=refresh content=""> tags that refer to the same URL. +*/
+/*+ The option to disable any <meta http-equiv=Refresh content=""> tags that refer to the same URL. +*/
 extern /*@null@*/ ConfigItem DisableHTMLMetaRefreshSelf;
+
+/*+ The option to disable any <meta http-equiv=Set-Cookie content=""> tags. +*/
+extern /*@null@*/ ConfigItem DisableHTMLMetaSetCookie;
 
 /*+ The option to disable links (anchors) to pages in the DontGet list. +*/
 extern /*@null@*/ ConfigItem DisableHTMLDontGetAnchors;
@@ -283,6 +307,9 @@ extern /*@null@*/ ConfigItem ReplacementHTMLWebbugImage;
 
 /*+ The option to demoronise MS characters. +*/
 extern /*@null@*/ ConfigItem DemoroniseMSChars;
+
+/*+ The option to fix cyrillic pages written in koi8-r mixed with cp1251. +*/
+extern ConfigItem /*@null@*/ FixMixedCyrillic;
 
 /*+ The option to disable animated GIFs. +*/
 extern /*@null@*/ ConfigItem DisableAnimatedGIF;
@@ -351,9 +378,12 @@ extern /*@null@*/ ConfigItem CensorOutgoingHeader;
 /*+ Flags to cause Set-Cookie headers to be mangled. +*/
 extern /*@null@*/ ConfigItem SessionCookiesOnly;
 
-/*+ Flags to cause the referer header to be mangled. +*/
-extern /*@null@*/ ConfigItem RefererSelf;
-extern /*@null@*/ ConfigItem RefererSelfDir;
+/*+ Flags to cause the 'Referer' header to be mangled +*/
+extern /*@null@*/ ConfigItem RefererSelf,    /*+ to point to itself. +*/
+                             RefererSelfDir; /*+ to point to the parent directory. +*/
+
+/*+ A flag to cause a 'User-Agent' header always to be added. +*/
+extern /*@null@*/ ConfigItem ForceUserAgent;
 
 
 /* FTPOptions section */
@@ -365,8 +395,8 @@ extern /*@null@*/ ConfigItem FTPUserName;
 extern /*@null@*/ ConfigItem FTPPassWord;
 
 /*+ The information that is needed to allow non-anonymous access, +*/
-extern /*@null@*/ ConfigItem FTPAuthUser;         /*+ username +*/
-extern /*@null@*/ ConfigItem FTPAuthPass;         /*+ password +*/
+extern /*@null@*/ ConfigItem FTPAuthUser,         /*+ username. +*/
+                             FTPAuthPass;         /*+ password. +*/
 
 
 /* MIMETypes section */
@@ -384,11 +414,14 @@ extern /*@null@*/ ConfigItem MIMETypes;
 extern /*@null@*/ ConfigItem Proxies;
 
 /*+ The information that is needed to allow authorisation headers to be added, +*/
-extern /*@null@*/ ConfigItem ProxyAuthUser;       /*+ username +*/
-extern /*@null@*/ ConfigItem ProxyAuthPass;       /*+ password +*/
+extern /*@null@*/ ConfigItem ProxyAuthUser,       /*+ username. +*/
+                             ProxyAuthPass;       /*+ password. +*/
 
 /*+ The SSL proxy to use. +*/
 extern /*@null@*/ ConfigItem SSLProxy;
+
+/*+ The SOCKS proxy to use. +*/
+extern /*@null@*/ ConfigItem SocksProxy;
 
 
 /* Alias section */
@@ -432,7 +465,7 @@ int IsCGIAllowed(char *path);
 
 /* LocalHost Section */
 
-char *GetLocalHost(int port);
+char /*@special@*/ *GetLocalHost(int port) /*@defines result@*/;
 int IsLocalHostPort(char *hostport);
 
 

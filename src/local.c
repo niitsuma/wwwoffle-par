@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/local.c 1.5 2003/01/10 19:23:25 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/local.c 1.11 2004/01/11 10:28:20 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7h.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Serve the local web-pages and handle the language selection.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1998,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -36,12 +36,12 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "version.h"
 #include "wwwoffle.h"
-#include "errors.h"
-#include "config.h"
+#include "io.h"
 #include "misc.h"
 #include "headbody.h"
+#include "errors.h"
+#include "config.h"
 
 
 /*+ Need this for Win32 to use binary mode +*/
@@ -54,7 +54,7 @@ static char *FindLanguageFile(char* search, struct stat *buf);
 static char /*@null@*/ /*@observer@*/ **get_languages(int *ndirs);
 
 
-/*+ The language header that the browser sent. +*/
+/*+ The language header that the client sent. +*/
 static HeaderList /*@null@*/ /*@only@*/ *accept_languages=NULL;
 static int num_lang_dirs=0;
 static char **lang_dirs=NULL;
@@ -62,11 +62,10 @@ static char **lang_dirs=NULL;
 #ifndef TEST_ONLY
 /*++++++++++++++++++++++++++++++++++++++
   Output a local page.
-  LocalPage writes the content directly to the client and returns 1,
-            or it uses the temporary file and returns 0.
+  LocalPage writes the content directly to the client and returns -1,
+            or it uses a temporary file and returns its file descriptor.
 
-  int clientfd The file descriptor of the client to write to.
-  int tmpfd    The file descriptor of the alternative temporary client.
+  int fd The file descriptor to write to.
 
   URL *Url The URL for the local page.
 
@@ -75,10 +74,10 @@ static char **lang_dirs=NULL;
   Body *request_body The body of the request that was made for this page.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int LocalPage(int clientfd,int tmpfd,URL *Url,Header *request_head,Body *request_body)
+int LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
 {
- int found=0,retval=0;
- char *file;
+ int tmpfd=-1,found=0;
+ char *file,*path;
  struct stat buf;
 
  /* Don't allow paths backwards */
@@ -86,7 +85,7 @@ int LocalPage(int clientfd,int tmpfd,URL *Url,Header *request_head,Body *request
  if(strstr(Url->path,"/../"))
    {
     PrintMessage(Warning,"Illegal path containing '/../' for the local page '%s'.",Url->path);
-    HTMLMessage(tmpfd,404,"WWWOFFLE Page Not Found",NULL,"PageNotFound",
+    HTMLMessage(fd,404,"WWWOFFLE Page Not Found",NULL,"PageNotFound",
                 "url",Url->path,
                 NULL);
     return 0;
@@ -94,13 +93,29 @@ int LocalPage(int clientfd,int tmpfd,URL *Url,Header *request_head,Body *request
 
  /* Get the filename */
 
- if((file=FindLanguageFile(Url->path+1,&buf)))
+ path=URLDecodeGeneric(Url->path+1);
+
+ if((file=FindLanguageFile(path,&buf)))
    {
     if(S_ISREG(buf.st_mode) && buf.st_mode&S_IROTH)
       {
        if(buf.st_mode&S_IXOTH && IsCGIAllowed(Url->path))
          {
-          LocalCGI(tmpfd,file,Url,request_head,request_body);
+	  tmpfd=CreateTempSpoolFile();
+	  if(tmpfd==-1) {
+	    PrintMessage(Warning,"Cannot open temporary spool file; [%!s].");
+	    HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",
+			"error","Cannot open temporary file.",
+			NULL);
+	  }
+	  else if(!LocalCGI(tmpfd,file,Url,request_head,request_body)) {
+	    HTMLMessage(fd,500,"WWWOFFLE Local Program Execution Error",NULL,"ExecCGIFailed",
+			"url",Url->path,
+			NULL);
+	    CloseTempSpoolFile(tmpfd);
+	    tmpfd=-1;
+
+	  }
           found=1;
          }
        else
@@ -111,13 +126,9 @@ int LocalPage(int clientfd,int tmpfd,URL *Url,Header *request_head,Body *request
              PrintMessage(Warning,"Cannot open the local page '%s' [%!s].",file);
           else
             {
-	     int fd;
              time_t since=0;
 
-	     init_buffer(htmlfd);
-
-	     if(clientfd!=-1) {fd=clientfd; retval=1;}
-	     else {fd=tmpfd;}
+	     init_io(htmlfd);
 
              PrintMessage(Debug,"Using the local page '%s'.",file);
 
@@ -136,7 +147,7 @@ int LocalPage(int clientfd,int tmpfd,URL *Url,Header *request_head,Body *request
              else
                {
 		 {
-		   char date[MAXDATESIZE]; char length[12];
+		   char date[MAXDATESIZE]; char length[24];
 
 		   RFC822Date_r(buf.st_mtime,1,date);
 		   sprintf(length,"%lu",(unsigned long)buf.st_size);
@@ -150,17 +161,24 @@ int LocalPage(int clientfd,int tmpfd,URL *Url,Header *request_head,Body *request
 
 		 if(out_err==-1)
 		   PrintMessage(Warning,"Cannot write local page '%s' to client [%!s].",file);
-		 else {
+		 else if(!head_only) {
 		   char buffer[READ_BUFFER_SIZE];
 		   int n;
-		   while((n=read_data(htmlfd,buffer,READ_BUFFER_SIZE))>0)
+		   for(;;) {
+		     n=read_data(htmlfd,buffer,READ_BUFFER_SIZE);
+		     if(n<0)
+		       PrintMessage(Warning,"Cannot read local page '%s' [%!s].",file);
+		     if(n<=0)
+		       break;
 		     if(write_data(fd,buffer,n)<0) {
 		       PrintMessage(Warning,"Cannot write local page '%s' to client [%!s].",file);
 		       break;
-		     };
+		     }
+		   }
 		 }
                }
 
+             finish_io(htmlfd);
              close(htmlfd);
 
              found=1;
@@ -178,7 +196,7 @@ int LocalPage(int clientfd,int tmpfd,URL *Url,Header *request_head,Body *request
        p=stpcpy(stpcpy(stpcpy(dir,"http://"),localhost),Url->path);
        if(*(p-1)!='/') *p++='/';
        stpcpy(p,"index.html");
-       HTMLMessage(tmpfd,302,"WWWOFFLE Local Dir Redirect",dir,"Redirect",
+       HTMLMessage(fd,302,"WWWOFFLE Local Dir Redirect",dir,"Redirect",
                    "location",dir,
                    NULL);
 
@@ -193,15 +211,17 @@ int LocalPage(int clientfd,int tmpfd,URL *Url,Header *request_head,Body *request
     free(file);
    }
 
+ free(path);
+
  if(!found)
    {
     PrintMessage(Warning,"Cannot find a local URL '%s'.",Url->path);
-    HTMLMessage(tmpfd,404,"WWWOFFLE Page Not Found",NULL,"PageNotFound",
+    HTMLMessage(fd,404,"WWWOFFLE Page Not Found",NULL,"PageNotFound",
                 "url",Url->path,
                 NULL);
    }
 
- return retval;
+ return tmpfd;
 }
 #endif
 
@@ -311,9 +331,6 @@ int OpenLanguageFile(char* search)
      free(file);
    }
 
- if(fd!=-1)
-    init_buffer(fd);
-
  return(fd);
 }
 
@@ -321,7 +338,7 @@ int OpenLanguageFile(char* search)
 /*++++++++++++++++++++++++++++++++++++++
   Parse the language list and construct a list of directories.
 
-  char ***get_languages Returns the list of directories to try.
+  char **get_languages Returns the list of directories to try.
 
   int *ndirs Returns the number of directories in the list.
   ++++++++++++++++++++++++++++++++++++++*/

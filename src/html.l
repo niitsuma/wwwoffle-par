@@ -1,26 +1,42 @@
-W               [ \t\r\n]
-F               [-a-z0-9$_.!*(),%;/?:@&=+~|#]
-K               [a-z0-9-]
+W               [ \t\r\n\f]
+
+nonascii        [\200-\377]
+ascii           [ -~]
+alphanum        [a-z0-9]
+punct           [][!\"#$%&\'()*+,-./:;<=>?@\\^_`{|}~]
+safepunct       [][!\#$%&\*+,-./:;=?@\\^_`{|}~]
+
+tag             {alphanum}+
+key             ({alphanum}|-)+
+val             ({alphanum}|{nonascii}|{safepunct})+
+
+ident           ({nonascii}|{alphanum}|-)+
+url             ({alphanum}|{nonascii}|{safepunct})+
 
 %x DOCTYPE
 %x COMMENT COMMENT_BAD
 %x TAG_START TAG TAG_ATTR_KEY TAG_ATTR_VAL
 %x DQUOTED SQUOTED
 %x SCRIPT_START SCRIPT SCRIPT_COMMENT_C SCRIPT_COMMENT_CPP SCRIPT_DQUOTED SCRIPT_SQUOTED
-%x STYLE_START STYLE
+%x STYLE_START
+%x CSS
+%x CSS_COMMENT
+%x CSS_IMPORT CSS_IMPORT_URL
+%x CSS_MEDIA
+%x CSS_DECL_LIST CSS_DECL_PROP CSS_DECL_VALUE CSS_DECL_VALUE_URL
 %x TITLE_START TITLE
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/html.l 2.72 2003/01/03 08:52:24 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/html.l 2.84 2003/09/06 12:55:06 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7h.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8.
   Parse the HTML and look for the images, links and other things.
   ******************/ /******************
   Written by Andrew M. Bishop
   Object and Parameter handling by Walter Pfannenmller
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -37,23 +53,13 @@ K               [a-z0-9-]
 #include <unistd.h>
 #include <sys/stat.h>
 
-#if TIME_WITH_SYS_TIME
-# include <sys/time.h>
-# include <time.h>
-#else
-# if HAVE_SYS_TIME_H
-#  include <sys/time.h>
-# else
-#  include <time.h>
-# endif
-#endif
-
 #include "wwwoffle.h"
-#include "document.h"
-#include "config.h"
+#include "io.h"
 #include "misc.h"
-
 #include "errors.h"
+#include "config.h"
+#include "document.h"
+
 
 /* Parser outputs */
 
@@ -70,6 +76,10 @@ K               [a-z0-9-]
 #define LEX_ATTR_VAL      22
 #define LEX_ATTR_VAL_SQ   23
 #define LEX_ATTR_VAL_DQ   24
+
+#define LEX_CSS_STYLESHEET  101
+#define LEX_CSS_PROPERTY    102
+#define LEX_CSS_VALUE       103
 
 /*+ Tag types +*/
 
@@ -221,7 +231,7 @@ static void add_java_applet_url(char *obj,char *codebase,RefType refType);
 
 static void handle_object_tag(Tag *tag,int fetch_webbug_images);
 static void handle_param_tag(Tag *tag);
-static void handle_link_tag(Tag *tag);
+static void handle_link_tag(Tag *tag,int fetch_icon_images);
 static void handle_meta_tag(Tag *tag);
 static void handle_img_tag(Tag *tag,int fetch_webbug_images);
 
@@ -244,6 +254,7 @@ static /*@null@*/ URL *baseUrl=NULL;
 static char *string=NULL;
 static size_t stringallocsize=0,stringlen=0;
 static int after_tag=INITIAL;
+static int css_after_brace=CSS;
 
 inline static void reset_parser()
 {
@@ -251,6 +262,7 @@ inline static void reset_parser()
   string=NULL;
   stringallocsize=0; stringlen=0;
   after_tag=INITIAL;
+  css_after_brace=CSS;
   YY_FLUSH_BUFFER;
   BEGIN(INITIAL);
   html_yylval=NULL;
@@ -515,22 +527,31 @@ static void handle_param_tag(Tag *tag)
   Take the information for the link tag and parse it.
 
   Tag *tag The tag information.
+
+  int fetch_icon_images A flag to indicate if icons are to be fetched.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void handle_link_tag(Tag *tag)
+static void handle_link_tag(Tag *tag,int fetch_icon_images)
 {
  int i;
- int is_stylesheet=0;
+ int is_stylesheet=0,is_icon=0;
 
  for(i=0;i<tag->nattr;i++)
     if(tag->attr_type[i]==att_rel && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"Stylesheet"))
        is_stylesheet=1;
+
+ if(fetch_icon_images)
+    for(i=0;i<tag->nattr;i++)
+       if(tag->attr_type[i]==att_rel && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"Shortcut Icon",10))
+          is_icon=1;
 
  for(i=0;i<tag->nattr;i++)
     if(tag->attr_type[i]==att_href && tag->attr_val[i] && tag->attr_val[i][0])
       {
        if(is_stylesheet)
           AddReference(tag->attr_val[i],RefStyleSheet);
+       else if(is_icon)
+          AddReference(tag->attr_val[i],RefImage);
        else
           AddReference(tag->attr_val[i],RefLink);
       }
@@ -644,11 +665,13 @@ static void parse_html(URL *Url)
 {
  HTMLTags tag=tag_ntags;
  HTMLAttributes key=att_natts;
+ int property_is_image=0;
  RefType ref;
  int yychar,i;
  Tag tagdata;
 
  int fetch_webbug_images=ConfigBooleanURL(FetchWebbugImages,Url);
+ int fetch_icon_images=ConfigBooleanURL(FetchIconImages,Url);
 
  /* Initialise the tagdata */
 
@@ -688,7 +711,7 @@ static void parse_html(URL *Url)
        else if(tag==tag_meta)
           handle_meta_tag(&tagdata);
        else if(tag==tag_link)
-          handle_link_tag(&tagdata);
+          handle_link_tag(&tagdata,fetch_icon_images);
        else if(tag==tag_img)
           handle_img_tag(&tagdata,fetch_webbug_images);
 
@@ -776,6 +799,25 @@ static void parse_html(URL *Url)
        key=att_natts;
        break;
 
+      case LEX_CSS_STYLESHEET:
+       AddReference(html_yylval,RefStyleSheet);
+       break;
+
+      case LEX_CSS_PROPERTY:
+       if(!strcasecmp("background-image",html_yylval))
+          property_is_image=1;
+       else if(!strcasecmp("background",html_yylval))
+          property_is_image=1;
+       else if(!strcasecmp("list-style-image",html_yylval))
+          property_is_image=1;
+       break;
+
+      case LEX_CSS_VALUE:
+       if(property_is_image && strcasecmp(html_yylval,"none"))
+          AddReference(html_yylval,RefImage);
+       property_is_image=0;
+       break;
+
       default:
        break;
       }
@@ -839,6 +881,7 @@ cleanup_return:
 }
 
 
+#define YY_SKIP_YYWRAP 1 /* Remove error with prototype of ..._yywrap */
 #ifndef html_yywrap
 /*+ Needed in lex but does nothing. +*/
 #define html_yywrap() 1
@@ -894,45 +937,45 @@ cleanup_return:
 <TAG_START>"style"/">"      { BEGIN(TAG); after_tag=STYLE_START;  html_yylval=yytext; return(LEX_TAG_BEGIN); }
 <TAG_START>"title"/{W}      { BEGIN(TAG); after_tag=TITLE_START;  html_yylval=yytext; return(LEX_TAG_BEGIN); }
 <TAG_START>"title"/">"      { BEGIN(TAG); after_tag=TITLE_START;  html_yylval=yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{K}+/" "     { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{K}+/\t      { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{K}+/\n      { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{K}+/\r      { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{K}+/">"     { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"/"?{tag}/" "    { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"/"?{tag}/\t     { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"/"?{tag}/\n     { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"/"?{tag}/\r     { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"/"?{tag}/">"    { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
 <TAG_START>(.|\n)           { BEGIN(INITIAL); }
 
-<TAG>{W}*"/>"               { BEGIN(after_tag);                   html_yylval=""; return(LEX_TAG_END_XHTML); }
+<TAG>{W}+                   { }
+<TAG>"/>"                   { BEGIN(after_tag);                   html_yylval=""; return(LEX_TAG_END_XHTML); }
 <TAG>">"                    { BEGIN(after_tag);                   html_yylval=""; return(LEX_TAG_END); }
 <TAG>"<"                    { BEGIN(after_tag); unput(yytext[0]); html_yylval=""; return(LEX_TAG_END); }
-<TAG>{K}+                   { BEGIN(TAG_ATTR_KEY); html_yylval=yytext; return(LEX_ATTR_KEY); }
+<TAG>{key}                  { BEGIN(TAG_ATTR_KEY); html_yylval=yytext; return(LEX_ATTR_KEY); }
 <TAG>(.|\n)                 { }
 
 <TAG_ATTR_KEY>{W}*=         { BEGIN(TAG_ATTR_VAL); }
 <TAG_ATTR_KEY>(.|\n)        { BEGIN(TAG); unput(yytext[0]); html_yylval=NULL; return(LEX_ATTR_VAL); }
 
-<TAG_ATTR_VAL>\"{W}*        { BEGIN(DQUOTED); reset_string; }
-<TAG_ATTR_VAL>\'{W}*        { BEGIN(SQUOTED); reset_string; }
+<TAG_ATTR_VAL>\"            { BEGIN(DQUOTED); reset_string; }
+<TAG_ATTR_VAL>\'            { BEGIN(SQUOTED); reset_string; }
 <TAG_ATTR_VAL>{W}+          { }
-<TAG_ATTR_VAL>{F}+          { BEGIN(TAG);                   html_yylval=yytext; return(LEX_ATTR_VAL); }
+<TAG_ATTR_VAL>{val}         { BEGIN(TAG);                   html_yylval=yytext; return(LEX_ATTR_VAL); }
 <TAG_ATTR_VAL>(.|\n)        { BEGIN(TAG); unput(yytext[0]); html_yylval="";     return(LEX_ATTR_VAL); }
 
  /* Quoted strings */
 
 <DQUOTED>\\\"               |
 <DQUOTED>\\                 { append_string(yytext); }
-<DQUOTED>{W}*\"             { BEGIN(TAG); html_yylval=string; return(LEX_ATTR_VAL_DQ); }
+<DQUOTED>\"                 { BEGIN(TAG); html_yylval=string; return(LEX_ATTR_VAL_DQ); }
 <DQUOTED>[\r\n]+            { }
 <DQUOTED>[^\\\"\r\n]+       { append_string(yytext); }
 
 <SQUOTED>\\\'               |
 <SQUOTED>\\                 { append_string(yytext); }
-<SQUOTED>{W}*\'             { BEGIN(TAG); html_yylval=string; return(LEX_ATTR_VAL_SQ); }
+<SQUOTED>\'                 { BEGIN(TAG); html_yylval=string; return(LEX_ATTR_VAL_SQ); }
 <SQUOTED>[\r\n]+            { }
 <SQUOTED>[^\\\'\r\n]+       { append_string(yytext); }
 
  /* Scripts */
 
-<SCRIPT_START>{W}*/"</script" { BEGIN(INITIAL); }
 <SCRIPT_START>(.|\n)        { unput(yytext[0]); BEGIN(SCRIPT); }
 
 <SCRIPT>\"                  { BEGIN(SCRIPT_DQUOTED); }
@@ -947,8 +990,8 @@ cleanup_return:
 
  /* Comments in scripts, C or C++ style */
 
-<SCRIPT_COMMENT_C>"*/"      { BEGIN(SCRIPT); }
-<SCRIPT_COMMENT_C>"*"       { }
+<SCRIPT_COMMENT_C>"*"+"/"   { BEGIN(SCRIPT); }
+<SCRIPT_COMMENT_C>"*"+      { }
 <SCRIPT_COMMENT_C>[^*]+     { }
 
 <SCRIPT_COMMENT_CPP>[\r\n]  { BEGIN(SCRIPT); }
@@ -970,12 +1013,70 @@ cleanup_return:
 
  /* Styles */
 
-<STYLE_START>{W}*/"</style" { BEGIN(INITIAL); }
-<STYLE_START>(.|\n)         { unput(yytext[0]); BEGIN(STYLE); }
+<STYLE_START>(.|\n)         { unput(yytext[0]); BEGIN(CSS); }
 
-<STYLE>"<"/"/style"         { BEGIN(TAG_START); }
-<STYLE>"<"                  { }
-<STYLE>[^<]+                { }
+<CSS>"<"/"/style"           { BEGIN(TAG_START); }
+
+ /* CSS (Cascading Style Sheets */
+
+ /* CSS - Handle comments and other tags */
+
+<CSS>"/*"                       { BEGIN(CSS_COMMENT); }
+<CSS>"@import"                  { BEGIN(CSS_IMPORT); }
+<CSS>"@media"                   { BEGIN(CSS_MEDIA); }
+<CSS>\{                         { BEGIN(CSS_DECL_LIST); }
+<CSS>[^<{@/]+                   { /* Different from css.l by addition of '<' */ }
+<CSS>.|\n                       { }
+
+ /* CSS - Comments in C style */
+
+<CSS_COMMENT>"*"+"/"            { BEGIN(CSS); }
+<CSS_COMMENT>"*"+               { }
+<CSS_COMMENT>[^*]+              { }
+
+ /* CSS - @import */
+
+<CSS_IMPORT>{W}+                { }
+<CSS_IMPORT>url\(\"             { BEGIN(CSS_IMPORT_URL); }
+<CSS_IMPORT>url\(\'             { BEGIN(CSS_IMPORT_URL); }
+<CSS_IMPORT>url\(               { BEGIN(CSS_IMPORT_URL); }
+<CSS_IMPORT>\"                  { BEGIN(CSS_IMPORT_URL); }
+<CSS_IMPORT>\'                  { BEGIN(CSS_IMPORT_URL); }
+<CSS_IMPORT>.|\n                { BEGIN(CSS); }
+
+<CSS_IMPORT_URL>{W}+            { }
+<CSS_IMPORT_URL>{url}           { html_yylval=yytext; return(LEX_CSS_STYLESHEET); }
+<CSS_IMPORT_URL>.               { BEGIN(CSS); }
+
+ /* CSS - @media */
+
+<CSS_MEDIA>{W}+                 { }
+<CSS_MEDIA>[^{}]+               { }
+<CSS_MEDIA>\{                   { css_after_brace=CSS_MEDIA; BEGIN(CSS); }
+<CSS_MEDIA>\}                   { css_after_brace=CSS;       BEGIN(CSS); }
+
+ /* CSS - Declaration list */
+
+<CSS_DECL_LIST>{W}+             { }
+<CSS_DECL_LIST>{ident}          { BEGIN(CSS_DECL_PROP);  html_yylval=yytext; return(LEX_CSS_PROPERTY); }
+<CSS_DECL_LIST>\}               { BEGIN(css_after_brace); }
+<CSS_DECL_LIST>.|\n             { }
+
+<CSS_DECL_PROP>{W}*:            { BEGIN(CSS_DECL_VALUE); }
+<CSS_DECL_PROP>.|\n             { }
+
+<CSS_DECL_VALUE>{W}+            { }
+<CSS_DECL_VALUE>url\(\"         { BEGIN(CSS_DECL_VALUE_URL); }
+<CSS_DECL_VALUE>url\(\'         { BEGIN(CSS_DECL_VALUE_URL); }
+<CSS_DECL_VALUE>url\(           { BEGIN(CSS_DECL_VALUE_URL); }
+<CSS_DECL_VALUE>;               { BEGIN(CSS_DECL_LIST); }
+<CSS_DECL_VALUE>\}              { unput('}'); BEGIN(CSS_DECL_LIST); }
+<CSS_DECL_VALUE>[^;}u]+         { }
+<CSS_DECL_VALUE>.|\n            { }
+
+<CSS_DECL_VALUE_URL>{W}+        { }
+<CSS_DECL_VALUE_URL>{url}       { BEGIN(CSS_DECL_VALUE);  html_yylval=yytext; return(LEX_CSS_VALUE); }
+<CSS_DECL_VALUE_URL>.           { }
 
  /* Title, added by Paul Rombouts */
 
@@ -988,5 +1089,6 @@ cleanup_return:
 
  /* End of file */
 
- /* <<EOF>>                 { if(string) free(string); string=NULL; stringallocsize=stringlen=0; after_tag=INITIAL; YY_FLUSH_BUFFER; BEGIN(INITIAL); html_yylval=NULL; return(0); } */
+ /* <<EOF>>                 { if(string) free(string); string=NULL; stringallocsize=stringlen=0;
+                              css_after_brace=CSS; after_tag=INITIAL; YY_FLUSH_BUFFER; BEGIN(INITIAL); html_yylval=NULL; return(0); } */
 %%

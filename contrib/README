@@ -28,6 +28,10 @@ Contents:
         An example CGI script, useful for testing CGI interfaces
         An example spec file for creating RPMs
         Redhat spec files and startup files
+        A spec file for creating RPMs for Redhat 9
+        Wildcard wwwoffle-ls
+        Checking Duplicated Monitored Files
+        WWWOFFLE Book - Creating a purge.conf from browser bookmarks
 
 Note: I did not write or check all of these scripts, they were supplied to me by
       the authors named below.
@@ -278,12 +282,10 @@ It is possible to copy the bookmarks into the "Personal Toolbar Folder" and the
 bookmarks are then available directly from the personal toolbar instead of the
 bookmark menu.
 
-I (AMB) added another bookmark to those provided that allows a recursive fetch
-of all pages linked to from the current page.  This is a way of pre-fetching
-interesting links.
-
-I (AMB) also added another bookmark to those provided that allows the current
-page to be monitored.
+I (AMB) added some other bookmarks to those provided that allows a recursive
+fetch of all pages linked to from the current page, monitoring the current page,
+information about the current page and configuration file editing for the
+current page.
 
 
 Netscape Javascript Bookmarks & Alternative Cache-Info HTML
@@ -355,20 +357,20 @@ Delete requests from the outgoing directory and cache by regexp
 
 Filename:    wwwoffle-jidanni/wwwoffle-outgoing-regexp-rm
 Filename:    wwwoffle-jidanni/wwwoffle-cache-regexp-rm
-Contributed: Dan Jacobson <jidanni@kimo.com.tw>
+Contributed: Dan Jacobson <jidanni@jidanni.org>
 
 These scripts delete files from the outgoing directory or the cache based on
 regular expression matching.
 
 The latest versions of these scripts can be found at:
-http://www.geocities.com/jidanni/wwwoffle-jidanni.html
+http://jidanni.org/comp/wwwoffle/
 
 
 Chop the WWWOFFLE lasttime index into parts
 -------------------------------------------
 
 Filename:    wwwoffle-jidanni/wwwoffle-chunks
-Contributed: Dan Jacobson <jidanni@kimo.com.tw>
+Contributed: Dan Jacobson <jidanni@jidanni.org>
 
 > wchunks: chop the wwwoffle index into smaller chunks to
 > save wear and tear and waiting each time i hit the BACK key in my
@@ -378,7 +380,7 @@ Contributed: Dan Jacobson <jidanni@kimo.com.tw>
 > to $TMPDIR ...
 
 The latest versions of these scripts can be found at:
-http://www.geocities.com/jidanni/wwwoffle-jidanni.html
+http://jidanni.org/comp/wwwoffle/
 
 
 An example CGI script, useful for testing CGI interfaces
@@ -412,3 +414,68 @@ Contributed: Andrew Bray <andy@chaos.org.uk>
 > recreating them.
 
 (I have included the latest version of DontGet.txt separately, see above.)
+
+
+A spec file for creating RPMs for Redhat 9
+------------------------------------------
+
+Filename:    redhat3/wwwoffle.spec
+Contributed: Davide Bolcioni <dbolcion@libero.it>
+
+A spec file for creating RPMs of WWWOFFLE version 2.8a for Redhat 9.
+
+
+Wildcard wwwoffle-ls
+--------------------
+
+Filename:    wwwoffle-ls2
+Contributed: Marc Boucher <marcb@box100.com>
+
+> Here is an alternative to wwwoffle-ls that accepts URLs with wildcards.
+> 
+> Examples:
+> 
+>   wwwoffle-ls2  http://*yahoo*/*.php
+>   wwwoffle-ls2  *://*freshmeat.net/*.php
+> 
+> The main problem was that it takes an eternity to check (read) all U* files
+> in the matched directories. My solution is to write a listing file in each
+> host's dir. This file is read instead of every U* file and is only
+> rewritten if the mdate of the directory is younger than the file.
+> For this reason the user must be root or have write access to the spool
+> directories.
+
+>  - If your spool dir is not "/var/spool/wwwoffle/" you can use '-c configfile'
+>    to read it from your configuration file.
+> See -h for more information.
+> 
+> I have also included a patch to prevent WWWOFFLE from deleting valid
+> listing files when purging the cache.
+
+
+Checking Duplicated Monitored Files
+-----------------------------------
+
+Filename:    duplicates/*
+Contributed: Andrew M. Bishop <amb@gedanken.demon.co.uk> [WWWOFFLE Author]
+
+If a particular URL is monitored on a daily basis it may be seen that the same
+URL is always fetched even though there seems to be no change.  Provided are two
+scripts that can help find out why the page was re-fetched.  There is a README
+file in the duplicates directory that gives more details.
+
+
+WWWOFFLE Book - Creating a purge.conf from browser bookmarks
+------------------------------------------------------------
+
+Filename:    wwwofflebook/*
+Contributed: <wwm@gmx.ch>
+
+This is a beta version.
+
+> The wwwofflebook scripts can extract the http domains from your browser bookmark
+> file. The http domain of a bookmark is the first part of the address, beginning 
+> after the protocol prefix 'http://'. wwwofflebook passes these domains to the 
+> wwwoffle daemon with the flag to never delete them at all. The pages of this site 
+> will always be available offline, from the wwwoffle cache. 
+> This way a browser-bookmarked site will be retained until you remove the bookmarks.

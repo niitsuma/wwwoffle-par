@@ -10,7 +10,8 @@ cd $wwwoffle_spool
 
 # Set the path to include the indexer executable
 
-PATH=$PATH:/usr/local/sbin:/usr/local/bin
+PATH=$PATH:/usr/local/bin
+PATH=$PATH:/usr/local/sbin
 export PATH
 
 # Set up a log file.

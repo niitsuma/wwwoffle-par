@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <!--
@@ -6,7 +6,9 @@
 Available WWWOFFLE Variables (all with a '$' prefix).
 
 localhost = The hostname of the server running wwwoffled (='$localhost').
-url       = The URL of the directory (='$url').
+version   = The version of the WWWOFFLE server (='$version').
+url       = The URL of the directory (without username/password) (='$url').
+base      = The URL of the directory (with username/password) (='$base').
 message   = The message that the FTP server sent.
 
 $decurl=%decode[url]
@@ -15,12 +17,13 @@ $decurl=%decode[url]
 
 <HEAD>
 <TITLE>Inhalt von $decurl</TITLE>
-<BASE HREF="$url">
+<BASE HREF="$base">
+<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
-<BODY>
+<BODY class="wwwoffle-message">
 
-<H1 align=center>Inhalt von $decurl</H1>
+<H1 align="center">Inhalt von $decurl</H1>
 
 $message?{
 <pre>

@@ -1,20 +1,21 @@
-	  Alternative WWWOFFLE implementation - version 2.7h-par-2
-	  ========================================================
+	  Alternative WWWOFFLE implementation - version 2.8d-par
+                             by Paul Rombouts
+	  ======================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
 am making available so other people can run it and/or study the source code.
-Present version is 2.7h-par-2 (I've simply appended my initials to the version
+Present version is 2.8d-par (I've simply appended my initials to the version
 number). The first part of this file describes how to patch, compile, install
 and run wwwoffled. The second part lists in more detail the changes I've made to
 AMB's code.
 
 Before compiling and installing WWWOFFLE according to AMB's installation
 instructions described in the INSTALL file you must first apply my patch file
-wwwoffled-2.7h-par-2.diff.gz. Use a freshly untarred copy of Andrew Bishop's
-original version 2.7h source, cd into the source directory wwwoffle-2.7h and
+wwwoffled-2.8d-par.diff.gz. Use a freshly untarred copy of Andrew Bishop's
+original version 2.8d source, cd into the source directory wwwoffle-2.8d and
 apply the command:
 
-gzip -cd <path_to_patch>/wwwoffle-2.7h-par-2.diff.gz | patch -p2 -N -E
+gzip -cd <path_to_patch>/wwwoffle-2.8d-par.diff.gz | patch -p2 -N -E
 
 Note: because I have used GNU extensions you will need to compile with gcc and
 link with glibc. This will not be a problem with most Linux distributions.
@@ -48,6 +49,24 @@ will not display correctly.
 
 I've introduced a few extensions to the way WWWOFFLE can be configured:
 
+- New in version 2.8d: I've added support for connecting via SOCKS v4 proxies.
+  I personally use this feature with OpenSSH as the SOCKS server.
+  For example, you can start ssh as a SOCKS server with the command
+
+	ssh -NTx -D 1080 remotehost
+
+  and configure wwwoffled by adding the following line to the "Proxy" section in
+  the config file:
+
+	<*://*.protecteddomain> socks = localhost:1080
+
+  Now if you use WWWOFFLE to browse www.protecteddomain, to the web server the
+  connection will appear to originate from remotehost. This can be very useful
+  if www.protecteddomain is behind a firewall and cannot be reached directly,
+  or if www.protecteddomain will only allow full access to clients within a
+  certain range of IP addresses.
+  Note: this feature currently only works for IPv4.
+
 - New in version 2.7h: I've included a patch provided by Marc Boucher
   <MarcB@box100.com>. This implements a new configuration option called
   always-use-etag. The so called entity tag can be used to validate the contents
@@ -60,6 +79,8 @@ I've introduced a few extensions to the way WWWOFFLE can be configured:
   WWWOFFLE to send conditional requests based on the Last-Modified time only,
   unless the Last-Modified time cannot be considered a strong validator (based
   on a heuristic criterion).
+  Note: in version 2.8d this option is now called validate-with-etag,
+  but I still use Marc Boucher's implementation of this option.
 
 - I've added a new option to the OnlineOptions section called
   keep-cache-if-not-found. When this option is enabled for a certain URL, then
@@ -112,6 +133,21 @@ I've introduced a few extensions to the way WWWOFFLE can be configured:
 The rest of this file lists in some detail some other modifications I've made,
 but you don't have to read it if you simply want to run wwwoffled as you're used
 to.
+
+- New in version 2.8d: AMB's version of the code never includes a Context-Length
+  header line in replies to clients. I choose to use a Context-Length header when
+  when the size of the page is known in advance. This also eliminates the need
+  for using chunked encoding and the (slight) overhead caused by this in a number
+  of cases.
+
+- New in version 2.8d: The original version of wwwoffled misses a number of
+  opportunities to reply with "304 Not Modified" to conditional requests but
+  serves the complete contents of a spooled page instead. I believe I have now
+  fixed this.
+
+- New in version 2.8d: There is a logical error in AMB's implementation of
+  io_chunk_encode(). I don't know if this will ever be a problem in practice,
+  but I believe my version is more correct.
 
 - New in version 2.7h-par-2: I've made the wwwoffle control executable smaller
   by eliminating a lot of unnecessary code.
@@ -280,10 +316,10 @@ to.
   efficient pattern matching.
 
 In addition to the things I've listed above, I've made various little changes to
-fix minor bugs, improve efficiency or elegance, or simply to suit my my own
-coding style. These changes are too numerous to list here, but you can always
-find out about them by comparing the source of my modified version with AMB's
-original code.
+fix minor bugs, improve efficiency or elegance, or simply to suit my own coding
+style. These changes are too numerous to list here, but you can always find out
+about them by comparing the source of my modified version with AMB's original
+code.
 
 If you have any questions about the modifications I've made, you can send these
 to <p.a.rombouts@home.nl>. Questions about the original WWWOFFLE version should

@@ -1,6 +1,14 @@
-W               [ \t\r\n]
-F               [-a-z0-9$_.!*(),%;/?:@&=+~|#]
-K               [a-z0-9-]
+W               [ \t\r\n\f]
+
+nonascii        [\200-\377]
+ascii           [ -~]
+alphanum        [a-z0-9]
+punct           [][!\"#$%&\'()*+,-./:;<=>?@\\^_`{|}~]
+safepunct       [][!\#$%&\*+,-./:;=?@\\^_`{|}~]
+
+tag             {alphanum}+
+key             ({alphanum}|-)+
+val             ({alphanum}|{nonascii}|{safepunct})+
 
 %x DOCTYPE
 %x COMMENT COMMENT_BAD
@@ -11,14 +19,14 @@ K               [a-z0-9-]
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/htmlmodify.l 1.54 2002/10/28 19:00:35 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/htmlmodify.l 1.74 2004/09/29 18:07:36 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   Parse the HTML and modify the source.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -47,9 +55,10 @@ K               [a-z0-9-]
 #endif
 
 #include "wwwoffle.h"
-#include "document.h"
-#include "config.h"
+#include "io.h"
 #include "misc.h"
+#include "config.h"
+#include "document.h"
 
 
 /* Parser outputs */
@@ -75,32 +84,34 @@ typedef enum _HTMLTags
  tag_base      = 1  /* "base"      */ ,
  tag_blink     = 2  /* "blink"     */ ,
  tag__blink    = 3  /* "/blink"    */ ,
- tag__body     = 4  /* "/body"     */ ,
- tag__html     = 5  /* "/html"     */ ,
- tag_noscript  = 6  /* "noscript"  */ ,
- tag__noscript = 7  /* "/noscript" */ ,
- tag_script    = 8  /* "script"    */ ,
- tag__script   = 9  /* "/script"   */ ,
- tag__style    =10  /* "/style"    */ ,
- tag_applet    =11  /* "applet"    */ ,
- tag__applet   =12  /* "/applet"   */ ,
- tag_param     =13  /* "param"     */ ,
- tag__object   =14  /* "/object"   */ ,
- tag__iframe   =15  /* "/iframe"   */ ,
- tag__embed    =16  /* "/embed"    */ ,
+ tag_marquee   = 4  /* "marquee"   */ ,
+ tag__marquee  = 5  /* "/marquee"  */ ,
+ tag__body     = 6  /* "/body"     */ ,
+ tag__html     = 7  /* "/html"     */ ,
+ tag_noscript  = 8  /* "noscript"  */ ,
+ tag__noscript = 9  /* "/noscript" */ ,
+ tag_script    =10  /* "script"    */ ,
+ tag__script   =11  /* "/script"   */ ,
+ tag__style    =12  /* "/style"    */ ,
+ tag_applet    =13  /* "applet"    */ ,
+ tag__applet   =14  /* "/applet"   */ ,
+ tag_param     =15  /* "param"     */ ,
+ tag__object   =16  /* "/object"   */ ,
+ tag__iframe   =17  /* "/iframe"   */ ,
+ tag__embed    =18  /* "/embed"    */ ,
 
- tag_complex   =17  /* Complex tags, stored and processed as a whole. */,
+ tag_complex   =19  /* Complex tags, stored and processed as a whole. */,
 
- tag_style     =17  /* "style"     */ ,
- tag_meta      =18  /* "meta"      */ ,
- tag_link      =19  /* "link"      */ ,
- tag_object    =20  /* "object"    */ ,
- tag_a         =21  /* "a"         */ ,
- tag_iframe    =22  /* "iframe"    */ ,
- tag_img       =23  /* "img"       */ ,
- tag_embed     =24  /* "embed"     */ ,
+ tag_style     =19  /* "style"     */ ,
+ tag_meta      =20  /* "meta"      */ ,
+ tag_link      =21  /* "link"      */ ,
+ tag_object    =22  /* "object"    */ ,
+ tag_a         =23  /* "a"         */ ,
+ tag_iframe    =24  /* "iframe"    */ ,
+ tag_img       =25  /* "img"       */ ,
+ tag_embed     =26  /* "embed"     */ ,
 
- tag_ntags     =25
+ tag_ntags     =27
 }
 HTMLTags;
 
@@ -112,6 +123,8 @@ static char *tags[]=
  /* tag_base      = 1  */  "base"      ,
  /* tag_blink     = 2  */  "blink"     ,
  /* tag__blink    = 3  */  "/blink"    ,
+ /* tag_marquee   = 4  */  "marquee"   ,
+ /* tag__marquee  = 5  */  "/marquee"  ,
  /* tag__body     = 4  */  "/body"     ,
  /* tag__html     = 5  */  "/html"     ,
  /* tag_noscript  = 6  */  "noscript"  ,
@@ -230,50 +243,12 @@ typedef struct _Tag
 Tag;
 
 
-/* Ideas taken from the public domain Demoroniser perl script */
-
-/*************************************************/
-/* De-moron-ise Text from Microsoft Applications */
-/*         by John Walker -- January 1998        */
-/*            http://www.fourmilab.ch/           */
-/*************************************************/
-
 /* Microsoft Character mapping */
 
+/*+ The option to convert the characters when seen. +*/
 static int demoronise_ms_chars;
+static int fix_mixed_cyrillic;
 
-static char *demoronise_ms_chars_list[]={/* 0x80 */ "\200",
-                                         /* 0x81 */ "\201",
-                                         /* 0x82 */ ",",
-                                         /* 0x83 */ "<em>f</em>",
-                                         /* 0x84 */ ",,",
-                                         /* 0x85 */ "...",
-                                         /* 0x86 */ "\206",
-                                         /* 0x87 */ "\207",
-                                         /* 0x88 */ "^",
-                                         /* 0x89 */ " °/°°",
-                                         /* 0x8A */ "\212",
-                                         /* 0x8B */ "<",
-                                         /* 0x8C */ "Oe",
-                                         /* 0x8D */ "\215",
-                                         /* 0x8E */ "\216",
-                                         /* 0x8F */ "\217",
-                                         /* 0x90 */ "\220",
-                                         /* 0x91 */ "`",
-                                         /* 0x92 */ "'",
-                                         /* 0x93 */ "\"",
-                                         /* 0x94 */ "\"",
-                                         /* 0x95 */ "*",
-                                         /* 0x96 */ "-",
-                                         /* 0x97 */ "--",
-                                         /* 0x98 */ "<sup>~</sup>",
-                                         /* 0x99 */ "<sup>TM</sup>",
-                                         /* 0x9A */ "\232",
-                                         /* 0x9B */ ">",
-                                         /* 0x9C */ "oe",
-                                         /* 0x9D */ "\235",
-                                         /* 0x9E */ "\236",
-                                         /* 0x9F */ "\237"};
 
 /* Definitions of why the output is disabled. */
 
@@ -296,33 +271,30 @@ static void modify_html(URL *Url);
 static /*@null@*/ char *htmlmodify_yylval=NULL;
 extern int htmlmodify_yylex(void);
 
-static int handle_a_tag(Tag *tag,int disable_html_dontget_anchors);
-static int handle_iframe_tag(Tag *tag,int disable_html_dontget_iframes);
+static /*@null@*/ char *extract_charset(char *content_type);
+
+static int handle_a_tag(Tag *tag,int disable_dontget_anchors);
+static int handle_iframe_tag(Tag *tag,int disable_dontget_iframes);
 static void handle_img_tag(Tag *tag,int replace_dontget,char *dontget_replacement,
                                     int replace_webbug,char *webbug_replacement);
 static int handle_object_tag(Tag *tag,int replace_dontget,char *dontget_replacement,
                                       int replace_webbug,char *webbug_replacement,
-                                      int disable_html_applet,
-                                      int disable_html_flash,
-                                      int disable_html_dontget_iframes);
+                                      int disable_applet,
+                                      int disable_flash,
+                                      int disable_dontget_iframes);
 static void output_img_or_object_tag(Tag *tag,int src_att,
                                               int replace_dontget,char *dontget_replacement,
                                               int replace_webbug,char *webbug_replacement);
-static void handle_link_tag(Tag *tag,int disable_html_style);
-static int handle_style_script_tag(Tag *tag,int disable_html_script);
-static void handle_meta_tag(Tag *tag,int disable_html_metarefresh,int disable_html_metarefresh_self);
+static void handle_link_tag(Tag *tag,int disable_style);
+static int handle_style_script_tag(Tag *tag,int disable_script);
+static void handle_meta_tag(Tag *tag,int disable_meta_refresh,int disable_meta_refresh_self,int disable_meta_set_cookie);
 static void output_tag(Tag *tag,char *prefix,char *suffix);
 
+static void handle_high_bit(unsigned char ch);
 
-/*+ The file descriptor to output to. +*/
-static int output_fd=-1;
 
 /*+ The add-cache-info optional footer. +*/
 static /*@null@*/ /*@observer@*/ char *cache_info=NULL;
-
-/*+ The file descriptor that we are reading from. +*/
-static int htmlmodify_yyfd=-1;
-static int htmlmodify_read_err=0;
 
 /*+ The base URL of this page. +*/
 static /*@null@*/ URL *baseUrl=NULL;
@@ -333,16 +305,15 @@ static int disable_output=DISABLE_NONE;
 
 /*++++++++++++++++++++++++++++++++++++++
   Output the file with the modificatons if it is HTML, else just output.
-  Returns -1 if error was encountered while reading spool.
-
-  int client The file to write to.
-
-  int spool The file to read from.
 
   URL *Url The URL that we are parsing.
+
+  int spool The file descriptor for the spool file to get the date from.
+
+  char *content_type The HTTP header containing the content type (and perhaps the charset).
   ++++++++++++++++++++++++++++++++++++++*/
 
-int OutputHTMLWithModifications(int client,int spool,URL *Url)
+void OutputHTMLWithModifications(URL *Url,int spool,char *content_type)
 {
  static int first=1;
 
@@ -370,35 +341,114 @@ int OutputHTMLWithModifications(int client,int spool,URL *Url)
     else
       {sprintf(timeago,"%ld",t_ago/(30*24*3600));timeunit="M";}
 
-    cache_info=HTMLMessageBody(-1,"AddCacheInfo",
-                               "url",Url->name,
-                               "date",date,
-                               "time",timeago,
-                               "unit",timeunit,
-                               NULL);
+    cache_info=HTMLMessageString("AddCacheInfo",
+                                 "url",Url->name,
+                                 "date",date,
+                                 "time",timeago,
+                                 "unit",timeunit,
+                                 NULL);
+   }
+
+ demoronise_ms_chars=0;
+ if(ConfigBooleanURL(DemoroniseMSChars,Url))
+   {
+    char* charset=extract_charset(content_type);
+
+    if(charset)
+      {
+       if(strcasecmp(charset,"utf-8") &&
+          strcasecmp(charset,"koi8-r") &&
+          strcasecmp(charset,"euc-kr") &&
+          strcasecmp(charset,"big5") &&
+          strcasecmp(charset,"iso-2022-jp") &&
+          strcasecmp(charset,"chinesebig5"))
+          demoronise_ms_chars=1;
+
+       free(charset);
+      }
+    else
+       demoronise_ms_chars=1;
+   }
+
+ fix_mixed_cyrillic=0;
+ if(ConfigBooleanURL(FixMixedCyrillic,Url))
+   {
+    char* charset=extract_charset(content_type);
+
+    if(charset)
+      {
+       if(!strcasecmp(charset,"koi8-r"))
+          fix_mixed_cyrillic=1;
+
+       free(charset);
+      }
+    else
+       fix_mixed_cyrillic=1;
    }
 
  baseUrl=Url;
 
- output_fd=client;
- htmlmodify_yyfd=spool;
- htmlmodify_read_err=0;
  if(!first)
     htmlmodify_yyrestart(NULL);
- first=0;
 
  modify_html(Url);
 
  cache_info=NULL;
 
- return(htmlmodify_read_err);
+ first=0;
 }
 
 
 /*+ A macro to output the data if valid to do so. +*/
 #define YY_OUTPUT(text) \
-           if(!disable_output) \
-              write_string(output_fd,text)
+           if(!disable_output && *text) \
+              wwwoffles_write_data(text,strlen(text))
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Extract the charset from a MIME type and charset.
+
+  char *extract_charset Returns the charset that it found or NULL if none.
+
+  char *content_type The HTTP content type.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+static char *extract_charset(char *content_type)
+{
+ char *p,*charset=NULL;
+
+ /* ' *text/html *; *charset *= *["']?...["']?' */
+
+ p=content_type;
+
+ while(*p && *p!=';') p++;
+ if(*p!=';') return(NULL); /* unparseable */
+ p++;
+
+ while(isspace(*p)) p++;
+ if(!*p) return(NULL); /* unparseable */
+
+ if(!strcasecmp_litbeg(p,"charset"))
+   {
+    p+=7;
+
+    while(*p && *p!='=') p++;
+    if(*p!='=') return(NULL); /* unparseable */
+    p++;
+
+    while(isspace(*p)) p++;
+    if(!*p) return(NULL); /* unparseable */
+
+    if(*p=='"' || *p=='\'') p++;
+
+    charset=strdup(p);
+
+    p=charset+strlen(p)-1;
+    if(*p=='"' || *p=='\'') *p=0;
+   }
+
+ return(charset);
+}
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -408,10 +458,10 @@ int OutputHTMLWithModifications(int client,int spool,URL *Url)
 
   Tag *tag The tag information.
 
-  int disable_html_dontget_anchors The option to disable links to URLs that are not got.
+  int disable_dontget_anchors The option to disable links to URLs that are not got.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int handle_a_tag(Tag *tag,int disable_html_dontget_anchors)
+static int handle_a_tag(Tag *tag,int disable_dontget_anchors)
 {
  int i;
  int is_dontget=0;
@@ -435,7 +485,7 @@ static int handle_a_tag(Tag *tag,int disable_html_dontget_anchors)
 
  /* Output the original or modified tag. */
 
- if(disable_html_dontget_anchors && is_dontget)
+ if(disable_dontget_anchors && is_dontget)
     output_tag(tag,"!-- WWWOFFLE (disable-dontget-links) - "," --");
  else
     output_tag(tag,NULL,NULL);
@@ -451,10 +501,10 @@ static int handle_a_tag(Tag *tag,int disable_html_dontget_anchors)
 
   Tag *tag The tag information.
 
-  int disable_html_dontget_iframes The option to disable iframes to URLs that are not got.
+  int disable_dontget_iframes The option to disable iframes to URLs that are not got.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int handle_iframe_tag(Tag *tag,int disable_html_dontget_iframes)
+static int handle_iframe_tag(Tag *tag,int disable_dontget_iframes)
 {
  int i;
  int is_dontget=0;
@@ -478,7 +528,7 @@ static int handle_iframe_tag(Tag *tag,int disable_html_dontget_iframes)
 
  /* Output the original or modified tag. */
 
- if(disable_html_dontget_iframes && is_dontget)
+ if(disable_dontget_iframes && is_dontget)
     output_tag(tag,"!-- WWWOFFLE (disable-dontget-iframes) - "," --");
  else
     output_tag(tag,NULL,NULL);
@@ -584,14 +634,14 @@ static void output_img_or_object_tag(Tag *tag,int src_att,
     tag->attr_val[src_att]=strdup(webbug_replacement);
    }
 
- /* Blank the alt attribute or add an empty one (if required). */
+ /* Blank the alt & title attributes or add an empty alt (if required). */
 
  if(is_dontget || is_webbug)
    {
     int seen_alt=0;
 
     for(i=0;i<tag->nattr;i++)
-       if(!strcasecmp(tag->attr_key[i],"alt"))
+       if(!strcasecmp(tag->attr_key[i],"alt") || !strcasecmp(tag->attr_key[i],"title"))
          {
           if(tag->attr_val[i])
              free(tag->attr_val[i]);
@@ -618,7 +668,7 @@ static void output_img_or_object_tag(Tag *tag,int src_att,
          }
 
        tag->attr_type [tag->nattr]=att_natts;
-       tag->attr_key  [tag->nattr]=(char *)malloc(4); strcpy(tag->attr_key[tag->nattr],"alt");
+       tag->attr_key  [tag->nattr]=strdup("alt");
        tag->attr_val  [tag->nattr]=(char *)calloc(1,1);
        tag->attr_quote[tag->nattr]="\"";
 
@@ -649,18 +699,18 @@ static void output_img_or_object_tag(Tag *tag,int src_att,
 
   char *webbug_replacement The webbug replacement image.
 
-  int disable_html_applet The option to disable Java applets.
+  int disable_applet The option to disable Java applets.
 
-  int disable_html_flash The option to disable Flash animations.
+  int disable_flash The option to disable Flash animations.
 
-  int disable_html_dontget_iframes The option to disable inline frames that are on the dontget list.
+  int disable_dontget_iframes The option to disable inline frames that are on the dontget list.
   ++++++++++++++++++++++++++++++++++++++*/
 
 static int handle_object_tag(Tag *tag,int replace_dontget,char *dontget_replacement,
                                       int replace_webbug,char *webbug_replacement,
-                                      int disable_html_applet,
-                                      int disable_html_flash,
-                                      int disable_html_dontget_iframes)
+                                      int disable_applet,
+                                      int disable_flash,
+                                      int disable_dontget_iframes)
 {
  int i;
  int is_image=0,is_java=0,is_flash=0,is_inline=0,is_dontget=0;
@@ -680,7 +730,7 @@ static int handle_object_tag(Tag *tag,int replace_dontget,char *dontget_replacem
 
  /* Check for Java */
 
- if(disable_html_applet)
+ if(disable_applet)
    {
     for(i=0;i<tag->nattr;i++)
        if(tag->attr_type[i]==att_codetype && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"application/java"))
@@ -691,7 +741,7 @@ static int handle_object_tag(Tag *tag,int replace_dontget,char *dontget_replacem
 
  /* Check for Flash */
 
- if(disable_html_flash)
+ if(disable_flash)
    {
     for(i=0;i<tag->nattr;i++)
        if((tag->attr_type[i]==att_codetype || tag->attr_type[i]==att_type) &&
@@ -701,13 +751,13 @@ static int handle_object_tag(Tag *tag,int replace_dontget,char *dontget_replacem
                !strcasecmp_litbeg(tag->attr_val[i],"clsid:D27CDB6E-AE6D-11cf-96B8-444553540000"))
           is_flash=1;
        else if(tag->attr_type[i]==att_src && tag->attr_val[i] &&
-               !strcasecmp_litend(tag->attr_val[i],".swf"))
+               !strcasecmp_litbeg(tag->attr_val[i]+strlen(tag->attr_val[i])-4,".swf"))
           is_flash=1;
    }
 
  /* Check for inline HTML (text) object */
 
- if(disable_html_dontget_iframes)
+ if(disable_dontget_iframes)
    {
     for(i=0;i<tag->nattr;i++)
        if((tag->attr_type[i]==att_codetype && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"text")) ||
@@ -730,19 +780,19 @@ static int handle_object_tag(Tag *tag,int replace_dontget,char *dontget_replacem
 
  if(is_image && (replace_dontget || replace_webbug))
     output_img_or_object_tag(tag,data_att,replace_dontget,dontget_replacement,replace_webbug,webbug_replacement);
- else if(disable_html_applet && is_java)
+ else if(disable_applet && is_java)
     output_tag(tag,"!-- WWWOFFLE (disable-applet) - "," --");
- else if(disable_html_flash && is_flash)
+ else if(disable_flash && is_flash)
     output_tag(tag,"!-- WWWOFFLE (disable-flash) - "," --");
- else if(disable_html_dontget_iframes && is_inline && is_dontget)
+ else if(disable_dontget_iframes && is_inline && is_dontget)
     output_tag(tag,"!-- WWWOFFLE (disable-dontget-iframes) - "," --");
  else
     output_tag(tag,NULL,NULL);
 
  return(is_image?0:
-        (disable_html_applet && is_java)?1:
-        (disable_html_flash && is_flash)?2:
-        (disable_html_dontget_iframes && is_inline && is_dontget)?3:
+        (disable_applet && is_java)?1:
+        (disable_flash && is_flash)?2:
+        (disable_dontget_iframes && is_inline && is_dontget)?3:
         0);
 }
 
@@ -752,10 +802,10 @@ static int handle_object_tag(Tag *tag,int replace_dontget,char *dontget_replacem
 
   Tag *tag The tag information.
 
-  int disable_html_style Set to true if stylesheets are disabled.
+  int disable_style Set to true if stylesheets are disabled.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void handle_link_tag(Tag *tag,int disable_html_style)
+static void handle_link_tag(Tag *tag,int disable_style)
 {
  int i;
  int is_stylesheet=0;
@@ -766,7 +816,7 @@ static void handle_link_tag(Tag *tag,int disable_html_style)
 
  /* Output the original or modified tag. */
 
- if(disable_html_style && is_stylesheet)
+ if(disable_style && is_stylesheet)
     output_tag(tag,"!-- WWWOFFLE (disable-style) - "," --");
  else
     output_tag(tag,NULL,NULL);
@@ -780,7 +830,7 @@ static void handle_link_tag(Tag *tag,int disable_html_style)
 
   Tag *tag The tag information.
 
-  int disable_html_script Set to true if scripts are disabled.
+  int disable_script Set to true if scripts are disabled.
 
   See "WhiteHat Security Advisory [Number: WH-08152001-1]" for the details of this.
 
@@ -788,7 +838,7 @@ static void handle_link_tag(Tag *tag,int disable_html_style)
   can introduce Javascript that WWWOFFLE would not otherwise have blocked.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int handle_style_script_tag(Tag *tag,int disable_html_script)
+static int handle_style_script_tag(Tag *tag,int disable_script)
 {
  int i;
  int is_really_script=0;
@@ -808,7 +858,7 @@ static int handle_style_script_tag(Tag *tag,int disable_html_script)
 
  /* Output the original or modified tag. */
 
- if(disable_html_script && is_really_script)
+ if(disable_script && is_really_script)
     output_tag(tag,"!-- WWWOFFLE (disable-script) - "," --");
  else
     output_tag(tag,NULL,NULL);
@@ -822,22 +872,36 @@ static int handle_style_script_tag(Tag *tag,int disable_html_script)
 
   Tag *tag The tag information.
 
-  int disable_html_metarefresh Set to the disable-meta-refresh option.
+  int disable_meta_refresh Set to the disable-meta-refresh option.
 
-  int disable_html_metarefresh_self Set to the disable-meta-refresh-self option.
+  int disable_meta_refresh_self Set to the disable-meta-refresh-self option.
+
+  int disable_meta_set_cookie Set to the disable-meta-set-cookie option.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void handle_meta_tag(Tag *tag,int disable_html_metarefresh,int disable_html_metarefresh_self)
+static void handle_meta_tag(Tag *tag,int disable_meta_refresh,int disable_meta_refresh_self,int disable_meta_set_cookie)
 {
  int i;
  int is_meta_http_equiv_refresh=0;
- char *meta_refresh=NULL;
+ int is_meta_http_equiv_set_cookie=0;
+ int is_meta_http_equiv_content_type=0;
+
+ /* Check for interesting meta tags */
 
  for(i=0;i<tag->nattr;i++)
     if(tag->attr_type[i]==att_http_equiv && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"Refresh"))
        is_meta_http_equiv_refresh=1;
+    else if(tag->attr_type[i]==att_http_equiv && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"Set-Cookie"))
+       is_meta_http_equiv_set_cookie=1;
+    else if(tag->attr_type[i]==att_http_equiv && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"Content-Type"))
+       is_meta_http_equiv_content_type=1;
 
- if(is_meta_http_equiv_refresh)
+ /* Handle if they are refresh ones. */
+
+ if(is_meta_http_equiv_refresh && (disable_meta_refresh_self || disable_meta_refresh))
+   {
+    char *meta_refresh=NULL;
+
     for(i=0;i<tag->nattr;i++)
        if(tag->attr_type[i]==att_content && tag->attr_val[i] && tag->attr_val[i][0])
          {
@@ -887,36 +951,66 @@ static void handle_meta_tag(Tag *tag,int disable_html_metarefresh,int disable_ht
             }
          }
 
- /* Check if link is to itself. */
+    /* Check if link is to itself. */
 
- if(meta_refresh && disable_html_metarefresh_self && !disable_html_metarefresh)
-   {
-    char *link=LinkURL(baseUrl,meta_refresh);
-    URL* linkUrl=SplitURL(link);
-
-    if(link!=meta_refresh)
-       free(link);
-
-    if(strcmp(baseUrl->name,linkUrl->name))
+    if(meta_refresh && disable_meta_refresh_self && !disable_meta_refresh)
       {
-       free(meta_refresh);
-       meta_refresh=NULL;
+       char *link=LinkURL(baseUrl,meta_refresh);
+       URL* linkUrl=SplitURL(link);
+
+       if(link!=meta_refresh)
+          free(link);
+
+       if(strcmp(baseUrl->name,linkUrl->name))
+          is_meta_http_equiv_refresh=0;
+
+       FreeURL(linkUrl);
       }
 
-    FreeURL(linkUrl);
+    if(meta_refresh)
+       free(meta_refresh);
    }
+
+ /* Handle if they are charset ones. */
+
+ if(is_meta_http_equiv_content_type && (demoronise_ms_chars || fix_mixed_cyrillic))
+    for(i=0;i<tag->nattr;i++)
+       if(tag->attr_type[i]==att_content && tag->attr_val[i] && tag->attr_val[i][0])
+         {
+          char* charset=extract_charset(tag->attr_val[i]);
+
+          if(charset)
+            {
+             if(demoronise_ms_chars)
+               {
+                if(!strcasecmp(charset,"utf-8") ||
+                   !strcasecmp(charset,"koi8-r") ||
+                   !strcasecmp(charset,"euc-kr") ||
+                   !strcasecmp(charset,"big5") ||
+                   !strcasecmp(charset,"iso-2022-jp") ||
+                   !strcasecmp(charset,"chinesebig5"))
+                   demoronise_ms_chars=0;
+               }
+             else if(fix_mixed_cyrillic)
+               {
+                if(strcasecmp(charset,"koi8-r"))
+                   fix_mixed_cyrillic=0;
+               }
+
+             free(charset);
+            }
+         }
 
  /* Output the original or modified tag. */
 
- if(meta_refresh && disable_html_metarefresh)
+ if(is_meta_http_equiv_refresh && disable_meta_refresh)
     output_tag(tag,"!-- WWWOFFLE (disable-meta-refresh) - "," --");
- else if(meta_refresh && disable_html_metarefresh_self)
+ else if(is_meta_http_equiv_refresh && disable_meta_refresh_self)
     output_tag(tag,"!-- WWWOFFLE (disable-meta-refresh-self) - "," --");
+ else if(is_meta_http_equiv_set_cookie && disable_meta_set_cookie)
+    output_tag(tag,"!-- WWWOFFLE (disable-meta-set-cookie) - "," --");
  else
     output_tag(tag,NULL,NULL);
-
- if(meta_refresh)
-    free(meta_refresh);
 }
 
 
@@ -982,16 +1076,18 @@ static void modify_html(URL *Url)
 
  char *anchor_modify_begin[3];
  char *anchor_modify_end[3];
- int disable_html_script=ConfigBooleanURL(DisableHTMLScript,Url);
- int disable_html_applet=ConfigBooleanURL(DisableHTMLApplet,Url);
- int object_nesting=0,disable_html_object[16]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
- int disable_html_style=ConfigBooleanURL(DisableHTMLStyle,Url),disable_html_style_script=0;
- int disable_html_blink=ConfigBooleanURL(DisableHTMLBlink,Url);
- int disable_html_flash=ConfigBooleanURL(DisableHTMLFlash,Url);
- int disable_html_metarefresh=ConfigBooleanURL(DisableHTMLMetaRefresh,Url);
- int disable_html_metarefresh_self=ConfigBooleanURL(DisableHTMLMetaRefreshSelf,Url);
- int disable_html_dontget_anchors=ConfigBooleanURL(DisableHTMLDontGetAnchors,Url),disable_html_anchor=0;
- int disable_html_dontget_iframes=ConfigBooleanURL(DisableHTMLDontGetIFrames,Url),disable_html_iframe=0;
+ int disable_script=ConfigBooleanURL(DisableHTMLScript,Url);
+ int disable_applet=ConfigBooleanURL(DisableHTMLApplet,Url);
+ int object_nesting=0,disable_object[16]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+ int disable_style=ConfigBooleanURL(DisableHTMLStyle,Url),disable_style_script=0;
+ int disable_blink=ConfigBooleanURL(DisableHTMLBlink,Url);
+ int disable_marquee=ConfigBooleanURL(DisableHTMLMarquee,Url);
+ int disable_flash=ConfigBooleanURL(DisableHTMLFlash,Url);
+ int disable_meta_refresh=ConfigBooleanURL(DisableHTMLMetaRefresh,Url);
+ int disable_meta_refresh_self=ConfigBooleanURL(DisableHTMLMetaRefreshSelf,Url);
+ int disable_meta_set_cookie=ConfigBooleanURL(DisableHTMLMetaSetCookie,Url);
+ int disable_dontget_anchors=ConfigBooleanURL(DisableHTMLDontGetAnchors,Url),disable_anchor=0;
+ int disable_dontget_iframes=ConfigBooleanURL(DisableHTMLDontGetIFrames,Url),disable_iframe=0;
  int replace_html_dontget_images=ConfigBooleanURL(ReplaceHTMLDontGetImages,Url);
  char *replacement_html_dontget_image=ConfigStringURL(ReplacementHTMLDontGetImage,Url);
  int replace_html_webbug_images=ConfigBooleanURL(ReplaceHTMLWebbugImages,Url);
@@ -1004,14 +1100,12 @@ static void modify_html(URL *Url)
  anchor_modify_end[1]=ConfigStringURL(AnchorModifyEnd[1],Url);
  anchor_modify_end[2]=ConfigStringURL(AnchorModifyEnd[2],Url);
 
- demoronise_ms_chars=ConfigBooleanURL(DemoroniseMSChars,Url);
-
  if(*replacement_html_dontget_image=='/')
    {
     char *copy=replacement_html_dontget_image;
     char *localhost=GetLocalHost(1);
 
-    replacement_html_dontget_image=(char*)alloca(sizeof("http://")+strlen(localhost)+strlen(copy));
+    replacement_html_dontget_image=(char*)malloc(strlen(copy)+strlen(localhost)+sizeof("http://"));
 
     stpcpy(stpcpy(stpcpy(replacement_html_dontget_image,"http://"),localhost),copy);
 
@@ -1023,7 +1117,7 @@ static void modify_html(URL *Url)
     char *copy=replacement_html_webbug_image;
     char *localhost=GetLocalHost(1);
 
-    replacement_html_webbug_image=(char*)alloca(sizeof("http://")+strlen(localhost)+strlen(copy));
+    replacement_html_webbug_image=(char*)malloc(strlen(copy)+strlen(localhost)+sizeof("http://"));
 
     stpcpy(stpcpy(stpcpy(replacement_html_webbug_image,"http://"),localhost),copy);
 
@@ -1064,7 +1158,7 @@ static void modify_html(URL *Url)
        if(tag>=tag_complex && tag<tag_ntags)
          {
           tagdata.type=tag;
-          if(tagdata.tag) free(tagdata.tag);
+	  if(tagdata.tag) free(tagdata.tag);
           tagdata.tag=strdup(htmlmodify_yylval);
           tagdata.nattr=0;
           tagdata.xhtml=0;
@@ -1074,7 +1168,7 @@ static void modify_html(URL *Url)
 
        if(tag==tag__a)
          {
-          if(disable_html_anchor)
+          if(disable_anchor)
              prefix="!-- WWWOFFLE (disable-dontget-links) - ";
           else
             {
@@ -1087,53 +1181,55 @@ static void modify_html(URL *Url)
              url_cached=0;
             }
          }
-       else if(tag==tag__iframe && disable_html_iframe)
+       else if(tag==tag__iframe && disable_iframe)
           prefix="!-- WWWOFFLE (disable-dontget-iframes) - ";
        else if(tag==tag__body && cache_info)
          {YY_OUTPUT(cache_info); free(cache_info); cache_info=NULL;}
        else if(tag==tag__html && cache_info)
          {YY_OUTPUT(cache_info); free(cache_info); cache_info=NULL;}
-       else if((tag==tag_blink || tag==tag__blink) && disable_html_blink)
+       else if((tag==tag_blink || tag==tag__blink) && disable_blink)
           prefix="!-- WWWOFFLE (disable-blink) - ";
-       else if((tag==tag_script || tag==tag__script) && disable_html_script)
+       else if((tag==tag_marquee || tag==tag__marquee) && disable_marquee)
+          prefix="!-- WWWOFFLE (disable-marquee) - ";
+       else if((tag==tag_script || tag==tag__script) && disable_script)
           prefix="!-- WWWOFFLE (disable-script) - ";
-       else if((tag==tag_noscript || tag==tag__noscript) && disable_html_script)
+       else if((tag==tag_noscript || tag==tag__noscript) && disable_script)
           prefix="!-- WWWOFFLE (disable-script) - ";
-       else if((tag==tag_applet || tag==tag__applet) && disable_html_applet)
+       else if((tag==tag_applet || tag==tag__applet) && disable_applet)
           prefix="!-- WWWOFFLE (disable-applet) - ";
-       else if(tag==tag_param && disable_html_object[object_nesting]==1)
+       else if(tag==tag_param && disable_object[object_nesting]==1)
           prefix="!-- WWWOFFLE (disable-applet) - ";
-       else if(tag==tag_param && disable_html_object[object_nesting]==2)
+       else if(tag==tag_param && disable_object[object_nesting]==2)
           prefix="!-- WWWOFFLE (disable-flash) - ";
-       else if(tag==tag_param && disable_html_object[object_nesting]==3)
+       else if(tag==tag_param && disable_object[object_nesting]==3)
           prefix="!-- WWWOFFLE (disable-dontget-iframes) - ";
-       else if(tag==tag__object && disable_html_object[object_nesting]==1)
+       else if(tag==tag__object && disable_object[object_nesting]==1)
           prefix="!-- WWWOFFLE (disable-applet) - ";
-       else if(tag==tag__object && disable_html_object[object_nesting]==2)
+       else if(tag==tag__object && disable_object[object_nesting]==2)
           prefix="!-- WWWOFFLE (disable-flash) - ";
-       else if(tag==tag__object && disable_html_object[object_nesting]==3)
+       else if(tag==tag__object && disable_object[object_nesting]==3)
           prefix="!-- WWWOFFLE (disable-dontget-iframes) - ";
-       else if(tag==tag__embed && disable_html_object[object_nesting])
+       else if(tag==tag__embed && disable_object[object_nesting])
           prefix="!-- WWWOFFLE (disable-flash) - ";
-       else if(tag==tag_style && disable_html_style)
+       else if(tag==tag_style && disable_style)
           prefix="!-- WWWOFFLE (disable-style) - ";
-       else if(tag==tag_style && disable_html_script)
+       else if(tag==tag_style && disable_script)
           disable_output|=DISABLE_STYLE;
-       else if(tag==tag__style && disable_html_style)
+       else if(tag==tag__style && disable_style)
           prefix="!-- WWWOFFLE (disable-style) - ";
-       else if(tag==tag__style && disable_html_style_script)
+       else if(tag==tag__style && disable_style_script)
           prefix="!-- WWWOFFLE (disable-script) - ";
-       else if(tag==tag_meta && (disable_html_metarefresh_self || disable_html_metarefresh))
+       else if(tag==tag_meta && (disable_meta_refresh_self || disable_meta_refresh || disable_meta_set_cookie))
           disable_output|=DISABLE_META;
-       else if(tag==tag_link && disable_html_style)
+       else if(tag==tag_link && disable_style)
           disable_output|=DISABLE_LINK;
        else if((tag==tag_object || tag==tag_embed) &&
-               (disable_html_applet || disable_html_flash ||
-                disable_html_dontget_iframes || replace_html_dontget_images || replace_html_webbug_images))
+               (disable_applet || disable_flash ||
+                disable_dontget_iframes || replace_html_dontget_images || replace_html_webbug_images))
           disable_output|=DISABLE_OBJECT;
-       else if(tag==tag_a && disable_html_dontget_anchors)
+       else if(tag==tag_a && disable_dontget_anchors)
           disable_output|=DISABLE_A;
-       else if(tag==tag_iframe && disable_html_dontget_iframes)
+       else if(tag==tag_iframe && disable_dontget_iframes)
           disable_output|=DISABLE_IFRAME;
        else if(tag==tag_img && (replace_html_dontget_images || replace_html_webbug_images))
           disable_output|=DISABLE_IMG;
@@ -1155,34 +1251,36 @@ static void modify_html(URL *Url)
        suffix=NULL;
 
        if(tag==tag_applet)
-         {if(object_nesting<sizeof(disable_html_object)/sizeof(disable_html_object[0])) object_nesting++;}
+         {if(object_nesting<sizeof(disable_object)/sizeof(disable_object[0])) object_nesting++;}
 
-       if(tag==tag__a && disable_html_anchor)
-         {suffix=" --";disable_html_anchor=0;}
-       else if(tag==tag__iframe && disable_html_iframe)
-         {suffix=" --";disable_html_iframe=0;}
-       else if((tag==tag_blink || tag==tag__blink) && disable_html_blink)
+       if(tag==tag__a && disable_anchor)
+         {suffix=" --";disable_anchor=0;}
+       else if(tag==tag__iframe && disable_iframe)
+         {suffix=" --";disable_iframe=0;}
+       else if((tag==tag_blink || tag==tag__blink) && disable_blink)
          suffix=" --";
-       else if((tag==tag_script || tag==tag__script) && disable_html_script)
+       else if((tag==tag_marquee || tag==tag__marquee) && disable_marquee)
          suffix=" --";
-       else if((tag==tag_noscript || tag==tag__noscript) && disable_html_script)
+       else if((tag==tag_script || tag==tag__script) && disable_script)
          suffix=" --";
-       else if(tag==tag_applet && disable_html_applet)
-         {suffix=" --"; disable_html_object[object_nesting]=1;}
-       else if(tag==tag__applet && disable_html_applet)
-         {suffix=" --"; disable_html_object[object_nesting]=0;}
-       else if(tag==tag_param && disable_html_object[object_nesting])
+       else if((tag==tag_noscript || tag==tag__noscript) && disable_script)
          suffix=" --";
-       else if(tag==tag__object && disable_html_object[object_nesting])
-         {suffix=" --"; disable_html_object[object_nesting]=0;}
-       else if(tag==tag__embed && disable_html_object[object_nesting])
-         {suffix=" --"; disable_html_object[object_nesting]=0;}
-       else if((tag==tag_style || tag==tag__style) && disable_html_style)
+       else if(tag==tag_applet && disable_applet)
+         {suffix=" --"; disable_object[object_nesting]=1;}
+       else if(tag==tag__applet && disable_applet)
+         {suffix=" --"; disable_object[object_nesting]=0;}
+       else if(tag==tag_param && disable_object[object_nesting])
          suffix=" --";
-       else if((tag==tag_style || tag==tag__style) && disable_html_style)
+       else if(tag==tag__object && disable_object[object_nesting])
+         {suffix=" --"; disable_object[object_nesting]=0;}
+       else if(tag==tag__embed && disable_object[object_nesting])
+         {suffix=" --"; disable_object[object_nesting]=0;}
+       else if((tag==tag_style || tag==tag__style) && disable_style)
          suffix=" --";
-       else if(tag==tag__style && disable_html_style_script)
-         {suffix="--"; disable_html_style_script=0;}
+       else if((tag==tag_style || tag==tag__style) && disable_style)
+         suffix=" --";
+       else if(tag==tag__style && disable_style_script)
+         {suffix="--"; disable_style_script=0;}
 
        if(tag==tag__object || tag==tag__applet || tag==tag__embed)
          {if(object_nesting>0) object_nesting--;}
@@ -1194,37 +1292,38 @@ static void modify_html(URL *Url)
        else
          {YY_OUTPUT(">");}
 
-       if(tag==tag_meta && (disable_html_metarefresh_self || disable_html_metarefresh))
+       if(tag==tag_meta && (disable_meta_refresh_self || disable_meta_refresh || disable_meta_set_cookie ||
+                            demoronise_ms_chars || fix_mixed_cyrillic))
          {
           disable_output&=~DISABLE_META;
-          handle_meta_tag(&tagdata,disable_html_metarefresh,disable_html_metarefresh_self);
+          handle_meta_tag(&tagdata,disable_meta_refresh,disable_meta_refresh_self,disable_meta_set_cookie);
          }
-       else if(tag==tag_link && disable_html_style)
+       else if(tag==tag_link && disable_style)
          {
           disable_output&=~DISABLE_LINK;
-          handle_link_tag(&tagdata,disable_html_style);
+          handle_link_tag(&tagdata,disable_style);
          }
        else if((tag==tag_object || tag==tag_embed) &&
-               (disable_html_applet || disable_html_flash ||
-                disable_html_dontget_iframes || replace_html_dontget_images || replace_html_webbug_images))
+               (disable_applet || disable_flash ||
+                disable_dontget_iframes || replace_html_dontget_images || replace_html_webbug_images))
          {
           disable_output&=~DISABLE_OBJECT;
-          if(object_nesting<sizeof(disable_html_object)/sizeof(disable_html_object[0])) object_nesting++;
-          disable_html_object[object_nesting]=handle_object_tag(&tagdata,replace_html_dontget_images,replacement_html_dontget_image,
+          if(object_nesting<sizeof(disable_object)/sizeof(disable_object[0])) object_nesting++;
+          disable_object[object_nesting]=handle_object_tag(&tagdata,replace_html_dontget_images,replacement_html_dontget_image,
                                                                 replace_html_webbug_images,replacement_html_webbug_image,
-                                                                disable_html_applet,
-                                                                disable_html_flash,
-                                                                disable_html_dontget_iframes);
+                                                                disable_applet,
+                                                                disable_flash,
+                                                                disable_dontget_iframes);
          }
        else if(tag==tag_a)
          {
-          if(disable_html_dontget_anchors)
+          if(disable_dontget_anchors)
             {
              disable_output&=~DISABLE_A;
-             disable_html_anchor=handle_a_tag(&tagdata,disable_html_dontget_anchors);
+             disable_anchor=handle_a_tag(&tagdata,disable_dontget_anchors);
             }
 
-          if(!disable_html_anchor)
+          if(!disable_anchor)
             {
              if(url_cached==1)
                {if(anchor_modify_begin[0]) {YY_OUTPUT(anchor_modify_begin[0]);}}
@@ -1236,10 +1335,10 @@ static void modify_html(URL *Url)
          }
        else if(tag==tag_iframe)
          {
-          if(disable_html_dontget_iframes)
+          if(disable_dontget_iframes)
             {
              disable_output&=~DISABLE_IFRAME;
-             disable_html_iframe=handle_iframe_tag(&tagdata,disable_html_dontget_iframes);
+             disable_iframe=handle_iframe_tag(&tagdata,disable_dontget_iframes);
             }
          }
        else if(tag==tag_img && (replace_html_dontget_images || replace_html_webbug_images))
@@ -1248,17 +1347,17 @@ static void modify_html(URL *Url)
           handle_img_tag(&tagdata,replace_html_dontget_images,replacement_html_dontget_image,
                                   replace_html_webbug_images,replacement_html_webbug_image);
          }
-       else if(tag==tag_script && disable_html_script)
+       else if(tag==tag_script && disable_script)
           disable_output|=DISABLE_PARSE;
-       else if(tag==tag_style && disable_html_style)
+       else if(tag==tag_style && disable_style)
           disable_output|=DISABLE_PARSE;
-       else if(tag==tag_style && disable_html_script)
+       else if(tag==tag_style && disable_script)
          {
           disable_output&=~DISABLE_STYLE;
 
-          disable_html_style_script=handle_style_script_tag(&tagdata,disable_html_script);
+          disable_style_script=handle_style_script_tag(&tagdata,disable_script);
 
-          if(disable_html_style_script)
+          if(disable_style_script)
              disable_output|=DISABLE_PARSE;
          }
 
@@ -1335,7 +1434,7 @@ static void modify_html(URL *Url)
 
        /* Script events */
 
-       else if(disable_html_script &&
+       else if(disable_script &&
                (key==att_onblur || key==att_onchange || key==att_onclick || key==att_ondblclick || key==att_onfocus ||
                 key==att_onkeydown || key==att_onkeypress || key==att_onload || key==att_onmousedown ||
                 key==att_onmousemove || key==att_onmouseout || key==att_onmouseover || key==att_onmouseup ||
@@ -1344,7 +1443,7 @@ static void modify_html(URL *Url)
 
        /* Style references */
 
-       else if(disable_html_style && key==att_style)
+       else if(disable_style && key==att_style)
           disable_key_val=1;
 
        /* More complicated tags that depend on other attributes are stored and done later. */
@@ -1365,7 +1464,7 @@ static void modify_html(URL *Url)
             }
 
           tagdata.attr_type[tagdata.nattr]=key;
-          if(tagdata.attr_key[tagdata.nattr]) free(tagdata.attr_key[tagdata.nattr]);
+	  if(tagdata.attr_key[tagdata.nattr]) free(tagdata.attr_key[tagdata.nattr]);
           tagdata.attr_key[tagdata.nattr]=strdup(key_string);
 	  if(tagdata.attr_val[tagdata.nattr]) free(tagdata.attr_val[tagdata.nattr]);
           if(htmlmodify_yylval)
@@ -1427,6 +1526,123 @@ static void modify_html(URL *Url)
 }
 
 
+/* The demoronise_ms_chars idea is taken from the public domain Demoroniser perl script */
+
+/*************************************************/
+/* De-moron-ise Text from Microsoft Applications */
+/*         by John Walker -- January 1998        */
+/*            http://www.fourmilab.ch/           */
+/*************************************************/
+
+ /*+ The list of characters to replace. +*/
+ static char *demoronise_ms_chars_list[]={/* 0x80 */ "\200",
+                                          /* 0x81 */ "\201",
+                                          /* 0x82 */ ",",
+                                          /* 0x83 */ "<em>f</em>",
+                                          /* 0x84 */ ",,",
+                                          /* 0x85 */ "...",
+                                          /* 0x86 */ "\206",
+                                          /* 0x87 */ "\207",
+                                          /* 0x88 */ "^",
+                                          /* 0x89 */ " °/°°",
+                                          /* 0x8A */ "\212",
+                                          /* 0x8B */ "<",
+                                          /* 0x8C */ "Oe",
+                                          /* 0x8D */ "\215",
+                                          /* 0x8E */ "\216",
+                                          /* 0x8F */ "\217",
+                                          /* 0x90 */ "\220",
+                                          /* 0x91 */ "`",
+                                          /* 0x92 */ "'",
+                                          /* 0x93 */ "\"",
+                                          /* 0x94 */ "\"",
+                                          /* 0x95 */ "*",
+                                          /* 0x96 */ "-",
+                                          /* 0x97 */ "--",
+                                          /* 0x98 */ "<sup>~</sup>",
+                                          /* 0x99 */ "<sup>TM</sup>",
+                                          /* 0x9A */ "\232",
+                                          /* 0x9B */ ">",
+                                          /* 0x9C */ "oe",
+                                          /* 0x9D */ "\235",
+                                          /* 0x9E */ "\236",
+                                          /* 0x9F */ "\237"};
+
+/* This "fix-mixed-cyrillic" code is written by Ilya Dogolazky
+ * e-mail: ilyad at math dot uni-bonn dot de
+ *
+ * There are weird Russian websites [ www.novayagazeta.ru for example ] using
+ * koi8-r encoding for the letters of Russian alphabeth, and cp-1251 encoding
+ * for the punctuations ("<<", ">>", "No", "\bullet" etc).
+ *
+ * We take all characters between 0x80 and 0xBF (there are three exceptions
+ * below) and recode they from windows-1251 to Unicode (in "&#xCODE;" HTML
+ * notation)
+ *
+ * The idea is similar to that of "demoronise-ms-chars", but these options are
+ * clearly mutually exclusive
+ */
+
+ /* This table is generated by the following Perl statement:
+  * print ord(decode("windows-1251",chr($_)) for (0x80..0xBF) ;
+  * See 3 exceptions below...
+  */                                         
+
+static unsigned int fix_mixed_cyrillic_list[]={0x0402,0x0403,0x201A,0x0453,0x201E,0x2026,0x2020,0x2021,
+                                               0x20AC,0x2030,0x0409,0x2039,0x040A,0x040C,0x040B,0x040F,
+                                               0x0452,0x2018,0x2019,0x201C,0x201D,0x2022,0x2013,0x2014,
+                                               0x0   ,0x2122,0x0459,0x203A,0x045A,0x045C,0x045B,0x045F,
+                                               0x00A0,0x040E,0x045E,0x0   ,0x00A4,0x0490,0x00A6,0x00A7,
+                                               0x0401,0x00A9,0x0404,0x00AB,0x00AC,0x00AD,0x00AE,0x0407,
+                                               0x00B0,0x00B1,0x0406,0x0   ,0x0491,0x00B5,0x00B6,0x00B7,
+                                               0x0451,0x2116,0x0454,0x00BB,0x0458,0x0405,0x0455,0x0457};
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Handle the characters on the input with the high-bit set.
+
+  unsigned char ch The character.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+static void handle_high_bit(unsigned char ch)
+{
+ if(demoronise_ms_chars && ch<=0x9F)
+   {
+    YY_OUTPUT("<!-- WWWOFFLE (demoronise-ms-chars) - '");
+    YY_OUTPUT(htmlmodify_yytext);
+    YY_OUTPUT("' -->");
+    YY_OUTPUT(demoronise_ms_chars_list[ch-0x80]);
+   }
+ else if(fix_mixed_cyrillic) /* && ch<=0xBF */
+   {
+    unsigned int unicode_value = fix_mixed_cyrillic_list[ch-0x80] ;
+
+    if(unicode_value==0x0)
+      {
+       /* We have 3 such values for ch: the first and the second are koi8-r
+          codes of \"e and \"E (ch==163 || ch==179), and the third is
+          ch==152. This value is very mysterious: there is no Unicode-equivalent
+          for character with code 152 of windows-1251 page (perl's decode fails
+          for this code, ask Bill Gates for details :-) */
+       YY_OUTPUT(htmlmodify_yytext);
+      }
+    else
+      {
+       char html_buffer[9];
+       sprintf(html_buffer,"&#x%04X;",unicode_value);
+
+       YY_OUTPUT("<!-- WWWOFFLE (fix-mixed-cyrillic) - '");
+       YY_OUTPUT(htmlmodify_yytext);
+       YY_OUTPUT("' -->");
+       YY_OUTPUT(html_buffer);
+      }
+   }
+ else
+    YY_OUTPUT(htmlmodify_yytext);
+}
+
+
+#define YY_SKIP_YYWRAP 1 /* Remove error with prototype of ..._yywrap */
 #ifndef htmlmodify_yywrap
 /*+ Needed in lex but does nothing. +*/
 #define htmlmodify_yywrap() 1
@@ -1445,7 +1661,7 @@ static void modify_html(URL *Url)
 
 /*+ A macro to read data that can be used by the lexer. +*/
 #define YY_INPUT(buf,result,max_size) \
-{if(htmlmodify_read_err==-1 || (result=htmlmodify_read_err=read_data(htmlmodify_yyfd,buf,max_size))==-1) result=0;}
+{if((result=wwwoffles_read_data(buf,max_size))==-1) result=0;}
 
 %}
 
@@ -1455,20 +1671,11 @@ static void modify_html(URL *Url)
  static size_t stringallocsize=0,stringlen=0;
  static int after_tag=INITIAL;
 
-
  /* Handle comments and other tags */
 
-[\200-\237]                 { if(demoronise_ms_chars)
-                                {
-                                 YY_OUTPUT("<!-- WWWOFFLE (demoronise-ms-chars) - '");
-                                 YY_OUTPUT(htmlmodify_yytext);
-                                 YY_OUTPUT("' -->");
-                                 YY_OUTPUT(demoronise_ms_chars_list[*(unsigned char*)htmlmodify_yytext-0x80]);
-                                }
-                              else
-                                 YY_OUTPUT(htmlmodify_yytext);
-                            }
-[^<\200-\237]+              { YY_OUTPUT(htmlmodify_yytext); /* htmlmodify_yylval=htmlmodify_yytext; return(LEX_PLAINTEXT); */ }
+[\x80-\xBF]                 { handle_high_bit(*(unsigned char*)htmlmodify_yytext); }
+[^<\x80-\xBF]+              { YY_OUTPUT(htmlmodify_yytext); /* htmlmodify_yylval=htmlmodify_yytext; return(LEX_PLAINTEXT); */ }
+
 "<!DOCTYPE"                 { YY_OUTPUT(htmlmodify_yytext); BEGIN(DOCTYPE); reset_string; }
 "<!--"                      { YY_OUTPUT(htmlmodify_yytext); BEGIN(COMMENT); reset_string; }
 "<!"{W}*"-"*                { YY_OUTPUT(htmlmodify_yytext); BEGIN(COMMENT_BAD); reset_string; }
@@ -1496,46 +1703,45 @@ static void modify_html(URL *Url)
 <TAG_START>"script"/">"     { BEGIN(TAG); after_tag=SCRIPT_START; htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
 <TAG_START>"style"/{W}      { BEGIN(TAG); after_tag=STYLE_START;  htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
 <TAG_START>"style"/">"      { BEGIN(TAG); after_tag=STYLE_START;  htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{K}+/" "     { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{K}+/\t      { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{K}+/\n      { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{K}+/\r      { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{K}+/">"     { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"/"?{tag}/" "    { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"/"?{tag}/\t     { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"/"?{tag}/\n     { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"/"?{tag}/\r     { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"/"?{tag}/">"    { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
 <TAG_START>(.|\n)           { BEGIN(INITIAL); YY_OUTPUT(string); YY_OUTPUT(htmlmodify_yytext); }
 
-<TAG>{W}*"/>"               { BEGIN(after_tag);                              htmlmodify_yylval=""; return(LEX_TAG_END_XHTML); }
+<TAG>{W}+                   { YY_OUTPUT(htmlmodify_yytext); }
+<TAG>"/>"                   { BEGIN(after_tag);                              htmlmodify_yylval=""; return(LEX_TAG_END_XHTML); }
 <TAG>">"                    { BEGIN(after_tag);                              htmlmodify_yylval=""; return(LEX_TAG_END); }
 <TAG>"<"                    { BEGIN(after_tag); unput(htmlmodify_yytext[0]); htmlmodify_yylval=""; return(LEX_TAG_END); }
-<TAG>{K}+                   { BEGIN(TAG_ATTR_KEY); htmlmodify_yylval=htmlmodify_yytext; return(LEX_ATTR_KEY); }
+<TAG>{key}                  { BEGIN(TAG_ATTR_KEY); htmlmodify_yylval=htmlmodify_yytext; return(LEX_ATTR_KEY); }
 <TAG>(.|\n)                 { YY_OUTPUT(htmlmodify_yytext); }
 
 <TAG_ATTR_KEY>{W}*=         { BEGIN(TAG_ATTR_VAL); }
 <TAG_ATTR_KEY>(.|\n)        { BEGIN(TAG); unput(htmlmodify_yytext[0]); htmlmodify_yylval=NULL; return(LEX_ATTR_VAL); }
 
-<TAG_ATTR_VAL>\"{W}*        { BEGIN(DQUOTED); reset_string; }
-<TAG_ATTR_VAL>\'{W}*        { BEGIN(SQUOTED); reset_string; }
+<TAG_ATTR_VAL>\"            { BEGIN(DQUOTED); reset_string; }
+<TAG_ATTR_VAL>\'            { BEGIN(SQUOTED); reset_string; }
 <TAG_ATTR_VAL>{W}+          { }
-<TAG_ATTR_VAL>{F}+          { BEGIN(TAG);                              htmlmodify_yylval=htmlmodify_yytext; return(LEX_ATTR_VAL); }
+<TAG_ATTR_VAL>{val}         { BEGIN(TAG);                              htmlmodify_yylval=htmlmodify_yytext; return(LEX_ATTR_VAL); }
 <TAG_ATTR_VAL>(.|\n)        { BEGIN(TAG); unput(htmlmodify_yytext[0]); htmlmodify_yylval="";                return(LEX_ATTR_VAL); }
 
  /* Quoted strings */
 
 <DQUOTED>\\\"               { append_string(htmlmodify_yytext); }
 <DQUOTED>\\                 { append_string(htmlmodify_yytext); }
-<DQUOTED>{W}*\"             { BEGIN(TAG); htmlmodify_yylval=string; return(LEX_ATTR_VAL_DQ); }
+<DQUOTED>\"                 { BEGIN(TAG); htmlmodify_yylval=string; return(LEX_ATTR_VAL_DQ); }
 <DQUOTED>[\r\n]+            { }
 <DQUOTED>[^\\\"\r\n]+       { append_string(htmlmodify_yytext); }
 
 <SQUOTED>\\\'               { append_string(htmlmodify_yytext); }
 <SQUOTED>\\                 { append_string(htmlmodify_yytext); }
-<SQUOTED>{W}*\'             { BEGIN(TAG); htmlmodify_yylval=string; return(LEX_ATTR_VAL_SQ); }
+<SQUOTED>\'                 { BEGIN(TAG); htmlmodify_yylval=string; return(LEX_ATTR_VAL_SQ); }
 <SQUOTED>[\r\n]+            { }
 <SQUOTED>[^\\\'\r\n]+       { append_string(htmlmodify_yytext); }
 
  /* Scripts */
 
-<SCRIPT_START>{W}*/"</script" { disable_output^=DISABLE_PARSE; YY_OUTPUT(htmlmodify_yytext); disable_output^=DISABLE_PARSE;
-                              BEGIN(INITIAL); }
 <SCRIPT_START>(.|\n)        { disable_output^=DISABLE_PARSE; YY_OUTPUT("\n<!-- WWWOFFLE (disable-script) - ... -->\n"); disable_output^=DISABLE_PARSE;
                               unput(htmlmodify_yytext[0]); BEGIN(SCRIPT); }
 
@@ -1551,8 +1757,8 @@ static void modify_html(URL *Url)
 
  /* Comments in scripts, C or C++ style */
 
-<SCRIPT_COMMENT_C>"*/"      { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT); }
-<SCRIPT_COMMENT_C>"*"       { YY_OUTPUT(htmlmodify_yytext); }
+<SCRIPT_COMMENT_C>"*"+"/"   { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT); }
+<SCRIPT_COMMENT_C>"*"+      { YY_OUTPUT(htmlmodify_yytext); }
 <SCRIPT_COMMENT_C>[^*]+     { YY_OUTPUT(htmlmodify_yytext); }
 
 <SCRIPT_COMMENT_CPP>[\r\n]  { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT); }
@@ -1574,8 +1780,6 @@ static void modify_html(URL *Url)
 
  /* Styles */
 
-<STYLE_START>{W}*/"</style" { disable_output^=DISABLE_PARSE; YY_OUTPUT(htmlmodify_yytext); disable_output^=DISABLE_PARSE;
-                              BEGIN(INITIAL); }
 <STYLE_START>(.|\n)         { disable_output^=DISABLE_PARSE; YY_OUTPUT("\n<!-- WWWOFFLE (disable-style) - ... -->\n"); disable_output^=DISABLE_PARSE;
                               unput(htmlmodify_yytext[0]); BEGIN(STYLE); }
 
@@ -1585,5 +1789,7 @@ static void modify_html(URL *Url)
 
  /* End of file */
 
-<<EOF>>                     { if(string) free(string); string=NULL; stringallocsize=stringlen=0; after_tag=INITIAL; BEGIN(INITIAL); htmlmodify_yylval=NULL; return(0); }
+<<EOF>>                     { free(string); string=NULL; stringallocsize=stringlen=0;
+                              after_tag=INITIAL; BEGIN(INITIAL); htmlmodify_yylval=NULL; return(0); }
+
 %%

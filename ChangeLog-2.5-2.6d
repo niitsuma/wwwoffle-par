@@ -708,7 +708,6 @@ Wed Sep  6 18:55:05 2000  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
 	CHANGES.CONF, README.CONF, config.c:
 	Remove the "latest" index (it is slow on big caches and replaced by lasttime/prevtime).
 
-
 Tue Aug 29 18:22:36 2000  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
 
 	* wwwoffles.c, audit-usage.pl:

@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <!--
@@ -6,6 +6,7 @@
 Available WWWOFFLE Variables (all with a '$' prefix).
 
 localhost = The hostname of the server running wwwoffled (='$localhost').
+version   = The version of the WWWOFFLE server (='$version').
 url       = The URL that the request was for (='$url').
 head1     = The headers of the request (before modification).
 head2     = The headers of the request (after modification).
@@ -16,21 +17,21 @@ body      = The body of the request if there was one.
 
 <HEAD>
 <TITLE>WWWOFFLE Request Information</TITLE>
+<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
-<BODY>
+<BODY class="wwwoffle-message">
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<!-- Standard WWWOFFLE Message Page Header Start -->
 
-<p align=center>
-<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
-</p>
+<div class="wwwoffle-header" align="center">
+<b>WWWOFFLE</b> <b>-</b> <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer <b>-</b> <b>v$version</b>
+</div>
+<hr class="wwwoffle-header">
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Header End -->
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
-
-<H1 align=center>WWWOFFLE Request Information</H1>
+<H1 align="center">WWWOFFLE Request Information</H1>
 
 The URL that you requested <b><tt>$url</tt></b> sent a <tt>Referer</tt>
 header that showed it came from the WWWOFFLE info page.  This page shows you the
@@ -38,16 +39,17 @@ information that your browser was trying to send to the real web server.
 
 <h2>Header</h2>
 
-The request header from the browser contained the following items (this is
-before WWWOFFLE has modified it).
+The header from the browser contained the following items (before WWWOFFLE has
+modified it and possibly censored some items).
 <p>
 
 <pre>
 %html[head1]
 </pre>
 
-The request header that WWWOFFLE would send to the server would contain the
-following items.
+The header that would be sent to the server would contain the following items
+(after WWWOFFLE has modified it, but excluding any headers for conditional
+fetching that might be used).
 <p>
 
 <pre>
@@ -68,23 +70,25 @@ contents or file uploads etc).
 The request did not have any body contents (no form contents or file uploads etc).
 }
 
-<p align=center>
+<div class="wwwoffle-nav" align="center">
 [<a href="http://$localhost/info/url?%encode[url]">Back to the Information about this URL</a>]
-</p>
+</div>
 
-<p align=center>
-[<a href="$url">%decode[url]</a>]
-</p>
+<div class="wwwoffle-nav" align="center">
+[<a href="%html[url]">%decode[url]</a>]
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
-<hr>
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
+WWWOFFLE - [ \
+<a href="http://$localhost/Welcome.html" title="An introduction to WWWOFFLE">Welcome Page</a>| \
+<a href="http://$localhost/FAQ.html" title="Frequently Asked Questions about WWWOFFLE">FAQ</a> \
+] - WWWOFFLE
+</div>
 
-<p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Welcome Page</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
-</p>
-
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

@@ -1,5 +1,5 @@
-          WWWOFFLE - World Wide Web Offline Explorer - Version 2.7
-          ========================================================
+          WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d
+          =========================================================
 
 
 The WWWOFFLE programs simplify World Wide Web browsing from computers that use
@@ -28,7 +28,10 @@ While Online
     - Control which pages cannot be accessed.
         - Allow replacement of blocked pages.
     - Control which pages are not to be stored in the cache.
+    - Create backups of cached pages when server cannot be contacted.
+        - Option to create backup when server sends back an error page.
     - Requests compressed pages from web servers (compile time option).
+    - Requests chunked transfer encoding from web servers.
 
 While Offline
     - Can be configured to use dial-on-demand for pages that are not cached.
@@ -70,6 +73,7 @@ Convenience
         - Replace webbug images (images of 1 pixel square).
         - Demoronise HTML character sets.
         - Stop animated GIFs.
+        - Remove Cookies in meta tags.
     - Provides information about cached pages
         - Headers, raw and modified.
         - Contents, images, links etc.
@@ -92,6 +96,7 @@ Convenience
         - Interactive or command line control.
         - Compression of cached pages based on age.
     - Provides compressed pages to web browser (compile time option).
+    - Use chunked transfer-encoding to web browser.
 
 Indexes
     - Multiple indexes of pages stored in cache
@@ -130,32 +135,9 @@ as a proxy.  The proxy hostname will be 'localhost' (or the name of the host
 that wwwoffled is running on), and the port number will be the one that is used
 by wwwoffled (default 8080).
 
-Manual Configuration
-
-    Netscape V1:
-        In the Options->Preferences dialog window, enter localhost as the http
-        and ftp proxies and 8080 as the port numbers.
-
-    Netscape V2,3:
-        In the Options->Preferences dialog window under the Proxies tab select
-        the "Manual Proxy Configuration" option and enter localhost as the http
-        and ftp proxies and 8080 as the port numbers.
-
-    Netscape V4:
-        In the Edit->Preferences dialog window select Advanced and then Proxies,
-        select the "Manual Proxy Configuration" option and enter localhost as
-        the http and ftp proxies and 8080 as the port numbers.
-
-    Mosaic V2.6, Lynx, Arena, Emacs-W3, Chimera:
-        Set the environment variables http_proxy and ftp_proxy to
-        http://localhost:8080/
-
-Automatic Configuration
-
-    Netscape 2+:
-        Instead of selecting the "Manual Proxy Configuration" option as described
-        above, select the "Automatic Proxy Configuration" option and enter
-        http://localhost:8080/wwwoffle.pac in the box.
+There are lots of different browsers and it is not possible to list all the ways
+to configure them here.  There should be an option in one of the menus or
+described in the manual for the browser that explains how to configure a proxy.
 
 You will also need to disable the caching that the web browser performs itself
 between sessions to get the best out of the program.
@@ -167,7 +149,8 @@ doing this, one forces the proxy to reload the page, and this is the one that
 will cause the page to be refreshed.
 
 The latest browser compatibility information is available at:
-http://www.gedanken.demon.co.uk/wwwoffle/version-2.7/browser.html
+
+http://www.gedanken.demon.co.uk/wwwoffle/version-2.8/browser.html
 
 
 Welcome Page
@@ -178,10 +161,14 @@ description of the program and has links to the index pages, interactive control
 page and the WWWOFFLE internet home pages.
 
 The most important places to get information about WWWOFFLE are the WWWOFFLE
-homepage 'http://www.gedanken.demon.co.uk/wwwoffle/' which has information about
-WWWOFFLE in general.  Or even better the WWWOFFLE version-2.7 user page
-'http://www.gedanken.demon.co.uk/wwwoffle/version-2.7/user.html' which has more
-information about this version of WWWOFFLE.
+homepage which has information about WWWOFFLE in general:
+
+http://www.gedanken.demon.co.uk/wwwoffle/
+
+Or even better the WWWOFFLE version-2.8 user page which has more information
+about this version of WWWOFFLE:
+
+http://www.gedanken.demon.co.uk/wwwoffle/version-2.8/user.html
 
 
 Index Of Cached Files
@@ -384,7 +371,7 @@ entry for each of the files that were fetched the last time that the program was
 online.  Each entry consists of two files, one prefixed with 'D' that is a
 hard-link to the real file and one prefixed with 'U' that contains the URL.
 
-The lastout (and prevtime*) directories are a single directory that contains an
+The lastout (and prevout*) directories are a single directory that contains an
 entry for each of the files that were requested the last time that the program
 was offline.  Each entry consists of two files, one prefixed with 'D' that is a
 hard-link to the real file and one prefixed with 'U' that contains the URL.
@@ -412,7 +399,7 @@ of starting servers, and allow for future improvements.
 The configuration file, called wwwoffle.conf by default contains all of the
 parameters that are used to control the way the wwwoffled and wwwoffles
 functions work.  The default installation location for this file is in the
-directory /etc.
+directory /etc/wwwoffle.
 
 
 WWWOFFLE - User control program
@@ -438,7 +425,7 @@ wwwoffle -autodial      Indicates to the daemon that the system is in autodial
 wwwoffle -offline       Indicates to the daemon that the system is offline.
 
 wwwoffle -fetch         Commands the daemon to fetch the pages that were
-                        requested by browsers while the system was offline.
+                        requested by clients while the system was offline.
                         wwwoffle exits when the fetching is complete.
                         (This requires the daemon to be told it is online).
 
@@ -470,12 +457,20 @@ wwwoffle <filename> ... The specified HTML file is be read and all of the links
                         in it used as if they had been specified on the command
                         line.
 
+wwwoffle -post <URL>    Send a request using the POST method, the data is read
+                        from stdin and should be provided correctly url-encoded.
+
+wwwoffle -put <URL>     Send a request using the PUT method, the data is read
+                        from stdin and should be provided correctly url-encoded.
+
+
 wwwoffle -F             Force the wwwoffle server to refresh the URL.
                         (Or fetch it if not cached.)
 
 wwwoffle -g[Sisfo]      Specifies that the URLs when fetched are to be parsed
                         for Stylesheets (s), images (i), scripts (s), frames (f)
-                        or objects (o) and these are also to be fetched.
+                        or objects (o) and these are also to be fetched.  Using
+                        -g without any following letters will get none of them.
 
 wwwoffle -r[<depth>]    Specifies that the URL when fetched is to have the links
                         followed and these pages also fetched (to a depth
@@ -489,6 +484,10 @@ wwwoffle -R[<depth>]    This is the same as the '-r' option except that all of
 wwwoffle -d[<depth>]    This is the same as the '-r' option except that links
                         are only followed if they are in the same directory or a
                         sub-directory.
+
+                        (If the -F, -(d|r|R) or -g[Sisfo] options are set they
+                        override the options in the FetchOptions section of the
+                        config file and only the -g[Sisfo] options are fetched.)
 
 
 The third mode of operation is to get a URL from the cache.
@@ -561,7 +560,7 @@ wwwoffled -f                    Start the daemon in debugging mode (implies -d)
                                 it without creating a child process and then
                                 exit.
 
-wwwoffled -p                    Print the pid of the daemon on standard out
+wwwoffled -p                    Print the PID of the daemon on standard out
                                 before detaching from the terminal.
 
 wwwoffled -h                    Gives help about the command line options.
@@ -584,10 +583,10 @@ WWWOFFLES - Server program
 The server (wwwoffles) starts by being forked from the daemon (wwwoffled) in one
 of three different modes.
 
-Real  - When the system is online and acting as a proxy for a browser.
+Real  - When the system is online and acting as a proxy for a client.
         All requests for web pages are handled by forking a new server which
         will connect to the remote host and fetch the page.  This page is then
-        stored in the cache as well as being returned to the browser.  If the
+        stored in the cache as well as being returned to the client.  If the
         page is already in the cache then the remote server is asked for a newer
         page if one exists, else the cache one is used.
 
@@ -598,13 +597,13 @@ SpoolOrReal - When the system is in autodial mode and we have not decided if we
 Fetch - When the system is online and fetching pages that have been requested.
         All web page requests in the outgoing directory are fetched by the
         server connecting to the remote host to get the page.  This page is then
-        stored in the cache, there is no browser active.  If the page has been
+        stored in the cache, there is no client active.  If the page has been
         moved then the link is followed and that one fetched.
 
-Spool - When the system is offline and acting as a proxy for a browser.
+Spool - When the system is offline and acting as a proxy for a client.
         All requests for web pages are handled by forking a server that will
         either return a cached page or store the request.  If the page is
-        cached, it is returned to the browser, else a dummy page is returned
+        cached, it is returned to the client, else a dummy page is returned
         (and stored in the cache), and the outgoing request is stored.
         If the cached page refers to a page that failed to be downloaded then it
         will be deleted from the cache.
@@ -631,13 +630,12 @@ SpoolRefresh - Used when the refresh button on the index or the wwwoffle program
         are used, the existing spooled page (if there is one) is not
         overwritten, but a request is stored.
 
-SpoolPragma - Used when the browser requests the cache to refresh the page
+SpoolPragma - Used when the client requests the cache to refresh the page
         using the 'Pragma: no-cache' header, the existing spooled page (if there
         is one) is not overwritten, but a request is stored.
 
-SpoolInternal - Used when the program is generating a web-page internally or is
-        spooling a web-page with modifications.  This create a temporary file and
-        can put the correct Content-Length header on by measuring the size.
+InternalPage - Used when the program is generating a web-page internally or is
+        spooling a web-page with modifications.
 
 
 WWWOFFLE-TOOLS - Cache maintenance program
@@ -666,7 +664,7 @@ wwwoffle-read   - Read data directly from the cache for the URL named on the
 
 wwwoffle-write  - Write data directly to the cache for the URL named on the
                   command line from stdin.  Note this requires a HTTP header to
-                  be included first or browsers may get confused.
+                  be included first or clients may get confused.
                   (echo "HTTP/1.0 200 OK" ; echo "" ; cat bar.html ) | \
                   wwwoffle-write http://www.foo/bar.html
 
@@ -695,12 +693,12 @@ WWWOFFLE cache if the compression option has been chosen.
 audit-usage.pl - Perl script to check log files
 -----------------------------------------------
 
-The audit-usage.pl script can be used to get audit information from the output
-of the wwwoffled program.
+The audit-usage.pl script (in the contrib directory) can be used to get audit
+information from the output of the wwwoffled program.
 
 If wwwoffled is started as
 
-wwwoffled -c /etc/wwwoffle.conf -d 4
+wwwoffled -c /etc/wwwoffle/wwwoffle.conf -d 4
 
 Then on the standard error output will be generated information about the
 program as it is run.  The debug level needs to be 4 so that the URL information
@@ -727,14 +725,16 @@ Author and Copyright
 --------------------
 
 The two programs wwwoffle and wwwoffled were written by Andrew M. Bishop in
-1996,97,98,99,2000,01 and are copyright Andrew M. Bishop 1996,97,98,99,2000,01.
+1996,97,98,99,2000,01,02,03 and are copyright Andrew M. Bishop 1996,97,98,99,
+2000,01,02,03.
 
 The programs update-cache, endian-cache and the programs known as wwwoffle-tools
-were written by Andrew M. Bishop in 1997,98,99,2000,01 and are copyright Andrew
-M. Bishop 1997,98,99,2000,01.
+were written by Andrew M. Bishop in 1997,98,99,2000,01,02,03 and are copyright
+Andrew M. Bishop 1997,98,99,2000,01,02,03.
 
 The Perl scripts update-config.pl and audit-usage.pl were written by Andrew
-M. Bishop in 1998,99,2000,01 and are copyright Andrew M. Bishop 1998,99,2000,01.
+M. Bishop in 1998,99,2000,01,02,03 and are copyright Andrew M. Bishop
+1998,99,2000,01,02,03.
 
 They can be freely distributed according to the terms of the GNU General Public
 License (see the file `COPYING').
@@ -798,10 +798,10 @@ Ben Winslow <rain@insane.loonybin.net>
         New FTP commands to get file size and modification time.
 
 Ingo Kloecker <kloecker@math.u-bordeaux.fr>
-        Disable animated GIFs.
+        Disable animated GIFs (code now removed and rewritten).
 
 David McNab <david@rebirthing.co.nz>
-        Workaround winsock bug for cygwin.
+        Workaround winsock bug for cygwin (now lingering close on all systems).
 
 Olaf Buddenhagen <olafbuddenhagen@web.de>
         A patch to do random sorting in the indexes.
@@ -813,9 +813,14 @@ Paul A. Rombouts <p.a.rombouts@home.nl>
         The patch to force re-requests of redirection URLs.
         The patch to allow wildcards to have more than two '*' characters.
         The patch to allow local CGI scripts to be run.
+        The patch to keep the backup copy of a page in case of server error.
 
 Marc Boucher <MarcB@box100.com>
         The patch to perform case insensitive matching of URL-SPECs.
+        The patch to handle FTP requests made with a password (like HTTP).
+
+Ilya Dogolazky <ilyad@math.uni-bonn.de>
+        The patch for the fix-mixed-cyrillic option.
 
 
 And Other Useful Contributions From

@@ -1,4 +1,4 @@
-          WWWOFFLE - World Wide Web Offline Explorer - Version 2.7h
+          WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d
           =========================================================
 
 
@@ -28,7 +28,10 @@ While Online
     - Control which pages cannot be accessed.
         - Allow replacement of blocked pages.
     - Control which pages are not to be stored in the cache.
+    - Create backups of cached pages when server cannot be contacted.
+        - Option to create backup when server sends back an error page.
     - Requests compressed pages from web servers (compile time option).
+    - Requests chunked transfer encoding from web servers.
 
 While Offline
     - Can be configured to use dial-on-demand for pages that are not cached.
@@ -70,6 +73,7 @@ Convenience
         - Replace webbug images (images of 1 pixel square).
         - Demoronise HTML character sets.
         - Stop animated GIFs.
+        - Remove Cookies in meta tags.
     - Provides information about cached pages
         - Headers, raw and modified.
         - Contents, images, links etc.
@@ -92,6 +96,7 @@ Convenience
         - Interactive or command line control.
         - Compression of cached pages based on age.
     - Provides compressed pages to web browser (compile time option).
+    - Use chunked transfer-encoding to web browser.
 
 Indexes
     - Multiple indexes of pages stored in cache
@@ -125,26 +130,35 @@ Configuration
 Changes
 -------
 
-Since version 2.7g:
+Since version 2.8c:
 
 Bug Fixes:
- Have more verbose error messages for invalid POST requests.  Fix the way the
- upgrade-config script handles the no-lasttime-index to create-history-indexes
- change.  Change the way that the user selects to view request headers on the
- info pages.  Handle Accept-Language header more robustly.
+ The add-cache-info option works for xhtml pages.  Images and stylesheets etc in
+ xhtml pages are fetched.  Info pages show xml/xhtml source.  Disallow invalid
+ characters in hostnames.  Fix log file ownership.  Close file descriptor on log
+ file.  Handle stdin, stderr and stdout properly.  Don't force errors to stderr
+ if previously disabled.  Disable the demoronise-ms-html option if the HTML is
+ UTF-8 etc.  Make sure 'wwwoffle -fetch' lists all outgoing URLs.  The
+ wwwoffle-tools programs return an error code in case of error.  Reset page CSS
+ when using add-cache-info option.  Give warning if unexpected URL argument seen
+ for internal URLs.
 
+New Features:
+ A URL-SPEC path like '/*/foo*' matches '/foo*' and '/*/foo*' as a special case.
+ New GIF modification code, handles GIF87a and GIF89a formats, more robust.
 
-*NOTE* This version contains some security related fixes and should be used in
-       preference to earlier versions.
+New Options
+ Added an HTMLModify option to fix bad Cyrillic pages (like demoroniser).
+ Added an HTMLModify option to stop marquee scrolling text in HTML.
 
 
 Availability
 ------------
 
-Version 2.7h uploaded, but may not be available yet
+Version 2.8d uploaded, but may not be available yet
 
-FTP server: ftp://ftp.ibiblio.org/pub/Linux/apps/www/servers/wwwoffle-2.7h.tgz
-FTP server: ftp://ftp.demon.co.uk/pub/unix/httpd/wwwoffle-2.7h.tgz
+FTP  server: ftp://ftp.ibiblio.org/pub/Linux/apps/www/servers/wwwoffle-2.8d.tgz
+HTTP server: http://www.gedanken.demon.co.uk/download-wwwoffle/wwwoffle-2.8d.tgz
 
 Web page: http://www.gedanken.demon.co.uk/wwwoffle/
 
@@ -152,7 +166,7 @@ Web page: http://www.gedanken.demon.co.uk/wwwoffle/
 Author & Copyright
 ------------------
 
-This program is copyright Andrew M. Bishop 1996,97,98,99,2000,01,02
+This program is copyright Andrew M. Bishop 1996,97,98,99,2000,01,02,03,04
 (amb@gedanken.demon.co.uk) and distributed under GPL.
 
 email: amb@gedanken.demon.co.uk

@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/ssl.c 1.17 2002/10/12 19:49:22 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/ssl.c 1.21 2004/02/24 19:26:03 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
   SSL (Secure Socket Layer) Tunneling functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1998,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -16,10 +16,6 @@
 #include "autoconfig.h"
 
 #include <stdlib.h>
-#include <string.h>
-
-#include <sys/types.h>
-#include <unistd.h>
 
 #if TIME_WITH_SYS_TIME
 # include <sys/time.h>
@@ -32,13 +28,13 @@
 # endif
 #endif
 
-#include <fcntl.h>
 #include <errno.h>
 
 #include "wwwoffle.h"
-#include "errors.h"
+#include "io.h"
 #include "misc.h"
 #include "headbody.h"
+#include "errors.h"
 #include "config.h"
 #include "sockets.h"
 #include "proto.h"
@@ -46,6 +42,7 @@
 
 /*+ Set to the name of the proxy if there is one. +*/
 static /*@null@*/ /*@observer@*/ char *proxy=NULL;
+static /*@null@*/ /*@observer@*/ char *sproxy=NULL;
 
 /*+ The file descriptor of the server. +*/
 static int server=-1;
@@ -64,13 +61,19 @@ char *SSL_Open(URL *Url)
  char *msg=NULL;
  char *server_host=NULL;
  int server_port=0;
+ char *socks_host=NULL;
+ int socks_port=0;
 
  /* Sort out the host. */
 
- if(IsLocalNetHost(Url->host))
+ if(IsLocalNetHost(Url->host)) {
    proxy=NULL;
- else
+   sproxy=NULL;
+ }
+ else {
    proxy=ConfigStringURL(SSLProxy,Url);
+   sproxy=ConfigStringURL(SocksProxy,Url);
+ }     
 
  if(proxy) {
    char *hoststr, *portstr; int hostlen;
@@ -92,15 +95,22 @@ char *SSL_Open(URL *Url)
 
  if(server_port)
    {
-    server=OpenClientSocket(server_host,server_port);
+    if(sproxy)
+      SETSOCKSHOSTPORT(sproxy,server_host,server_port,socks_host,socks_port);
 
-    if(server!=-1)
-      init_buffer(server);
+    server=OpenClientSocket(server_host,server_port,socks_host,socks_port,NULL);
+
+    if(server==-1)
+       msg=GetPrintMessage(Warning,"Cannot open the SSL connection to %s port %d; [%!s].",server_host,server_port);
     else
-      msg=PrintMessage(Warning,"Cannot open the SSL connection to %s port %d; [%!s].",server_host,server_port);
+      {
+       init_io(server);
+       configure_io_read(server,ConfigInteger(SocketTimeout),0,0);
+       configure_io_write(server,ConfigInteger(SocketTimeout),0,0);
+      }
    }
  else
-    msg=PrintMessage(Warning,"No port given for the SSL connection to %s.",server_host);
+    msg=GetPrintMessage(Warning,"No port given for the SSL connection to %s.",server_host);
 
  return(msg);
 }
@@ -124,7 +134,7 @@ char *SSL_Request(int client,URL *Url,Header *request_head)
 
  if(proxy)
    {
-    char *head;
+     char *head; int headlen;
 
     ModifyRequest(Url,request_head);
 
@@ -132,19 +142,17 @@ char *SSL_Request(int client,URL *Url,Header *request_head)
 
     ChangeURLInHeader(request_head,Url->hostport);
 
-    head=HeaderString(request_head,NULL);
+    head=HeaderString(request_head,&headlen);
 
     PrintMessage(ExtraDebug,"Outgoing Request Head (to SSL proxy)\n%s",head);
 
-    if(write_string(server,head)==-1)
-       msg=PrintMessage(Warning,"Failed to write to remote SSL proxy; [%!s].");
+    if(write_data(server,head,headlen)==-1)
+       msg=GetPrintMessage(Warning,"Failed to write to remote SSL proxy; [%!s].");
 
     free(head);
    }
  else
-    HTMLMessageHead(client,200,"WWWOFFLE SSL OK",
-                    "Content-Type",NULL,
-                    NULL);
+    out_err=write_string(client,"HTTP/1.0 200 WWWOFFLE SSL OK\r\n\r\n");
 
  return(msg);
 }
@@ -164,7 +172,7 @@ void SSL_Transfer(int client)
  int n,nc,ns;
  char buffer[READ_BUFFER_SIZE];
 
- while(1)
+ do
    {
     nc=ns=0;
 
@@ -187,18 +195,17 @@ void SSL_Transfer(int client)
       {
        nc=read_data(client,buffer,READ_BUFFER_SIZE);
        if(nc>0)
-          write_data(server,buffer,nc);
+          nc=write_data(server,buffer,nc);
       }
     if(FD_ISSET(server,&readfd))
       {
        ns=read_data(server,buffer,READ_BUFFER_SIZE);
        if(ns>0)
-          write_data(client,buffer,ns);
+          ns=write_data(client,buffer,ns);
       }
-
-    if(nc==0 && ns==0)
-       return;
    }
+ while(nc>0 || ns>0);
+ return;
 }
 
 
@@ -210,5 +217,6 @@ void SSL_Transfer(int client)
 
 int SSL_Close(void)
 {
+ finish_io(server);
  return(CloseSocket(server));
 }

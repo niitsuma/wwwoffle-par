@@ -12,14 +12,14 @@ FUNC   \%[a-z_0-9]+\[[a-z_0-9]+\]
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/messages.l 1.46 2002/11/03 17:38:15 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/messages.l 1.56 2003/12/04 12:01:11 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Parse the HTML to create the messages.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1998,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -55,11 +55,13 @@ FUNC   \%[a-z_0-9]+\[[a-z_0-9]+\]
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "version.h"
 #include "wwwoffle.h"
+#include "io.h"
+#include "misc.h"
+#include "headbody.h"
 #include "errors.h"
 #include "config.h"
-#include "misc.h"
+#include "version.h"
 
 
 /*+ Need this for Win32 to use binary mode +*/
@@ -69,17 +71,13 @@ FUNC   \%[a-z_0-9]+\[[a-z_0-9]+\]
 
 
 extern int msg_yylex(void);
-#define msg_yywrap() 1
 
-
-static void html_message_body(char *template, va_list ap);
+static char *html_message_body(int fd,char *template, va_list ap);
 
 static void write_or_append_string(char *str);
 
 static char /*@observer@*/ *add_variable(char *var,char *val);
-#if 0
 static void delete_variables(void);
-#endif
 static char /*@observer@*/ *get_variable(char *var);
 static char *call_function(char *func);
 
@@ -108,12 +106,27 @@ static char **values=NULL;
 /*+ The number of variables. +*/
 static int nvariables=0;
 
+/*+ The option to use compression or chunked encoding for the reply. +*/
+static int client_compression=0,client_chunked=0;
+int head_only=0;
+
+/*++++++++++++++++++++++++++++++++++++++
+  Set the options to use for the socket sending the message.
+
+  int compressed Use compression (and type).
+
+  int chunked Use chunked encoding.
+ ++++++++++++++++++++++++++++++++++++++*/
+
+void SetMessageOptions(int compressed,int chunked)
+{
+ client_compression=compressed;
+ client_chunked=chunked;
+}
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Create a simple message using the template in the html directory.
-
-  char *HTMLMessage Returns a string instead of writing to a file if fd==-1.
 
   int fd The file descriptor to write it to.
 
@@ -128,7 +141,7 @@ static int nvariables=0;
   ... A list of variable-value pairs to use in the parsing (NULL terminated).
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *HTMLMessage(int fd,int status_val,char *status_str,char *location,char *template, ...)
+void HTMLMessage(int fd,int status_val,char *status_str,char *location,char *template, ...)
 {
  va_list ap;
 
@@ -140,7 +153,7 @@ char *HTMLMessage(int fd,int status_val,char *status_str,char *location,char *te
     HTMLMessageHead(fd,status_val,status_str,
                     NULL);
 
- if(out_err==-1) return(NULL);
+ if(out_err==-1 || head_only) return;
 
 #ifdef __STDC__
  va_start(ap,template);
@@ -148,18 +161,14 @@ char *HTMLMessage(int fd,int status_val,char *status_str,char *location,char *te
  va_start(ap);
 #endif
 
- html_message_body(template,ap);
+ html_message_body(fd,template,ap);
 
  va_end(ap);
-
- return(out_str);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Create an html header using the specified fields.
-
-  char *HTMLMessageHead Returns a string instead of writing to a file if fd==-1.
 
   int fd The file descriptor to write it to.
 
@@ -170,21 +179,11 @@ char *HTMLMessage(int fd,int status_val,char *status_str,char *location,char *te
   ... A list of variable-value pairs to use in the header (NULL terminated).
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *HTMLMessageHead(int fd,int status_val,char *status_str, ...)
+void HTMLMessageHead(int fd,int status_val,char *status_str, ...)
 {
  va_list ap;
+ Header *header;
  int content_type=0;
- char *var,*val,*p;
- char status[12],*date;
-
- out_fd=fd; out_err=0;
-
- out_len=strlitlen("HTTP/1.0  \r\n")+sprintf(status,"%d",status_val)+strlen(status_str)+
-     strlitlen("Server: WWWOFFLE/" WWWOFFLE_VERSION "\r\n"
-	       "Date: \r\n")+strlen(date=RFC822Date(time(NULL),1))+
-     strlitlen("Connection: close\r\n"
-	       "Proxy-Connection: close\r\n"
-	       "\r\n");
 
 #ifdef __STDC__
  va_start(ap,status_str);
@@ -192,72 +191,112 @@ char *HTMLMessageHead(int fd,int status_val,char *status_str, ...)
  va_start(ap);
 #endif
 
- while((var=va_arg(ap,char*)))
-   {
-    if(!strcasecmp(var,"Content-Type"))
-       content_type=1;
+ /* The start of the header */
+ {
+   char headline[sizeof("HTTP/1.0  \r\n")+strlen(status_str)+12];
+   sprintf(headline,"HTTP/1.0 %d %s\r\n",status_val,status_str);
+   CreateHeader(headline,0,&header);
+ }
 
-    if((val=va_arg(ap,char*)))
-      out_len+=strlitlen(": \r\n")+strlen(var)+strlen(val);
-   }
-
- va_end(ap);
-
- if(!content_type)
-    out_len+=strlitlen("Content-Type: text/html\r\n");
-
- if(fd==-1)
-   out_str=(char*)malloc(((out_len<BUFSIZE)?BUFSIZE:out_len) + 1);
- else
-   out_str=(char*)alloca(out_len+1);
-
-
-/* The start of the header */
-
- p=stpcpy(stpcpy(out_str,"HTTP/1.0 "),status); *p++=' ';
- p=stpcpy(stpcpy(p,status_str),"\r\n");
-
- p=stpcpy(stpcpy(stpcpy(p,"Server: WWWOFFLE/" WWWOFFLE_VERSION "\r\n"
-			  "Date: "),date),"\r\n");
+ AddToHeader(header,"Server","WWWOFFLE/" WWWOFFLE_VERSION);
+ AddToHeader(header,"Date",RFC822Date(time(NULL),1));
 
  /* Start filling in the header. */
+ {
+   char *var,*val;
 
-#ifdef __STDC__
- va_start(ap,status_str);
-#else
- va_start(ap);
-#endif
+   while((var=va_arg(ap,char*)))
+     {
+       val=va_arg(ap,char*);
 
- while((var=va_arg(ap,char*)))
-   {
-     if((val=va_arg(ap,char*)))
-       p=stpcpy(stpcpy(stpcpy(stpcpy(p,var),": "),val),"\r\n");
-   }
+       if(!strcmp(var,"Content-Type"))
+	 content_type=1;
+
+       if(val)
+	 AddToHeader(header,var,val);
+     }
+ }
 
  va_end(ap);
+
+ /* Set up compression header for the client if available and required. */
+
+#if USE_ZLIB
+ if(client_compression && !head_only)
+   {
+    /* If it is not to be compressed then don't */
+    char *len;
+    if(NotCompressed(GetHeader(header,"Content-Type"),NULL) ||
+       ((len=GetHeader(header,"Content-Length")) && atol(len)<=MINCOMPRSIZE))
+       client_compression=0;
+
+    /* Add the compression header for the client. */
+
+    else
+      {
+       RemoveFromHeader(header,"Content-Length");
+
+       AddToHeader(header,"Content-Encoding",(client_compression==1)?"deflate":"gzip");
+
+       PrintMessage(Debug,"Using 'Content-Encoding: %s' for the client.",
+                    client_compression==1?"deflate":"gzip");
+      }
+   }
+#endif
+
+ /* Set up chunked encoding header for the client if required. */
+
+ if(client_chunked && !head_only)
+   {
+     /* If the length is already known don't bother with chunked encoding */
+     if(GetHeader(header,"Content-Length"))
+       client_chunked=0;
+     else
+       {
+	 ChangeVersionInHeader(header,"HTTP/1.1");
+	 AddToHeader(header,"Transfer-Encoding","chunked");
+
+	 PrintMessage(Debug,"Using 'Transfer-Encoding: chunked' for the client.");
+       }
+   }
 
  /* The end of the header. */
 
  if(!content_type)
-    p=stpcpy(p,"Content-Type: text/html\r\n");
+    AddToHeader(header,"Content-Type","text/html");
 
- p=stpcpy(p,"Connection: close\r\n"
-	    "Proxy-Connection: close\r\n"
-	    "\r\n");
+ AddToHeader(header,"Connection","close");
+ AddToHeader(header,"Proxy-Connection","close");
 
- if(fd!=-1) {
-   out_err=write_all(fd,out_str,out_len);
-   out_str=NULL; out_len=0;
+ /* Write the header */
+ {
+   char *headerstr; int len;
+
+   headerstr=HeaderString(header,&len);
+   out_err=write_data(fd,headerstr,len);
+   free(headerstr);
  }
 
- return(out_str);
+ FreeHeader(header);
+
+ if(out_err!=-1 && !head_only) {
+   /* Initialise the client compression. */
+
+#if USE_ZLIB
+   if(client_compression)
+     configure_io_write(fd,-1,client_compression,-1);
+#endif
+
+   /* Initialise the client chunked encoding. */
+
+   if(client_chunked)
+     configure_io_write(fd,-1,-1,1);
+ }
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Create a HTML message body by passing the specified template through the micro-language processor.
-
-  char *HTMLMessageBody Returns a string instead of writing to a file if fd==-1.
 
   int fd The file descriptor to write to.
 
@@ -266,12 +305,9 @@ char *HTMLMessageHead(int fd,int status_val,char *status_str, ...)
   ... A list of variable-value pairs to use in the parsing (NULL terminated).
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *HTMLMessageBody(int fd,char *template, ...)
+void HTMLMessageBody(int fd,char *template, ...)
 {
  va_list ap;
-
- out_fd=fd; out_err=0;
- out_str=NULL; out_len=0;
 
 #ifdef __STDC__
  va_start(ap,template);
@@ -279,25 +315,64 @@ char *HTMLMessageBody(int fd,char *template, ...)
  va_start(ap);
 #endif
 
- html_message_body(template,ap);
+ html_message_body(fd,template,ap);
 
  va_end(ap);
-
- return(out_str);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Create a HTML message body by passing the specified template through the micro-language processor.
+  Create a HTML message string by passing the specified template through the micro-language processor.
 
-  int fd The file descriptor to write to.
+  char *HTMLMessageString Returns a string containing the parsed template.
+
+  char *template The name of the template for the message.
+
+  ... A list of variable-value pairs to use in the parsing (NULL terminated).
+  ++++++++++++++++++++++++++++++++++++++*/
+
+char *HTMLMessageString(char *template, ...)
+{
+ char *string;
+ va_list ap;
+
+#ifdef __STDC__
+ va_start(ap,template);
+#else
+ va_start(ap);
+#endif
+
+ string=html_message_body(-1,template,ap);
+
+ va_end(ap);
+
+ return(string);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Finish up and free memory.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+void FinishMessages(void)
+{
+ delete_variables();
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Create a HTML message by passing the specified template through the micro-language processor.
+
+  char *html_message_body Returns a string for the body or NULL when writing to file.
+
+  int fd The file descriptor to write to (or -1 to create a string).
 
   char *template The name of the template for the message.
 
   va_list ap A list of variable-value pairs to use in the parsing (NULL terminated).
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void html_message_body(char *template,va_list ap)
+static char *html_message_body(int fd,char *template,va_list ap)
 {
  char *var,*val;
  char *filename;
@@ -305,11 +380,18 @@ static void html_message_body(char *template,va_list ap)
 
  /* Set up the variables. */
 
+ out_fd=fd; out_err=0;
+ out_str=NULL; out_len=0;
+
+ if(fd==-1)
+    delete_variables();
+
  if(nvariables==0)
    {
     char *localhost=GetLocalHost(1);
     add_variable("localhost",localhost);
     free(localhost);
+    add_variable("version",WWWOFFLE_VERSION);
    }
 
  while((var=va_arg(ap,char*)))
@@ -330,15 +412,21 @@ static void html_message_body(char *template,va_list ap)
  if(msg_yyfd==-1)
     PrintMessage(Fatal,"Cannot open the message template '%s.html'.",template);
 
+ init_io(msg_yyfd);
+
  /* Parse the template and fill in the gaps. */
 
  if(!first)
     msg_yyrestart(NULL);
+
  msg_yylex();
 
+ finish_io(msg_yyfd);
  close(msg_yyfd);
 
  first=0;
+
+ return(out_str);
 }
 
 
@@ -352,14 +440,14 @@ static void write_or_append_string(char *str)
 {
  if(out_fd==-1)
    {
-     /* allocate a buffer of at least BUFSIZE+1 bytes
-	so that it can be re-used by read_line_or_time() */
+     /* allocate a buffer of at least LINE_BUFFER_SIZE+1 bytes
+	so that it can be re-used by read_line() */
 
     if(out_str)
       {
        size_t str_len=strlen(str);
        size_t new_len=out_len+str_len;
-       if(new_len>BUFSIZE)
+       if(new_len>LINE_BUFFER_SIZE)
 	 out_str=(char*)realloc((void*)out_str,new_len+1);
        memcpy(out_str+out_len,str,str_len+1);
        out_len=new_len;
@@ -367,7 +455,7 @@ static void write_or_append_string(char *str)
     else
       {
        out_len=strlen(str);
-       out_str=(char*)malloc(((out_len<BUFSIZE)?BUFSIZE:out_len)+1);
+       out_str=(char*)malloc(((out_len<LINE_BUFFER_SIZE)?LINE_BUFFER_SIZE:out_len)+1);
        memcpy(out_str,str,out_len+1);
       }
    }
@@ -412,7 +500,6 @@ static char *add_variable(char *var,char *val)
 }
 
 
-#if 0
 /*++++++++++++++++++++++++++++++++++++++
   Delete all of the variables.
   ++++++++++++++++++++++++++++++++++++++*/
@@ -437,7 +524,6 @@ static void delete_variables(void)
     values=NULL;
    }
 }
-#endif
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -512,6 +598,12 @@ inline static char *skip_trailing_blanks(char *string, char *end)
  return end+1;
 }
 
+
+#define YY_SKIP_YYWRAP 1 /* Remove error with prototype of ..._yywrap */
+#ifndef msg_yywrap
+/*+ Needed in lex but does nothing. +*/
+#define msg_yywrap() 1
+#endif
 
 /*+ A macro to read data that can be used by the lexer. +*/
 #define YY_INPUT(buf,result,max_size) \
@@ -618,5 +710,9 @@ inline static char *skip_trailing_blanks(char *string, char *end)
 <ALTERNATE_SKIP_SECOND,ALTERNATE_SKIP_REST>\}[ \t]*\r*\n                { yy_pop_state(); if(any) write_or_append_string("\n"); any=0; }
 <ALTERNATE_SKIP_SECOND,ALTERNATE_SKIP_REST>\}[ \t]+                     { yy_pop_state(); unput(' '); }
 <ALTERNATE_SKIP_FIRST,ALTERNATE_SKIP_SECOND,ALTERNATE_SKIP_REST>\}      { yy_pop_state(); }
+
+ /* End of file */
+
+<<EOF>>                                 { BEGIN(INITIAL); return(0); }
 
 %%

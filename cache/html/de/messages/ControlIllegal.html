@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <!--
@@ -6,6 +6,7 @@
 Available WWWOFFLE Variables (all with a '$' prefix).
 
 localhost = The hostname of the server running wwwoffled (='$localhost').
+version   = The version of the WWWOFFLE server (='$version').
 url       = The URL that was asked for (='$url').
 
 $decurl=%decode[url]
@@ -14,48 +15,53 @@ $decurl=%decode[url]
 
 <HEAD>
 <TITLE>WWWOFFLE - Ung&uuml;ltige Kontrollseite</TITLE>
+<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
-<BODY>
+<BODY class="wwwoffle-message">
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<!-- Standard WWWOFFLE Message Page Header Start -->
 
-<p align=center>
-<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
-</p>
+<div class="wwwoffle-header" align="center">
+<b>WWWOFFLE</b> <b>-</b> <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer <b>-</b> <b>v$version</b>
+</div>
+<hr class="wwwoffle-header">
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Header End -->
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<H1 align="center">Ung&uuml;ltige Kontrollseite</H1>
 
-<H1 align=center>Ung&uuml;ltige Kontrollseite</H1>
-
-<p align=center>
+<div class="wwwoffle-message" align="center">
 Ihre Anfrage nach der Kontrollseite
-<br>
+<p class="wwwoffle-url">
 <b><tt>$decurl</tt></b>
-<br>
-ist nicht g&uuml;ltig.
 </p>
+ist nicht g&uuml;ltig.
+</div>
 
-<h2>Hilfe</h2>
+<!-- Standard WWWOFFLE Message Page Inline Help Start -->
 
+<h2 class="wwwoffle-inline-help">Hilfe</h2>
+
+<div class="wwwoffle-inline-help">
 Es gab ein Problem mit dem Link, dem Sie hierher gefolgt sind. Der u.a.
 Link f&uuml;hrt Sie zur Hauptseite f&uuml;r die Steuerung von WWWOFFLE.
+</div>
 
-<p align=center>
+<!-- Standard WWWOFFLE Message Page Inline Help End -->
+
+<div class="wwwoffle-nav" align="center">
 [<a href="http://$localhost/control/">Steuerung</a>]
-</p>
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
-<hr>
-
-<p align=center>
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
 [<a href="http://$localhost/Welcome.html">Willkommensseite</a>|<a href="http://$localhost/FAQ.html">FAQ</a>]
-</p>
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

@@ -1,17 +1,17 @@
-.\" $Header: /home/amb/wwwoffle/doc/RCS/wwwoffled.man 2.11 2002/01/14 19:36:44 amb Exp $
+.\" $Header: /home/amb/wwwoffle/doc/RCS/wwwoffled.man 2.14 2003/12/04 19:49:19 amb Exp $
 .\"
-.\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7.
+.\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
 .\"
 .\"  Manual page for wwwoffled
 .\"
 .\"  Written by Andrew M. Bishop
 .\"
-.\"  This file Copyright 1997,98,99,2001 Andrew M. Bishop
+.\"  This file Copyright 1997,98,99,2000,01,02,03 Andrew M. Bishop
 .\"  It may be distributed under the GNU Public License, version 2, or
 .\"  any higher version.  See section COPYING of the GNU Public license
 .\"  for conditions under which this file may be redistributed.
 .\"
-.TH wwwoffled 8 "August 5th, 2001"
+.TH wwwoffled 8 "December 4th, 2003"
 
 .SH NAME
 
@@ -24,6 +24,7 @@ wwwoffled \- A proxy server for the World Wide Web Offline Explorer.
 .B [\-\-version]
 .B [\-c <config-file>]
 .B [\-d [<log-level>]]
+.B [\-l <log-file>]
 .B [\-f]
 .B [\-p]
 
@@ -81,21 +82,29 @@ Sending a HUP signal to the daemon will cause this config file to be re-read.
 .TP
 .B \-d [<log-level>]
 Do not detach from the terminal when starting and report error messages on
-standard error.  The log-level is a number from 0 (for no output on stderr) to 5
-(for debugging output on stderr).  If this is not specified then the log-level
-in the config file is used.
+standard error.  The log-level is a number from 0 (for no output on stderr) to 6
+(for full debugging output on stderr).  If this is not specified then the
+log-level in the config file is used.
+.TP
+.B \-l <log-file>
+Detach from the terminal but write to a log file what would have been written to
+stderr if the \fB-d\fR option had been used.  Defaults to using a log level of
+4, but using the \fB-d\fR option can change this (but it will still detach).
+Sending a HUP signal to the daemon will cause this log file to be closed and
+re-opened.
 .TP
 .B \-f
-Start the daemon in debugging mode (implies -d) and when the first HTTP request
-comes in handle it without creating a child process and then exit.
+Start the daemon in debugging mode (implies \fB-d\fR and overrides \fB-l\fR) and
+when the first HTTP request comes in handle it without creating a child process
+and then exit.
 .TP
 .B \-p
-Print the pid of the daemon process on stdout. This option cannot be used
-with option \fB-d\fR.
+Print the pid of the daemon process on stdout. This option is ignored if the
+\fB-d\fR or \fB-f\fR options are used.
 
 .SH FILES
 
-/etc/wwwoffle.conf The wwwoffle.conf(5) configuration file.
+/etc/wwwoffle/wwwoffle.conf The wwwoffle.conf(5) configuration file.
 
 .SH SEE ALSO
 
@@ -103,4 +112,4 @@ wwwoffle(1), wwwoffle.conf(5)
 
 .SH AUTHOR
 
-Andrew M. Bishop 1996,1997,1998,1999,2000,2001 (amb@gedanken.demon.co.uk)
+Andrew M. Bishop 1996,97,98,99,2000,01,02,03 (amb@gedanken.demon.co.uk)

@@ -22,6 +22,7 @@ echo > search/namazu/wwwoffle-namazu.log
 mknmz-wwwoffle -f search/namazu/conf/mknmzrc \
                -T search/namazu/conf \
                -O search/namazu/db \
+               -Y \
                -V \
                lasttime \
     >> search/namazu/wwwoffle-namazu.log 2>&1

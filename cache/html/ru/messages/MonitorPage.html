@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <!--
@@ -6,28 +6,29 @@
 Available WWWOFFLE Variables (all with a '$' prefix).
 
 localhost = The hostname of the server running wwwoffled (='$localhost').
+version   = The version of the WWWOFFLE server (='$version').
 url       = The URL to be monitored by default (if any) (='$url').
 
 -->
 
 <HEAD>
-<meta http-equiv="Content-Type" content="text/html; charset=koi8-r">
+<META http-equiv="Content-Type" content="text/html; charset=koi8-r">
 <TITLE>WWWOFFLE - Интерактивная страница наблюдения</TITLE>
+<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
-<BODY>
+<BODY class="wwwoffle-message">
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<!-- Standard WWWOFFLE Message Page Header Start -->
 
-<p align=center>
-<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
-</p>
+<div class="wwwoffle-header" align="center">
+<b>WWWOFFLE</b> <b>-</b> <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer <b>-</b> <b>v$version</b>
+</div>
+<hr class="wwwoffle-header">
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Header End -->
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
-
-<H1 align=center>WWWOFFLE Интерактивная страница наблюдения</H1>
+<H1 align="center">WWWOFFLE Интерактивная страница наблюдения</H1>
 
 Вы можете использовать эту страницу для наблюдения за любым URL.
 
@@ -54,9 +55,13 @@ url       = The URL to be monitored by default (if any) (='$url').
 <li><input name="mofy11" type="checkbox" $mofy11?{checked}{} value="Y"> Ноябрь
 <li><input name="mofy12" type="checkbox" $mofy12?{checked}{} value="Y"> Декабрь
 </ul>
+
+<p>
 <dt>День месяца: (по умолчанию любой день)
 <dd>
 <input type="text" name="dofm" value="$dofm" size=60>
+
+<p>
 <dt>День недели:
 <dd>
 <ul>
@@ -68,6 +73,8 @@ url       = The URL to be monitored by default (if any) (='$url').
 <li><input name="dofw6" type="checkbox" $dofw6?{checked}{} value="Y"> Суббота
 <li><input name="dofw0" type="checkbox" $dofw0?{checked}{} value="Y"> Воскресенье
 </ul>
+
+<p>
 <dt>Час дня (24 часа) is: (по умолчанию один раз в день)
 <dd>
 <input type="text" name="hofd" value="$hofd" size=60>
@@ -88,19 +95,21 @@ Stop Monitoring <input type="text" name="url" value="$url" size="60">
 </form>
 }{}
 
-<p align=center>
+<div class="wwwoffle-nav" align="center">
 [<a href="/index/monitor/?sort=alpha">Посмотреть список наблюдаемых страниц</a>]
-</p>
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
-<hr>
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
+WWWOFFLE - [ \
+<a href="http://$localhost/Welcome.html">Добро пожаловать</a>| \
+<a href="http://$localhost/FAQ.html">FAQ</a> \
+] - WWWOFFLE
+</div>
 
-<p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Добро пожаловать</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
-</p>
-
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

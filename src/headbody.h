@@ -57,6 +57,12 @@ inline static void ChangeURLInHeader(Header *head,const char *url)
   head->url=strdup(url);
 }
 
+inline static void ChangeVersionInHeader(Header *head,const char *version)
+{
+  free(head->version);
+  head->version=strdup(version);
+}
+
 /*++++++++++++++++++++++++++++++++++++++
   Remove the internal WWWOFFLE POST/PUT URL extensions.
   char *url A pointer to a string in the header.
@@ -108,6 +114,14 @@ void FreeHeader(/*@only@*/ Header *head);
 inline static /*@only@*/ Body *CreateBody(int length)
 {
  Body *new=(Body*)malloc(sizeof(Body)+length+1);
+
+ new->length=length;
+ return(new);
+}
+
+inline static /*@only@*/ Body *ReallocBody(/*@only@*/ Body *body,int length)
+{
+ Body *new=(Body*)realloc(body,sizeof(Body)+length+1);
 
  new->length=length;
  return(new);

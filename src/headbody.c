@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/headbody.c 1.19 2002/10/13 14:42:04 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/headbody.c 1.23 2004/01/11 10:28:20 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Header and Body handling functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -571,19 +571,21 @@ void FreeHeader(Header *head)
 /*++++++++++++++++++++++++++++++++++++++
   Create a new Body structure.
 
-  Header *CreateBody Returns the new body structure.
+  Body *CreateBody Returns the new body structure.
 
   int length The length of the body;
   ++++++++++++++++++++++++++++++++++++++*/
 
-/* Body *CreateBody(int length)
+#if 0
+Body *CreateBody(int length)
 {
  Body *new=(Body*)malloc(sizeof(Body)+length+1);
 
  new->length=length;
 
  return(new);
-} */
+}
+#endif
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -592,10 +594,12 @@ void FreeHeader(Header *head)
   Body *body The body structure to free.
   ++++++++++++++++++++++++++++++++++++++*/
 
-/* void FreeBody(Body *body)
+#if 0
+void FreeBody(Body *body)
 {
  free(body);
-} */
+}
+#endif
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -702,6 +706,7 @@ void FreeHeaderList(HeaderList *hlist)
 
 static int sort_qval(HeaderListItem *a,HeaderListItem *b)
 {
-  float b_a=(b->qval)-(a->qval);
-  return (b_a>0)?1:(b_a<0)?-1:0;
+  float aq=a->qval;
+  float bq=b->qval;
+  return (bq>aq)?1:(bq<aq)?-1:0;
 }

@@ -78,7 +78,7 @@ for Windows-32.
                         UNIX                                    Windows-32
 
 Cached files:   /var/spool/wwwoffle                     /wwwoffle
-Config file:    /etc/wwwoffle.conf                      /wwwoffle/wwwoffle.conf
+Config file:    /etc/wwwoffle/wwwoffle.conf             /wwwoffle/wwwoffle.conf
 Executables:    /usr/local/bin & /usr/local/sbin        /wwwoffle/bin
 Documentation:  /usr/local/man/man*                     /wwwoffle/doc
 
@@ -125,7 +125,7 @@ To see what WWWOFFLE does, use the following steps for a quick demonstration.
 2) Start the WWWOFFLE demon running.
    c:\wwwoffle\bin\wwwoffled
 
-3) Start your WWW Browser and set up localhost:8080 as the proxy.
+3) Start your web browser and set up localhost:8080 as the proxy.
    Disable caching between sessions within the browser.
 
 4) a) Connect to the internet
@@ -161,7 +161,7 @@ program that comes with the cygnus toolset.
 The command that you would use to do this is (all on one line):
 
 cygrunsrv -I wwwoffle -p /usr/local/sbin/wwwoffled.exe -o
-          -a "-c /etc/wwwoffle.conf -d"
+          -a "-c /etc/wwwoffle/wwwoffle.conf -d"
 
 
 Win32 Problems

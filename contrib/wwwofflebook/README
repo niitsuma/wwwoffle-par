@@ -1,0 +1,400 @@
+Version 0.91    Su 29 Aug 2004
+
+The wwwofflebook README applies to the following scripts:
+wwwofflebook
+wwwofflebook_ui
+wwwofflebook_check
+
+Conventions:
+============
+
+(1) Doing something as USER means you either log into an x-terminal from inside the X-Session,
+    or you switch with ctrl-alt-F1 from the X-Session to text-console and login with username 
+    and password.
+
+(2) Doing something as ROOT accordingly means to log in as superuser root; you can also
+    achieve this from a user login by issuing 'su root' and deliver your root password.
+    In this case, you can switch back to your user login by issuing 'exit'.
+    It's more easy to have a USER and a ROOT terminal in parallel available.
+    On text console, you can switch between the console terminal with alt+arrows right/left.
+    Debian use to open 6 available terminals with a login prompt.
+    On X, you can either open two independent x-terminal windows, and switch to ROOT in one
+    of them with 'su root'. Or you can use a multi-terminal like multi-gnome-terminal (gnome) 
+    or konsole (KDE) which offers you several terminal-windows in tabs. 
+    Note that you always can launch GNOME or KDE terminals (if they are installed) even
+    without running the related session, e.g. from a pure WindowMaker or fvwm session,
+    or launch the gnome terminal from a KDE session and vice versa.
+
+(3) Quotes or shell command lines are marked like this:
+    <<   
+    make coffee
+    >>
+
+(4) Arguments or file pathes that depend on your setup are only described, not quoted, 
+    in <> brackets like: cd <path-to-your-home-directory>.
+
+(5) Inside a file path, <USERHOME> must be replaced with the user's home-directory, eg.
+    <<
+    <USERHOME>/.wwwoffle
+    >>
+    could turn out to:
+    <<
+    /home/margreth/.wwwoffle.
+    >>
+    
+    
+What is wwwofflebook good for ?
+===============================
+The wwwofflebook scripts can extract the http domains from your browser bookmark
+file. The http-domain of a bookmark is the first part of the address, beginning 
+after the protocol prefix 'http://'. wwwofflebook passes these domains to the 
+wwwoffle daemon with the flag to never delete them at all. The pages of this site 
+will always be available offline, from the wwwoffle cache. 
+This way a browser-bookmarked site will be retained until you remove the bookmarks.
+
+Example:
+  
+  All pages that start with "en.wikipedia.org" are retained provided there is
+  a bookmark entry entitled "en.wikipedia.org".
+  
+  Pages downloaded from "de.wikipedia.org" will be deleted at their default 
+  expiring age, if there is no "de.wikipedia.org" entry in the bookmark file.
+  
+  To preserve pages from the latter site also, you need to bookmark at least
+  one page of this site.
+
+  If you remove all "en.wikipedia.org" bookmarks and run wwwofflebook afterward,
+  this site will be enabled for purging at the default age again. 
+
+
+How does wwwofflebook work ?
+=============================
+(Also see chapter 'Invocation' below) An example. 
+If you invoke 'wwwofflebook_ui --interactive', the following will happen:
+
+First, the script extracts the bookmarks and inserts them into the wwwoffle
+daemons 'purge.conf' file. The previous version of this file will be retained as
+'purge.conf-old'. Now you will be shown the differences between these two files.
+You may decide to quit wwwofflebook at this point, for example to edit the browser
+bookmarks and run this script again. If you however answer 'yes' to the prompt,
+the next step will be to invoke the wwwoffle daemon, to clean the cache according
+to the newly created purge.conf file.
+Domains cached by wwwoffle that can't be found in any of your browser
+bookmarks will be deleted, if they outdated the default purge age.
+This age is specified at the end of the purge.conf file.
+Note that any now deleted cache content is not recoverable !
+
+The wwwoffle daemon purging log will be shown to you through a pager program.
+The first column describes the expiring limit, sometimes in a keyword:
+_______________________________________________________________________________
+
+'Hold' means the site will never be purged. 
+Those are your browser bookmark domains.
+
+'DEFAULT' means the site will be purged according to the default age (see below).
+This usually means there was no browser-bookmark entry for that domain.
+
+The last two columns tell the size the domain is using up on the harddisk,
+and, in case it's being purged, the deleted amount (both in kilobyte).
+_______________________________________________________________________________
+
+It's recommended at least to check the DEFAULT entries, since those domains apparently
+are neither protected by a browser bookmark, nor by an entry in the STATIC section. 
+But possibly you'll find something valuable there, that you'd like to protect. 
+(btw. sorting isn't done by now, there are some glitches. Sorry.)
+
+Independent of the invoking mode, wwwofflebook will write the purge list
+to a logfile, so you can examine it later again.
+
+It doesn't matter if you bookmark several addresses of the same domain. 
+The domain will be inserted in the purge.conf only once anyway.
+
+If you edit this file, you can apply different limits for domains which should
+be handled specially. You can define your own retention times for such sites
+in the 'static section'. Those entries will be preferred by the wwwoffle daemon 
+before any equal entries in the 'dynamic section' below. 
+
+The provided example file gives many examples that illustrate the available 
+options.
+
+
+Installation
+=============
+
+Users should own no more than exactly the necessary rights to do their tasks.
+The purge.conf maintainer needs write access to purge.conf only.
+She should not be able to modify other wwwoffle configuration files.
+
+On a single-user desktop box, the following suggested wwwofflebook design might
+look unnecessarily complicated to you. However, think of virus problems of window 
+systems where people use to login as administrator, or of the dangers with 
+drag-and-drop file management where you could as root easily damage some system files 
+just with a mouse or touchpad mistake.
+
+I assume that someone ready to set up wwwoffle should be experienced
+in working as root and be aware of security issues.
+However, the instructions of these README should allow even an unexperienced user 
+to set up wwwofflebook. 
+Anyway, BE WARNED: wwwofflebook is still a beta version, and i cannot grant 
+that there aren't any bugs in the README itself.
+
+Follow these steps:
+
+(1) Extract the tar-ball e.g. in the /tmp directory
+---------------------------------------------------
+As USER, enter a shell commandline and do:
+
+<<
+tar -xjvf wwwofflebook.tar.bz2
+>>
+This extracts the wwwofflebook files in /tmp/wwwofflebook/.
+Inside are some installation directories with the wwwofflebook scripts 
+and a template directory '.wwwoffle'. For more information about the 
+contents, read the READMEs around there.
+
+(2) Copy the example .wwwoffle directory to your home directory:
+---------------------------------------------------------------
+As USER, do 
+<<
+cd /tmp/wwwofflebook/userwwwoffle
+cp -a  ./.wwwoffle  ~/.wwwoffle
+>>
+
+(3) Place the purge.conf file into /etc/wwwoffle
+-------------------------------------------------
+Log in as ROOT and copy the purge.conf template like this:
+<<
+cd /tmp/wwwofflebook/wwwoffledir/etc_wwwoffle
+cp -i purge.conf  /etc/wwwoffle/
+>>
+
+Note: The following issues concern your system security policy !
+They have to be done as ROOT.
+
+(4) Copy the extracted wwwofflebook scripts
+--------------------------------------------
+... to a user-accessible executable directory, like /usr/local/bin.
+As ROOT do (following the proposed examples):
+<<
+cd /tmp/wwwofflebook/Scripts/usr_local_bin
+cp -i wwwofflebook*  /usr/local/bin/
+>>
+
+
+(5) Adjust the wwwofflebook script ownership and permissions
+------------------------------------------------------------
+If the scripts are owned by root.proxy, the permissions could be 
+-rwxr-x---  (or octal 750) to let both root and group proxy execute them.
+In this case, only root could modify them.
+<<
+cd /usr/local/bin
+chown root.proxy wwwofflebook*
+chmod 750 wwwofflebook*
+>>
+
+Make sure the user can access the directory. She needs the 'x' right for 
+herself or a group she belongs to. It might be wise to create a privileged 
+group which only can execute scripts there. 
+For example, if the group 'staff` should be able to execute programs in this
+directory, but only root should install or modify anything there, it would be:
+<<
+chown root.staff /usr/local/bin
+chmod 750 /usr/local/bin
+>>
+(The octal code to let execute anybody would be 755 for rwxr-xr-x.)
+
+Also, the directory should be in the users' $PATH. As USER, just check it by 
+<<
+echo $PATH
+>>
+
+If bash is the users' login shell, you can edit $PATH in one of the files
+~/.bashrc or ~/.bash.profile. 
+System-wide settings often are stored in /etc/profile or /etc/bashrc.
+This may vary for your distribution, however.
+If (for example) /usr/local/bin isn't included in the users' $PATH,
+you can add it in a way that you'll always remember that you did it manually
+by adding these lines after the PATH= definition:
+<<
+# Added for custom scripts like 'wwwofflebook':
+PATH=$PATH:/usr/local/bin
+>>
+
+Note that the active user must issue 
+<<
+source ~/.bashrc
+>>
+to enable the new setting (or logout and in again).
+
+Test the new setting by issuing
+<<
+which wwwofflebook
+>>
+which should return the path to the script, if it's found.
+
+If you want root to invoke wwwofflebook_check without full pathname,
+you need to add the directory to root's $PATH similarly.
+
+
+(6) Create the purge.conf symlink
+---------------------------------
+
+Set up a symlink from your ~/.wwwoffle/ directory to /etc/wwwoffle/purge.conf:
+As USER, do
+<<
+ln /etc/wwwoffle/purge.conf  <your-home-directory>/.wwwoffle/
+>>
+Replace the term <your-home-directory> above by the appropriate path.
+
+
+(7) Adjust wwwoffle.conf
+------------------------
+At the top of the page http://woody:8080/configuration 
+is explained how sections like 'purge' can be 'outsourced' into a file,
+which would enable the wwwofflebook mechanism: Basically, as ROOT, edit 
+/etc/wwwoffle.conf and replace the 'purge' section ...
+<<
+purge
+{
+(URL's)
+}
+>>
+... completely by this entry (quote):
+
+<<
+purge
+[
+purge.conf
+]
+
+If you have already some domain URLs configured, you can copy them 
+into the new purge.conf 'static' section before.
+>>
+
+
+(8) Configure wwwofflebook.conf
+--------------------------------
+
+As USER, edit in ~/.wwwoffle/wwwofflebook.conf these sections:
+(0) Common
+(1) wwwofflebook
+(2) wwwofflebook_check
+(3) wwwofflebook_ui
+
+Especially important are the username, the whole COMMON section 
+and all further upper case options.
+But you *will* have to verify *all* definitions in these sections.
+You should also always have a look at the WWWOFFLEBOOK_CHECK section.
+Many entries may already fit to your system settings, though. 
+
+You don't need to edit the section (4) General functions, nor the 
+browser-type bookmark functions (at least, if they work for you ;).
+
+
+(9) Check the configuration
+----------------------------
+
+Log in as ROOT and run 
+<<
+wwwofflebook_check -c path-to-your-wwwofflebook.conf
+>>
+
+It's part of the concept that the new maintainer belongs to the wwwoffle daemon
+group (eg, 'proxy'). The script may ask you to add the user to this group.
+THIS CHANGE TAKES EFFECT FOR THE USER THROUGH A NEW LOGIN ONLY.
+
+
+Editing purge.conf
+=====================
+
+The "DYNAMIC SECTION" Bookmark entries are generated by wwwofflebook; where the 
+"STATIC SECTION" adjustments are made manually after running a purge and using
+a browser (and eventually the wwwofflebook.log) to decide:
+- which bookmark entries are not worth keeping
+- which non-bookmark entries are worth keeping and for how long.
+
+You can use the wwwoffle web interface at http://woody:8080/configuration 
+to edit the purge.conf section. You can as well edit purge.conf directly with 
+an usual text editor, which I recommend if you have to do much editing.
+Note that if you use an text editor, you can either edit the 'real' purge.conf 
+in the wwwoffle configuration directory (usually /etc/wwwoffle) or the symlink 
+in your ~/.wwwoffle directory. In the latter case, ENSURE that your editor doesn't
+overwrite the symlink with 'real' file. This would cut off the wwwoffle daemon from
+further wwwofflebook changes !
+
+The wwwofflebook script backups the purge.conf in a file 'purge.conf-old'.
+If you 'damage' a sophisticated crafted purge.conf by a temporary misconfiguration,
+you can still restore the original purge.conf from this default backup.
+Note that this works only once; since running wwwofflebook the second time 
+would simply override the 'old' backup with the damaged version, too.
+For this reason i recommend an additional, extensively refreshed manual backup
+in case your purge.conf contains a rather large static section, which you 
+don't like to fiddle out again.
+
+
+Invocation
+============
+
+If anything is configured proper, you can invoke wwwofflebook and wwwofflebook_ui
+as USER now. Some examples:
+
+xterm -e "wwwofflebook_check -c ~/.wwwoffle/wwwofflebook.conf"
+xterm -e "wwwofflebook -c ~/.wwwoffle/wwwofflebook.conf"
+xterm -e "wwwofflebook_ui --interactive"
+multi-gnome-terminal --name=wwwofflebook -e "wwwofflebook_ui --interactive"
+
+You also can set up wwwofflebook as cronjob. This must be done as ROOT.
+Example cron.d entry for Sunday at 23.00:
+0 23  * * 7 root wwwofflebook 
+For further information, lookup the manpages crontab(5) and cron(8).
+Note that on a single desktop machine it should be safe to edit any crontab
+as ROOT with a standard text editor. You don't need the crontab command.
+ 
+Invocation options: 
+-------------------
+wwwofflebook_ui --silent runs without output except error messages.
+The same with wwwofflebook -c ~/.wwwoffle/wwwofflebook.conf.
+Run the latter if you just want to refresh the purge.conf from the browser bookmark 
+file, without purging the cache.
+ 
+For a full description run the scripts with -h as the only argument.
+
+Permissions:
+===============
+Users, even the 'cache maintainer', don't need general write access to
+/etc/wwwoffle. Usually only "root" and the wwwoffle daemon have permission to 
+write to the 'wwwoffle.conf' file. Therefor exists the design with a users'
+~/.wwwoffle directory. It's still possible to do it your own way, if you
+know what you're doing.
+
+The following tasks should already be done via wwwofflebook_check.
+However, in any weird case, you can do it manually.
+This applies for a 'proxy' daemon user on a Debian GNU/Linux:
+
+Create a symlink ~/.wwwoffle/purge.conf which points to /etc/wwwoffle/purge.conf,
+and change the permissions of /etc/wwwoffle/purge.conf to rw-rw-r-- (octal 664)
+with owner and group = "proxy". 
+
+Permissions overview:
+
+file ... permissions user|group|other (octal) ... owner:group
+---------------------------------------------------------------
+/etc/wwwoffle ............... rwxr-xr-x (755) ... proxy:proxy
+/etc/wwwoffle/purge.conf .... rw-rw-r-- (664) ... proxy:proxy 
+~/.wwwoffle ................. rwxrwx--- (750) ... USER:proxy
+inside files  ............... rw---r--r (644) ... USER:USER
+
+The permissions of ~/.wwwoffle files are proper by default if you created them 
+as user with an appropriate umask. You can test your umask with the command 
+'umask' (man umask). In Debian, you can change your umask in ~/.bashrc. 
+For example, the entry
+<<
+umask 0022
+>>
+will let the user create files with permissions rw-r--r-- (644).
+
+
+
+
+
+

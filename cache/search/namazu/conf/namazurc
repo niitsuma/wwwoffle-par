@@ -24,7 +24,7 @@ Index         SPOOLDIR/search/namazu/db
 ## Template: Set the template directory containing
 ## NMZ.{head,foot,body,tips,result} files.
 ##
-Template      SPOOLDIR/search/namazu/conf
+Template      SPOOLDIR/search/namazu/db
 
 
 ##

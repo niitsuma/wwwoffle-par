@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/index.c 2.86 2002/10/27 13:33:31 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/index.c 2.96 2004/09/28 16:25:30 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
   Generate an index of the web pages that are cached in the system.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -32,9 +32,9 @@
 #  include <time.h>
 # endif
 #endif
-#include <utime.h>
 
 #include <sys/stat.h>
+#include <fcntl.h>
 
 #if HAVE_DIRENT_H
 # include <dirent.h>
@@ -51,14 +51,13 @@
 # endif
 #endif
 
-#include <fcntl.h>
-
 #include "wwwoffle.h"
 #include "misc.h"
-#include "proto.h"
-#include "config.h"
 #include "errors.h"
+#include "config.h"
+#include "proto.h"
 #include "headbody.h"
+#include "io.h"
 #include "document.h"
 
 
@@ -101,11 +100,10 @@ typedef enum _SortMode
 SortMode;
 
 
-/*+ The file descriptor of the spool directory. +*/
-extern int fSpoolDir;
-
 /*+ The list of files. +*/
 static /*@null@*/ /*@only@*/ FileIndex **files=NULL;
+
+/*+ The number of files. +*/
 static int nfiles=0;
 
 /*+ The current time. +*/
@@ -233,6 +231,8 @@ void IndexPage(int fd,URL *Url)
           infoopt=1;
        else if(!strcmp(*a,"title"))
           titleopt=1;
+       else
+          PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",*a,Url->name);
       }
 
     free(args[0]);
@@ -266,7 +266,7 @@ void IndexPage(int fd,URL *Url)
    {
     HTMLMessageHead(fd,200,"WWWOFFLE Index",
                     NULL);
-    if(out_err==-1) return;
+    if(out_err==-1 || head_only) return;
     HTMLMessageBody(fd,"Index-Head",
                     "type",prevtime?"prevtime":prevout?"prevout":proto,
                     "subtype",prevtime?proto+8:prevout?proto+7:host,
@@ -348,34 +348,42 @@ static void IndexProtocol(int fd,char *proto,SortMode mode,/*@unused@*/ int allo
 
  dir=opendir(".");
  if(!dir)
-   {PrintMessage(Warning,"Cannot open spool directory '%s' [%!s]; index failed.",proto);fchdir(fSpoolDir);
+   {PrintMessage(Warning,"Cannot open spool directory '%s' [%!s]; index failed.",proto);ChangeBackToSpoolDir();
    HTMLMessageBody(fd,"IndexError-Body",NULL);return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
-   {PrintMessage(Warning,"Cannot read spool directory '%s' [%!s]; index failed.",proto);closedir(dir);fchdir(fSpoolDir);
+   {PrintMessage(Warning,"Cannot read spool directory '%s' [%!s]; index failed.",proto);closedir(dir);ChangeBackToSpoolDir();
    HTMLMessageBody(fd,"IndexError-Body",NULL);return;}
- ent=readdir(dir);  /* skip .. */
 
  /* Get all of the host sub-directories. */
 
- while((ent=readdir(dir)))
+ do
+   {
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
     add_dir(ent->d_name,mode);
+   }
+ while((ent=readdir(dir)));
 
  closedir(dir);
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 
  /* Sort the files. */
 
- if(mode==MTime || mode==ATime || mode==Dated)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_time);
- else if(mode==Alpha || mode==Type)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_alpha);
- else if(mode==Domain)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_domain);
- else if(mode==Random)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_random);
+ if(files)
+   {
+    if(mode==MTime || mode==ATime || mode==Dated)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_time);
+    else if(mode==Alpha || mode==Type)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_alpha);
+    else if(mode==Domain)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_domain);
+    else if(mode==Random)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_random);
+   }
 
  /* Output the page. */
 
@@ -457,19 +465,18 @@ static void IndexHost(int fd,char *proto,char *host,SortMode mode,int allopt,int
 #endif
 
  if(chdir(host))
-   {PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s]; not indexed.",proto,host);fchdir(fSpoolDir);
+   {PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s]; not indexed.",proto,host);ChangeBackToSpoolDir();
    HTMLMessageBody(fd,"IndexError-Body",NULL);return;}
 
  dir=opendir(".");
  if(!dir)
-   {PrintMessage(Warning,"Cannot open directory '%s/%s' [%!s]; not indexed.",proto,host);fchdir(fSpoolDir);
+   {PrintMessage(Warning,"Cannot open directory '%s/%s' [%!s]; not indexed.",proto,host);ChangeBackToSpoolDir();
    HTMLMessageBody(fd,"IndexError-Body",NULL);return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
-   {PrintMessage(Warning,"Cannot read directory '%s/%s' [%!s]; not indexed.",proto,host);closedir(dir);fchdir(fSpoolDir);
+   {PrintMessage(Warning,"Cannot read directory '%s/%s' [%!s]; not indexed.",proto,host);closedir(dir);ChangeBackToSpoolDir();
    HTMLMessageBody(fd,"IndexError-Body",NULL);return;}
- ent=readdir(dir);  /* skip .. */
 
 #if defined(__CYGWIN__)
  for(i=0;host[i];i++)
@@ -479,23 +486,32 @@ static void IndexHost(int fd,char *proto,char *host,SortMode mode,int allopt,int
 
  /* Add all of the file names. */
 
- while((ent=readdir(dir)))
+ do
+   {
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
     add_file(ent->d_name,mode);
+   }
+ while((ent=readdir(dir)));
 
  closedir(dir);
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 
  /* Sort the files. */
 
- if(mode==MTime || mode==ATime || mode==Dated)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_time);
- else if(mode==Alpha || mode==Domain)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_alpha);
- else if(mode==Type)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_type);
- else if(mode==Random)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_random);
+ if(files)
+   {
+    if(mode==MTime || mode==ATime || mode==Dated)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_time);
+    else if(mode==Alpha || mode==Domain)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_alpha);
+    else if(mode==Type)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_type);
+    else if(mode==Random)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_random);
+   }
 
  /* Output the page. */
 
@@ -584,36 +600,44 @@ static void IndexOutgoing(int fd,SortMode mode,int allopt,int titleopt)
 
  dir=opendir(".");
  if(!dir)
-   {PrintMessage(Warning,"Cannot open directory 'outgoing' [%!s]; not indexed.");fchdir(fSpoolDir);
+   {PrintMessage(Warning,"Cannot open directory 'outgoing' [%!s]; not indexed.");ChangeBackToSpoolDir();
    HTMLMessageBody(fd,"IndexError-Body",NULL);return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
-   {PrintMessage(Warning,"Cannot read directory 'outgoing' [%!s]; not indexed.");closedir(dir);fchdir(fSpoolDir);
+   {PrintMessage(Warning,"Cannot read directory 'outgoing' [%!s]; not indexed.");closedir(dir);ChangeBackToSpoolDir();
    HTMLMessageBody(fd,"IndexError-Body",NULL);return;}
- ent=readdir(dir);  /* skip .. */
 
  /* Add all of the file names. */
 
- while((ent=readdir(dir)))
+ do
+   {
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
     add_file(ent->d_name,mode);
+   }
+ while((ent=readdir(dir)));
 
  closedir(dir);
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 
  /* Sort the files. */
 
- if(mode==MTime || mode==ATime || mode==Dated)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_time);
- else if(mode==Alpha)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_alpha);
- else if(mode==Type)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_type);
- else if(mode==Domain)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_domain);
- else if(mode==Random)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_random);
+ if(files)
+   {
+    if(mode==MTime || mode==ATime || mode==Dated)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_time);
+    else if(mode==Alpha)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_alpha);
+    else if(mode==Type)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_type);
+    else if(mode==Domain)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_domain);
+    else if(mode==Random)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_random);
+   }
 
  /* Output the page. */
 
@@ -701,36 +725,44 @@ static void IndexMonitor(int fd,SortMode mode,int allopt,int titleopt)
 
  dir=opendir(".");
  if(!dir)
-   {PrintMessage(Warning,"Cannot open directory 'monitor' [%!s]; not indexed.");fchdir(fSpoolDir);
+   {PrintMessage(Warning,"Cannot open directory 'monitor' [%!s]; not indexed.");ChangeBackToSpoolDir();
    HTMLMessageBody(fd,"IndexError-Body",NULL);return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
-   {PrintMessage(Warning,"Cannot read directory 'monitor' [%!s]; not indexed.");closedir(dir);fchdir(fSpoolDir);
+   {PrintMessage(Warning,"Cannot read directory 'monitor' [%!s]; not indexed.");closedir(dir);ChangeBackToSpoolDir();
    HTMLMessageBody(fd,"IndexError-Body",NULL);return;}
- ent=readdir(dir);  /* skip .. */
 
  /* Add all of the file names. */
 
- while((ent=readdir(dir)))
+ do
+   {
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
     add_file(ent->d_name,mode);
+   }
+ while((ent=readdir(dir)));
 
  closedir(dir);
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 
  /* Sort the files. */
 
- if(mode==MTime || mode==ATime || mode==Dated)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_time);
- else if(mode==Alpha)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_alpha);
- else if(mode==Type)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_type);
- else if(mode==Domain)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_domain);
- else if(mode==Random)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_random);
+ if(files)
+   {
+    if(mode==MTime || mode==ATime || mode==Dated)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_time);
+    else if(mode==Alpha)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_alpha);
+    else if(mode==Type)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_type);
+    else if(mode==Domain)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_domain);
+    else if(mode==Random)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_random);
+   }
 
  /* Output the page. */
 
@@ -752,12 +784,12 @@ static void IndexMonitor(int fd,SortMode mode,int allopt,int titleopt)
 
        MonitorTimes(files[i]->url,&last,&next);
 
-       if(last>=(31*24))
-          sprintf(laststr,"31+");
+       if(last>=(366*24))
+          sprintf(laststr,"365+");
        else
           sprintf(laststr,"%d:%d",last/24,last%24);
-       if(next>=(31*24))
-          sprintf(nextstr,"31+");
+       if(next>=(366*24))
+          sprintf(nextstr,"365+");
        else
           sprintf(nextstr,"%d:%d",next/24,next%24);
 
@@ -836,14 +868,13 @@ static void IndexLastTime(int fd,char *name,SortMode mode,int allopt,int titleop
 
  dir=opendir(".");
  if(!dir)
-   {PrintMessage(Warning,"Cannot open directory '%s' [%!s]; not indexed.",name);fchdir(fSpoolDir);
+   {PrintMessage(Warning,"Cannot open directory '%s' [%!s]; not indexed.",name);ChangeBackToSpoolDir();
    HTMLMessageBody(fd,"IndexError-Body",NULL);return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
-   {PrintMessage(Warning,"Cannot read directory '%s' [%!s]; not indexed.",name);closedir(dir);fchdir(fSpoolDir);
+   {PrintMessage(Warning,"Cannot read directory '%s' [%!s]; not indexed.",name);closedir(dir);ChangeBackToSpoolDir();
    HTMLMessageBody(fd,"IndexError-Body",NULL);return;}
- ent=readdir(dir);  /* skip .. */
 
  if(stat(".timestamp",&buf))
     strcpy(date,"?");
@@ -852,25 +883,34 @@ static void IndexLastTime(int fd,char *name,SortMode mode,int allopt,int titleop
 
  /* Add all of the file names. */
 
- while((ent=readdir(dir)))
+ do
+   {
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
     add_file(ent->d_name,mode);
+   }
+ while((ent=readdir(dir)));
 
  closedir(dir);
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 
  /* Sort the files. */
 
- if(mode==MTime || mode==ATime || mode==Dated)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_time);
- else if(mode==Alpha)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_alpha);
- else if(mode==Type)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_type);
- else if(mode==Domain)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_domain);
- else if(mode==Random)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_random);
+ if(files)
+   {
+    if(mode==MTime || mode==ATime || mode==Dated)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_time);
+    else if(mode==Alpha)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_alpha);
+    else if(mode==Type)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_type);
+    else if(mode==Domain)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_domain);
+    else if(mode==Random)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_random);
+   }
 
  /* Output the page. */
 
@@ -963,14 +1003,13 @@ static void IndexLastOut(int fd,char *name,SortMode mode,int allopt,int titleopt
 
  dir=opendir(".");
  if(!dir)
-   {PrintMessage(Warning,"Cannot open directory '%s' [%!s]; not indexed.",name);fchdir(fSpoolDir);
+   {PrintMessage(Warning,"Cannot open directory '%s' [%!s]; not indexed.",name);ChangeBackToSpoolDir();
    HTMLMessageBody(fd,"IndexError-Body",NULL);return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
-   {PrintMessage(Warning,"Cannot read directory '%s' [%!s]; not indexed.",name);closedir(dir);fchdir(fSpoolDir);
+   {PrintMessage(Warning,"Cannot read directory '%s' [%!s]; not indexed.",name);closedir(dir);ChangeBackToSpoolDir();
    HTMLMessageBody(fd,"IndexError-Body",NULL);return;}
- ent=readdir(dir);  /* skip .. */
 
  if(stat(".timestamp",&buf))
     strcpy(date,"?");
@@ -979,25 +1018,34 @@ static void IndexLastOut(int fd,char *name,SortMode mode,int allopt,int titleopt
 
  /* Add all of the file names. */
 
- while((ent=readdir(dir)))
+ do
+   {
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
     add_file(ent->d_name,mode);
+   }
+ while((ent=readdir(dir)));
 
  closedir(dir);
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 
  /* Sort the files. */
 
- if(mode==MTime || mode==ATime || mode==Dated)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_time);
- else if(mode==Alpha)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_alpha);
- else if(mode==Type)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_type);
- else if(mode==Domain)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_domain);
- else if(mode==Random)
-    qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_random);
+ if(files)
+   {
+    if(mode==MTime || mode==ATime || mode==Dated)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_time);
+    else if(mode==Alpha)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_alpha);
+    else if(mode==Type)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_type);
+    else if(mode==Domain)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_domain);
+    else if(mode==Random)
+       qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sort_random);
+   }
 
  /* Output the page. */
 
@@ -1204,17 +1252,16 @@ static void dated_separator(int fd,int file,int *lastdays,int *lasthours)
 {
  long days=(now-files[file]->time)/(24*3600),hours=(now-files[file]->time)/3600;
 
- if(*lastdays<days)
+ if(*lastdays!=-1 && *lastdays<days)
    {
-    char daystr[12];
+    char daystr[24];
     sprintf(daystr,"%ld",days-*lastdays);
 
     HTMLMessageBody(fd,"IndexSeparator-Body",
                     "days",daystr,
                     NULL);
-
    }
- else if(file && *lasthours<(hours-1))
+ else if(*lasthours!=-1 && *lasthours<(hours-1))
    {
     HTMLMessageBody(fd,"IndexSeparator-Body",
                     "days","",
@@ -1263,7 +1310,7 @@ static int sort_type(FileIndex **a,FileIndex **b)
 
  /* Compare the type */
 
- chosen=strcmp(at,bt);
+ chosen=strcasecmp(at,bt);
 
  /* Fallback to alphabetical */
 
@@ -1404,7 +1451,7 @@ static char *webpagetitle(URL *Url)
    int status;
    Header *spooled_head=NULL;
 
-   init_buffer(fd);
+   init_io(fd);
    status=ParseReply(fd,&spooled_head,NULL);
 
    if(spooled_head) {
@@ -1422,6 +1469,7 @@ static char *webpagetitle(URL *Url)
      FreeHeader(spooled_head);
    }
 
+   finish_io(fd);
    close(fd);
  }
 

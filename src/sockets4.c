@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/sockets4.c 2.21 2002/01/14 19:46:45 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/sockets4.c 2.25 2004/01/17 16:29:37 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   IPv4 Socket manipulation routines.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -37,30 +37,46 @@
 
 #include <netdb.h>
 #include <sys/param.h>
-#include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
 #include <setjmp.h>
 #include <signal.h>
+#include <pwd.h>
 
 #include "errors.h"
+#include "misc.h"
+#include "io.h"
 #include "sockets.h"
 
+
+/* struct for sending SOCKS v4 CONNECT/BIND requests. */
+typedef struct {
+  uint8_t version;
+  uint8_t command;
+  uint16_t port;
+  uint32_t addr;
+  char userid[0];
+}
+socks_hdr_t;
 
 /* Local functions */
 
 static void sigalarm(int signum);
-static struct hostent *gethostbyname_or_timeout(char *name);
-static struct hostent *gethostbyaddr_or_timeout(char *addr,int len,int type);
+static struct hostent /*@null@*/ *gethostbyname_or_timeout(char *name);
+static struct hostent /*@null@*/ *gethostbyaddr_or_timeout(char *addr,int len,int type);
 static int connect_or_timeout(int sockfd,struct sockaddr *serv_addr,int addrlen);
 
 /* Local variables */
 
+/*+ The timeout on DNS lookups. +*/
 static int timeout_dns=0;
+
+/*+ The timeout for socket connections. +*/
 static int timeout_connect=0;
 
+/*+ A longjump variable for aborting DNS lookups. +*/
 static jmp_buf dns_jmp_env;
 
 
@@ -74,19 +90,19 @@ static jmp_buf dns_jmp_env;
   int port The socket number.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int OpenClientSocket(char* host,int port)
+int OpenClientSocket(char* host,int port, char *shost,int sport,char *shost_ipbuf)
 {
  int s;
  struct sockaddr_in server;
  struct hostent* hp;
 
  server.sin_family=AF_INET;
- server.sin_port=htons((unsigned short)port);
+ server.sin_port=htons(port);
 
  hp=gethostbyname_or_timeout(host);
  if(!hp)
    {
-    unsigned long int addr=inet_addr(host);
+    uint32_t addr=inet_addr(host);
     if(addr!=-1)
        hp=gethostbyaddr_or_timeout((char*)&addr,sizeof(addr),AF_INET);
 
@@ -94,12 +110,19 @@ int OpenClientSocket(char* host,int port)
       {
        if(errno!=ETIMEDOUT)
           errno=ERRNO_USE_H_ERRNO;
-       PrintMessage(Warning,"Unknown host '%s' for server [%!s].",host);
+       PrintMessage(Warning,"Unknown host '%s' for %s [%!s].",shost?"SOCKS proxy":"server",host);
        return(-1);
       }
    }
 
- memcpy((char*)&server.sin_addr,(char*)hp->h_addr,sizeof(server.sin_addr));
+ if(hp->h_addrtype!=AF_INET || hp->h_length!=sizeof(server.sin_addr)) {
+   PrintMessage(Warning,"Cannot connect to '%s': unexpected address type.",host);
+   errno=EAFNOSUPPORT;
+   return -1;
+ }
+ memcpy(&server.sin_addr,hp->h_addr,sizeof(server.sin_addr));
+ if(shost_ipbuf && !shost)
+   strcpy(shost_ipbuf,inet_ntoa(server.sin_addr));
 
  s=socket(PF_INET,SOCK_STREAM,0);
  if(s==-1)
@@ -110,11 +133,98 @@ int OpenClientSocket(char* host,int port)
 
  if(connect_or_timeout(s,(struct sockaddr*)&server,sizeof(server))==-1)
    {
-    close(s);
-    s=-1;
-
     PrintMessage(Warning,"Failed to connect socket to '%s' port '%d' [%!s].",host,port);
+    close(s);
+    return -1;
    }
+
+ if(shost) {
+   socks_hdr_t *shdr;
+   int hdrsize,rv;
+   struct in_addr a;
+
+   hp=gethostbyname_or_timeout(shost);
+   if(!hp)
+     {
+       uint32_t addr=inet_addr(shost);
+       if(addr!=-1)
+	 hp=gethostbyaddr_or_timeout((char*)&addr,sizeof(addr),AF_INET);
+
+       if(!hp)
+	 {
+	   if(errno!=ETIMEDOUT)
+	     errno=ERRNO_USE_H_ERRNO;
+	   PrintMessage(Warning,"Unknown host '%s' for server [%!s].",shost);
+	   close(s);
+	   return(-1);
+	 }
+      }
+
+   if(hp->h_addrtype!=AF_INET || hp->h_length!=sizeof(a)) {
+     close(s);
+     PrintMessage(Warning,"Cannot connect to '%s': unexpected address type.",shost);
+     errno=EAFNOSUPPORT;
+     return -1;
+   }
+   memcpy(&a,hp->h_addr,sizeof(a));
+   if(shost_ipbuf)
+     strcpy(shost_ipbuf,inet_ntoa(a));
+
+   {
+     uid_t uid;
+     struct passwd *pwd;
+     int nmsize;
+     char uidbuf[12];
+
+     uid=getuid();
+     pwd=getpwuid(uid);
+     if(pwd)
+       nmsize= strlen(pwd->pw_name);
+     else
+       nmsize= sprintf(uidbuf,"%d",uid);
+     ++nmsize; /* include the terminating null byte */
+     hdrsize=sizeof(socks_hdr_t)+nmsize;
+     shdr=alloca(hdrsize);
+
+     shdr->version=4; /* SOCKS protocol version number */
+     shdr->command=1; /* CONNECT request */
+     shdr->port=htons(sport);
+     shdr->addr=a.s_addr;
+     memcpy(shdr->userid,pwd?pwd->pw_name:uidbuf,nmsize);
+   }
+
+   /* Should we use "write_all_or_timeout"?
+      Immediately after connect_or_timeout succeeded, writing should not block and
+      we are only sending a small data packet. */
+   if(write_all(s,(char *)shdr,hdrsize)!=hdrsize) {
+     PrintMessage(Warning,"Failed to write CONNECT command to SOCKS server '%s' port '%d' [%!s].",host,port);
+     close(s);
+     return -1;
+   }
+
+   if((rv=read_all_or_timeout(s,(char *)shdr,sizeof(socks_hdr_t),timeout_connect))!=sizeof(socks_hdr_t)) {
+     if(rv>=0) {
+       PrintMessage(Warning,"Failed to read SOCKS response from '%s' port '%d'; expected %d bytes, got %d bytes.",host,port,sizeof(socks_hdr_t),rv);
+       errno=ENODATA;
+     }
+     else
+       PrintMessage(Warning,"Failed to read SOCKS response from '%s' port '%d' [%!s].",host,port);
+     close(s);
+     return -1;
+   }
+   if(shdr->version) {
+     PrintMessage(Warning,"Bad SOCKS version number (%d) in response from '%s' port '%d'.",shdr->version,host,port);
+     close(s);
+     errno=EPROTO;
+     return -1;
+   }
+   if(shdr->command!=90) {
+     PrintMessage(Warning,"Request to SOCKS server '%s' port '%d' failed: error code %d.",host,port,shdr->command);
+     close(s);
+     errno=ECONNREFUSED;
+     return -1;
+   }
+ }
 
  return(s);
 }
@@ -138,7 +248,7 @@ int OpenServerSocket(char *host,int port)
  struct hostent* hp;
 
  server.sin_family=AF_INET;
- server.sin_port=htons((unsigned short)port);
+ server.sin_port=htons(port);
 
  if(!strcmp(host,"0.0.0.0"))
     server.sin_addr.s_addr=INADDR_ANY;
@@ -147,7 +257,7 @@ int OpenServerSocket(char *host,int port)
     hp=gethostbyname_or_timeout(host);
     if(!hp)
       {
-       unsigned long int addr=inet_addr(host);
+       uint32_t addr=inet_addr(host);
        if(addr!=-1)
           hp=gethostbyaddr_or_timeout((char*)&addr,sizeof(addr),AF_INET);
 
@@ -160,6 +270,11 @@ int OpenServerSocket(char *host,int port)
          }
       }
 
+    if(hp->h_addrtype!=AF_INET || hp->h_length!=sizeof(server.sin_addr)) {
+      PrintMessage(Warning,"Cannot create server socket for '%s': unexpected address type.",host);
+      errno=EAFNOSUPPORT;
+      return -1;
+    }
     memcpy((char*)&server.sin_addr,(char*)hp->h_addr,sizeof(server.sin_addr));
    }
 
@@ -331,46 +446,58 @@ int CloseSocket(int socket)
 }
 
 
-#ifdef __CYGWIN__
-
 /*++++++++++++++++++++++++++++++++++++++
-  Closes a previously opened socket, a workaround for cygwin on sockets carried across a fork().
+  Shuts down a previously opened socket cleanly.
 
-  int CloseCygwinSocket Returns 0 on success, -1 on error.
+  int ShutdownSocket Returns 0 on success, -1 on error.
 
   int socket The socket to close
   ++++++++++++++++++++++++++++++++++++++*/
 
-int CloseCygwinSocket(int socket)
+int ShutdownSocket(int socket)
 {
- /* Workaround winsock bug - "David McNab" <david@rebirthing.co.nz> */
-
- int sock_flags;
  struct linger lingeropt;
 
- /* flush out the socket - set it to blocking, then write to it */
- sock_flags=fcntl(socket,F_GETFL,0);
- if(sock_flags!=-1)
-   {
-    /* reset NONBLOCK bit to enable blocking */
-    fcntl(socket,F_SETFL,sock_flags & ~O_NONBLOCK);
-   }
-
- /* this is the guts of the workaround for Winsock close bug */
  shutdown(socket, 1);
 
- /* enable lingering */
- lingeropt.l_onoff = 1;
- lingeropt.l_linger = 15;
- if (setsockopt(socket, SOL_SOCKET, SO_LINGER, &lingeropt, sizeof(lingeropt)) < 0)
-    PrintMessage(Important, "Cygwin setsockopt() error [%!s].");
+ /* Check socket and read until end or error. */
 
- /* Winsock bug averted - now we're safe to close the socket */
+ while(1)
+   {
+    char buffer[1024];
+    int n;
+    fd_set readfd;
+    struct timeval tv;
+
+    FD_ZERO(&readfd);
+
+    FD_SET(socket,&readfd);
+
+    tv.tv_sec=tv.tv_usec=0;
+
+    n=select(socket+1,&readfd,NULL,NULL,&tv);
+
+    if(n>0)
+      {
+       n=read(socket,buffer,1024);
+
+       if(n<=0)
+          break;
+      }
+    else if(n==0 || errno!=EINTR)
+       break;
+   }
+
+ /* Enable lingering */
+
+ lingeropt.l_onoff=1;
+ lingeropt.l_linger=15;
+
+ if(setsockopt(socket,SOL_SOCKET,SO_LINGER,&lingeropt,sizeof(lingeropt))<0)
+    PrintMessage(Important,"Failed to set socket SO_LINGER option [%!s].");
 
  return(CloseSocket(socket));
 }
-
-#endif
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -426,7 +553,12 @@ char *GetFQDN(void)
 
  type=hp->h_addrtype;
  length=hp->h_length;
- memcpy(addr,(char*)hp->h_addr,sizeof(struct in_addr));
+ if(length>sizeof(addr)) {
+   PrintMessage(Warning,"Cannot get name/IP address for host '%s': unexpected address type.",fqdn);
+   errno=EAFNOSUPPORT;
+   return NULL;
+ }
+ memcpy(addr,(char*)hp->h_addr,length);
 
  hp=gethostbyaddr_or_timeout(addr,length,type);
  if(!hp)
@@ -516,7 +648,7 @@ start:
  /* DNS with timeout */
 
  action.sa_handler = sigalarm;
- sigemptyset (&action.sa_mask);
+ sigemptyset(&action.sa_mask);
  action.sa_flags = 0;
  if(sigaction(SIGALRM, &action, NULL) != 0)
    {
@@ -537,7 +669,7 @@ start:
 
  alarm(0);
  action.sa_handler = SIG_IGN;
- sigemptyset (&action.sa_mask);
+ sigemptyset(&action.sa_mask);
  action.sa_flags = 0;
  if(sigaction(SIGALRM, &action, NULL) != 0)
     PrintMessage(Warning, "Failed to clear SIGALRM.");

@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/controledit.c 2.29 2002/08/04 10:26:06 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/controledit.c 2.33 2004/01/11 10:28:20 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Configuration file management via a web-page.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -20,15 +20,23 @@
 #include <string.h>
 #include <ctype.h>
 
-#include <sys/types.h>
 #include <sys/stat.h>
-#include <fcntl.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "wwwoffle.h"
+#include "io.h"
 #include "misc.h"
-#include "config.h"
 #include "errors.h"
+#include "config.h"
+
+/*+ Need this for Win32 to use binary mode +*/
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
+
+
+/*+ A type definition to contain the contents of a configuration file section. +*/
 
 typedef struct _ControlEditSection
 {
@@ -153,7 +161,8 @@ static void ControlEditForms(int fd,ControlEditSection *sections)
  HTMLMessageHead(fd,200,"WWWOFFLE Configuration Edit Page",
                  NULL);
 
- HTMLMessageBody(fd,"ControlEditPage-Head",
+ if(out_err!=-1 && !head_only)
+   HTMLMessageBody(fd,"ControlEditPage-Head",
                  NULL);
 
  while(sections[i])
@@ -165,11 +174,12 @@ static void ControlEditForms(int fd,ControlEditSection *sections)
     if(sections[i]->content)
        htmlcontent=HTMLString(sections[i]->content,0);
 
-    HTMLMessageBody(fd,"ControlEditPage-Body",
-                    "section",sections[i]->name,
-                    "comment",htmlcomment,
-                    "content",htmlcontent,
-                    NULL);
+    if(out_err!=-1 && !head_only)
+      HTMLMessageBody(fd,"ControlEditPage-Body",
+		      "section",sections[i]->name,
+		      "comment",htmlcomment,
+		      "content",htmlcontent,
+		      NULL);
 
     if(htmlcomment)
        free(htmlcomment);
@@ -179,8 +189,9 @@ static void ControlEditForms(int fd,ControlEditSection *sections)
     i++;
    }
 
- HTMLMessageBody(fd,"ControlEditPage-Tail",
-                 NULL);
+ if(out_err!=-1 && !head_only)
+   HTMLMessageBody(fd,"ControlEditPage-Tail",
+		   NULL);
 }
 
 
@@ -217,18 +228,21 @@ static void ControlEditUpdate(int fd,char *section,ControlEditSection *sections)
 static ControlEditSection *read_config_file(void)
 {
  int sec_num=0,state=0;
- FILE *conf;
+ int conf;
  ControlEditSection *sections;
  char *line=NULL;
  int line_num=0;
 
- conf=fopen(ConfigurationFileName(),"r");
- if(!conf)
+ conf=open(ConfigurationFileName(),O_RDONLY|O_BINARY);
+
+ if(conf==-1)
    {PrintMessage(Warning,"Cannot open the config file '%s' for reading; [%!s].",ConfigurationFileName()); return(NULL);}
+
+ init_io(conf);
 
  sections=(ControlEditSection*)calloc(1,sizeof(ControlEditSection));
 
- while((line=fgets_realloc(line,conf)))
+ while((line=read_line(conf,line)))
    {
     char *l=line;
 
@@ -299,7 +313,8 @@ static ControlEditSection *read_config_file(void)
       }
    }
 
- fclose(conf);
+ finish_io(conf);
+ close(conf);
 
  for(sec_num=0;sections[sec_num];++sec_num)
     if(sections[sec_num]->name && sections[sec_num]->file)
@@ -362,7 +377,8 @@ static ControlEditSection *read_config_file(void)
 
 tidyup_return:
  if(line) free(line);
- fclose(conf);
+ finish_io(conf);
+ close(conf);
 free_sections_return:
  free_sections(sections);
  return(NULL);
@@ -382,7 +398,7 @@ static int write_config_file(ControlEditSection *sections)
  char *conf_file=ConfigurationFileName();
  int renamed=0,i;
  struct stat buf;
- FILE *conf;
+ int conf;
 
  /* Rename the old file as a backup. */
 
@@ -400,9 +416,12 @@ static int write_config_file(ControlEditSection *sections)
      }
  }
 
- conf=fopen(conf_file,"w");
- if(!conf)
+ conf=open(conf_file,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY);
+
+ if(conf==-1)
    {PrintMessage(Warning,"Cannot open the config file '%s' for writing; [%!s].",conf_file); return(1);}
+
+ init_io(conf);
 
  if(renamed)
    {
@@ -414,32 +433,33 @@ static int write_config_file(ControlEditSection *sections)
    {
     if(sections[i]->comment)
       {
-       fprintf(conf,"%s\n",sections[i]->comment);
+       write_formatted(conf,"%s\n",sections[i]->comment);
       }
     if(sections[i]->name)
       {
-       fprintf(conf,"%s\n",sections[i]->name);
+       write_formatted(conf,"%s\n",sections[i]->name);
 
        if(sections[i]->file)
          {
           char *p=sections[i]->file+strlen(sections[i]->file)-1;
           while(p>sections[i]->file && *p!='/')
              p--;
-          fprintf(conf,"[\n%s\n]\n\n\n",p+1);
+          write_formatted(conf,"[\n%s\n]\n\n\n",p+1);
          }
        else
          {
-          fprintf(conf,"{\n");
+          write_formatted(conf,"{\n");
           if(sections[i]->content)
-             fputs(sections[i]->content,conf);
+             write_string(conf,sections[i]->content);
           if(sections[i]->content[strlen(sections[i]->content)-1]!='\n')
-             fputs("\n",conf);
-          fprintf(conf,"}\n\n\n");
+             write_string(conf,"\n");
+          write_string(conf,"}\n\n\n");
          }
       }
    }
 
- fclose(conf);
+ finish_io(conf);
+ close(conf);
 
  for(i=0;sections[i];i++)
     if(sections[i]->name && sections[i]->file)
@@ -457,8 +477,9 @@ static int write_config_file(ControlEditSection *sections)
              PrintMessage(Warning,"Cannot stat the config file '%s'; [%!s].",sections[i]->file);
          }
 
-       conf=fopen(sections[i]->file,"w");
-       if(!conf)
+       conf=open(sections[i]->file,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY);
+
+       if(conf==-1)
          {PrintMessage(Warning,"Cannot open the config file '%s' for writing; [%!s].",sections[i]->file); return(1);}
 
        if(renamed)
@@ -467,9 +488,9 @@ static int write_config_file(ControlEditSection *sections)
           chmod(sections[i]->file,buf.st_mode&(~S_IFMT));
          }
 
-       fputs(sections[i]->content,conf);
+       write_all(conf,sections[i]->content,strlen(sections[i]->content));
 
-       fclose(conf);
+       close(conf);
       }
 
  return(0);

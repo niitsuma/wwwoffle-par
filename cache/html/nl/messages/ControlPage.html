@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <!--
@@ -6,32 +6,27 @@
 Available WWWOFFLE Variables (all with a '$' prefix).
 
 localhost = The hostname of the server running wwwoffled (='$localhost').
-
-
-WWWOFFLE Control page Prefix
-
-$control=http://$localhost/control
-$configuration=http://$localhost/configuration
+version   = The version of the WWWOFFLE server (='$version').
 
 -->
 
 <HEAD>
-<TITLE>WWWOFFLE - Interaktief Control Pagina</TITLE>
+<TITLE>WWWOFFLE - Interactief Control Pagina</TITLE>
+<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
-<BODY>
+<BODY class="wwwoffle-message">
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<!-- Standard WWWOFFLE Message Page Header Start -->
 
-<p align=center>
-<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
-</p>
+<div class="wwwoffle-header" align="center">
+<b>WWWOFFLE</b> <b>-</b> <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer <b>-</b> <b>v$version</b>
+</div>
+<hr class="wwwoffle-header">
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Header End -->
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
-
-<H1 align=center>WWWOFFLE Interaktief Control Pagina</H1>
+<H1 align="center">WWWOFFLE Interactief Control Pagina</H1>
 
 Het <tt>wwwoffled</tt> daemon process kan hiermee bestuurd worden.
 
@@ -41,37 +36,37 @@ Alle control mogelijkheden van het <tt>wwwoffle</tt> programma
 zijn hier te vinden.
 
 <p>
-<form action="$control/online" method=post>
+<form action="http://$localhost/control/online" method=post>
 <input type="hidden" name=action value="online">
 <input type="submit" value="Online"> Zet het <tt>wwwoffled</tt> process online (verbinding is aanwezig).
 </form>
 
 <p>
-<form action="$control/autodial" method=post>
+<form action="http://$localhost/control/autodial" method=post>
 <input type="hidden" name=action value="autodial">
 <input type="submit" value="Autodial"> Zet het <tt>wwwoffled</tt> process in autodial mode (automatisch verbinding maken is mogelijk).
 </form>
 
 <p>
-<form action="$control/offline" method=post>
+<form action="http://$localhost/control/offline" method=post>
 <input type="hidden" name=action value="offline">
 <input type="submit" value="Offline"> Zet het <tt>wwwoffled</tt> process offline (geen verbinding mogelijk).
 </form>
 
 <p>
-<form action="$control/fetch" method=post>
+<form action="http://$localhost/control/fetch" method=post>
 <input type="hidden" name=action value="fetch">
 <input type="submit" value="Fetch"> Haal de paginas op die offline aangevraagd zijn.
 </form>
 
 <p>
-<form action="$control/purge" method=post>
+<form action="http://$localhost/control/purge" method=post>
 <input type="hidden" name=action value="purge">
 <input type="submit" value="Purge"> Forceer het opruimen van de <tt>wwwoffled</tt> cache.
 </form>
 
 <p>
-<form action="$control/status" method=post>
+<form action="http://$localhost/control/status" method=post>
 <input type="hidden" name=action value="status">
 <input type="submit" value="Status"> Get the status of the <tt>wwwoffled</tt> server.
 </form>
@@ -81,27 +76,29 @@ zijn hier te vinden.
 De configuratie <tt>wwwoffle.conf</tt> kan in de volgende pagina bewerkt worden.
 
 <p>
-<a href="$control/edit/">Traditional</a>: One web page with all sections
+<a href="http://$localhost/control/edit/">Traditional</a>: One web page with all sections
 individually editable.
 <br>
-<a href="$configuration/">Modern</a>: Easy to use with lists of sections, items
+<a href="http://$localhost/configuration/">Modern</a>: Easy to use with lists of sections, items
 in each section and editing of individual entries for each item.
 <p>
 
-<form action="$control/config" method=post>
+<form action="http://$localhost/control/config" method=post>
 <input type="hidden" name=action value="config">
 <input type="submit" value="Config"> Forceer het opnieuw inlezen van de configuratie.
 </form>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
-<hr>
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
+WWWOFFLE - [ \
+<a href="http://$localhost/Welcome.html" title="Een introductie tot WWWOFFLE">Welkomst Pagina</a>| \
+<a href="http://$localhost/FAQ.html" title="Frequent Aangekaarte Questies over WWWOFFLE">FAQ</a> \
+] - WWWOFFLE
+</div>
 
-<p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Welkomst Pagina</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
-</p>
-
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

@@ -324,11 +324,6 @@ Active la modification du HTML dans cette section (défaut=no)\. Sans
 cette option, les suivantes resteront sans effet\. Avec cette option, il
 y aura un petit ralentissement\.
 .TP
-.B [<URL\-SPEC>] enable\-modify\-online = yes | no
-Active aussi la modification en ligne\. Ceci fera attendre l'affichage du
-HTML et des images GIF jusqu'à traitement complet par WWWOFFLE\. Ceci ne
-s'applique pas aux pages non mémorisées\.
-.TP
 .B [<URL\-SPEC>] add\-cache\-info = yes | no
 À la fin des pages mémorisées apparaîtra la date et quelques liens
 (défaut=no)\.

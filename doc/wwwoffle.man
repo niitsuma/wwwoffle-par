@@ -1,17 +1,17 @@
-.\" $Header: /home/amb/wwwoffle/doc/RCS/wwwoffle.man 2.14 2002/01/06 15:44:39 amb Exp $
+.\" $Header: /home/amb/wwwoffle/doc/RCS/wwwoffle.man 2.18 2003/12/03 13:52:58 amb Exp $
 .\"
-.\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7.
+.\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
 .\"
 .\"  Manual page for wwwoffle
 .\"
 .\"  Written by Andrew M. Bishop
 .\"
-.\"  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+.\"  This file Copyright 1997,98,99,2000,01,02,03 Andrew M. Bishop
 .\"  It may be distributed under the GNU Public License, version 2, or
 .\"  any higher version.  See section COPYING of the GNU Public license
 .\"  for conditions under which this file may be redistributed.
 .\"
-.TH wwwoffle 1 "January 6, 2002"
+.TH wwwoffle 1 "December 3, 2003"
 
 .SH NAME
 
@@ -44,6 +44,10 @@ wwwoffle \- A program to control the World Wide Web Offline Explorer.
 .B [\-p <host>[:<port>] | \-c <config-file>]
 .P
 .B wwwoffle
+.B \-dump
+.B [\-p <host>[:<port>] | \-c <config-file>]
+.P
+.B wwwoffle
 .B \-purge
 .B [\-p <host>[:<port>] | \-c <config-file>]
 .P
@@ -57,32 +61,32 @@ wwwoffle \- A program to control the World Wide Web Offline Explorer.
 .P
 .B wwwoffle
 .B [\-o|\-O]
+.B [\-p <host>[:<port>] | \-c <config-file>]
 .I URL
-.B [\-p <host>[:<port>] | \-c <config-file>]
 .P
 .B wwwoffle
-.I URL1 [URL2 ... URL3]
 .B [\-d[<depth>] | \-r[<depth>] | \-R[<depth>]]
 .B [\-g[Sisfo]]
 .B [\-F]
 .B [\-p <host>[:<port>] | \-c <config-file>]
+.I URL1 [URL2 [... URL]]
 .P
 .B wwwoffle
-.I file1 [file2 ... file3]
 .B [\-d[<depth>] | \-r[<depth>] | \-R[<depth>]]
 .B [\-g[Sisfo]]
 .B [\-F]
 .B [\-p <host>[:<port>] | \-c <config-file>]
+.I file1 [file2 [... file]]
 .P
 .B wwwoffle
 .B -post
-.I URL
 .B [\-p <host>[:<port>] | \-c <config-file>]
+.I URL
 .P
 .B wwwoffle
 .B -put
-.I URL
 .B [\-p <host>[:<port>] | \-c <config-file>]
+.I URL
 
 .SH DESCRIPTION
 
@@ -130,6 +134,11 @@ wait until all of the requests have been met before exiting.
 .B \-config
 Tell the wwwoffled proxy server to re-read the configuration file.
 .TP
+.B \-dump
+Tell the wwwoffled proxy server to dump out the current program configuration.
+This is equivalent to the most recently read configuration file and the built-in
+default options.
+.TP
 .B \-purge
 Tell the wwwoffled proxy server that the cache is to be purged.  The
 configuration file wwwoffle.conf(5) specifies the maximum age of the pages to
@@ -168,11 +177,13 @@ are ignored and the unmodified data is output.
 .TP
 .B \-F
 Force the specified URLs to be refreshed.  Without this option, the page will
-not be fetched if not newer than the version on the server.
+not be fetched unless newer than the version on the server.
 .TP
 .B \-r[<depth>]
 Causes the pages linked to by the specified URLs also to be fetched if they are
-on the same host.
+on the same host.  This recursion works for a number of links specified by the
+depth parameter, a depth of 0 means only the specified page, a depth of 2 means
+all linked pages and all links from them.
 .TP
 .B \-R[<depth>]
 The same as
@@ -243,7 +254,10 @@ the specified URL.  For example if the fetch options normally include images and
 frames then using the
 .I \-gi
 option will only fetch images and not frames.  All page contents to be fetched
-must be specified as command line options.
+must be specified as command line options.  Specifying
+.I \-g
+without any options will fetch only the specified URL without any of the
+options.
 
 .SH ENVIRONMENT VARIABLE
 
@@ -254,7 +268,8 @@ three ways that the variable can be used.
 .TP
 1.
 When the variable is set to absolute pathname of a file, then that file is used
-as the configuration file like the -c option (for example /etc/wwwoffle.conf).
+as the configuration file like the -c option (for example
+/etc/wwwoffle/wwwoffle.conf).
 .TP
 2.
 The WWWOFFLE_PROXY variable can also be set to the hostname and the port number
@@ -272,4 +287,4 @@ wwwoffled(8), wwwoffle.conf(5), diald(8).
 
 .SH AUTHOR
 
-Andrew M. Bishop 1996,1997,1998,1999,2000,2001,2002 (amb@gedanken.demon.co.uk)
+Andrew M. Bishop 1996,97,98,99,2000,01,02,03 (amb@gedanken.demon.co.uk)

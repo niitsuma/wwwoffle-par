@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/document.h 1.6 2002/06/23 14:54:54 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/document.h 1.11 2004/06/14 18:20:00 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   Header file for document parsing functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1998,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -24,6 +24,7 @@ typedef enum _DocType
 {
  DocUnknown=0,                  /*+ An unknown type. +*/
  DocHTML,                       /*+ An HTML document. +*/
+ DocCSS,                        /*+ A CSS document. +*/
  DocVRML,                       /*+ An VRML document. +*/
  DocXML,                        /*+ An XML document. +*/
  DocJavaClass,                  /*+ A Java class file. +*/
@@ -48,19 +49,24 @@ RefType;
 
 /* In document.c */
 
-DocType ParseDocument(int fd,URL *Url);
+DocType ParseDocument(int fd,URL *Url,int all);
 
 void AddReference(/*@null@*/ char* name,RefType type);
 void FinishReferences(void);
 void SetBaseURL(URL *Url);
-char /*@null@*/ **GetReferences(RefType type);
+char /*@null@*/ /*@observer@*/ **GetReferences(RefType type);
 void ResetReferences(void);
 
 /* In html.c (html.l) */
 
 void ParseHTML(int fd,URL *Url);
-char *MetaRefresh(void);
+char /*@observer@*/ *MetaRefresh(void);
+char *MetaCharset(void);
 char *HTML_title(int fd);  /* added by Paul Rombouts */
+
+/* In css.c (css.l) */
+
+void ParseCSS(int fd,URL *Url);
 
 /* In javaclass.c */
 
@@ -76,10 +82,10 @@ void ParseXML(int fd,URL *Url);
 
 /* In gifmodify.c */
 
-int OutputGIFWithModifications(int client,int spool,URL *Url);
+void OutputGIFWithModifications(void);
 
 /* In htmlmodify.c (htmlmodify.l) */
 
-int OutputHTMLWithModifications(int client,int spool,URL *Url);
+void OutputHTMLWithModifications(URL *Url,int spool,char *content_type);
 
 #endif /* DOCUMENT_H */

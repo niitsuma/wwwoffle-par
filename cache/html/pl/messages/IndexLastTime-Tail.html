@@ -23,17 +23,18 @@ $totaldelete?=0{}
 </form>
 }
 
-<p align=center>
-[$number?{<a href="/index/lasttime/?sort=$sort$delete$refresh$monitor$all$config$info">Pobrane ostatnio</a>}{Pobrane ostatnio}]
-[Pobrane wcze¶niej
-$number?=1{(1)}{<a href="/index/prevtime1/?sort=$sort$delete$refresh$monitor$all$config$info">(1)</a>}
-$number?=2{(2)}{<a href="/index/prevtime2/?sort=$sort$delete$refresh$monitor$all$config$info">(2)</a>}
-$number?=3{(3)}{<a href="/index/prevtime3/?sort=$sort$delete$refresh$monitor$all$config$info">(3)</a>}
-$number?=4{(4)}{<a href="/index/prevtime4/?sort=$sort$delete$refresh$monitor$all$config$info">(4)</a>}
-$number?=5{(5)}{<a href="/index/prevtime5/?sort=$sort$delete$refresh$monitor$all$config$info">(5)</a>}
-$number?=6{(6)}{<a href="/index/prevtime6/?sort=$sort$delete$refresh$monitor$all$config$info">(6)</a>}
-$number?=7{(7)}{<a href="/index/prevtime7/?sort=$sort$delete$refresh$monitor$all$config$info">(7)</a>}
-]
-</p>
+<hr class="wwwoffle-index-buttons-bottom" width="50%">
+<div class="wwwoffle-index-buttons-bottom" align="center">
+$number?{<a href="/index/lasttime/?sort=$sort$delete$refresh$monitor$all$config$info">[Pobrane ostatnio]</a>}{<strong>[Pobrane ostatnio]</strong>}
+$number?{<strong>[Pobrane wcze¶niej</strong>}{[Pobrane wcze¶niej}
+$number?=1{<strong>(1)</strong>}{<a href="/index/prevtime1/?sort=$sort$delete$refresh$monitor$all$config$info">(1)</a>}
+$number?=2{<strong>(2)</strong>}{<a href="/index/prevtime2/?sort=$sort$delete$refresh$monitor$all$config$info">(2)</a>}
+$number?=3{<strong>(3)</strong>}{<a href="/index/prevtime3/?sort=$sort$delete$refresh$monitor$all$config$info">(3)</a>}
+$number?=4{<strong>(4)</strong>}{<a href="/index/prevtime4/?sort=$sort$delete$refresh$monitor$all$config$info">(4)</a>}
+$number?=5{<strong>(5)</strong>}{<a href="/index/prevtime5/?sort=$sort$delete$refresh$monitor$all$config$info">(5)</a>}
+$number?=6{<strong>(6)</strong>}{<a href="/index/prevtime6/?sort=$sort$delete$refresh$monitor$all$config$info">(6)</a>}
+$number?=7{<strong>(7)</strong>}{<a href="/index/prevtime7/?sort=$sort$delete$refresh$monitor$all$config$info">(7)</a>}
+$number?{<strong>]</strong>}{]}
+</div>
 
 <!-- This is just the tail of the index body since the contents are different for each index -->

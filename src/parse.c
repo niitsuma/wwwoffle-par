@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/parse.c 2.104 2002/12/08 16:54:27 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/parse.c 2.117 2004/01/17 16:31:45 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7h.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Functions to parse the HTTP requests.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -18,7 +18,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 #include <sys/types.h>
 #include <unistd.h>
@@ -37,9 +36,10 @@
 #include <sys/stat.h>
 
 #include "wwwoffle.h"
+#include "version.h"
+#include "io.h"
 #include "misc.h"
 #include "headbody.h"
-#include "proto.h"
 #include "errors.h"
 #include "config.h"
 
@@ -66,14 +66,16 @@ static char *non_censored_headers[]={"Host",
                                      "Authorization",
 				     "Content-Type",
 				     "Content-Encoding",
-				     "Content-Length"};
+				     "Content-Length",
+				     "Transfer-Encoding"};
 
 /*+ Headers that are difficult with HTTP/1.1. +*/
 static char *deleted_http11_headers[]={"If-Match",
                                        "If-Range",
                                        "Range",
                                        "Upgrade",
-                                       "Accept-Encoding"};
+                                       "Accept-Encoding",
+                                       "TE"};
 
 /*+ The headers from the request that are re-usable. +*/
 static /*@only@*/ Header *reusable_header=NULL;
@@ -96,7 +98,7 @@ static void censor_header(ConfigItem confitem,URL *Url,Header *head);  /* Added 
 char *ParseRequest(int fd,Header **request_head,Body **request_body)
 {
  char *url=NULL,*line=NULL,*val;
- int i,length=-1;
+ int i;
 
  *request_head=NULL;
  *request_body=NULL;
@@ -104,7 +106,7 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
  if(reusable_header) FreeHeader(reusable_header);
  CreateHeader("GET reusable HTTP/1.0",1,&reusable_header);
 
- while((line=read_line_or_timeout(fd,line)))
+ while((line=read_line(fd,line)))
    {
     if(!*request_head) /* first line */
       {
@@ -120,7 +122,7 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
 
  /* Timeout or Connection lost? */
  
- if(!line || !*request_head) {
+ if(!line || !url || !*request_head) {
    PrintMessage(Warning,"Nothing to read from the wwwoffle proxy socket; timed out or connection lost? [%!s].");
    goto free_return_null;
  }
@@ -128,11 +130,6 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
  free(line); line=NULL;
 
  
- /* Find the content length */
-
- if((val=GetHeader(*request_head,"Content-Length")))
-    length=atoi(val);
-
  /* Find re-usable headers (for recursive requests) */
 
  for(i=0;i<sizeof(reusable_headers)/sizeof(char*);i++)
@@ -182,34 +179,64 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
  if(!strcmp((*request_head)->method,"POST") ||
     !strcmp((*request_head)->method,"PUT"))
    {
-    if(length<0)
+    if((val=GetHeader(*request_head,"Content-Length")))
       {
-       PrintMessage(Warning,"POST or PUT request must have a valid Content-Length header.");
-       goto free_return_null;
+       int length=atoi(val);
+
+       if(length<0)
+         {
+          PrintMessage(Warning,"POST or PUT request must have a positive Content-Length header.");
+	  goto free_return_null;
+	 }
+
+       *request_body=CreateBody(length);
+
+       if(length)
+         {
+          int m,l=length;
+
+          do
+            {
+             m=read_data(fd,&(*request_body)->content[length-l],l);
+            }
+          while(m>0 && (l-=m));
+
+          if(l)
+            {
+             PrintMessage(Warning,"POST or PUT request must have same data length as specified in Content-Length header (%d compared to %d).",length,length-l);
+	     goto free_return_null;
+            }
+         }
+
+       (*request_body)->content[length]=0;
       }
-
-    *request_body=CreateBody(length);
-
-    if(length)
+    else if(GetHeader2(*request_head,"Transfer-Encoding","chunked"))
       {
-       int m,l=length;
+       int length=0,m=0;
+
+       PrintMessage(Debug,"Client has used chunked encoding.");
+       configure_io_read(fd,-1,-1,1);
+
+       *request_body=NULL;
 
        do
          {
-          m=read_data_or_timeout(fd,&(*request_body)->content[length-l],l);
+          length+=m;
+	  *request_body=ReallocBody(*request_body,length+READ_BUFFER_SIZE);
+          m=read_data(fd,&(*request_body)->content[length],READ_BUFFER_SIZE);
          }
-       while(m>0 && (l-=m));
+       while(m>0);
 
-       if(l)
-         {
-          PrintMessage(Warning,"POST or PUT request must have data length specified in Content-Length header.");
-          goto free_return_null;
-         }
+       *request_body=ReallocBody(*request_body,length);
+       (*request_body)->content[length]=0;
+      }
+    else
+      {
+       PrintMessage(Warning,"POST or PUT request must have Content-Length header or use chunked encoding.");
+       goto free_return_null;
       }
 
-    (*request_body)->content[length]=0;
-
-    url=(char*)realloc((void*)url,strlen(url)+39);
+    url=(char*)realloc((void*)url,strlen(url)+sizeof("?!POST:C602nXvTfPwRsL3FLOIrig.12345678"));
 
     {
       char *p=strchrnul(url,'?');
@@ -243,18 +270,21 @@ free_return_null:
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Modify the request to ask for changes since the spooled file.
+  Examine the spooled file to see if it needs to be updated.
 
   int RequireChanges Returns 1 if the file needs changes made, 0 if not.
 
   int fd The file descriptor of the spooled file.
 
-  Header *request_head The head of the HTTP request to modify.
-
   URL *Url The URL that is being requested.
+
+  char **ims,char **inm If not NULL, these will contain the value fields
+  of If-Modified-Since and If-None-Match header lines, that can be used
+  to modify the request to ask for changes since the spooled file.
+
   ++++++++++++++++++++++++++++++++++++++*/
 
-int RequireChanges(int fd,Header *request_head,URL *Url)
+int RequireChanges(int fd,URL *Url,char **ims,char **inm)
 {
  struct stat buf;
  int status,retval=0;
@@ -347,26 +377,24 @@ int RequireChanges(int fd,Header *request_head,URL *Url)
           PrintMessage(Debug,"Not requesting URL (Last changed %s ago, config is %s).", age,config_age);
           retval=0;
          }
+       else if(!ConfigBooleanURL(RequestConditional,Url))
+          retval=1;
        else
          {
 	   char *date;
 	   char *lastmodified=GetHeader(spooled_head,"Last-Modified");
-	   char *etag=GetHeader(spooled_head,"Etag");
+	   char *etag;
 
-	   if(etag &&
-	      (ConfigBooleanURL(AlwaysUseETag,Url) ||
+	   if(inm && (etag=GetHeader(spooled_head,"Etag")) &&
+	      (ConfigBooleanURL(ValidateWithEtag,Url) ||
                !(lastmodified && (date=GetHeader(spooled_head,"Date")) &&
                  (DateToTimeT(date)-DateToTimeT(lastmodified))>=60  ) ) )
 	     {
-	       AddToHeader(request_head,"If-None-Match",etag);
-
-	       PrintMessage(Debug,"Requesting URL (Conditional request with If-None-Match).");
+	       *inm=strdup(etag);
 	     }
 
-	   AddToHeader(request_head,"If-Modified-Since",
-		       lastmodified?lastmodified:RFC822Date(buf.st_mtime,1));
-
-	   PrintMessage(Debug,"Requesting URL (Conditional request with If-Modified-Since).");
+	   if(ims)
+	     *ims=strdup(lastmodified?lastmodified:RFC822Date(buf.st_mtime,1));
 
 	   retval=1;
          }
@@ -546,6 +574,19 @@ Header *RequestURL(URL *Url,char *referer)
 
 
 /*++++++++++++++++++++++++++++++++++++++
+  Finish with the reusable headers.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+void FinishParse(void)
+{
+  if(reusable_header) {
+    FreeHeader(reusable_header);
+    reusable_header=NULL;
+  }
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
   Modify the request taking into account censoring of header and modified URL.
 
   URL *Url The actual URL.
@@ -636,6 +677,14 @@ void ModifyRequest(URL *Url,Header *request_head)
    ReplaceInHeader(request_head,"Referer",newval);
  dontrefertoself: ;
  }
+
+ /* Force the insertion of a User-Agent header */
+
+ if(ConfigBooleanURL(ForceUserAgent,Url) && !GetHeader(request_head,"User-Agent"))
+   {
+    PrintMessage(Debug,"CensorRequestHeader (ForceUserAgent) inserted '%s'.","WWWOFFLE/" WWWOFFLE_VERSION);
+    AddToHeader(request_head,"User-Agent","WWWOFFLE/" WWWOFFLE_VERSION);
+   }
 
  /* Censor the header */
 
@@ -748,35 +797,6 @@ int ParseReply(int fd,Header **reply_head,int *reply_head_size)
 }
 
 
-int ParseReply_or_timeout(int fd,Header **reply_head,int *reply_head_size)
-{
- char *line=NULL;
-
- *reply_head=NULL;
- if(reply_head_size) *reply_head_size=0;
-
- while((line=read_line_or_timeout(fd,line)))
-   {
-    if(reply_head_size) *reply_head_size+=strlen(line);
-    if(!*reply_head)   /* first line */
-      {
-       if(!CreateHeader(line,0,reply_head))
-          break;
-      }
-    else
-      if(!AddToHeaderRaw(*reply_head,line))
-	break;
-   }
-
- if(line) free(line);
-
- if(*reply_head)
-    return((*reply_head)->status);
- else
-    return(0);
-}
-
-
 #ifndef CLIENT_ONLY
 /*++++++++++++++++++++++++++++++++++++++
   Find the status of a spooled page.
@@ -784,18 +804,25 @@ int ParseReply_or_timeout(int fd,Header **reply_head,int *reply_head_size)
   int SpooledPageStatus Returns the status number.
 
   URL *Url The URL to check.
+
+  int backup A flag to indicate that the backup file is to be used.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int SpooledPageStatus(URL *Url)
+int SpooledPageStatus(URL *Url,int backup)
 {
  int status=0;
- int spool=OpenWebpageSpoolFile(1,Url);
+ int spool;
 
- /* init_buffer(spool); */
+ if(backup)
+    spool=OpenBackupWebpageSpoolFile(Url);
+ else
+    spool=OpenWebpageSpoolFile(1,Url);
 
  if(spool!=-1)
    {
     char *reply;
+
+    init_io(spool);
 
     reply=read_line(spool,NULL);
 
@@ -805,9 +832,9 @@ int SpooledPageStatus(URL *Url)
        free(reply);
       }
 
+    finish_io(spool);
     close(spool);
    }
-
 
  return(status);
 }
@@ -818,7 +845,7 @@ int SpooledPageStatus(URL *Url)
 
   int WhichCompression Returns the compression method, 1 for deflate and 2 for gzip.
 
-  char *content_encoding The string representing the content encoding the browser/server used.
+  char *content_encoding The string representing the content encoding the client/server used.
   ++++++++++++++++++++++++++++++++++++++*/
 
 int WhichCompression(char *content_encoding)
@@ -833,7 +860,7 @@ int WhichCompression(char *content_encoding)
 
   int AcceptWhichCompression Returns the compression method, 1 for deflate and 2 for gzip.
 
-  HeaderList *list The list representing the content-encodings the browser/server accepts.
+  HeaderList *list The list representing the content-encodings the client/server accepts.
   ++++++++++++++++++++++++++++++++++++++*/
 
 int AcceptWhichCompression(HeaderList *list)
@@ -853,22 +880,12 @@ int AcceptWhichCompression(HeaderList *list)
       }
 
 
- /* ---------- NOTE ----------
-
- Mozilla (version <0.9.8) has a bug: http://bugzilla.mozilla.org/show_bug.cgi?id=105292
-
- It asks for deflate compression, but cannot handle it!
-
- When deflate and gzip have equal quality factor choose gzip.
-
- I would prefer to use deflate since it is slightly smaller.
-
- ---------- NOTE ---------- */
+ /* Deflate is a last resort, see comment in iozlib.c. */
 
  return (q_identity>q_gzip && q_identity>q_deflate) ? 0:
-        (q_deflate>0 && q_deflate>q_gzip)           ? 1: /* Should use '>=' but see note above. */
-        (q_gzip>0 && q_gzip>=q_deflate)             ? 2: /* Should use '>' but see note above. */
-        0;
+        (q_gzip>0)                                  ? 2:
+        (q_deflate>0)                               ? 1:
+                                                      0;
 }
 
 
@@ -890,7 +907,7 @@ void ModifyReply(URL *Url,Header *reply_head)
  ReplaceInHeader(reply_head,"Connection","close");
  ReplaceInHeader(reply_head,"Proxy-Connection","close");
 
- /* Send errors instead when we see Location headers that send the browser to a blocked page. */
+ /* Send errors instead when we see Location headers that send the client to a blocked page. */
  
  if(!Url->local && ConfigBooleanURL(DontGetLocation,Url))
    {

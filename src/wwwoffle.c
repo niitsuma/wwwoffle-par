@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle.c 2.51 2002/05/26 10:50:42 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle.c 2.69 2004/04/02 17:51:49 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
   A user level program to interact with the server.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -23,13 +23,15 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "version.h"
 #include "wwwoffle.h"
-#include "document.h"
+#include "io.h"
 #include "misc.h"
+#include "errors.h"
 #include "config.h"
 #include "sockets.h"
-#include "errors.h"
+#include "document.h"
+#include "version.h"
+
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -52,6 +54,8 @@ typedef enum _Action
 
  Config,                        /*+ Tell the server to re-read the configuration file. +*/
 
+ Dump,                          /*+ Tell the server to dump the configuration file. +*/
+
  Purge,                         /*+ Tell the server to purge pages. +*/
 
  Status,                        /*+ Find out from the server the current status. +*/
@@ -72,13 +76,10 @@ static void add_url_list(char **links);
 static void add_url_file(char *url_file);
 
 /*+ The list of URLs or files. +*/
-static char **url_file_list=NULL;
+static /*@null@*/ char **url_file_list=NULL;
 
 /*+ The number of URLs or files. +*/
 static int n_url_file_list=0;
-
-/*+ A file descriptor for the spool directory; not used anywhere, but required for linking with spool.o. +*/
-int fSpoolDir=-1;
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -90,7 +91,7 @@ int main(int argc, char** argv)
  int i;
  int recursive_mode=0,depth=0;
  int force=0;
- int stylesheets=0,images=0,frames=0,scripts=0,objects=0;
+ int stylesheets=0,images=0,frames=0,scripts=0,objects=0,nothing=0;
  char *config_file=NULL;
  int exitval=0;
 
@@ -107,6 +108,8 @@ int main(int argc, char** argv)
 
  for(i=1;i<argc;i++)
    {
+    /* Main controlling options */
+
     if(!strcmp(argv[i],"-h") || !strcmp(argv[i],"--help"))
        usage(1);
 
@@ -145,131 +148,6 @@ int main(int argc, char** argv)
        if(action!=None)
          {fprintf(stderr,"wwwoffle: Only one command at a time.\n\n");usage(0);}
        action=Put;
-       argv[i]=NULL;
-       continue;
-      }
-
-    if(!strcmp(argv[i],"-F"))
-      {
-       if(action!=None && action!=Get)
-         {fprintf(stderr,"wwwoffle: Only one command at a time.\n\n");usage(0);}
-       action=Get;
-       if(force)
-         {fprintf(stderr,"wwwoffle: Only one '-F' argument may be given.\n"); exit(1);}
-       force=1;
-       argv[i]=NULL;
-       continue;
-      }
-
-    if(!strcmp_litbeg(argv[i],"-g"))
-      {
-       if(action!=None && action!=Get)
-         {fprintf(stderr,"wwwoffle: Only one command at a time.\n\n");usage(0);}
-       action=Get;
-       if(strchr(argv[i]+2,'S'))
-         {
-          if(stylesheets)
-            {fprintf(stderr,"wwwoffle: Only one '-gS' argument may be given.\n"); exit(1);}
-          stylesheets=1;
-         }
-       if(strchr(argv[i]+2,'i'))
-         {
-          if(images)
-            {fprintf(stderr,"wwwoffle: Only one '-gi' argument may be given.\n"); exit(1);}
-          images=1;
-         }
-       if(strchr(argv[i]+2,'f'))
-         {
-          if(frames)
-            {fprintf(stderr,"wwwoffle: Only one '-gf' argument may be given.\n"); exit(1);}
-          frames=1;
-         }
-       if(strchr(argv[i]+2,'s'))
-         {
-          if(scripts)
-            {fprintf(stderr,"wwwoffle: Only one '-gs' argument may be given.\n"); exit(1);}
-          scripts=1;
-         }
-       if(strchr(argv[i]+2,'o'))
-         {
-          if(objects)
-            {fprintf(stderr,"wwwoffle: Only one '-go' argument may be given.\n"); exit(1);}
-          objects=1;
-         }
-       if(argv[i][2]==0)
-          fprintf(stderr,"wwwoffle: The '-g' option does nothing on its own.\n");
-
-       argv[i]=NULL;
-       continue;
-      }
-
-    if(!strcmp_litbeg(argv[i],"-R") || !strcmp_litbeg(argv[i],"-r") || !strcmp_litbeg(argv[i],"-d"))
-      {
-       if(action!=None && action!=Get)
-         {fprintf(stderr,"wwwoffle: Only one command at a time.\n\n");usage(0);}
-       action=Get;
-
-       if(depth)
-         {fprintf(stderr,"wwwoffle: Only one '-d', '-r' or '-R' argument may be given.\n"); exit(1);}
-
-       if(argv[i][1]=='d')
-          recursive_mode=1;
-       else if(argv[i][1]=='r')
-          recursive_mode=2;
-       else /* argv[i][1]=='R' */
-          recursive_mode=3;
-
-       if(argv[i][2])
-          depth=atoi(&argv[i][2]);
-       else
-          depth=1;
-       if(depth<=0)
-         {fprintf(stderr,"wwwoffle: The '-%c' argument may only be followed by a positive integer.\n",argv[i][1]); exit(1);}
-
-       argv[i]=NULL;
-       continue;
-      }
-
-    if(!strcmp(argv[i],"-p"))
-      {
-       char *hoststr,*portstr; int hostlen;
-
-       if(++i>=argc)
-         {fprintf(stderr,"wwwoffle: The '-p' argument requires a hostname and optionally a port number.\n"); exit(1);}
-
-       if(config_file)
-         {fprintf(stderr,"wwwoffle: The '-p' and '-c' options cannot be used together.\n"); exit(1);}
-
-       SplitHostPort(argv[i],&hoststr,&hostlen,&portstr);
-
-       if(portstr)
-         {
-          port=atoi(portstr);
-
-          if(port<=0 || port>=65536)
-            {fprintf(stderr,"wwwoffle: The port number %d '%s' is invalid.\n",port,argv[i]); exit(1);}
-         }
-
-       host=strndup(hoststr,hostlen);
-
-       /* Don't need to use RejoinHostPort(argv[i],hoststr,portstr) here. */
-
-       argv[i-1]=NULL;
-       argv[i]=NULL;
-       continue;
-      }
-
-    if(!strcmp(argv[i],"-c"))
-      {
-       if(++i>=argc)
-         {fprintf(stderr,"wwwoffle: The '-c' argument requires a configuration file name.\n"); exit(1);}
-
-       if(host)
-         {fprintf(stderr,"wwwoffle: The '-p' and '-c' options cannot be used together.\n"); exit(1);}
-
-       config_file=argv[i];
-
-       argv[i-1]=NULL;
        argv[i]=NULL;
        continue;
       }
@@ -319,6 +197,15 @@ int main(int argc, char** argv)
        continue;
       }
 
+    if(!strcmp(argv[i],"-dump"))
+      {
+       if(action!=None)
+         {fprintf(stderr,"wwwoffle: Only one command at a time.\n\n");usage(0);}
+       action=Dump;
+       argv[i]=NULL;
+       continue;
+      }
+
     if(!strcmp(argv[i],"-purge"))
       {
        if(action!=None)
@@ -346,14 +233,162 @@ int main(int argc, char** argv)
        continue;
       }
 
+    /* Get options */
+
+    if(!strcmp(argv[i],"-F"))
+      {
+       if(action!=None && action!=Get)
+         {fprintf(stderr,"wwwoffle: Only one command at a time.\n\n");usage(0);}
+       action=Get;
+       if(force)
+         {fprintf(stderr,"wwwoffle: Only one '-F' argument may be given.\n"); exit(1);}
+       force=1;
+       argv[i]=NULL;
+       continue;
+      }
+
+    if(!strcmp_litbeg(argv[i],"-g"))
+      {
+       if(action!=None && action!=Get)
+         {fprintf(stderr,"wwwoffle: Only one command at a time.\n\n");usage(0);}
+       action=Get;
+       if(strchr(argv[i]+2,'S'))
+         {
+          if(stylesheets)
+            {fprintf(stderr,"wwwoffle: Only one '-gS' argument may be given.\n"); exit(1);}
+          stylesheets=1;
+         }
+       else if(strchr(argv[i]+2,'i'))
+         {
+          if(images)
+            {fprintf(stderr,"wwwoffle: Only one '-gi' argument may be given.\n"); exit(1);}
+          images=1;
+         }
+       else if(strchr(argv[i]+2,'f'))
+         {
+          if(frames)
+            {fprintf(stderr,"wwwoffle: Only one '-gf' argument may be given.\n"); exit(1);}
+          frames=1;
+         }
+       else if(strchr(argv[i]+2,'s'))
+         {
+          if(scripts)
+            {fprintf(stderr,"wwwoffle: Only one '-gs' argument may be given.\n"); exit(1);}
+          scripts=1;
+         }
+       else if(strchr(argv[i]+2,'o'))
+         {
+          if(objects)
+            {fprintf(stderr,"wwwoffle: Only one '-go' argument may be given.\n"); exit(1);}
+          objects=1;
+         }
+       else if(argv[i][2]==0)
+         {
+          if(stylesheets || images || frames || scripts || objects)
+            {fprintf(stderr,"wwwoffle: Cannot have '-g' and '-g[Sifso]' together.\n"); exit(1);}
+          else if(nothing)
+            {fprintf(stderr,"wwwoffle: Only one '-g' argument can be given.\n"); exit(1);}
+          nothing=1;
+         }
+       else
+         {fprintf(stderr,"wwwoffle: The '-g' option does allow '%c' following it.\n",argv[i][2]); exit(1);}
+
+       argv[i]=NULL;
+       continue;
+      }
+
+    if(!strcmp_litbeg(argv[i],"-R") || !strcmp_litbeg(argv[i],"-r") || !strcmp_litbeg(argv[i],"-d"))
+      {
+       if(action!=None && action!=Get)
+         {fprintf(stderr,"wwwoffle: Only one command at a time.\n\n");usage(0);}
+       action=Get;
+
+       if(depth)
+         {fprintf(stderr,"wwwoffle: Only one '-d', '-r' or '-R' argument may be given.\n"); exit(1);}
+
+       if(argv[i][1]=='d')
+          recursive_mode=1;
+       else if(argv[i][1]=='r')
+          recursive_mode=2;
+       else /* argv[i][1]=='R' */
+          recursive_mode=3;
+
+       if(argv[i][2])
+          depth=atoi(&argv[i][2]);
+       else if(i<(argc-1) && (atoi(argv[i+1]) || argv[i+1][0]=='0'))
+          depth=atoi(argv[i+1]);
+       else
+          depth=1;
+       if(depth<0)
+         {fprintf(stderr,"wwwoffle: The '-%c' argument may only be followed by non-negative integer.\n",argv[i][1]); exit(1);}
+
+       if(!argv[i][2] && i<(argc-1) && (atoi(argv[i+1]) || argv[i+1][0]=='0'))
+          argv[i++]=NULL;
+
+       argv[i]=NULL;
+       continue;
+      }
+
+    /* Server & port number / config file options */
+
+    if(!strcmp(argv[i],"-p"))
+      {
+       char *hoststr,*portstr; int hostlen;
+
+       if(++i>=argc)
+         {fprintf(stderr,"wwwoffle: The '-p' argument requires a hostname and optionally a port number.\n"); exit(1);}
+
+       if(config_file)
+         {fprintf(stderr,"wwwoffle: The '-p' and '-c' options cannot be used together.\n"); exit(1);}
+
+       SplitHostPort(argv[i],&hoststr,&hostlen,&portstr);
+
+       if(portstr)
+         {
+          port=atoi(portstr);
+
+          if(port<=0 || port>=65536)
+            {fprintf(stderr,"wwwoffle: The port number %d '%s' is invalid.\n",port,argv[i]); exit(1);}
+         }
+
+       host=strndup(hoststr,hostlen);
+
+       /* Don't need to use RejoinHostPort(argv[i],hoststr,portstr) here. */
+
+       argv[i-1]=NULL;
+       argv[i]=NULL;
+       continue;
+      }
+
+    if(!strcmp(argv[i],"-c"))
+      {
+       if(++i>=argc)
+         {fprintf(stderr,"wwwoffle: The '-c' argument requires a configuration file name.\n"); exit(1);}
+
+       if(host)
+         {fprintf(stderr,"wwwoffle: The '-p' and '-c' options cannot be used together.\n"); exit(1);}
+
+       config_file=argv[i];
+
+       argv[i-1]=NULL;
+       argv[i]=NULL;
+       continue;
+      }
+
+    /* Unknown options */
+
     if(argv[i][0]=='-' && argv[i][1])
       {
        fprintf(stderr,"wwwoffle: Unknown option '%s'.\n\n",argv[i]);
        usage(0);
       }
 
+    /* URLs */
+
     add_url_file(argv[i]);
    }
+
+ /* Check special conditions depending on the mode */
 
  if(action==None)
     action=Get;
@@ -367,6 +402,12 @@ int main(int argc, char** argv)
  if((action==Output || action==OutputWithHeader) && n_url_file_list!=1)
    {
     fprintf(stderr,"wwwoffle: The -o and -O options require exactly one URL.\n\n");
+    usage(0);
+   }
+
+ if(action==Get && n_url_file_list==0)
+   {
+    fprintf(stderr,"wwwoffle: No URLs were specified to request.\n\n");
     usage(0);
    }
 
@@ -404,10 +445,12 @@ int main(int argc, char** argv)
 
  if(config_file)
    {
-    init_buffer(2);
+    init_io(STDERR_FILENO);
 
-    if(ReadConfigurationFile(2))
+    if(ReadConfigurationFile(STDERR_FILENO))
        PrintMessage(Fatal,"Error in configuration file '%s'.",config_file);
+
+    finish_io(STDERR_FILENO);
    }
 
  if(!host)
@@ -423,11 +466,12 @@ int main(int argc, char** argv)
     int socket;
     char *line=NULL;
 
-    socket=OpenClientSocket(host,port?port:wwwoffle_port);
-    init_buffer(socket);
+    socket=OpenClientSocket(host,port?port:wwwoffle_port,NULL,0,NULL);
 
     if(socket==-1)
        PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port?port:wwwoffle_port);
+
+    init_io(socket);
 
     /* Send the message. */
 
@@ -439,6 +483,7 @@ int main(int argc, char** argv)
 			(action==Offline)? "WWWOFFLE OFFLINE\r\n":
 			(action==Fetch)?   "WWWOFFLE FETCH\r\n":
 			(action==Config)?  "WWWOFFLE CONFIG\r\n":
+			(action==Dump)?    "WWWOFFLE DUMP\r\n":
 			(action==Purge)?   "WWWOFFLE PURGE\r\n":
 			(action==Status)?  "WWWOFFLE STATUS\r\n":
 			(action==Kill)?    "WWWOFFLE KILL\r\n":
@@ -465,6 +510,7 @@ int main(int argc, char** argv)
           exitval=1;
       }
 
+    finish_io(socket);
     CloseSocket(socket);
    }
 
@@ -473,14 +519,20 @@ int main(int argc, char** argv)
  else if(action==Get)
    {
     URL *Url;
-    char *refresh=NULL;
     struct stat buf;
 
     for(i=0;i<n_url_file_list;i++)
        if(strcmp(url_file_list[i],"-") && stat(url_file_list[i],&buf))
          {
           int socket;
-          char buffer[READ_BUFFER_SIZE];
+          char *refresh=NULL,*p,buffer[READ_BUFFER_SIZE];
+
+          for(p=url_file_list[i];*p;p++)
+             if(*p=='#')
+               {
+                *p=0;
+                break;
+               }
 
           Url=SplitURL(url_file_list[i]);
 
@@ -490,13 +542,14 @@ int main(int argc, char** argv)
              continue;
             }
 
-          socket=OpenClientSocket(host,port?port:http_port);
-          init_buffer(socket);
+          socket=OpenClientSocket(host,port?port:http_port,NULL,0,NULL);
 
           if(socket==-1)
              PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port?port:http_port);
 
-          if(recursive_mode || depth || force || stylesheets || images || frames || scripts || objects)
+          init_io(socket);
+
+          if(recursive_mode || depth || force || stylesheets || images || frames || scripts || objects || nothing)
             {
              char *limit=NULL;
 
@@ -516,17 +569,15 @@ int main(int argc, char** argv)
              else
                 depth=0;
 
-             refresh=CreateRefreshPath(Url,limit,depth,
-                                       force,
-                                       stylesheets,images,frames,scripts,objects);
+             refresh=CreateRefreshPath(Url,limit,depth,force,stylesheets,images,frames,scripts,objects);
 
              if(limit)
                 free(limit);
 
-             printf("Getting: %s (with recursive options).\n",Url->name);
+             printf("Requesting: %s (with recursive options).\n",Url->name);
             }
           else
-             printf("Getting: %s\n",Url->name);
+             printf("Requesting: %s\n",Url->name);
 
           if(Url->user)
             {
@@ -536,19 +587,22 @@ int main(int argc, char** argv)
              userpass2=Base64Encode(userpass1,strlen(userpass1));
 
              if(refresh)
-                write_formatted(socket,"GET %s HTTP/1.0\r\n"
+                write_formatted(socket,"HEAD %s HTTP/1.0\r\n"
                                        "Authorization: Basic %s\r\n"
-                                       "Pragma: wwwoffle\r\n"
+                                       "Pragma: wwwoffle-client\r\n"
                                        "Accept: */*\r\n"
                                        "\r\n",
                                 refresh,userpass2);
              else
-                write_formatted(socket,"GET /refresh/?%s HTTP/1.0\r\n"
-                                       "Authorization: Basic %s\r\n"
-                                       "Pragma: wwwoffle\r\n"
+	       {
+		char *urlenc=URLEncodeFormArgs(Url->file);
+                write_formatted(socket,"HEAD /refresh/?%s HTTP/1.0\r\n"
+                                       "Pragma: wwwoffle-client\r\n"
                                        "Accept: */*\r\n"
                                        "\r\n",
-                                URLEncodeFormArgs(Url->name),userpass2);
+                                urlenc);
+		free(urlenc);
+	       }
 
              free(userpass1);
              free(userpass2);
@@ -556,22 +610,27 @@ int main(int argc, char** argv)
           else
             {
              if(refresh)
-                write_formatted(socket,"GET %s HTTP/1.0\r\n"
-                                       "Pragma: wwwoffle\r\n"
+                write_formatted(socket,"HEAD %s HTTP/1.0\r\n"
+                                       "Pragma: wwwoffle-client\r\n"
                                        "Accept: */*\r\n"
                                        "\r\n",
                                 refresh);
              else
-                write_formatted(socket,"GET /refresh/?%s HTTP/1.0\r\n"
-                                       "Pragma: wwwoffle\r\n"
+	       {
+		char *urlenc=URLEncodeFormArgs(Url->name);
+                write_formatted(socket,"HEAD /refresh/?%s HTTP/1.0\r\n"
+                                       "Pragma: wwwoffle-client\r\n"
                                        "Accept: */*\r\n"
                                        "\r\n",
-                                URLEncodeFormArgs(Url->name));
+                                urlenc);
+		free(urlenc);
+	       }
             }
 
           while(read_data(socket,buffer,READ_BUFFER_SIZE)>0)
              ;
 
+          finish_io(socket);
           CloseSocket(socket);
 
           free(refresh);
@@ -585,7 +644,6 @@ int main(int argc, char** argv)
           if(strcmp(url_file_list[i],"-"))
             {
              file=open(url_file_list[i],O_RDONLY);
-             init_buffer(file);
 
              if(file==-1)
                {PrintMessage(Warning,"Cannot open file '%s' for reading.",url_file_list[i]);continue;}
@@ -594,11 +652,12 @@ int main(int argc, char** argv)
             }
           else
             {
-             file=fileno(stdin);
-             init_buffer(file);
+             file=0;
 
              printf("Reading: <stdin>\n");
             }
+
+          init_io(file);
 
 	  {
 	    int len=strlitlen("file://localhost")+strlen(url_file_list[i]);
@@ -651,6 +710,7 @@ int main(int argc, char** argv)
              add_url_list(links);
 
           FreeURL(Url);
+          finish_io(file);
           if(file!=0)
              close(file);
          }
@@ -661,24 +721,34 @@ int main(int argc, char** argv)
    {
     URL *Url;
     int socket,n,length=0;
-    char buffer[READ_BUFFER_SIZE];
+    char *p,buffer[READ_BUFFER_SIZE];
     char *data=(char*)malloc(READ_BUFFER_SIZE+1);
+
+    for(p=url_file_list[0];*p;p++)
+       if(*p=='#')
+         {
+          *p=0;
+          break;
+         }
 
     Url=SplitURL(url_file_list[0]);
 
     if(!Url->Protocol)
        PrintMessage(Fatal,"Cannot post or put protocol '%s'.",Url->proto);
 
-    socket=OpenClientSocket(host,port?port:http_port);
-    init_buffer(socket);
+    socket=OpenClientSocket(host,port?port:http_port,NULL,0,NULL);
 
     if(socket==-1)
        PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port?port:http_port);
+
+    init_io(socket);
 
     if(action==Post)
        printf("Posting: %s\n",Url->name);
     else
        printf("Putting: %s\n",Url->name);
+
+    init_io(0);
 
     while((n=read_data(0,data+length,READ_BUFFER_SIZE))>0)
       {
@@ -705,7 +775,7 @@ int main(int argc, char** argv)
                                  "Authorization: Basic %s\r\n"
                                  "Content-Type: application/x-www-form-urlencoded\r\n"
                                  "Content-Length: %d\r\n"
-                                 "Pragma: wwwoffle\r\n"
+                                 "Pragma: wwwoffle-client\r\n"
                                  "Accept: */*\r\n"
                                  "\r\n",
                           Url->name,userpass2,length);
@@ -713,7 +783,7 @@ int main(int argc, char** argv)
           write_formatted(socket,"PUT %s HTTP/1.0\r\n"
                                  "Authorization: Basic %s\r\n"
                                  "Content-Length: %d\r\n"
-                                 "Pragma: wwwoffle\r\n"
+                                 "Pragma: wwwoffle-client\r\n"
                                  "Accept: */*\r\n"
                                  "\r\n",
                           Url->name,userpass2,length);
@@ -727,14 +797,14 @@ int main(int argc, char** argv)
           write_formatted(socket,"POST %s HTTP/1.0\r\n"
                                  "Content-Type: application/x-www-form-urlencoded\r\n"
                                  "Content-Length: %d\r\n"
-                                 "Pragma: wwwoffle\r\n"
+                                 "Pragma: wwwoffle-client\r\n"
                                  "Accept: */*\r\n"
                                  "\r\n",
                           Url->name,length);
        else
           write_formatted(socket,"PUT %s HTTP/1.0\r\n"
                                  "Content-Length: %d\r\n"
-                                 "Pragma: wwwoffle\r\n"
+                                 "Pragma: wwwoffle-client\r\n"
                                  "Accept: */*\r\n"
                                  "\r\n",
                           Url->name,length);
@@ -747,6 +817,7 @@ int main(int argc, char** argv)
     while(read_data(socket,buffer,READ_BUFFER_SIZE)>0)
        ;
 
+    finish_io(socket);
     CloseSocket(socket);
 
     FreeURL(Url);
@@ -756,25 +827,31 @@ int main(int argc, char** argv)
    {
     URL *Url;
     int socket;
-    char *line=NULL,buffer[READ_BUFFER_SIZE];
+    char *line=NULL;
+    char *p,buffer[READ_BUFFER_SIZE];
     int nbytes;
 
-    if(!n_url_file_list)
-       PrintMessage(Fatal,"No URL specified to output.");
+    for(p=url_file_list[0];*p;p++)
+       if(*p=='#')
+         {
+          *p=0;
+          break;
+         }
 
     Url=SplitURL(url_file_list[0]);
 
     if(!Url->Protocol)
        PrintMessage(Fatal,"Cannot fetch data from protocol '%s'.",Url->proto);
 
-    socket=OpenClientSocket(host,port?port:http_port);
-    init_buffer(socket);
+    socket=OpenClientSocket(host,port?port:http_port,NULL,0,NULL);
 
     if(socket==-1)
        PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port?port:http_port);
 
+    init_io(socket);
+
     if(action!=Output && action!=OutputWithHeader)
-       fprintf(stderr,"Getting: %s\n",Url->name);
+       fprintf(stderr,"Requesting: %s\n",Url->name);
 
     if(Url->user)
       {
@@ -785,7 +862,7 @@ int main(int argc, char** argv)
 
        write_formatted(socket,"GET %s HTTP/1.0\r\n"
                               "Authorization: Basic %s\r\n"
-                              "Pragma: wwwoffle\r\n"
+                              "Pragma: wwwoffle-client\r\n"
                               "Accept: */*\r\n"
                               "\r\n",
                        Url->name,userpass2);
@@ -795,7 +872,7 @@ int main(int argc, char** argv)
       }
     else
        write_formatted(socket,"GET %s HTTP/1.0\r\n"
-                              "Pragma: wwwoffle\r\n"
+                              "Pragma: wwwoffle-client\r\n"
                               "Accept: */*\r\n"
                               "\r\n",
                        Url->name);
@@ -842,6 +919,7 @@ int main(int argc, char** argv)
     else
        PrintMessage(Fatal,"Cannot read from wwwoffle server.");
 
+    finish_io(socket);
     CloseSocket(socket);
 
     FreeURL(Url);
@@ -883,7 +961,7 @@ static void usage(int verbose)
  fprintf(stderr,
          "Usage: wwwoffle -h | --help | --version\n"
          "       wwwoffle -online | -autodial | -offline | -fetch\n"
-         "       wwwoffle -config | -purge | -status | -kill\n"
+         "       wwwoffle -config | -dump | -purge | -status | -kill\n"
          "       wwwoffle [-o|-O] <url>\n"
          "       wwwoffle [-post|-put] <url>\n"
          "       wwwoffle [-g[Sisfo]] [-F] [-(d|r|R)[<depth>]] <url> ...\n"
@@ -913,6 +991,8 @@ static void usage(int verbose)
             "\n"
             "wwwoffle -config     : Force the server to re-read the configuration file.\n"
             "\n"
+            "wwwoffle -dump       : Force the server to dump the current configuration.\n"
+            "\n"
             "wwwoffle -status     : Query the server about its current status.\n"
             "\n"
             "wwwoffle -purge      : Force the server to purge pages from the cache.\n"
@@ -926,14 +1006,19 @@ static void usage(int verbose)
             " -o                  : Fetch the URL and output it on the standard output.\n"
             " -O                  : As above but include the HTTP header.\n"
             "\n"
-            " -g[Sisfo]           : Fetch the items included in the specified URLs.\n"
+            " -g[Sisfo]           : Fetch the items included in the specified URLs:\n"
             "                       (S=stylesheets, i=images, f=frames, s=scripts, o=objects)\n"
+            "                       When used without any options fetches none of these.\n"
             " -F                  : Force the url to be refreshed even if already cached.\n"
             " -(d|r|R)[<depth>]   : Fetch pages linked to the URLs and their links,\n"
             "                       going no more than <depth> steps (default 1).\n"
             "                        (-d => URLs in the same directory or sub-directory)\n"
             "                        (-r => URLs on the same host)\n"
             "                        (-R => URLs on any host)\n"
+            "\n"
+            "                      (If the -F, -(d|r|R) or -g[Sisfo] options are set they\n"
+            "                       override the options in the FetchOptions section of the\n"
+            "                       config file and only the -g[Sisfo] options are fetched.)\n"
             "\n"
             "wwwoffle -post <url> : Create a request using the POST method, the data is read\n"
             "                       from stdin and appended to the request.  The user should\n"
@@ -994,10 +1079,7 @@ static void add_url_file(char *url_file)
 {
  if(!(n_url_file_list%16))
    {
-    if(n_url_file_list)
-       url_file_list=(char**)realloc(url_file_list,(n_url_file_list+16)*sizeof(char*));
-    else
-       url_file_list=(char**)malloc(16*sizeof(char*));
+     url_file_list=(char**)realloc(url_file_list,(n_url_file_list+16)*sizeof(char*));
    }
 
  url_file_list[n_url_file_list]=strdup(url_file);

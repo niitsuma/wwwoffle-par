@@ -155,7 +155,7 @@ AC_ARG_WITH(confdir,
 CONFDIR=$withval,)
 
 if test "x$CONFDIR" = "x"; then
-    CONFDIR=/etc
+    CONFDIR=/etc/wwwoffle
 fi
 
 AC_DEFINE_UNQUOTED(DEF_CONFDIR,"$CONFDIR")

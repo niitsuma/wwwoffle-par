@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <!--
@@ -6,6 +6,7 @@
 WWWOFFLE : Variables disponibles (mettre le prefixe '$').
 
 localhost = Le serveur sur lequel wwwoffled tourne (='$localhost').
+version   = The version of the WWWOFFLE server (='$version').
 url       = L'URL demande (='$url').
 
 $decurl=%decode[url]
@@ -15,60 +16,65 @@ $encurl=%encode[url]
 
 <HEAD>
 <TITLE>WWWOFFLE - Requ&ecirc;te de Confirmation pour $url</TITLE>
-<META HTTP-EQUIV="Expires" CONTENT="0">
+<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
-<BODY>
+<BODY class="wwwoffle-message">
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<!-- Standard WWWOFFLE Message Page Header Start -->
 
-<p align=center>
-<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
-</p>
+<div class="wwwoffle-header" align="center">
+<b>WWWOFFLE</b> <b>-</b> <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer <b>-</b> <b>v$version</b>
+</div>
+<hr class="wwwoffle-header">
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Header End -->
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<H1 align="center">WWWOFFLE - Demande de Confirmation</H1>
 
-<H1 align=center>WWWOFFLE - Demande de Confirmation</H1>
-
-<p align=center>
+<div class="wwwoffle-message" align="center">
 Votre requ&ecirc;te pour l'URL
-<br>
+<p class="wwwoffle-url">
 <b><tt>$decurl</tt></b>
-<br>
+</p>
 a besoin d'&ecirc;tre <a href="http://$localhost/refresh/?$encurl">confirm&eacute;e</a>.
-</p>
+</div>
 
+<!-- Standard WWWOFFLE Message Page Inline Help Start -->
+
+<h2 class="wwwoffle-inline-help">Help</h2>
+
+<div class="wwwoffle-inline-help">
 WWWOFFLE est configur&eacute; de fa&ccedil;on &agrave; demander une confirmation pour
- t&eacute;l&eacute;charger cette page lorsqu'il est hors-ligne.
+t&eacute;l&eacute;charger cette page lorsqu'il est hors-ligne.
 S&eacute;lectionnez le lien ci-dessus pour r&eacute;it&eacute;rer la
- requ&ecirc;te, sinon la page ne sera pas captur&eacute;e.
+requ&ecirc;te, sinon la page ne sera pas captur&eacute;e.
+</div>
 
-<!--
+<!-- Standard WWWOFFLE Message Page Inline Help End -->
 
-Useful WWWOFFLE Buttons
+<div class="wwwoffle-nav" align="center">
+[ \
+Annuler| \
+Actualiser: \
+<a href="http://$localhost/refresh-options/?$encurl">Options</a>| \
+<a href="http://$localhost/monitor-options/?$encurl">Suivi</a>| \
+<a href="http://$localhost/index/url?$encurl">Index</a>| \
+<a href="http://$localhost/configuration/url?$encurl">Configure</a> \
+]
+</div>
 
-$Options = http://$localhost/refresh-options/?$encurl
-$Monitor = http://$localhost/monitor-options/?$encurl
-$Index   = http://$localhost/index/url?$encurl
-$Config  = http://$localhost/configuration/url?$encurl
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
--->
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
+WWWOFFLE - [ \
+<a href="http://$localhost/Welcome.html">Page d'accueil</a>| \
+<a href="http://$localhost/FAQ.html">FAQ</a> \
+] - WWWOFFLE
+</div>
 
-<p align=center>
-[Annuler|Actualiser:<a href="$Options">Options</a>|<a href="$Monitor">Suivi</a>|<a href="$Index">Index</a>|<a href="$Config">Configure</a>]
-</p>
-
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
-
-<hr>
-
-<p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Page d'accueil</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
-</p>
-
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

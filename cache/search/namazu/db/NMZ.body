@@ -23,7 +23,7 @@ Linux and Netscape
 </p>
 
 <p>
-You can ommit the <code class="operator">and</code> operator.  Terms which is
+You can omit the <code class="operator">and</code> operator.  Terms which is
 separated by one ore more spaces is assumed to be AND query.
 </p>
 
@@ -42,7 +42,7 @@ Linux or FreeBSD
 <h3><a name="query-not">NOT query</a></h3>
 <p>
 The query specifies two or more terms for retrieving all
-documents which contain a first term but does't contain the
+documents which contain a first term but doesn't contain the
 following terms. You can insert the <code class="operator">not</code>
 operator between the terms to do NOT query.  e.g.,
 </p>

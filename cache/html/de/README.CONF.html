@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <HTML>
 
 <HEAD>
@@ -9,9 +9,9 @@
 
 <h1>WWWOFFLE - Konfigurations-Datei - Version 2.7</h1>
 
-	      =============================================
-<p>
-Einf&uuml;hrung
+
+<h2><a name="Einf&uuml;hrung"></a>Einf&uuml;hrung</h2>
+
 <p>
 Die Konfigurations-Datei (wwwoffle.conf) beinhaltet alle Parameter,
 die den Betrieb des Proxy-Sservers steuern. Diese Datei ist in
@@ -51,724 +51,1028 @@ anzuwenden, dies wird durch eine <a href="#URL-SPECIFICATION">URL-SPECIFICATION<
 eingeschlossen in der Option gekennzeichnet, die erste passende
 <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> wird verwendet. Ist keine <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a>
 gegeben, passt dazu jede URL.
+
 <h2><a name="StartUp"></a>StartUp</h2>
+
+<p>
 Dieser Abschnitt enth&auml;lt die Parameter, die w&auml;hrend des Programm-Starts
 verwendet werden, &Auml;nderungen and diesem Abschnitt werden igoriert, wenn die
 Konfigurations-Datei neu eingelesen wird, w&auml;hrend das Programm l&auml;uft.
-<h3><a name="StartUp_bind-ipv4"></a>bind-ipv4 = (hostname) | (ip-address) | none 
-</h3>
-	Geben Sie den Hostnamen oder die IP-Adresse, an die der HTTP-Proxy und der
-	WWWOFFLE-Steuerungs-Port unter Verwendung von IPv4 gebunden werden soll
-	(Standard='0.0.0.0'). Wir hier 'none' angegeben, so wird kein IPv4-Socket
-	gebunden. Wird der Standardwert ge&auml;ndert, so mu&szlig; evtl. der erste Eintrag
-	im Abschnitt Localhost auch passend ge&auml;ndert werden.
+
+<h3><a name="StartUp_bind-ipv4"></a>bind-ipv4 = (hostname) | (ip-address) | none </h3>
+
+<p>
+Geben Sie den Hostnamen oder die IP-Adresse, an die der HTTP-Proxy und der
+WWWOFFLE-Steuerungs-Port unter Verwendung von IPv4 gebunden werden soll
+(Standard='0.0.0.0'). Wir hier 'none' angegeben, so wird kein IPv4-Socket
+gebunden. Wird der Standardwert ge&auml;ndert, so mu&szlig; evtl. der erste Eintrag
+im Abschnitt Localhost auch passend ge&auml;ndert werden.
 <p>
 bind-ipv6 bind-ipv6 = (hostname) | (ip-address) | none
-	Geben Sie den Hostnamen oder die IP-Adresse, an die der HTTP-Proxy und der
-	WWWOFFLE-Steuerungs-Port unter Verwendung von IPv6 gebunden werden
-	soll (Standard='::'). Wird hier 'none' angegeben, so wird kein
-	IPv6-Socket gebunden. Diese Option ben&ouml;tigt die IPv6-Option beim
-	compilieren. Wird der Standardwert ge&auml;ndert, so mu&szlig; evtl. der erste
-	Eintrag im Abschnit Localhost auch passend ge&auml;ndert werden.
-	
-<h3><a name="StartUp_http-port"></a>http-port = (port) 
-</h3>
-	Geben Sie eine Integer-Zahl f&uuml;r die Port-Nummer f&uuml;r den HTTP-Proxy an
-	(Standard:8080). Dies ist die Port-Nummer, die auch im Browser angegeben
-	werden muss, um eine Verbindung zum WWWOFFLE-Proxy zu bekommen. 
-<h3><a name="StartUp_wwwoffle-port"></a>wwwoffle-port = (port) 
-</h3>
-	Eine Integer-Zahl, die die Port-Nummer, die f&uuml;r die 
-	WWWOFFLE-Steuerungs-Verbindungen verwendet wird festlegt (Standard:8081)
-<h3><a name="StartUp_spool-dir"></a>spool-dir = (dir) 
-</h3>
-	Der komplette Pfadname des Top-Level-Cache-Verzeichnisses (Spool-Verzeichnis)
-	(Standard:/var/spool/wwwoffle oder wasimmer verwendet wurde, als das
-	Programm compiliert wurde). 
-	
-<h3><a name="StartUp_run-uid"></a>run-uid = (user) | (uid) Der
-</h3>
-	Benutzername oder die numerische UID, auf die gewechselt werden soll,
-	wenn der Server gestartet wird (Standard:keine). Diese Option ist
-	nicht f&uuml;r die Win32-Version anwendbar und funktioniert nur, wenn der
-	Server unter UNIX als root gestartet wurde. 
-<h3><a name="StartUp_run-gid"></a>run-gid = (group) | (gid) 
-</h3>
-	Der Gruppenname oder die numerische GID, auf die gewechselt werden soll,
-	wenn der Server gestartet wird (Standard:keine). Diese Option ist nicht 
-	f&uuml;r die Win32-Version anwendbar und funktioniert nur, wenn der Server 
-	unter UNIX als root gestartet wurde.
-	
-<h3><a name="StartUp_use-syslog"></a>use-syslog = yes | no Legt 
-</h3>
-	fest, ob der Server von Syslog f&uuml;r Meldungen Gebrauch machen soll (yes) 
-	oder nicht (no) (Standard:yes) 
-<h3><a name="StartUp_password"></a>password = (word) 
-</h3>
-	Das Passwort, das zur Authentifizierung f&uuml;r die Steuerungs-Seiten, f&uuml;r
-	das L&ouml;schen gespeicherter Seiten usw. ben&ouml;tigt wird (Standard:keins).
-	Damit dieses Passwort in der Konfigurations-Datei sicher ist, m&uuml;ssen die
-	Zugriffsrechte der Datei so eingestellt werden, dass nur authorisierte
-	Benutzer sie lesen k&ouml;nnen.
-<h3><a name="StartUp_max-servers"></a>max-servers = (integer)
-</h3>
-	Die maximale Anzahl der Server-Prozesse, die bei Online und
-	automatischen Abrufen gestartet werden (Standard:8) 
-<h3><a name="StartUp_max-fetch-servers"></a>max-fetch-servers = (integer)
-</h3>
-	Die maximale Anzahl der Server-Prozesse, die bei Start des Abrufs der
-	im Offline-Modus markierten Seiten gestartet werden (Standard:4)
-	Dieser Wert mu&szlig; kleiner als die max.Anzahl der Server sein, oder Sie
-	sind nicht Lage WWWOFFLE w&auml;hrend des Abrufs interaktiv zu nutzen.
-<h2><a name="Options"></a>Options</h2>
-Optionen, die steuern, wie das Programm arbeitet 
-<h3><a name="Options_log-level"></a>log-level = debug | info | important | warning | fatal 
-</h3>
-	Der minimale Log-Level f&uuml;r Meldungen in Syslog oder stderr  
-	(Standard:important)
+Geben Sie den Hostnamen oder die IP-Adresse, an die der HTTP-Proxy und der
+WWWOFFLE-Steuerungs-Port unter Verwendung von IPv6 gebunden werden
+soll (Standard='::'). Wird hier 'none' angegeben, so wird kein
+IPv6-Socket gebunden. Diese Option ben&ouml;tigt die IPv6-Option beim
+compilieren. Wird der Standardwert ge&auml;ndert, so mu&szlig; evtl. der erste
+Eintrag im Abschnit Localhost auch passend ge&auml;ndert werden.
 
-<h3><a name="Options_socket-timeout"></a>socket-timeout = (time) 
-</h3>
-	Die Zeit in Sekunden, die WWWOFFLE maximal auf Daten von einer 
-	Verbindung wartet, bevor der Vorgang aufgegeben wird (Standard:120) 
-	
-<h3><a name="Options_dns-timeout"></a>dns-timeout = (time) 
-</h3>
-	Die Zeit in Sekunden, die WWWOFFLE auf die Aufl&ouml;sung eines Hostnamens 
-	(DNS=Domain Name Service) wartet, bevor der Vorgang aufgegeben wird 
-	(Standard:60) 
-	
-<h3><a name="Options_connect-timeout"></a>connect-timeout = (time) 
-</h3>
-	Die Zeit in Sekunden, die WWWOFFLE auf den Verbindungsaufbau
-	wartet, bevor der Vorgang aufgegeben wird (Standard=30)
-<h3><a name="Options_connect-retry"></a>connect-retry = yes | no 
-</h3>
-	Falls die Verbindung zu einem entfernten Server nicht hergestellt 
-	werden kann, soll WWWOFFLE es nach einer kurzen Pause erneut versuchen 
-	(Standard=no - also nein) 
-<h3><a name="Options_ssl-allow-port"></a>ssl-allow-port = (integer) 
-</h3>
-	Eine Port-Nummer &uuml;ber die verschl&uuml;sselte Secure Socket Layer 
-	(SSL)-Verbindungen, also https &uuml;ber den Proxy laufen d&uuml;rfen. 
-	Diese Options sollte auf 443 gesetzt werden, um https zu erlauben, 
-	es darf mehr als einen ssl-port-Eintag geben, wenn andere Ports 
-	ben&ouml;tigt werden.
-<h3><a name="Options_dir-perm"></a>dir-perm = (octal int)
-</h3>
-	Die Verzeichnis-Zugriffsrechte, die beim Erstellen von
-	Spool-Verzeichnissen verwendet werden (Standard: 0755). Diese Option
-	&uuml;bergeht die umask-Einstellungen des Benutzers und muss als Oktal-Wert
-	beginnend mit '0' angegeben werden.
-<h3><a name="Options_file-perm"></a>file-perm = (octal int)
-</h3>
-	Die Datei-Zugriffsrechte, die beim Erstellen von Spool-Files verwendet
-	werden (Standard: 0644). Diese Option &uuml;bergeht die umask-Einstellungen
-	des Benutzers und muss als Oktal-Wert beginnen mit '0' angegeben werden.
-<h3><a name="Options_run-online"></a>run-online = (filename)
-</h3>
-	Der Name eines Programms, das gestartet werden soll, wenn WWWOFFLE in
-	den Online-Modus geschaltet wird (Standard:keins). Das Programm wird 
-	mit einem einzigen Parameter gestartet, dem aktuellen Modus-Namen
-	"online". 
-	
-<h3><a name="Options_run-offline"></a>run-offline = (filename) 
-</h3>
-	Der Name eines  Programms, das gestartet werden soll, wenn WWWOFFLE in 
-	den Offline-Modus geschaltet wird (Standard:keins). Das Programm wird
-	mit einem einzigen Parameter gestartet, dem aktuellen 
-	Modus-Namen "offline".
-<h3><a name="Options_run-autodial"></a>run-autodial = (filename)
-</h3>
-	Der Name eines Programms, das gestartet werden soll, wenn WWWOFFLE in 
-	den Autodial-Modus geschaltet wird (Standard:keins). Das Programm wird
-	mit einem einzigen Parameter gestartet, dem aktuellen Modus-Namen
-	"autodial". 
-	
-<h3><a name="Options_run-fetch"></a>run-fetch = (filename) 
-</h3>
-	Der Name eines Programms, das gestartet werden soll wenn WWWOFFLE mit
-	dem Abruf von Bestellungen beginnt oder beendet. Das Programm wird mit
-	zwei Parametern gestartet, der erste ist das Wort "fetch" und der zweite
-	ist "start" oder "stop".
-<h3><a name="Options_lock-files"></a>lock-files = yes | no
-</h3>
-	Schalter zur Verwendung eines Lock-Files, um zu verhindern, dass mehr
-	als ein WWWOFFLE-Prozess die gleiche URL zur gleichen Zeit abruft
-	(Standard=no - kein Lockfile)
-<h3><a name="Options_reply-compressed-data"></a>reply-compressed-data = yes | no
-</h3>
-	Ob die Antworten die an den Browser gegeben werden, auf Anfrage
-	komprimierte Daten enthalten sollen (Standard:no = Nein). Ben&ouml;tigt die
-	zlib-Option beim Compilieren.
-<h3><a name="Options_exec-cgi"></a>exec-cgi = (pathname)
-</h3>
-	Schaltet die Verwendung von CGI-Scripts f&uuml;r die lokalen Seiten auf dem
-	WWWOFFLE-Server, die der angegeben Pfad-Wildcard entsprechen
-	(Standard:keine)
-<h2><a name="OnlineOptions"></a>OnlineOptions</h2>
-Optionen, die das Verhalten von WWWOFFLE im Online-Modus steueren 
-<h3><a name="OnlineOptions_request-changed"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-changed = (time)
-</h3>
-	Im Online-Modus werden Seiten nur dann wirklich aus dem Netz geholt,
-	wenn die Version im Cache &auml;lter als die angegebene Zeit in Sekunden ist
-	(Standard=600). Wird dieser Wert auf einen negativen Wert gesetzt,
-	zeigt dies an, dass die Seiten im Cache immer im Online-Modus verwendet
-	werden. L&auml;ngere Zeitangaben k&ouml;nnen durch Verwendung von 'm' (Minuten),
-	'h' (Stunden),'d' (Tage),'w' (Wochen) angegeben werden (z.B. 10m=600).
-<h3><a name="OnlineOptions_request-changed-once"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-changed-once = yes | no
-</h3>
-	Im Online-Modus werden Seiten nur dann wirklich aus dem Netz geholt,
-	wenn die Version im Cache nicht schon einmal in der gleichen
-	Online-Sitzung abgerufen wurde. (Standard=yes - Ja). Diese Option hat
-	gegen&uuml;ber der request-changed-Option Vorrang.
-<h3><a name="OnlineOptions_request-expired"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-expired = yes | no 
-</h3>
-	Im Online-Modus werden abgelaufene Seiten immer nochmal abgerufen 
-	(Standard=no - nein). Diese Option hat gegen&uuml;ber der 
-	request-changed-Option und der request-changed-once-Option Vorrang. 
-	
-<h3><a name="OnlineOptions_request-no-cache"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-no-cache = yes | no 
-</h3>
-	Im Online-Modus werden Seiten die nicht im Cache gespeichert werden
-	sollen immer neu abgerufen (Standard=no - nein). Diese Option hat 
-	gegen&uuml;ber den request-changed- und reqest-changed-once-Optionen 
-	Vorrang. 
-	
-<h3><a name="OnlineOptions_request-redirection"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-redirection = yes | no 
-</h3>
-	Im Online-Modus werden Seiten die den Browser zeitweilig auf eine 
-	andere URL umleiten neu abgerufen (Standard=no - nein). 
-	Diese Option hat gegen&uuml;ber den request-changed-  und 
-	reqest-changed-once-Optionen Vorrang. 
-	
-<h3><a name="OnlineOptions_try-without-password"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] try-without-password = yes | no 
-</h3>
-	Wird eine Seite die einen Usernamen und ein Passwort enth&auml;lt abgerufen,
-	dann wird ein Abruf der gleichen Seite ohne angegebenen Usernamen 
-	und Passwort durchgef&uuml;hrt. (Standard=yes - Ja). Dies erlaubt es f&uuml;r 
-	Anfragen nach der Seite ohne ein Passwort den Browser auf die Seiten 
-	mit Passwort umzuleiten. 
-	
-<h3><a name="OnlineOptions_intr-download-keep"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] intr-download-keep = yes | no
-</h3>
-	Wenn im Online-Modus der Browser die Verbindung schliesst, soll die 
-	gerade heruntergeladene, unvollst&auml;ndige Seite erhalten bleiben.
-	(Standard: no - nein) 
-	
-<h3><a name="OnlineOptions_intr-download-size"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] intr-download-size = (integer) 
-</h3>
-	Wenn im Online-Modus der Browser die Verbindung schliesst, wird die
-	Seite weitergeladen, wenn sie kleiner als die angegebene Gr&ouml;sse in 
-	kByte ist.(Standard=1). 
-	
-<h3><a name="OnlineOptions_intr-download-percent"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] intr-download-percent = (integer) 
-</h3>
-	Wenn im Online-Modus der Browser die Verbindung schliesst, wird die 
-	Seite weitergeladen, wenn sie zu mehr als dieser Prozentangabe 
-	bereits vollst&auml;ndig ist (Standard=80) 
-	
-<h3><a name="OnlineOptions_timeout-download-keep"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] timeout-download-keep = yes | no
-</h3>
-	Wenn die Server-Verbindung w&auml;hrend eines Lesezugriffs zu lange
-	keine Daten sendet (timeout), soll die gerade heruntergeladene,
-	unvollst&auml;ndige Seite erhalten bleiben (Standard=no - nein).
-	 
-<h3><a name="OnlineOptions_request-compressed-data"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-compressed-data = yes | no 
-</h3>
-	Ob die Anfragen, die an die Server geschickt werden, komprimierte Daten
-	anfordern solllen (Standard=yes - ja). Ben&ouml;tigt die zlib-Option beim
-	Compilieren. 
-	
-<h2><a name="OfflineOptions"></a>OfflineOptions</h2>
-Optionen, die das Verhalten von WWWOFFLE im Offline-Modus steuern
-<h3><a name="OfflineOptions_pragma-no-cache"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] pragma-no-cache = yes | no
-</h3>
-	Ob eine neue Kopie der Seite abgerufen werden soll, wenn der Browser
-	in der Anfrage 'Pragma: no-cache' gesetzt hat (Standard=yes - Ja).
-	Diese Option sollte auf 'no' (Nein) gesetzt werden, wenn beim
-	Offline-Browsen alle Seiten von einem "fehlerhaften" Browser neu
-	angefragt werden.
-<h3><a name="OfflineOptions_confirm-requests"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] confirm-requests = yes | no
-</h3>
-	Ob im Offline-Modus jeweils eine Seite erscheint, die um Benutzer-
-	Best&auml;tigung bittet, anstatt automatisch Bestellungen zu speichern.
-	(Standard=no - nein)
-<h3><a name="OfflineOptions_dont-request"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] dont-request = yes | no
-</h3>
-	Seiten die dieser URL-Spezifikation entsprechen im Offline-Modus
-	nicht abrufen. (Standard=keine)
+
+<h3><a name="StartUp_http-port"></a>http-port = (port) </h3>
+
 <p>
-	
+Geben Sie eine Integer-Zahl f&uuml;r die Port-Nummer f&uuml;r den HTTP-Proxy an
+(Standard:8080). Dies ist die Port-Nummer, die auch im Browser angegeben
+werden muss, um eine Verbindung zum WWWOFFLE-Proxy zu bekommen. 
+
+<h3><a name="StartUp_wwwoffle-port"></a>wwwoffle-port = (port) </h3>
+
+<p>
+Eine Integer-Zahl, die die Port-Nummer, die f&uuml;r die 
+WWWOFFLE-Steuerungs-Verbindungen verwendet wird festlegt (Standard:8081)
+
+<h3><a name="StartUp_spool-dir"></a>spool-dir = (dir) </h3>
+
+<p>
+Der komplette Pfadname des Top-Level-Cache-Verzeichnisses (Spool-Verzeichnis)
+(Standard:/var/spool/wwwoffle oder wasimmer verwendet wurde, als das
+Programm compiliert wurde). 
+
+
+<h3><a name="StartUp_run-uid"></a>run-uid = (user) | (uid) Der</h3>
+
+<p>
+Benutzername oder die numerische UID, auf die gewechselt werden soll,
+wenn der Server gestartet wird (Standard:keine). Diese Option ist
+nicht f&uuml;r die Win32-Version anwendbar und funktioniert nur, wenn der
+Server unter UNIX als root gestartet wurde. 
+
+<h3><a name="StartUp_run-gid"></a>run-gid = (group) | (gid) </h3>
+
+<p>
+Der Gruppenname oder die numerische GID, auf die gewechselt werden soll,
+wenn der Server gestartet wird (Standard:keine). Diese Option ist nicht 
+f&uuml;r die Win32-Version anwendbar und funktioniert nur, wenn der Server 
+unter UNIX als root gestartet wurde.
+
+
+<h3><a name="StartUp_use-syslog"></a>use-syslog = yes | no Legt </h3>
+
+<p>
+fest, ob der Server von Syslog f&uuml;r Meldungen Gebrauch machen soll (yes) 
+oder nicht (no) (Standard:yes) 
+
+<h3><a name="StartUp_password"></a>password = (word) </h3>
+
+<p>
+Das Passwort, das zur Authentifizierung f&uuml;r die Steuerungs-Seiten, f&uuml;r
+das L&ouml;schen gespeicherter Seiten usw. ben&ouml;tigt wird (Standard:keins).
+Damit dieses Passwort in der Konfigurations-Datei sicher ist, m&uuml;ssen die
+Zugriffsrechte der Datei so eingestellt werden, dass nur authorisierte
+Benutzer sie lesen k&ouml;nnen.
+
+<h3><a name="StartUp_max-servers"></a>max-servers = (integer)</h3>
+
+<p>
+Die maximale Anzahl der Server-Prozesse, die bei Online und
+automatischen Abrufen gestartet werden (Standard:8) 
+
+<h3><a name="StartUp_max-fetch-servers"></a>max-fetch-servers = (integer)</h3>
+
+<p>
+Die maximale Anzahl der Server-Prozesse, die bei Start des Abrufs der
+im Offline-Modus markierten Seiten gestartet werden (Standard:4)
+Dieser Wert mu&szlig; kleiner als die max.Anzahl der Server sein, oder Sie
+sind nicht Lage WWWOFFLE w&auml;hrend des Abrufs interaktiv zu nutzen.
+
+<h2><a name="Options"></a>Options</h2>
+
+<p>
+Optionen, die steuern, wie das Programm arbeitet 
+
+<h3><a name="Options_log-level"></a>log-level = debug | info | important | warning | fatal </h3>
+
+<p>
+Der minimale Log-Level f&uuml;r Meldungen in Syslog oder stderr  
+(Standard:important)
+
+
+<h3><a name="Options_socket-timeout"></a>socket-timeout = (time) </h3>
+
+<p>
+Die Zeit in Sekunden, die WWWOFFLE maximal auf Daten von einer 
+Verbindung wartet, bevor der Vorgang aufgegeben wird (Standard:120) 
+
+
+<h3><a name="Options_dns-timeout"></a>dns-timeout = (time) </h3>
+
+<p>
+Die Zeit in Sekunden, die WWWOFFLE auf die Aufl&ouml;sung eines Hostnamens 
+(DNS=Domain Name Service) wartet, bevor der Vorgang aufgegeben wird 
+(Standard:60) 
+
+
+<h3><a name="Options_connect-timeout"></a>connect-timeout = (time) </h3>
+
+<p>
+Die Zeit in Sekunden, die WWWOFFLE auf den Verbindungsaufbau
+wartet, bevor der Vorgang aufgegeben wird (Standard=30)
+
+<h3><a name="Options_connect-retry"></a>connect-retry = yes | no </h3>
+
+<p>
+Falls die Verbindung zu einem entfernten Server nicht hergestellt 
+werden kann, soll WWWOFFLE es nach einer kurzen Pause erneut versuchen 
+(Standard=no - also nein) 
+
+<h3><a name="Options_ssl-allow-port"></a>ssl-allow-port = (integer) </h3>
+
+<p>
+Eine Port-Nummer &uuml;ber die verschl&uuml;sselte Secure Socket Layer 
+(SSL)-Verbindungen, also https &uuml;ber den Proxy laufen d&uuml;rfen. 
+Diese Options sollte auf 443 gesetzt werden, um https zu erlauben, 
+es darf mehr als einen ssl-port-Eintag geben, wenn andere Ports 
+ben&ouml;tigt werden.
+
+<h3><a name="Options_dir-perm"></a>dir-perm = (octal int)</h3>
+
+<p>
+Die Verzeichnis-Zugriffsrechte, die beim Erstellen von
+Spool-Verzeichnissen verwendet werden (Standard: 0755). Diese Option
+&uuml;bergeht die umask-Einstellungen des Benutzers und muss als Oktal-Wert
+beginnend mit '0' angegeben werden.
+
+<h3><a name="Options_file-perm"></a>file-perm = (octal int)</h3>
+
+<p>
+Die Datei-Zugriffsrechte, die beim Erstellen von Spool-Files verwendet
+werden (Standard: 0644). Diese Option &uuml;bergeht die umask-Einstellungen
+des Benutzers und muss als Oktal-Wert beginnen mit '0' angegeben werden.
+
+<h3><a name="Options_run-online"></a>run-online = (filename)</h3>
+
+<p>
+Der Name eines Programms, das gestartet werden soll, wenn WWWOFFLE in
+den Online-Modus geschaltet wird (Standard:keins). Das Programm wird 
+mit einem einzigen Parameter gestartet, dem aktuellen Modus-Namen
+"online". 
+
+
+<h3><a name="Options_run-offline"></a>run-offline = (filename) </h3>
+
+<p>
+Der Name eines  Programms, das gestartet werden soll, wenn WWWOFFLE in 
+den Offline-Modus geschaltet wird (Standard:keins). Das Programm wird
+mit einem einzigen Parameter gestartet, dem aktuellen 
+Modus-Namen "offline".
+
+<h3><a name="Options_run-autodial"></a>run-autodial = (filename)</h3>
+
+<p>
+Der Name eines Programms, das gestartet werden soll, wenn WWWOFFLE in 
+den Autodial-Modus geschaltet wird (Standard:keins). Das Programm wird
+mit einem einzigen Parameter gestartet, dem aktuellen Modus-Namen
+"autodial". 
+
+
+<h3><a name="Options_run-fetch"></a>run-fetch = (filename) </h3>
+
+<p>
+Der Name eines Programms, das gestartet werden soll wenn WWWOFFLE mit
+dem Abruf von Bestellungen beginnt oder beendet. Das Programm wird mit
+zwei Parametern gestartet, der erste ist das Wort "fetch" und der zweite
+ist "start" oder "stop".
+
+<h3><a name="Options_lock-files"></a>lock-files = yes | no</h3>
+
+<p>
+Schalter zur Verwendung eines Lock-Files, um zu verhindern, dass mehr
+als ein WWWOFFLE-Prozess die gleiche URL zur gleichen Zeit abruft
+(Standard=no - kein Lockfile)
+
+<h3><a name="Options_reply-compressed-data"></a>reply-compressed-data = yes | no</h3>
+
+<p>
+Ob die Antworten die an den Browser gegeben werden, auf Anfrage
+komprimierte Daten enthalten sollen (Standard:no = Nein). Ben&ouml;tigt die
+zlib-Option beim Compilieren.
+
+<h3><a name="Options_exec-cgi"></a>exec-cgi = (pathname)</h3>
+
+<p>
+Schaltet die Verwendung von CGI-Scripts f&uuml;r die lokalen Seiten auf dem
+WWWOFFLE-Server, die der angegeben Pfad-Wildcard entsprechen
+(Standard:keine)
+
+<h2><a name="OnlineOptions"></a>OnlineOptions</h2>
+
+<p>
+Optionen, die das Verhalten von WWWOFFLE im Online-Modus steueren 
+
+<h3><a name="OnlineOptions_request-changed"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-changed = (time)</h3>
+
+<p>
+Im Online-Modus werden Seiten nur dann wirklich aus dem Netz geholt,
+wenn die Version im Cache &auml;lter als die angegebene Zeit in Sekunden ist
+(Standard=600). Wird dieser Wert auf einen negativen Wert gesetzt,
+zeigt dies an, dass die Seiten im Cache immer im Online-Modus verwendet
+werden. L&auml;ngere Zeitangaben k&ouml;nnen durch Verwendung von 'm' (Minuten),
+'h' (Stunden),'d' (Tage),'w' (Wochen) angegeben werden (z.B. 10m=600).
+
+<h3><a name="OnlineOptions_request-changed-once"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-changed-once = yes | no</h3>
+
+<p>
+Im Online-Modus werden Seiten nur dann wirklich aus dem Netz geholt,
+wenn die Version im Cache nicht schon einmal in der gleichen
+Online-Sitzung abgerufen wurde. (Standard=yes - Ja). Diese Option hat
+gegen&uuml;ber der request-changed-Option Vorrang.
+
+<h3><a name="OnlineOptions_request-expired"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-expired = yes | no </h3>
+
+<p>
+Im Online-Modus werden abgelaufene Seiten immer nochmal abgerufen 
+(Standard=no - nein). Diese Option hat gegen&uuml;ber der 
+request-changed-Option und der request-changed-once-Option Vorrang. 
+
+
+<h3><a name="OnlineOptions_request-no-cache"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-no-cache = yes | no </h3>
+
+<p>
+Im Online-Modus werden Seiten die nicht im Cache gespeichert werden
+sollen immer neu abgerufen (Standard=no - nein). Diese Option hat 
+gegen&uuml;ber den request-changed- und reqest-changed-once-Optionen 
+Vorrang. 
+
+
+<h3><a name="OnlineOptions_request-redirection"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-redirection = yes | no </h3>
+
+<p>
+Im Online-Modus werden Seiten die den Browser zeitweilig auf eine 
+andere URL umleiten neu abgerufen (Standard=no - nein). 
+Diese Option hat gegen&uuml;ber den request-changed-  und 
+reqest-changed-once-Optionen Vorrang. 
+
+
+<h3><a name="OnlineOptions_try-without-password"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] try-without-password = yes | no </h3>
+
+<p>
+Wird eine Seite die einen Usernamen und ein Passwort enth&auml;lt abgerufen,
+dann wird ein Abruf der gleichen Seite ohne angegebenen Usernamen 
+und Passwort durchgef&uuml;hrt. (Standard=yes - Ja). Dies erlaubt es f&uuml;r 
+Anfragen nach der Seite ohne ein Passwort den Browser auf die Seiten 
+mit Passwort umzuleiten. 
+
+
+<h3><a name="OnlineOptions_intr-download-keep"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] intr-download-keep = yes | no</h3>
+
+<p>
+Wenn im Online-Modus der Browser die Verbindung schliesst, soll die 
+gerade heruntergeladene, unvollst&auml;ndige Seite erhalten bleiben.
+(Standard: no - nein) 
+
+
+<h3><a name="OnlineOptions_intr-download-size"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] intr-download-size = (integer) </h3>
+
+<p>
+Wenn im Online-Modus der Browser die Verbindung schliesst, wird die
+Seite weitergeladen, wenn sie kleiner als die angegebene Gr&ouml;sse in 
+kByte ist.(Standard=1). 
+
+
+<h3><a name="OnlineOptions_intr-download-percent"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] intr-download-percent = (integer) </h3>
+
+<p>
+Wenn im Online-Modus der Browser die Verbindung schliesst, wird die 
+Seite weitergeladen, wenn sie zu mehr als dieser Prozentangabe 
+bereits vollst&auml;ndig ist (Standard=80) 
+
+
+<h3><a name="OnlineOptions_timeout-download-keep"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] timeout-download-keep = yes | no</h3>
+
+<p>
+Wenn die Server-Verbindung w&auml;hrend eines Lesezugriffs zu lange
+keine Daten sendet (timeout), soll die gerade heruntergeladene,
+unvollst&auml;ndige Seite erhalten bleiben (Standard=no - nein).
+
+
+<h3><a name="OnlineOptions_request-compressed-data"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-compressed-data = yes | no </h3>
+
+<p>
+Ob die Anfragen, die an die Server geschickt werden, komprimierte Daten
+anfordern solllen (Standard=yes - ja). Ben&ouml;tigt die zlib-Option beim
+Compilieren. 
+
+
+<h2><a name="OfflineOptions"></a>OfflineOptions</h2>
+
+<p>
+Optionen, die das Verhalten von WWWOFFLE im Offline-Modus steuern
+
+<h3><a name="OfflineOptions_pragma-no-cache"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] pragma-no-cache = yes | no</h3>
+
+<p>
+Ob eine neue Kopie der Seite abgerufen werden soll, wenn der Browser
+in der Anfrage 'Pragma: no-cache' gesetzt hat (Standard=yes - Ja).
+Diese Option sollte auf 'no' (Nein) gesetzt werden, wenn beim
+Offline-Browsen alle Seiten von einem "fehlerhaften" Browser neu
+angefragt werden.
+
+<h3><a name="OfflineOptions_confirm-requests"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] confirm-requests = yes | no</h3>
+
+<p>
+Ob im Offline-Modus jeweils eine Seite erscheint, die um Benutzer-
+Best&auml;tigung bittet, anstatt automatisch Bestellungen zu speichern.
+(Standard=no - nein)
+
+<h3><a name="OfflineOptions_dont-request"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] dont-request = yes | no</h3>
+
+<p>
+Seiten die dieser URL-Spezifikation entsprechen im Offline-Modus
+nicht abrufen. (Standard=keine)
+<p>
+
+
 <h2><a name="FetchOptions"></a>FetchOptions</h2>
+
+<p>
 Optionen die steuern, was beim Abruf offline bestellter Seiten 
 heruntergeladen wird. 
-<h3><a name="FetchOptions_stylesheets"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] stylesheets = yes | no
-</h3>
-	Ob Style-Sheets abgerufen werden sollen (Standard=no - nein) 
-	
-<h3><a name="FetchOptions_images"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] images = yes | no
-</h3>
-	Ob Bilder abgerufen werden sollen (Standard=no - nein)
-	
-<h3><a name="FetchOptions_webbug-images"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] webbug-images = yes | no 
-</h3>
-	Ob Bilder, die nur 1x1 -Pixel gro&szlig; sind, auch abgerufen werden sollen,
-	ben&ouml;tigt auch die Auswahl der images-Option. (Standard=yes - ja).
-	Diese Option ist zur Verwendung in Verbindung mit der 
-	replace-webbug-images-Option im ModfiyHTML-Abschnitt gedacht.
 
-<h3><a name="FetchOptions_frames"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] frames = yes | no 
-</h3>
-	Ob Frames abgerufen werden sollen (Standard=no - nein)
-<h3><a name="FetchOptions_scripts"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] scripts = yes | no 
-</h3>
-	Ob Scripte (z.B. Javascript) abgerufen werden sollen 
-	(Standard=no - nein) 
-<h3><a name="FetchOptions_objects"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] objects = yes | no 
-</h3>
-	Ob Objekte (z.B. Java class files) abgerufen werden sollen 
-	(Standard=no - nein) 
+<h3><a name="FetchOptions_stylesheets"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] stylesheets = yes | no</h3>
+
+<p>
+Ob Style-Sheets abgerufen werden sollen (Standard=no - nein) 
+
+
+<h3><a name="FetchOptions_images"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] images = yes | no</h3>
+
+<p>
+Ob Bilder abgerufen werden sollen (Standard=no - nein)
+
+
+<h3><a name="FetchOptions_webbug-images"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] webbug-images = yes | no </h3>
+
+<p>
+Ob Bilder, die nur 1x1 -Pixel gro&szlig; sind, auch abgerufen werden sollen,
+ben&ouml;tigt auch die Auswahl der images-Option. (Standard=yes - ja).
+Diese Option ist zur Verwendung in Verbindung mit der 
+replace-webbug-images-Option im ModfiyHTML-Abschnitt gedacht.
+
+
+<h3><a name="FetchOptions_frames"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] frames = yes | no </h3>
+
+<p>
+Ob Frames abgerufen werden sollen (Standard=no - nein)
+
+<h3><a name="FetchOptions_scripts"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] scripts = yes | no </h3>
+
+<p>
+Ob Scripte (z.B. Javascript) abgerufen werden sollen 
+(Standard=no - nein) 
+
+<h3><a name="FetchOptions_objects"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] objects = yes | no </h3>
+
+<p>
+Ob Objekte (z.B. Java class files) abgerufen werden sollen 
+(Standard=no - nein) 
+
 <h2><a name="IndexOptions"></a>IndexOptions</h2>
+
+<p>
 Option die steuern, was in den Seiten-Verzeichnissen angezeigt wird.
-<h3><a name="IndexOptions_no-lasttime-index"></a>no-lasttime-index = yes | no
-</h3>
-	Deaktiviert die Erstellung von Verzeichnissen der letzten/vorherigen
-	Online-Sitzung (Standard=no - nein)
-<h3><a name="IndexOptions_cycle-indexes-daily"></a>cycle-indexes-daily = yes | no 
-</h3>
-	Zyklus f&uuml;r die Z&auml;hlung letzte/vorherige Onlinesitzungen-Verzeichnisse
-	wechselt nur t&auml;glich anstatt mit jeder Online-Situng oder jedem Abruf
-	(Standard=no).
-<h3><a name="IndexOptions_list-outgoing"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; list-outgoing = yes | no
-</h3>
-	W&auml;hlt, ob die URL im Verzeichnis der Bestellung aufgef&uuml;hrt werden soll
-	(Standard=yes - ja)
-<h3><a name="IndexOptions_list-latest"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; list-latest = yes | no
-</h3>
-	W&auml;hlt, ob die URL im Verzeichnis der letzten/vorherigen Onlinesitzung
-	und der letzten/vorherigen Bestellungen aufgef&uuml;hrt werden soll.
-	(Standard=yes - ja)
-<h3><a name="IndexOptions_list-monitor"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; list-monitor = yes | no
-</h3>
-	W&auml;hlt, ob die URL im Verzeichniss der abonnierten URLs aufgef&uuml;hrt
-	werden soll (Standard=yes - ja) 
-	
-<h3><a name="IndexOptions_list-host"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; list-host = yes | no 
-</h3>
-	W&auml;hlt, ob die URL im Verzeichnis der Hosts aufgef&uuml;hrt werden soll 
-	(Standard=yes - ja) 
-	
-<h3><a name="IndexOptions_list-any"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; list-any = yes | no
-</h3>
-	W&auml;hlt, ob die URL in irgendeinem der Verzeichnisse aufgef&uuml;hrt werden
-	soll (Standard=yes)
+
+<h3><a name="IndexOptions_no-lasttime-index"></a>no-lasttime-index = yes | no</h3>
+
+<p>
+Deaktiviert die Erstellung von Verzeichnissen der letzten/vorherigen
+Online-Sitzung (Standard=no - nein)
+
+<h3><a name="IndexOptions_cycle-indexes-daily"></a>cycle-indexes-daily = yes | no </h3>
+
+<p>
+Zyklus f&uuml;r die Z&auml;hlung letzte/vorherige Onlinesitzungen-Verzeichnisse
+wechselt nur t&auml;glich anstatt mit jeder Online-Situng oder jedem Abruf
+(Standard=no).
+
+<h3><a name="IndexOptions_list-outgoing"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; list-outgoing = yes | no</h3>
+
+<p>
+W&auml;hlt, ob die URL im Verzeichnis der Bestellung aufgef&uuml;hrt werden soll
+(Standard=yes - ja)
+
+<h3><a name="IndexOptions_list-latest"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; list-latest = yes | no</h3>
+
+<p>
+W&auml;hlt, ob die URL im Verzeichnis der letzten/vorherigen Onlinesitzung
+und der letzten/vorherigen Bestellungen aufgef&uuml;hrt werden soll.
+(Standard=yes - ja)
+
+<h3><a name="IndexOptions_list-monitor"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; list-monitor = yes | no</h3>
+
+<p>
+W&auml;hlt, ob die URL im Verzeichniss der abonnierten URLs aufgef&uuml;hrt
+werden soll (Standard=yes - ja) 
+
+
+<h3><a name="IndexOptions_list-host"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; list-host = yes | no </h3>
+
+<p>
+W&auml;hlt, ob die URL im Verzeichnis der Hosts aufgef&uuml;hrt werden soll 
+(Standard=yes - ja) 
+
+
+<h3><a name="IndexOptions_list-any"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; list-any = yes | no</h3>
+
+<p>
+W&auml;hlt, ob die URL in irgendeinem der Verzeichnisse aufgef&uuml;hrt werden
+soll (Standard=yes)
+
 <h2><a name="ModifyHTML"></a>ModifyHTML</h2>
+
+<p>
 Optionen die steuern, in welcher Weise der HTML-Code, der im Cache
 gespeichert ist, ver&auml;ndert wird.
-<h3><a name="ModifyHTML_enable-modify-html"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; enable-modify-html = yes | no
-</h3>
-	Aktivieren der HTML-Ver&auml;nderungen dieses Abschnitts (Standard=no -nein).
-	Ist diese Option nicht aktiviert, haben die folgenden HTML-Optionen 
-	keinerlei Effekt. Ist diese Option aktiviert, ist WWWOFFLE ein 
-	bi&szlig;chen langsamer. 
-	
-<h3><a name="ModifyHTML_enable-modify-online"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] enable-modify-online = yes | no
-</h3>
-	Aktivieren der Ver&auml;nderungen dieses Abschnitts auch im Online-Modus so
-	wie im Offline-Modus (Standard=no - nein). Dies verursacht, dass die 
-	HTML-Seite oder die GIF-Datei nicht im Browser erscheint, bevor 
-	WWWOFFLE nicht alles abgearbeitet hat. Dies trifft nicht auf Seiten zu,
-	die nicht im Cache gespeichert werden. 
-	
-<h3><a name="ModifyHTML_add-cache-info"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] add-cache-info = yes | no
-</h3>
-	Am unteren Ende aller &uuml;bertragenen Seiten wird das Datum, an dem die 
-	Seite im Cache gespeichert wurde und einige Navigations-Elemente 
-	hinzugef&uuml;gt (Standard=nein). 
-<h3><a name="ModifyHTML_anchor-cached-begin"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] anchor-cached-begin = (HTML code) |
-</h3>
-	Links in der &uuml;bertragenen Seite, die im Cache gespeichert sind, 
-	erhalten den angegebenen HTML-Code vorangestellt. (Standard="").
-	
-<h3><a name="ModifyHTML_anchor-cached-end"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] anchor-cached-end = (HTML code) | 
-</h3>
-	Links in der &uuml;bertragenen Seite, die im Cache gespeichert sind,
-	erhalten den angegebenen HTML-Code angeh&auml;ngt. (Standard="").
-<h3><a name="ModifyHTML_anchor-requested-begin"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] anchor-requested-begin = (HTML code) |
-</h3>
-	Links in der &uuml;bertragenen Seite, die bereits zum Download bestellt 
-	sind, erhalten den angegebenen HTML-Code vorangestellt (Standard="").
-<h3><a name="ModifyHTML_anchor-requested-end"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] anchor-requested-end = (HTML code) |
-</h3>
-	Links in der &uuml;bertragenen Seite, die bereits zum Download bestellt
-	sind, erhalten den angegebenen HTML-Code angeh&auml;ngt (Standard="").
-<h3><a name="ModifyHTML_anchor-not-cached-begin"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] anchor-not-cached-begin = (HTML code) |
-</h3>
-	Links in der &uuml;bertragenen Seite, die nicht im Cache gespeichert oder
-	bestellt sind, erhalten den angegebenen HTML-Code vorangestellt
-	(Standard=""). 
-	
-<h3><a name="ModifyHTML_anchor-not-cached-end"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] anchor-not-cached-end = (HTML code) |
-</h3>
-	Links in der &uuml;bertragenen Seite, die nicht im Cache gespeichert oder 
-	bestellt sind, erhalten den angegebenen HTML-Code angeh&auml;ngt
-	(Standard=""). 
-	
-<h3><a name="ModifyHTML_disable-script"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-script = yes | no
-</h3>
-	Entfernt alle Skripte (Standard=no - nein) 
-	
-<h3><a name="ModifyHTML_disable-applet"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-applet = yes | no
-</h3>
-	Entfernt alle Java-Applets (Standard=no - nein) 
-	
-<h3><a name="ModifyHTML_disable-style"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-style = yes | no 
-</h3>
-	Entfernt alle Style-Sheets und Style-Verweise (Standard=no - nein)
-	
-<h3><a name="ModifyHTML_disable-blink"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-blink = yes | no 
-</h3>
-	Entfernt den &lt;blink&gt;-tag (Standard=no - nein). 
-<h3><a name="ModifyHTML_disable-flash"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-flash = yes | no
-</h3>
-	Entfernt Shockwave-Flash-Animationen (Standard=no - nein).
-	
-<h3><a name="ModifyHTML_disable-meta-refresh"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-meta-refresh = yes | no
-</h3>
-	Entfernt alle Meta-Tags im HTML-Header, die den Browser nach einer
-	Zeit auf eine andere Seite umleiten. (Standard=no - nein).
-	
-<h3><a name="ModifyHTML_disable-meta-refresh-self"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-meta-refresh-self = yes | no
-</h3>
-	Entfernt alle Meta-Tags im HTML-Header, die den Browser nach einer
-	Zeit dazu veranlassen, die gleiche Seite erneut zu laden
-	(Standard=no - nein). 
-	
-<h3><a name="ModifyHTML_disable-dontget-links"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-dontget-links = yes | no
-</h3>
-	Deaktiviert alle Links auf URLS, die im DontGet-Abschnitt der
-	Konfigurations-Datei aufgef&uuml;hrt sind (Standard=no - nein).
-<h3><a name="ModifyHTML_disable-dontget-iframes"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-dontget-iframes = yes | no
-</h3>
-	Deaktivert Inline-Frames-(iframe)-URLs, die im DontGet-Abschnitt der
-	Konfigurations-Datei aufgef&uuml;hrt sind (Standard=no - nein).
-	
-<h3><a name="ModifyHTML_replace-dontget-images"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] replace-dontget-images = yes | no
-</h3>
-	Ersetzt Bild-URLs, die im DontGet-Abschnitt der Konfigurations-Datei
-	aufgef&uuml;hrt werden mit eine statischen URL (Standard=no - nein) 
-	
-<h3><a name="ModifyHTML_replacement-dontget-image"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] replacement-dontget-image = (URL)
-</h3>
-	Die Ersatz-Bild-Datei zur Verwendung f&uuml;r URLs, die im DontGet-Abschnitt
-	der Konfigurations-Datei aufgef&uuml;hrt sind. 
-	(Standard=/local/dontget/replacement.gif). 
-	
-<h3><a name="ModifyHTML_replace-webbug-images"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] replace-webbug-images = yes | no
-</h3>
-	Ersetzt die URLs, die ein 1x1-Pixel-Bild enthalten durch eine statische
-	URL (Standard=no - nein). Diese Option ist gedacht zur Verwendung in 
-	Verbindung mit der webbug-images-Option im FetchOptions-Abschnitt.
-	
-<h3><a name="ModifyHTML_replacement-webbug-image"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] replacement-webbug-image = (URL)
-</h3>
-	Die Ersatz-Bild-Datei zur Verwendung f&uuml;r Bilder, die ein 1x1-Pixel Bild
-	sind. (Standard=/local/dontget/replacement.gif). 
-	
-<h3><a name="ModifyHTML_disable-animated-gif"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-animated-gif = yes | no
-</h3>
-	Deaktiviert die Animationen animierter GIF-Dateien (Standard=no - nein).
-	 
-<h3><a name="ModifyHTML_demoronise-ms-chars"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] demoronise-ms-chars = yes | no 
-</h3>
-	Ersetzt einige merkw&uuml;rdige Zeichen, die einige Microsoft-Anwendungen 
-	in HTML-Code verwenden, mit Entsprechungen, die von den meisten Browsern
-	dargestellt werden k&ouml;nnen (Standard=no - nein). Die Idee hierzu kommt
-	von dem Public-Domain Demoroniser-perl Script. 
+
+<h3><a name="ModifyHTML_enable-modify-html"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; enable-modify-html = yes | no</h3>
+
+<p>
+Aktivieren der HTML-Ver&auml;nderungen dieses Abschnitts (Standard=no -nein).
+Ist diese Option nicht aktiviert, haben die folgenden HTML-Optionen 
+keinerlei Effekt. Ist diese Option aktiviert, ist WWWOFFLE ein 
+bi&szlig;chen langsamer. 
+
+<h3><a name="ModifyHTML_add-cache-info"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] add-cache-info = yes | no</h3>
+
+<p>
+Am unteren Ende aller &uuml;bertragenen Seiten wird das Datum, an dem die 
+Seite im Cache gespeichert wurde und einige Navigations-Elemente 
+hinzugef&uuml;gt (Standard=nein). 
+
+<h3><a name="ModifyHTML_anchor-cached-begin"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] anchor-cached-begin = (HTML code) |</h3>
+
+<p>
+Links in der &uuml;bertragenen Seite, die im Cache gespeichert sind, 
+erhalten den angegebenen HTML-Code vorangestellt. (Standard="").
+
+
+<h3><a name="ModifyHTML_anchor-cached-end"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] anchor-cached-end = (HTML code) | </h3>
+
+<p>
+Links in der &uuml;bertragenen Seite, die im Cache gespeichert sind,
+erhalten den angegebenen HTML-Code angeh&auml;ngt. (Standard="").
+
+<h3><a name="ModifyHTML_anchor-requested-begin"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] anchor-requested-begin = (HTML code) |</h3>
+
+<p>
+Links in der &uuml;bertragenen Seite, die bereits zum Download bestellt 
+sind, erhalten den angegebenen HTML-Code vorangestellt (Standard="").
+
+<h3><a name="ModifyHTML_anchor-requested-end"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] anchor-requested-end = (HTML code) |</h3>
+
+<p>
+Links in der &uuml;bertragenen Seite, die bereits zum Download bestellt
+sind, erhalten den angegebenen HTML-Code angeh&auml;ngt (Standard="").
+
+<h3><a name="ModifyHTML_anchor-not-cached-begin"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] anchor-not-cached-begin = (HTML code) |</h3>
+
+<p>
+Links in der &uuml;bertragenen Seite, die nicht im Cache gespeichert oder
+bestellt sind, erhalten den angegebenen HTML-Code vorangestellt
+(Standard=""). 
+
+
+<h3><a name="ModifyHTML_anchor-not-cached-end"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] anchor-not-cached-end = (HTML code) |</h3>
+
+<p>
+Links in der &uuml;bertragenen Seite, die nicht im Cache gespeichert oder 
+bestellt sind, erhalten den angegebenen HTML-Code angeh&auml;ngt
+(Standard=""). 
+
+
+<h3><a name="ModifyHTML_disable-script"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-script = yes | no</h3>
+
+<p>
+Entfernt alle Skripte (Standard=no - nein) 
+
+
+<h3><a name="ModifyHTML_disable-applet"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-applet = yes | no</h3>
+
+<p>
+Entfernt alle Java-Applets (Standard=no - nein) 
+
+
+<h3><a name="ModifyHTML_disable-style"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-style = yes | no </h3>
+
+<p>
+Entfernt alle Style-Sheets und Style-Verweise (Standard=no - nein)
+
+
+<h3><a name="ModifyHTML_disable-blink"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-blink = yes | no </h3>
+
+<p>
+Entfernt den &lt;blink&gt;-tag (Standard=no - nein). 
+
+<h3><a name="ModifyHTML_disable-flash"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-flash = yes | no</h3>
+
+<p>
+Entfernt Shockwave-Flash-Animationen (Standard=no - nein).
+
+
+<h3><a name="ModifyHTML_disable-meta-refresh"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-meta-refresh = yes | no</h3>
+
+<p>
+Entfernt alle Meta-Tags im HTML-Header, die den Browser nach einer
+Zeit auf eine andere Seite umleiten. (Standard=no - nein).
+
+
+<h3><a name="ModifyHTML_disable-meta-refresh-self"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-meta-refresh-self = yes | no</h3>
+
+<p>
+Entfernt alle Meta-Tags im HTML-Header, die den Browser nach einer
+Zeit dazu veranlassen, die gleiche Seite erneut zu laden
+(Standard=no - nein). 
+
+
+<h3><a name="ModifyHTML_disable-dontget-links"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-dontget-links = yes | no</h3>
+
+<p>
+Deaktiviert alle Links auf URLS, die im DontGet-Abschnitt der
+Konfigurations-Datei aufgef&uuml;hrt sind (Standard=no - nein).
+
+<h3><a name="ModifyHTML_disable-dontget-iframes"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-dontget-iframes = yes | no</h3>
+
+<p>
+Deaktivert Inline-Frames-(iframe)-URLs, die im DontGet-Abschnitt der
+Konfigurations-Datei aufgef&uuml;hrt sind (Standard=no - nein).
+
+
+<h3><a name="ModifyHTML_replace-dontget-images"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] replace-dontget-images = yes | no</h3>
+
+<p>
+Ersetzt Bild-URLs, die im DontGet-Abschnitt der Konfigurations-Datei
+aufgef&uuml;hrt werden mit eine statischen URL (Standard=no - nein) 
+
+
+<h3><a name="ModifyHTML_replacement-dontget-image"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] replacement-dontget-image = (URL)</h3>
+
+<p>
+Die Ersatz-Bild-Datei zur Verwendung f&uuml;r URLs, die im DontGet-Abschnitt
+der Konfigurations-Datei aufgef&uuml;hrt sind. 
+(Standard=/local/dontget/replacement.gif). 
+
+
+<h3><a name="ModifyHTML_replace-webbug-images"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] replace-webbug-images = yes | no</h3>
+
+<p>
+Ersetzt die URLs, die ein 1x1-Pixel-Bild enthalten durch eine statische
+URL (Standard=no - nein). Diese Option ist gedacht zur Verwendung in 
+Verbindung mit der webbug-images-Option im FetchOptions-Abschnitt.
+
+
+<h3><a name="ModifyHTML_replacement-webbug-image"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] replacement-webbug-image = (URL)</h3>
+
+<p>
+Die Ersatz-Bild-Datei zur Verwendung f&uuml;r Bilder, die ein 1x1-Pixel Bild
+sind. (Standard=/local/dontget/replacement.gif). 
+
+
+<h3><a name="ModifyHTML_disable-animated-gif"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-animated-gif = yes | no</h3>
+
+<p>
+Deaktiviert die Animationen animierter GIF-Dateien (Standard=no - nein).
+
+
+<h3><a name="ModifyHTML_demoronise-ms-chars"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] demoronise-ms-chars = yes | no </h3>
+
+<p>
+Ersetzt einige merkw&uuml;rdige Zeichen, die einige Microsoft-Anwendungen 
+in HTML-Code verwenden, mit Entsprechungen, die von den meisten Browsern
+dargestellt werden k&ouml;nnen (Standard=no - nein). Die Idee hierzu kommt
+von dem Public-Domain Demoroniser-perl Script. 
+
 <h2><a name="LocalHost"></a>LocalHost</h2>
+
+<p>
 Eine Liste der Hostnamen unter denen der Host, auf dem der WWWOFFLE-Server
 l&auml;uft, bekannt ist. Diese Option existiert, damit der Proxy sich nicht selbst
 kontaktieren muss, wenn die Anfrage einen anderen Namen f&uuml;r den selben Server
 verwendet.
-<h3><a name="LocalHost_(host)"></a>(host)
-</h3>
-	Ein Hostname oder eine IP-Adresse, die in Verbindung mit der 
-	Port-Nummer (im Startup-Abschnitt) den WWWOFFLE-Proxy-HTTP-Server
-	angibt. Der Hostname muss exakt passen, es ist keine <a href="#WILDCARD">WILDCARD</a>. Der
-	erste benannte Host wird als Server-Name f&uuml;r verschiedene Funktionen
-	verwendet, es muss sich daher um einen Namen handeln, der f&uuml;r jeden
-	Client-Host funktioniert. Keiner der hier benannten Hosts wird im
-	Cache gespeichert oder &uuml;ber einen Proxy abgerufen.
+
+<h3><a name="LocalHost_(host)"></a>(host)</h3>
+
+<p>
+Ein Hostname oder eine IP-Adresse, die in Verbindung mit der 
+Port-Nummer (im Startup-Abschnitt) den WWWOFFLE-Proxy-HTTP-Server
+angibt. Der Hostname muss exakt passen, es ist keine <a href="#WILDCARD">WILDCARD</a>. Der
+erste benannte Host wird als Server-Name f&uuml;r verschiedene Funktionen
+verwendet, es muss sich daher um einen Namen handeln, der f&uuml;r jeden
+Client-Host funktioniert. Keiner der hier benannten Hosts wird im
+Cache gespeichert oder &uuml;ber einen Proxy abgerufen.
+
 <h2><a name="LocalNet"></a>LocalNet</h2>
+
+<p>
 Eine Liste der Hostnamen deren Web-Server immer zugreifbar sind, auch im
 Offline-Modus und die nicht im WWWOFFLE-Cache gespeichert werden sollen, da
 sie im lokalen Netzwerk sind.
-<h3><a name="LocalNet_(host)"></a>(host)
-</h3>
-	Ein Hostname oder eine IP-Adresse, die immer verf&uuml;gbar ist und nicht
-	im WWWOFFLE-Cache gespeichert werden soll. Beim Hostname d&uuml;rfen
-	<a href="#WILDCARD">WILDCARD</a>s verwendet werden. Ein Host kann ausgeschlossen werden durch
-	Einf&uuml;gen eines '!' an den Anfang des Namens, alle m&ouml;glichen Aliases
-	und IP-Adressen f&uuml;r den Host m&uuml;ssen ebenfalls angegeben werden. 
-	Zu allen hier eingetragenen Hosts wird angenommen, dass sie erreichbar
-	sind - auch im Offline-Modus. Keiner der hier genannten Hosts wird
-	im Cache gespeichert oder &uuml;ber ein Proxy abgerufen. 
+
+<h3><a name="LocalNet_(host)"></a>(host)</h3>
+
 <p>
-	
+Ein Hostname oder eine IP-Adresse, die immer verf&uuml;gbar ist und nicht
+im WWWOFFLE-Cache gespeichert werden soll. Beim Hostname d&uuml;rfen
+<a href="#WILDCARD">WILDCARD</a>s verwendet werden. Ein Host kann ausgeschlossen werden durch
+Einf&uuml;gen eines '!' an den Anfang des Namens, alle m&ouml;glichen Aliases
+und IP-Adressen f&uuml;r den Host m&uuml;ssen ebenfalls angegeben werden. 
+Zu allen hier eingetragenen Hosts wird angenommen, dass sie erreichbar
+sind - auch im Offline-Modus. Keiner der hier genannten Hosts wird
+im Cache gespeichert oder &uuml;ber ein Proxy abgerufen. 
+<p>
+
+
 <h2><a name="AllowedConnectHosts"></a>AllowedConnectHosts</h2>
+
+<p>
 Eine Liste der Client-Hostnamen, denen es erlaubt ist, zum WWWOFFLE-Server
 Verbindungen aufzubauen. 
-<h3><a name="AllowedConnectHosts_(host)"></a>(host)
-</h3>
-	Ein Hostname oder eine IP-Adresse, der es erlaubt ist, eine Verbindung
-	zum Server aufzubauen. Beim Hostnamen d&uuml;rfen <a href="#WILDCARD">WILDCARD</a>s verwendet werden.
-	Ein Host kann ausgeschlossen werden durch Einf&uuml;gen eines '!' an den 
-	Anfang des Namens, alle m&ouml;glichen Aliases und IP-Adressen f&uuml;r den Host
-	m&uuml;ssen ebenfalls angegeben werden. Alle im Abschnitt LocalHost
-	genannten Hosts d&uuml;rfen ebenfalls eine Verbindung herstellen. 
-	
+
+<h3><a name="AllowedConnectHosts_(host)"></a>(host)</h3>
+
+<p>
+Ein Hostname oder eine IP-Adresse, der es erlaubt ist, eine Verbindung
+zum Server aufzubauen. Beim Hostnamen d&uuml;rfen <a href="#WILDCARD">WILDCARD</a>s verwendet werden.
+Ein Host kann ausgeschlossen werden durch Einf&uuml;gen eines '!' an den 
+Anfang des Namens, alle m&ouml;glichen Aliases und IP-Adressen f&uuml;r den Host
+m&uuml;ssen ebenfalls angegeben werden. Alle im Abschnitt LocalHost
+genannten Hosts d&uuml;rfen ebenfalls eine Verbindung herstellen. 
+
+
 <h2><a name="AllowedConnectUsers"></a>AllowedConnectUsers</h2>
+
+<p>
 Eine Liste der User die eine Verbindung zum Server herstellen d&uuml;rfen und ihre
 Passw&ouml;rter. 
+
 <h3>(username):(password)</h3>
-	Der Username und das Passwort der User, die eine Verbindung zum Server
-	herstellen d&uuml;rfen. Is dieser Abschnitt leer, wird keine
-	User-Authentifizierung durchgef&uuml;hrt. Der Username und das Passwort
-	werden beide in unverschl&uuml;sselter Form gespeichert. Die Option setzt
-	die Verwendung eines Browser voraus, der den  
-	HTTP/1.1-Proxy-Authentifizierungs-Standard verarbeitet.
+
+<p>
+Der Username und das Passwort der User, die eine Verbindung zum Server
+herstellen d&uuml;rfen. Is dieser Abschnitt leer, wird keine
+User-Authentifizierung durchgef&uuml;hrt. Der Username und das Passwort
+werden beide in unverschl&uuml;sselter Form gespeichert. Die Option setzt
+die Verwendung eines Browser voraus, der den  
+HTTP/1.1-Proxy-Authentifizierungs-Standard verarbeitet.
+
 <h2><a name="DontCache"></a>DontCache</h2>
+
+<p>
 Eine Liste von URLs, die nicht im WWWOFFLE-Cache gespeichert werden sollen.
+
 <h3>[!]<a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> </h3>
-	Speichere keine URLs die zur angegebenen URL-Spezifikation passen.
-	Die <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> kann umgekehrt werden um passende URLs im Cache
-	zu speichern (Angabe von '!'). Die URLs, die nicht im Cache gespeichert
-	werden sollen, werden auch nicht offline bestellt.
+
+<p>
+Speichere keine URLs die zur angegebenen URL-Spezifikation passen.
+Die <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> kann umgekehrt werden um passende URLs im Cache
+zu speichern (Angabe von '!'). Die URLs, die nicht im Cache gespeichert
+werden sollen, werden auch nicht offline bestellt.
+
 <h2><a name="DontGet"></a>DontGet</h2>
+
+<p>
 Eine Liste von URLs, die nicht von WWWOFFLE abgerufen werden soll
+
 <h3>(z.B. weil sie nur M&uuml;ll-Werbung enthalten) </h3>
+
+<p>
+
 <h3>[!]<a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> </h3>
-	Hole keine URLs, die zur angegebenen URL-Spezifikation passen. 
-	Die <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> kann umgekehrt werden, um die passenden URLs
-	zuzulassen (Angabe von '!')
-	
-<h3><a name="DontGet_replacement"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] replacement = (URL) 
-</h3>
-	Die URL die zum Ersetzen jeglicher URLs, die zur angegebenen
-	<a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> passen, anstelle einer Standard-Fehler-Meldung 
-	(Standard=keine). Die URLs in /local/dontget/ sind vorgeschlagene 
-	Ersatzdateien (z.B. replacement.gif oder replacement.png, 
-	die 1x1 pixel transparente Bilder sind, oder replacement.js,
-	welches eine leeres Javascript-Datei ist).
-<h3><a name="DontGet_get-recursive"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; get-recursive = yes | no
-</h3>
-	W&auml;hlt ob die hierzu passenden URLs beim rekursiven Abruf abgerufen
-	werden (Standard=yes - ja).
-<h3><a name="DontGet_location-error"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; location-error = yes | no
-</h3>
-	Wenn die Antwort auf eine URL einen 'Location'-Header enth&auml;lt, der
-	auf eine URL umleitet, die nicht (weil in diesem Abschnitt aufgef&uuml;hrt)
-	abgerufen  werden soll, wird die Antwort stattdessen in eine 
-	Fehlermeldung gewandelt (standard=no - nein). Dies verhindert, dass 
-	ISP-Proxies ihre Benutzer auf Werbeseiten umleiten, wenn diese 
-	Werbe-URLs in diesem Abschnitt gelistet werden.
+
+<p>
+Hole keine URLs, die zur angegebenen URL-Spezifikation passen. 
+Die <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> kann umgekehrt werden, um die passenden URLs
+zuzulassen (Angabe von '!')
+
+
+<h3><a name="DontGet_replacement"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] replacement = (URL) </h3>
+
+<p>
+Die URL die zum Ersetzen jeglicher URLs, die zur angegebenen
+<a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> passen, anstelle einer Standard-Fehler-Meldung 
+(Standard=keine). Die URLs in /local/dontget/ sind vorgeschlagene 
+Ersatzdateien (z.B. replacement.gif oder replacement.png, 
+die 1x1 pixel transparente Bilder sind, oder replacement.js,
+welches eine leeres Javascript-Datei ist).
+
+<h3><a name="DontGet_get-recursive"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; get-recursive = yes | no</h3>
+
+<p>
+W&auml;hlt ob die hierzu passenden URLs beim rekursiven Abruf abgerufen
+werden (Standard=yes - ja).
+
+<h3><a name="DontGet_location-error"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; location-error = yes | no</h3>
+
+<p>
+Wenn die Antwort auf eine URL einen 'Location'-Header enth&auml;lt, der
+auf eine URL umleitet, die nicht (weil in diesem Abschnitt aufgef&uuml;hrt)
+abgerufen  werden soll, wird die Antwort stattdessen in eine 
+Fehlermeldung gewandelt (standard=no - nein). Dies verhindert, dass 
+ISP-Proxies ihre Benutzer auf Werbeseiten umleiten, wenn diese 
+Werbe-URLs in diesem Abschnitt gelistet werden.
+
 <h2><a name="DontCompress"></a>DontCompress</h2>
+
+<p>
 Eine Liste derMIME-Typen und Datei-Erweiterungen, die nicht von WWWOFFLE
 komprimiert  werden sollen (weil sie bereits komprimiert sind oder es nicht 
 wert sind komprimiert zu werden). Dies ben&ouml;tigt die zlib-Option beim
 Compilieren. 
-<h3><a name="DontCompress_mime-type"></a>mime-type = (mime-type)/(subtype)
-</h3>
-	Der MIME-Typ einer URL, die nicht im Cache oder beim &Uuml;bertragen 
-	komprimierter Seiten zum Browser komprimiert werden soll.
-<h3><a name="DontCompress_file-ext"></a>file-ext = .(file-ext) 
-</h3>
-	Die Datei-Erweiterung einer URL, die nicht komprimiert vom Server
-	angefordert werden soll.
+
+<h3><a name="DontCompress_mime-type"></a>mime-type = (mime-type)/(subtype)</h3>
+
+<p>
+Der MIME-Typ einer URL, die nicht im Cache oder beim &Uuml;bertragen 
+komprimierter Seiten zum Browser komprimiert werden soll.
+
+<h3><a name="DontCompress_file-ext"></a>file-ext = .(file-ext) </h3>
+
+<p>
+Die Datei-Erweiterung einer URL, die nicht komprimiert vom Server
+angefordert werden soll.
+
 <h2><a name="CensorHeader"></a>CensorHeader</h2>
+
+<p>
 Eine Liste der HTTP-Header-Zeilen, die von den Anfragen, die an die
 Webserver gehen, entfernt werden sollen, sowie von den Antworten, die
 von ihnen zur&uuml;ckkommen. 
-<h3><a name="CensorHeader_(header)"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] (header) = yes | no | (string)
-</h3>
-	Ein Header-Feld-Name (z.B. From, Cookie, Set-Cookie, User-Agent) und
-	der String, mit dem dieser Header ersetzt werden soll 
-	(Standard=keiner). Der Header ber&uuml;cksichtigt Gross-/Kleinschreibung 
-	und hat kein ':' am Ende. Ein Wert von 'no' meint, der Header wird 
-	nicht ver&auml;ndert, "yes" oder kein String kann verwendet werden, um
-	den Header zu entfernen oder ein String kann verwendet werden, um den
-	Header zu ersetzen. Dies ersetzt nur vorgefundene Header, es werden 
-	keine neuen erzeugt. Eine Option f&uuml;r 'Referer' an dieser Stelle hat
-	Vorrang gegen&uuml;ber den referer-self- und referer-self-dir-Optionen.
-	
-<h3><a name="CensorHeader_referer-self"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] referer-self = yes | no
-</h3>
-	Setzt den Referer-Header auf die gleiche URL, die angefordert wird
-	(Standard=no - nein). Diese Option f&uuml;gt einen Referer-Header hinzu, 
-	wenn in der Original-Anfrage keiner vorhanden ist. 
-	
-<h3><a name="CensorHeader_referer-self-dir"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] referer-self-dir = yes | no
-</h3>
-	Setzt den Referer-Header auf den Verzeichnisnamen der URL, die
-	angefordert wird (Standard=no - nein). Diese Option f&uuml;gt einen 
-	Referer-Header hinzu, wenn in der Original-Anfrage keiner vorhanden 
-	ist. Die Option hat Vorrang gegegen&uuml;ber der referer-self-Option. 
+
+<h3><a name="CensorHeader_(header)"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] (header) = yes | no | (string)</h3>
+
+<p>
+Ein Header-Feld-Name (z.B. From, Cookie, Set-Cookie, User-Agent) und
+der String, mit dem dieser Header ersetzt werden soll 
+(Standard=keiner). Der Header ber&uuml;cksichtigt Gross-/Kleinschreibung 
+und hat kein ':' am Ende. Ein Wert von 'no' meint, der Header wird 
+nicht ver&auml;ndert, "yes" oder kein String kann verwendet werden, um
+den Header zu entfernen oder ein String kann verwendet werden, um den
+Header zu ersetzen. Dies ersetzt nur vorgefundene Header, es werden 
+keine neuen erzeugt. Eine Option f&uuml;r 'Referer' an dieser Stelle hat
+Vorrang gegen&uuml;ber den referer-self- und referer-self-dir-Optionen.
+
+
+<h3><a name="CensorHeader_referer-self"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] referer-self = yes | no</h3>
+
+<p>
+Setzt den Referer-Header auf die gleiche URL, die angefordert wird
+(Standard=no - nein). Diese Option f&uuml;gt einen Referer-Header hinzu, 
+wenn in der Original-Anfrage keiner vorhanden ist. 
+
+
+<h3><a name="CensorHeader_referer-self-dir"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] referer-self-dir = yes | no</h3>
+
+<p>
+Setzt den Referer-Header auf den Verzeichnisnamen der URL, die
+angefordert wird (Standard=no - nein). Diese Option f&uuml;gt einen 
+Referer-Header hinzu, wenn in der Original-Anfrage keiner vorhanden 
+ist. Die Option hat Vorrang gegegen&uuml;ber der referer-self-Option. 
+
 <h2><a name="FTPOptions"></a>FTPOptions</h2>
+
+<p>
 Optionen zur Verwendung beim Abruf von Dateien &uuml;ber das ftp-Protokoll.
-<h3><a name="FTPOptions_anon-username"></a>anon-username = (string)
-</h3>
-	Der Username zur Verwendung f&uuml;r anonymen ftp-Zugriff
-	(Standard=anonymous).
-<h3><a name="FTPOptions_anon-password"></a>anon-password = (string)
-</h3>
-	Das Passwort zur Verwendung f&uuml;r anonymen ftp-Zugriff
-	(Standard wird zur Laufzeit festgestellt). Bei Verwendung einer 
-	Firewall kann dies einen Wert enthalten, der f&uuml;r den FTP-Server nicht
-	g&uuml;ltig ist und es muss m&ouml;glicheweise ein anderer Wert gesetzt werden.
-<h3><a name="FTPOptions_auth-username"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; auth-username = (string)
-</h3>
-	Der Username zu Verwendung auf einem Host anstelle des
-	Standard-Usernamen f&uuml;r anonyme Zugriffe.
-<h3><a name="FTPOptions_auth-password"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; auth-password = (string)
-</h3>
-	Das Passwort zur Verwendung auf einem Host anstelle des
-	Standard-Passwort f&uuml;r anonyme Zugriffe.
+
+<h3><a name="FTPOptions_anon-username"></a>anon-username = (string)</h3>
+
+<p>
+Der Username zur Verwendung f&uuml;r anonymen ftp-Zugriff
+(Standard=anonymous).
+
+<h3><a name="FTPOptions_anon-password"></a>anon-password = (string)</h3>
+
+<p>
+Das Passwort zur Verwendung f&uuml;r anonymen ftp-Zugriff
+(Standard wird zur Laufzeit festgestellt). Bei Verwendung einer 
+Firewall kann dies einen Wert enthalten, der f&uuml;r den FTP-Server nicht
+g&uuml;ltig ist und es muss m&ouml;glicheweise ein anderer Wert gesetzt werden.
+
+<h3><a name="FTPOptions_auth-username"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; auth-username = (string)</h3>
+
+<p>
+Der Username zu Verwendung auf einem Host anstelle des
+Standard-Usernamen f&uuml;r anonyme Zugriffe.
+
+<h3><a name="FTPOptions_auth-password"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; auth-password = (string)</h3>
+
+<p>
+Das Passwort zur Verwendung auf einem Host anstelle des
+Standard-Passwort f&uuml;r anonyme Zugriffe.
+
 <h2><a name="MIMETypes"></a>MIMETypes</h2>
+
+<p>
 MIME-Typen zur Verwendung beim Liefern von Dateien, die nicht &uuml;ber HTTP
 angefordert wurden oder f&uuml;r Dateien vom eingauten Web-Server. 
-<h3><a name="MIMETypes_default"></a>default = (mime-type)/(subtype)
-</h3>
-	Der Standard-MIME-Typ (Standard=text/plain).
-	
-<h3><a name="MIMETypes_.(file-ext)"></a>.(file-ext) = (mime-type)/(subtype)
-</h3>
-	Der MIME-Typ, der zu einer Dateierweiterung assoziiert werden soll.
-	Der '.' muss in der Dateierweiterung mitangegeben werden. Wenn mehr als 
-	eine Erweiterung passt, wird die l&auml;ngste verwendet. 
+
+<h3><a name="MIMETypes_default"></a>default = (mime-type)/(subtype)</h3>
+
+<p>
+Der Standard-MIME-Typ (Standard=text/plain).
+
+
+<h3><a name="MIMETypes_.(file-ext)"></a>.(file-ext) = (mime-type)/(subtype)</h3>
+
+<p>
+Der MIME-Typ, der zu einer Dateierweiterung assoziiert werden soll.
+Der '.' muss in der Dateierweiterung mitangegeben werden. Wenn mehr als 
+eine Erweiterung passt, wird die l&auml;ngste verwendet. 
+
 <h2><a name="Proxy"></a>Proxy</h2>
+
+<p>
 Dieser Abschnitt beinhaltet die Namen der HTTP-Proxies (oder andere) zur 
 externen Verwendung f&uuml;r den WWWOFFLE-Server 
-<h3><a name="Proxy_proxy"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] proxy = (host[:port])
-</h3>
-	Der Hostname und Port zur Verwendung als Proxy [f&uuml;r die angegebene
-	URL-Spezifikation]
-<h3><a name="Proxy_auth-username"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; auth-username = (string)
-</h3>
-	Der Username zur Verwendung auf einem Proxy-Host zur Authentifizierung
-	von WWWOFFLE. Die <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> bezieht sich in diesem Fall auf
-	den Proxy und nicht die angeforderte URL.
-<h3><a name="Proxy_auth-password"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; auth-password = (string) 
-</h3>
-	Das Passwort zur Verwendung auf einem Proxy-Host zur Authentifizierung
-	von WWWOFFLE. Die <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> bezieht sich in diesem Fall auf
-	den Proxy und nicht die angeforderte URL. 
-	
-<h3><a name="Proxy_ssl"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] ssl = (host[:port])
-</h3>
-	Ein Proxy-Server der f&uuml;r Secure Socket Layer (SSL)-Verbindungen 
-	verwendet werden soll (https). Beachten Sie bei der
-	<a href="#URL-SPECIFICATION">URL-SPECIFICATION</a>, dass nur der Host gepr&uuml;ft wird und die
-	anderen Teile '*'-<a href="#WILDCARD">WILDCARD</a>s sein m&uuml;ssen. 
+
+<h3><a name="Proxy_proxy"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] proxy = (host[:port])</h3>
+
+<p>
+Der Hostname und Port zur Verwendung als Proxy [f&uuml;r die angegebene
+URL-Spezifikation]
+
+<h3><a name="Proxy_auth-username"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; auth-username = (string)</h3>
+
+<p>
+Der Username zur Verwendung auf einem Proxy-Host zur Authentifizierung
+von WWWOFFLE. Die <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> bezieht sich in diesem Fall auf
+den Proxy und nicht die angeforderte URL.
+
+<h3><a name="Proxy_auth-password"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; auth-password = (string) </h3>
+
+<p>
+Das Passwort zur Verwendung auf einem Proxy-Host zur Authentifizierung
+von WWWOFFLE. Die <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> bezieht sich in diesem Fall auf
+den Proxy und nicht die angeforderte URL. 
+
+
+<h3><a name="Proxy_ssl"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] ssl = (host[:port])</h3>
+
+<p>
+Ein Proxy-Server der f&uuml;r Secure Socket Layer (SSL)-Verbindungen 
+verwendet werden soll (https). Beachten Sie bei der
+<a href="#URL-SPECIFICATION">URL-SPECIFICATION</a>, dass nur der Host gepr&uuml;ft wird und die
+anderen Teile '*'-<a href="#WILDCARD">WILDCARD</a>s sein m&uuml;ssen. 
+
 <h2><a name="Alias"></a>Alias</h2>
+
+<p>
 Eine Liste von Alias-Namen, die verwendet werden, um Server-Namen und Pfade in
 andere Server-Namen und Pfade zu ersetzen.
+
 <h3><a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> = <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a></h3>
-	Jegliche Anfragen, die zur ersten <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> passen, werden durch
-	die zweite <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> ersetzt. Die erste <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> ist
-	eine Wildcard f&uuml;r Protokoll und Port, der Pfad muss exakt mit dem
-	Beginn der angefragten URL &uuml;bereinstimmen und schliesst s&auml;mtliche
-	Unterverzeichnisse ein.
+
+<p>
+Jegliche Anfragen, die zur ersten <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> passen, werden durch
+die zweite <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> ersetzt. Die erste <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> ist
+eine Wildcard f&uuml;r Protokoll und Port, der Pfad muss exakt mit dem
+Beginn der angefragten URL &uuml;bereinstimmen und schliesst s&auml;mtliche
+Unterverzeichnisse ein.
+
 <h2><a name="Purge"></a>Purge</h2>
+
+<p>
 Die Methode zum Feststellen, welche Seiten beim Reinigen des Cache gel&ouml;scht 
 werden sollen, das voreingestellte maximale Alter, das Host-spezifische 
 maximale Alter der Seiten in Tagen und die maximale Cache-Gr&ouml;sse.
-<h3><a name="Purge_use-mtime"></a>use-mtime = yes | no
-</h3>
-	Die zu verwendende Methode zur Entscheidung welche Dateien gel&ouml;scht
-	werden sollen, nach letzter Zugriffs-Zeit (atime) oder letzter
-	&Auml;nderung (modification time / mtime)
-	(Standard=no nein, nicht mtime verwenden)
-<h3><a name="Purge_max-size"></a>max-size = (size)
-</h3>
-	Die maximale Gr&ouml;sse des Cache im MB nach dem Reinigen (purge)
-	(Standard=0). Eine maximale Cache-Gr&ouml;sse von 0 meint, es
-	gibt keine Gr&ouml;ssenbeschr&auml;nkung. Wird diese Option zusammen mit der
-	min-free-Option verwendet, wird die kleinere Cache-Gr&ouml;sse verwendet.
-	Diese Option ber&uuml;cksichtig die URLs, die nie gel&ouml;scht werden sollen,
-	beim Ermitteln der Cache-Gr&ouml;sse, aber l&ouml;scht diese nicht.
-	
-<h3><a name="Purge_min-free"></a>min-free = (size)
-</h3>
-	Der minimale freie Disk-Speicherplatz in MB nach dem Reinigen
-	(Standard=0). Ein minimaler freier Speicherplatz von 0 meint, dass 
-	es keine Mindestanforderungen f&uuml;r den freien Speicher gibt. Wird
-	diese Option zusammen mit der max-size-Option benutzt, wird die
-	kleinere Cache-Gr&ouml;sse verwendet. Diese Option ber&uuml;cksichtigt die URLs,
-	die nie gel&ouml;scht werden sollen, beim Ermitteln der Cache-Gr&ouml;sse aber
-	l&ouml;scht diese nicht.
-	
-<h3><a name="Purge_use-url"></a>use-url = yes | no
-</h3>
-	Wenn auf 'yes' gesetzt, wird die URL zur Feststellung des
-	L&ouml;sch-Alters verwendet, andernfalls nur das Protokoll und der Host
-	(Standard=no - nur Protokoll und Host)
-<h3><a name="Purge_del-dontget"></a>del-dontget = yes | no
-</h3>
-	Wenn auf 'yes' gesetzt, werden URLs die im DontGet-Abschnitt
-	aufgef&uuml;hrt werden gel&ouml;scht. (Standard=no) 
-<h3><a name="Purge_del-dontcache"></a>del-dontcache = yes | no
-</h3>
-	Wenn auf 'yes' gesetzt, wedren URLs, die zu Eintr&auml;gen im 
-	DontCache-Abschnitt passen, gel&ouml;scht. (Standard=no) 
-	
-<h3><a name="Purge_age"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] age = (age)
-</h3>
-	Das maximale Alter in Tagen der im Cache gespeicherten Seiten
-	f&uuml;r URLs die zur angegebenen URL-Spezifikation passen (Standard=14).
-	Ein Alter von 0 meint beim reinigen immer l&ouml;schen, ein negativer Wert
-	meint nie l&ouml;schen. Die <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> wird nur auf Protokoll und
-	Host gepr&uuml;ft, ausser die use-url-Option ist auf 'yes' gesetzt. L&auml;ngere
-	Zeitr&auml;ume k&ouml;nnen durch 'w (Wochen)', 'm (Monate)' oder 'y (Jahre)'
-	angegeben werden (z.B. 2w=14).
-	
-<h3><a name="Purge_compress-age"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] compress-age = (age)
-</h3>
-	Das maximale Alter im Cache gespeicherter URLs, die zur Spezifikation
-	passen, bevor sie komprimiert werden. Ben&ouml;tigt die zlib-Option beim
-	Compilieren. Das Alter, das angegeben wird, hat die gleiche Bedeutung
+
+<h3><a name="Purge_use-mtime"></a>use-mtime = yes | no</h3>
+
+<p>
+Die zu verwendende Methode zur Entscheidung welche Dateien gel&ouml;scht
+werden sollen, nach letzter Zugriffs-Zeit (atime) oder letzter
+&Auml;nderung (modification time / mtime)
+(Standard=no nein, nicht mtime verwenden)
+
+<h3><a name="Purge_max-size"></a>max-size = (size)</h3>
+
+<p>
+Die maximale Gr&ouml;sse des Cache im MB nach dem Reinigen (purge)
+(Standard=0). Eine maximale Cache-Gr&ouml;sse von 0 meint, es
+gibt keine Gr&ouml;ssenbeschr&auml;nkung. Wird diese Option zusammen mit der
+min-free-Option verwendet, wird die kleinere Cache-Gr&ouml;sse verwendet.
+Diese Option ber&uuml;cksichtig die URLs, die nie gel&ouml;scht werden sollen,
+beim Ermitteln der Cache-Gr&ouml;sse, aber l&ouml;scht diese nicht.
+
+
+<h3><a name="Purge_min-free"></a>min-free = (size)</h3>
+
+<p>
+Der minimale freie Disk-Speicherplatz in MB nach dem Reinigen
+(Standard=0). Ein minimaler freier Speicherplatz von 0 meint, dass 
+es keine Mindestanforderungen f&uuml;r den freien Speicher gibt. Wird
+diese Option zusammen mit der max-size-Option benutzt, wird die
+kleinere Cache-Gr&ouml;sse verwendet. Diese Option ber&uuml;cksichtigt die URLs,
+die nie gel&ouml;scht werden sollen, beim Ermitteln der Cache-Gr&ouml;sse aber
+l&ouml;scht diese nicht.
+
+
+<h3><a name="Purge_use-url"></a>use-url = yes | no</h3>
+
+<p>
+Wenn auf 'yes' gesetzt, wird die URL zur Feststellung des
+L&ouml;sch-Alters verwendet, andernfalls nur das Protokoll und der Host
+(Standard=no - nur Protokoll und Host)
+
+<h3><a name="Purge_del-dontget"></a>del-dontget = yes | no</h3>
+
+<p>
+Wenn auf 'yes' gesetzt, werden URLs die im DontGet-Abschnitt
+aufgef&uuml;hrt werden gel&ouml;scht. (Standard=no) 
+
+<h3><a name="Purge_del-dontcache"></a>del-dontcache = yes | no</h3>
+
+<p>
+Wenn auf 'yes' gesetzt, wedren URLs, die zu Eintr&auml;gen im 
+DontCache-Abschnitt passen, gel&ouml;scht. (Standard=no) 
+
+
+<h3><a name="Purge_age"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] age = (age)</h3>
+
+<p>
+Das maximale Alter in Tagen der im Cache gespeicherten Seiten
+f&uuml;r URLs die zur angegebenen URL-Spezifikation passen (Standard=14).
+Ein Alter von 0 meint beim reinigen immer l&ouml;schen, ein negativer Wert
+meint nie l&ouml;schen. Die <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> wird nur auf Protokoll und
+Host gepr&uuml;ft, ausser die use-url-Option ist auf 'yes' gesetzt. L&auml;ngere
+Zeitr&auml;ume k&ouml;nnen durch 'w (Wochen)', 'm (Monate)' oder 'y (Jahre)'
+angegeben werden (z.B. 2w=14).
+
+
+<h3><a name="Purge_compress-age"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] compress-age = (age)</h3>
+
+<p>
+Das maximale Alter im Cache gespeicherter URLs, die zur Spezifikation
+passen, bevor sie komprimiert werden. Ben&ouml;tigt die zlib-Option beim
+Compilieren. Das Alter, das angegeben wird, hat die gleiche Bedeutung
+
 <h2><a name="WILDCARD"></a>WILDCARD</h2>
+
+<p>
 Eine <a href="#WILDCARD">WILDCARD</a> ist eine Spezifikation die das Zeichen '*' als Ersatz f&uuml;r eine 
 Gruppe von Zeichen verwendet. Das ist im Grunde das gleiche, wie bei einem
 Kommando-Zeilen-Datei-Ausdruck in DOS oder der UNIX-Shell, au&szlig;er das ein '*'
 auch das Zeichen '/' beinhalten kann.
 
 Zum Beispiel
-<p>
-*.gif		passt auf	foo.gif und bar.gif
-<p>
-*.foo.com	passt auf	www.foo.com und ftp.foo.com
-<p>
-/foo/*		passt auf	/foo/bar.html und /foo/bar/foobar.html
+
+<dl>
+<dt>*.gif
+<dd>passt auf       foo.gif und bar.gif
+</dl>
+
+<dl>
+<dt>*.foo.com
+<dd>passt auf       www.foo.com und ftp.foo.com
+</dl>
+
+<dl>
+<dt>/foo/*
+<dd>passt auf       /foo/bar.html und /foo/bar/foobar.html
+</dl>
+
 <h2><a name="URL-SPECIFICATION"></a>URL-SPECIFICATION</h2>
+
+<p>
 Bei der Angabe eines Hosts und eines Protokolls und eines Pfades kann in vielen 
 Abschnitten eine <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> verwendet werden, das ist ein Weg zur
 Erkennung einer URL.
 <p>
 F&uuml;r den Gebrauch in dieser Erkl&auml;rung wird angenommen, eine URL besteht
 aus f&uuml;nf Teilen
-<p>
-proto		Das verwendete Protokoll (z.B. 'http', 'ftp')
-<p>
-host		Der Server-Hostname (z.B. 'www.gedanken.demon.co.uk').
-<p>
-port		Die Portnummer auf diesem Host (z.B. der Standard 80 f&uuml;r HTTP).
-<p>
-path		Der Pfadname auf dem Host (z.B. '/bar.html') oder ein
-		Verzeichnisname (z.B. '/foo/').
-<p>
-args		m&ouml;gliche Argumente zur URL f&uuml;r CGI-Scripts u.&auml;. 
-		(z.B.'search=foo')
+
+<dl>
+<dt>proto
+<dd>Das verwendete Protokoll (z.B. 'http', 'ftp')
+</dl>
+
+<dl>
+<dt>host
+<dd>Der Server-Hostname (z.B. 'www.gedanken.demon.co.uk').
+</dl>
+
+<dl>
+<dt>port
+<dd>Die Portnummer auf diesem Host (z.B. der Standard 80 f&uuml;r HTTP).
+</dl>
+
+<dl>
+<dt>path
+<dd>Der Pfadname auf dem Host (z.B. '/bar.html') oder ein
+Verzeichnisname (z.B. '/foo/').
+</dl>
+
+<dl>
+<dt>args
+<dd>m&ouml;gliche Argumente zur URL f&uuml;r CGI-Scripts u.&auml;. 
+(z.B.'search=foo')
+</dl>
 <p>
 Zum Beispiel die WWWOFFLE-Homepage http://www.gedanken.demon.co.uk/wwwoffle/ 
 Das Protokoll ist 'http', der Host ist 'www.gedanken.demon.co.uk', 
@@ -781,34 +1085,61 @@ Wobei [] eine m&ouml;gliche Angabe anzeigt, und () einen vom Benutzer angebenen
 Namen oder eine Nummer kennzeichnet.
 <p>
 Einige Beispiel-<a href="#URL-SPECIFICATION">URL-SPECIFICATION</a>en folgen:
-<p>
-*://*/*			Beliebiges Protokoll, beliebiger Host, beliebiger Port,
-			beliebiger Pfad, beliebiege Argumente 
-			(Das ist das gleiche wie 'default').
-<p>
-*://*/(path)		Beliebiges Protokoll, beliebiger Host, beliebiger Port,
-			benannter Pfad, beliebige Argumente
-<p>
-*://*/*?		Beliebiges Protokoll, beliebiger Host, beliebiger Port,
-			beliebiger Pfad, KEINE Argumente
-<p>
-*://*/(path)?*		Beliebiges Protokoll, beliebiger Host, beliebiger Port,
-		benannter Pfad, beliebige Argumente
-<p>
-*://(host)		Beliebiges Protokoll, benannter Host, beliebiger Port,
-			beliebiger Pfad, beliebige Argumente
-			
-(proto)://*/*		Benanntes Protokoll, beliebiger Host, beliebiger Pfad,
-			beliebige Argumente
-<p>
-(proto)://(host)/*	Benanntes Protokoll, benannter Host, beliebiger Port, 
-			beliebiger Pfad, beliebige Argumente
-<p>
-(proto)://(host):/* 	Benanntes Protokoll, benannter Host, Standard-Port, 
-			beliebiger Pfad und beliebige Argumente
-<p>
-*://(host):(port)/* 	Beliebiges Protokoll, benannter Host, benannter Port, 
-			beliebiger Pfad, beliebiger Argumente
+
+<dl>
+<dt>*://*/*
+<dd>Beliebiges Protokoll, beliebiger Host, beliebiger Port,
+beliebiger Pfad, beliebiege Argumente 
+(Das ist das gleiche wie 'default').
+</dl>
+
+<dl>
+<dt>*://*/(path)
+<dd>Beliebiges Protokoll, beliebiger Host, beliebiger Port,
+benannter Pfad, beliebige Argumente
+</dl>
+
+<dl>
+<dt>*://*/*?
+<dd>Beliebiges Protokoll, beliebiger Host, beliebiger Port,
+beliebiger Pfad, KEINE Argumente
+</dl>
+
+<dl>
+<dt>*://*/(path)?*
+<dd>Beliebiges Protokoll, beliebiger Host, beliebiger Port,
+benannter Pfad, beliebige Argumente
+</dl>
+
+<dl>
+<dt>*://(host)
+<dd>Beliebiges Protokoll, benannter Host, beliebiger Port,
+beliebiger Pfad, beliebige Argumente
+</dl>
+
+<dl>
+<dt>(proto)://*/*
+<dd>Benanntes Protokoll, beliebiger Host, beliebiger Pfad,
+beliebige Argumente
+</dl>
+
+<dl>
+<dt>(proto)://(host)/*
+<dd>Benanntes Protokoll, benannter Host, beliebiger Port, 
+beliebiger Pfad, beliebige Argumente
+</dl>
+
+<dl>
+<dt>(proto)://(host):/*
+<dd>Benanntes Protokoll, benannter Host, Standard-Port, 
+beliebiger Pfad und beliebige Argumente
+</dl>
+
+<dl>
+<dt>*://(host):(port)/*
+<dd>Beliebiges Protokoll, benannter Host, benannter Port, 
+beliebiger Pfad, beliebiger Argumente
+</dl>
 <p>
 Bei der Beschreibung des Hosts, des Pfads und der Argumente k&ouml;nnen <a href="#WILDCARD">WILDCARD</a>s 
 verwendet werden, wie oben beschrieben.

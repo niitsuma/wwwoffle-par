@@ -15,14 +15,14 @@ NP              [^]]
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/vrml.l 1.6 2001/07/20 19:06:37 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/vrml.l 1.11 2003/09/06 12:55:06 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8.
   Parse the VRML and look for the WWWInline, WWWanchor and other things.
   ******************/ /******************
   Written by Walter Pfannenmueller
 
-  This file Copyright 1997,98,99,2001 Andrew M. Bishop
+  This file Copyright 1997,98,99,2001,03 Walter Pfannenmueller & Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -32,11 +32,13 @@ NP              [^]]
 #include "autoconfig.h"
 
 #include "wwwoffle.h"
+#include "io.h"
+#include "misc.h"
 #include "errors.h"
 #include "document.h"
 
+
 extern int vrml_yylex(void);
-#define vrml_yywrap() 1
 
 /*+ The file descriptor that we are reading from. +*/
 static int vrml_yyfd=-1;
@@ -65,6 +67,13 @@ void ParseVRML(int fd,URL *Url)
 
  first=0;
 }
+
+
+#define YY_SKIP_YYWRAP 1 /* Remove error with prototype of ..._yywrap */
+#ifndef vrml_yywrap
+/*+ Needed in lex but does nothing. +*/
+#define vrml_yywrap() 1
+#endif
 
 /*+ A macro to read data that can be used by the lexer. +*/
 #define YY_INPUT(buf,result,max_size) \
@@ -160,5 +169,9 @@ void ParseVRML(int fd,URL *Url)
 
 <VRML2REFEND>{NQ}*{Q}   { BEGIN(more ? VRML2URL : VRML2); }
 <VRML2REFEND>.|\r|\n    { }
+
+ /* End of file */
+
+<<EOF>>                 { BEGIN(INITIAL); return(0); }
 
 %%

@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/proto.c 1.11 2001/07/20 19:06:36 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/proto.c 1.12 2003/02/14 19:25:59 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8.
   Information about the protocols that wwwoffle supports.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,2001 Andrew M. Bishop
+  This file Copyright 1997,98,2001,03 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -15,9 +15,6 @@
 
 #include "autoconfig.h"
 
-#include <stdlib.h>
-
-#include "misc.h"
 #include "proto.h"
 
 

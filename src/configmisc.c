@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configmisc.c 1.18 2002/08/21 14:28:30 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configmisc.c 1.23 2004/07/03 14:58:08 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   Configuration file data management functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -20,16 +20,12 @@
 #include <string.h>
 #include <ctype.h>
 
-#include <limits.h>
-#include <unistd.h>
-#include <sys/types.h>
 #include <pwd.h>
 #include <grp.h>
 
 #include "misc.h"
-#include "configpriv.h"
 #include "errors.h"
-#include "wwwoffle.h"
+#include "configpriv.h"
 
 
 /* Local functions */
@@ -65,7 +61,6 @@ void DefaultConfigFile(void)
        item->key=NULL;
        item->val=NULL;
 
-#if CONFIG_VERIFY_ABORT
        {
 	 char *errmsg;
 	 if(CurrentConfig.sections[s]->itemdefs[i].key_type!=Fixed)
@@ -74,17 +69,10 @@ void DefaultConfigFile(void)
 	 if((errmsg=ParseKeyOrValue(CurrentConfig.sections[s]->itemdefs[i].def_val,CurrentConfig.sections[s]->itemdefs[i].val_type,&(item->def_val))))
 	   PrintMessage(Fatal,"Configuration file error at %s:%d; %s",__FILE__,__LINE__,errmsg);
        }
-#else
-       ParseKeyOrValue(CurrentConfig.sections[s]->itemdefs[i].def_val,CurrentConfig.sections[s]->itemdefs[i].val_type,&(item->def_val));
-#endif
      }
      else
        *item_p=NULL;
    }
-
-#if CONFIG_DEBUG_DUMP
- DumpConfigFile();
-#endif
 }
 
 
@@ -449,43 +437,6 @@ int WildcardMatchN(const char *string,int stringlen,const char *pattern)
 }
 
 
-#if CONFIG_DEBUG_DUMP
-
-/*++++++++++++++++++++++++++++++++++++++
-  Remove the old values if the re-read of the file succeeded.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-void DumpConfigFile(void)
-{
- int s,i,e;
-
- fprintf(stderr,"CONFIGURATION FILE\n");
-
- for(s=0;s<CurrentConfig.nsections;s++)
-   {
-    fprintf(stderr,"  Section %s\n",CurrentConfig.sections[s]->name);
-
-    for(i=0;i<CurrentConfig.sections[s]->nitemdefs;i++)
-      {
-       if(*CurrentConfig.sections[s]->itemdefs[i].name)
-          fprintf(stderr,"    Item %s\n",CurrentConfig.sections[s]->itemdefs[i].name);
-       else
-          fprintf(stderr,"    Item [default]\n");
-
-       if(*CurrentConfig.sections[s]->itemdefs[i].item)
-          for(e=0;e<(*CurrentConfig.sections[s]->itemdefs[i].item)->nentries;e++)
-            {
-             char *string=ConfigEntryString(*CurrentConfig.sections[s]->itemdefs[i].item,e);
-             fprintf(stderr,"      %s\n",string);
-             free(string);
-            }
-      }
-   }
-}
-
-#endif
-
-
 /*++++++++++++++++++++++++++++++++++++++
   Return the string that represents the Configuration type.
 
@@ -750,7 +701,7 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
     }
 
    case FileMode:
-     return x_asprintf("0%o",key_or_val.integer);
+     return x_asprintf("0%o",(unsigned)key_or_val.integer);
 
    case AgeDays:
     {
@@ -810,7 +761,7 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
 
   char* sprintf_url_spec Return the new string.
 
-  UrlSpec urlspec The URL-SPECIFICATION to convert.
+  UrlSpec *urlspec The URL-SPECIFICATION to convert.
   ++++++++++++++++++++++++++++++++++++++*/
 
 static char* sprintf_url_spec(UrlSpec *urlspec)

@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/spool.c 2.67 2002/10/20 10:05:22 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/spool.c 2.81 2004/02/14 14:03:18 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Handle all of the spooling of files in the spool directory.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -18,7 +18,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 #include <sys/types.h>
 #include <unistd.h>
@@ -56,6 +55,7 @@
 #include <errno.h>
 
 #include "wwwoffle.h"
+#include "io.h"
 #include "misc.h"
 #include "errors.h"
 #include "config.h"
@@ -67,20 +67,17 @@
 #endif
 
 
+#if defined(__CYGWIN__)
+
+/*+ The name of the spool directory. +*/
+static char* sSpoolDir=NULL;
+
+#else
+
 /*+ The file descriptor of the spool directory. +*/
-extern int fSpoolDir;
+static int fSpoolDir=-1;
 
-/* read_all() tries to read all requested bytes from
-   a file descriptor */
-inline static size_t read_all(int fd, void *buf, size_t count)
-{
-  size_t n=0; ssize_t m;
-
-  while(n<count && (m=read(fd,((char *)buf)+n,count-n))>0)
-    n+=m;
-
-  return n;
-}
+#endif
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -95,9 +92,9 @@ int OpenOutgoingSpoolFile(int rw)
 {
  struct stat buf;
  int fd=-1;
- char name[16];
+ char name[sizeof("tmp.")+10];
 
- sprintf(name,"tmp.%ld",(long)getpid());
+ sprintf(name,"tmp.%u",(unsigned)getpid());
 
  /* Create the outgoing directory if needed and change to it */
 
@@ -124,12 +121,15 @@ int OpenOutgoingSpoolFile(int rw)
     if(!dir)
       {PrintMessage(Warning,"Cannot open current directory 'outgoing' [%!s].");goto changedir_back;}
 
-    ent=readdir(dir);  /* skip .  */
+    ent=readdir(dir);
     if(!ent)
       {PrintMessage(Warning,"Cannot read current directory 'outgoing' [%!s].");closedir(dir);goto changedir_back;}
-    ent=readdir(dir);  /* skip .. */
 
-    while((ent=readdir(dir)))
+    do
+      {
+       if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+          continue; /* skip . & .. */
+
        if(*ent->d_name=='O')
          {
           if(rename(ent->d_name,name))
@@ -137,10 +137,10 @@ int OpenOutgoingSpoolFile(int rw)
           else
             {
              fd=open(name,O_RDONLY|O_BINARY);
-             init_buffer(fd);
+             /* init_io(fd) not called since fd is returned */
 
              if(fd==-1)
-                PrintMessage(Inform,"Cannot open file 'outgoing/%s' [%!s]; race condition?",name);
+                PrintMessage(Inform,"Cannot open file 'outgoing/%s' to read [%!s]; race condition?",name);
              else
                {
                 *ent->d_name='U';
@@ -150,21 +150,24 @@ int OpenOutgoingSpoolFile(int rw)
                }
             }
          }
+      }
+    while((ent=readdir(dir)));
+
     closedir(dir);
    }
  else
    {
     fd=open(name,O_WRONLY|O_CREAT|O_EXCL|O_BINARY,(mode_t)ConfigInteger(FilePerm));
-    init_buffer(fd);
+    /* init_io(fd) not called since fd is returned */
 
     if(fd==-1)
-       PrintMessage(Warning,"Cannot open file 'outgoing/%s' [%!s]",name);
+       PrintMessage(Warning,"Cannot open file 'outgoing/%s' to write [%!s]",name);
    }
 
  /* Change dir back. */
 
 changedir_back:
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 
  return(fd);
 }
@@ -176,13 +179,15 @@ changedir_back:
   int fd The file descriptor to close.
 
   URL *Url The URL to close.
+           If Url is null, the (temporary) outgoing spool file is removed.
   ++++++++++++++++++++++++++++++++++++++*/
 
 void CloseOutgoingSpoolFile(int fd,URL *Url)
 {
- char oldname[16];
+ char oldname[sizeof("tmp.")+10];
  int ufd;
 
+ /* finish_io(fd) not called since fd was returned */
  close(fd);
 
  /* Change to the outgoing directory. */
@@ -192,24 +197,22 @@ void CloseOutgoingSpoolFile(int fd,URL *Url)
 
  /* Create and rename the file */
 
- sprintf(oldname,"tmp.%ld",(long)getpid());
+ sprintf(oldname,"tmp.%u",(unsigned)getpid());
 
- {
+ if(Url) {
    local_URLToFileName(Url,newname)
    *newname='U';
 
-   unlink(newname);
-
-   ufd=open(newname,O_WRONLY|O_CREAT|O_EXCL|O_BINARY,(mode_t)ConfigInteger(FilePerm));
-   init_buffer(ufd);
+   ufd=open(newname,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,(mode_t)ConfigInteger(FilePerm));
 
    if(ufd!=-1)
      {
-       if(write_string(ufd,Url->file)==-1)
+       if(write_all(ufd,Url->file,strlen(Url->file))<0)
 	 {
-	   PrintMessage(Warning,"Cannot write to URL file [%!s]; disk full?");
+	   PrintMessage(Warning,"Cannot write to file 'outgoing/%s' [%!s]; disk full?",newname);
 	   unlink(newname);
 	 }
+
        close(ufd);
      }
 
@@ -217,10 +220,12 @@ void CloseOutgoingSpoolFile(int fd,URL *Url)
    if(rename(oldname,newname))
      {PrintMessage(Warning,"Cannot rename 'outgoing/%s' to 'outgoing/%s' [%!s].",oldname,newname);unlink(oldname);}
  }
+ else if(unlink(oldname))
+   PrintMessage(Warning,"Cannot unlink temporary outgoing file 'outgoing/%s' [%!s].",oldname);
 
  /* Change dir back. */
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 }
 
 
@@ -254,9 +259,9 @@ int ExistsOutgoingSpoolFile(URL *Url)
 
  /* Change dir back. */
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 
- return(existsO&&existsU);
+ return(existsO && existsU);
 }
 
 
@@ -285,42 +290,42 @@ char *HashOutgoingSpoolFile(URL *Url)
    *name='O';
 
    fd=open(name,O_RDONLY|O_BINARY);
- }
 
- if(fd==-1) {
-   PrintMessage(Warning,"Cannot open outgoing request to create hash [%!s].");
-   goto changedir_back;
- }
-
- if(fstat(fd,&buf)==-1) {
-   PrintMessage(Warning,"Cannot stat outgoing request to create hash [%!s].");
-   goto close_chdir_return;
- }
-
- req_size=buf.st_size;
-
- req=(char*)malloc(req_size+1);
-
- if(req) {
-   if(read_all(fd,req,req_size)==req_size) {
-     req[req_size]=0;
-     hash=MakeHash(req);
+   if(fd==-1) {
+     PrintMessage(Warning,"Cannot open outgoing request 'outgoing/%s' to create hash [%!s].",name);
+     goto changedir_back;
    }
-   else {
-     PrintMessage(Warning,"Cannot read from outgoing request to create hash [%!s].");
+
+   if(fstat(fd,&buf)==-1) {
+     PrintMessage(Warning,"Cannot stat outgoing request 'outgoing/%s' to create hash [%!s].",name);
+     goto close_chdir_return;
    }
-   free(req);
+
+   req_size=buf.st_size;
+
+   req=(char*)malloc(req_size+1);
+
+   if(req) {
+     if(read_all(fd,req,req_size)==req_size) {
+       req[req_size]=0;
+       hash=MakeHash(req);
+     }
+     else {
+       PrintMessage(Warning,"Cannot read from outgoing request 'outgoing/%s' to create hash [%!s].",name);
+     }
+     free(req);
+   }
+   else
+     PrintMessage(Warning,"Cannot allocate memory to read outgoing request 'outgoing/%s' [%!s].",name);
+
+
+   /* close file and change dir back. */
+
+ close_chdir_return:
+   close(fd);
+ changedir_back:
+   ChangeBackToSpoolDir();
  }
- else
-   PrintMessage(Warning,"Cannot allocate memory to read outgoing request [%!s].");
-
-
- /* close file and change dir back. */
-
-close_chdir_return:
- close(fd);
-changedir_back:
- fchdir(fSpoolDir);
 
  return(hash);
 }
@@ -341,7 +346,7 @@ char *DeleteOutgoingSpoolFile(URL *Url)
  /* Change to the outgoing directory. */
 
  if(chdir("outgoing"))
-   {err=PrintMessage(Warning,"Cannot change to directory 'outgoing' [%!s].");return(err);}
+   {err=GetPrintMessage(Warning,"Cannot change to directory 'outgoing' [%!s].");return(err);}
 
  /* Delete the file for the request or all of them. */
 
@@ -351,29 +356,40 @@ char *DeleteOutgoingSpoolFile(URL *Url)
     *name='O';
 
     if(unlink(name))
-       err=PrintMessage(Warning,"Cannot unlink outgoing request 'outgoing/%s' [%!s].",name);
+       err=GetPrintMessage(Warning,"Cannot unlink outgoing request 'outgoing/%s' [%!s].",name);
 
     *name='U';
     unlink(name);
    }
  else
    {
+    int any=0;
     struct dirent* ent;
     DIR *dir=opendir(".");
 
     if(!dir)
-      {err=PrintMessage(Warning,"Cannot open current directory 'outgoing' [%!s].");goto changedir_back;}
+      {err=GetPrintMessage(Warning,"Cannot open current directory 'outgoing' [%!s].");goto changedir_back;}
 
-    ent=readdir(dir);  /* skip .  */
+    ent=readdir(dir);
     if(!ent)
-      {err=PrintMessage(Warning,"Cannot read current directory 'outgoing' [%!s].");closedir(dir);goto changedir_back;}
-    ent=readdir(dir);  /* skip .. */
+      {err=GetPrintMessage(Warning,"Cannot read current directory 'outgoing' [%!s].");closedir(dir);goto changedir_back;}
 
-    while((ent=readdir(dir)))
+    do
       {
-       if(unlink(ent->d_name))
-          err=PrintMessage(Warning,"Cannot unlink outgoing request 'outgoing/%s' [%!s].",ent->d_name);
+       if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+          continue; /* skip . & .. */
+
+       if(*ent->d_name=='U' || *ent->d_name=='O')
+          if(unlink(ent->d_name))
+            {
+             any++;
+             PrintMessage(Warning,"Cannot unlink outgoing request 'outgoing/%s' [%!s].",ent->d_name);
+            }
       }
+    while((ent=readdir(dir)));
+
+    if(any)
+       err=strdup("Cannot delete some outgoing requests.");
 
     closedir(dir);
    }
@@ -381,7 +397,7 @@ char *DeleteOutgoingSpoolFile(URL *Url)
  /* Change dir back. */
 
 changedir_back:
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 
  return(err);
 }
@@ -441,7 +457,7 @@ int OpenWebpageSpoolFile(int rw,URL *Url)
    else
      fd=open(file,O_RDWR|O_CREAT|O_TRUNC|O_BINARY,(mode_t)ConfigInteger(FilePerm));
 
-   init_buffer(fd);
+   /* init_io(fd) not called since fd is returned */
 
    if(!rw && fd!=-1)
      {
@@ -449,17 +465,17 @@ int OpenWebpageSpoolFile(int rw,URL *Url)
 
        *file='U';
        ufd=open(file,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,(mode_t)ConfigInteger(FilePerm));
-       init_buffer(ufd);
 
        if(ufd!=-1)
 	 {
-	   if(write_string(ufd,Url->file)==-1)
+	   if(write_all(ufd,Url->file,strlen(Url->file))<0)
 	     {
-	       PrintMessage(Warning,"Cannot write to URL file [%!s]; disk full?");
+	       PrintMessage(Warning,"Cannot write to file '%s/%s/%s' [%!s]; disk full?",Url->proto,Url->dir,file);
 	       unlink(file);
 	       close(fd);
 	       fd=-1;
 	     }
+
 	   close(ufd);
 	 }
        else
@@ -473,18 +489,19 @@ int OpenWebpageSpoolFile(int rw,URL *Url)
  /* Change the modification time on the directory. */
 
  if(!rw && fd!=-1)
+   {
     utime(".",NULL);
 
- fchdir(fSpoolDir);
- chdir(Url->proto);
+    ChangeBackToSpoolDir();
+    chdir(Url->proto);
 
- if(!rw && fd!=-1)
     utime(".",NULL);
+   }
 
  /* Change dir back. */
 
 changedir_back:
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 
  return(fd);
 }
@@ -507,10 +524,10 @@ char *DeleteWebpageSpoolFile(URL *Url,int all)
  /* Change to the spool directory. */
 
  if(chdir(Url->proto))
-   {err=PrintMessage(Warning,"Cannot change to directory '%s' [%!s].",Url->proto);return(err);}
+   {err=GetPrintMessage(Warning,"Cannot change to directory '%s' [%!s].",Url->proto);return(err);}
 
  if(chdir(Url->dir))
-   {err=PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s].",Url->proto,Url->dir);goto changedir_back;}
+   {err=GetPrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s].",Url->proto,Url->dir);goto changedir_back;}
 
  /* Delete the file for the web page. */
 
@@ -520,26 +537,30 @@ char *DeleteWebpageSpoolFile(URL *Url,int all)
     DIR *dir=opendir(".");
 
     if(!dir)
-      {err=PrintMessage(Warning,"Cannot open current directory '%s/%s' [%!s].",Url->proto,Url->dir);goto changedir_back;}
+      {err=GetPrintMessage(Warning,"Cannot open current directory '%s/%s' [%!s].",Url->proto,Url->dir);goto changedir_back;}
 
-    ent=readdir(dir);  /* skip .  */
+    ent=readdir(dir);
     if(!ent)
-      {err=PrintMessage(Warning,"Cannot read current directory '%s/%s' [%!s].",Url->proto,Url->dir);closedir(dir);goto changedir_back;}
-    ent=readdir(dir);  /* skip .. */
+      {err=GetPrintMessage(Warning,"Cannot read current directory '%s/%s' [%!s].",Url->proto,Url->dir);closedir(dir);goto changedir_back;}
 
-    while((ent=readdir(dir)))
+    do
       {
+       if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+          continue; /* skip . & .. */
+
        if(*ent->d_name=='D')
          {
           char *delurl;
 
           if((delurl=FileNameToURL(ent->d_name)))
             {
+             char *err;
              URL *delUrl=SplitURL(delurl);
 
-             fchdir(fSpoolDir);
+             ChangeBackToSpoolDir();
 
-             DeleteLastTimeSpoolFile(delUrl);
+             err=DeleteLastTimeSpoolFile(delUrl);
+             if(err) free(err);
 
              chdir(Url->proto);
              chdir(Url->dir);
@@ -549,20 +570,25 @@ char *DeleteWebpageSpoolFile(URL *Url,int all)
             }
          }
 
-       if(unlink(ent->d_name))
-          err=PrintMessage(Warning,"Cannot unlink cached file '%s/%s/%s' [%!s].",Url->proto,Url->dir,ent->d_name);
+       if(unlink(ent->d_name)) {
+	 if(err) free(err);
+	 err=GetPrintMessage(Warning,"Cannot unlink cached file '%s/%s/%s' [%!s].",Url->proto,Url->dir,ent->d_name);
+       }
       }
+    while((ent=readdir(dir)));
 
     closedir(dir);
 
-    fchdir(fSpoolDir);
+    ChangeBackToSpoolDir();
     chdir(Url->proto);
 
-    if(rmdir(Url->dir))
-      err=PrintMessage(Warning,"Cannot delete what should be an empty directory '%s/%s' [%!s].",Url->proto,Url->dir);
+    if(rmdir(Url->dir)) {
+      if(err) free(err);
+      err=GetPrintMessage(Warning,"Cannot delete what should be an empty directory '%s/%s' [%!s].",Url->proto,Url->dir);
+    }
 
    changedir_back:
-    fchdir(fSpoolDir);
+    ChangeBackToSpoolDir();
    }
  else
    {
@@ -577,7 +603,7 @@ char *DeleteWebpageSpoolFile(URL *Url,int all)
 
     *file='D';
     if(unlink(file))
-       err=PrintMessage(Warning,"Cannot unlink cached file '%s/%s/%s' [%!s].",Url->proto,Url->dir,file);
+       err=GetPrintMessage(Warning,"Cannot unlink cached file '%s/%s/%s' [%!s].",Url->proto,Url->dir,file);
 
     *file='U';
     unlink(file);
@@ -591,9 +617,9 @@ char *DeleteWebpageSpoolFile(URL *Url,int all)
        utime(".",&utbuf);
       }
 
-    fchdir(fSpoolDir);
+    ChangeBackToSpoolDir();
 
-    DeleteLastTimeSpoolFile(Url);
+    {char *err=DeleteLastTimeSpoolFile(Url); if(err) free(err);}
    }
 
  return(err);
@@ -648,7 +674,7 @@ void TouchWebpageSpoolFile(URL *Url,time_t when)
  /* Change dir back. */
 
 changedir_back:
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 }
 
 
@@ -688,7 +714,7 @@ time_t ExistsWebpageSpoolFile(URL *Url)
  /* Change dir back. */
 
 changedir_back:
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 
  if(existsU&&existsD)
     return(buf.st_atime);
@@ -744,7 +770,7 @@ void CreateBackupWebpageSpoolFile(URL *Url, int overwrite)
  /* Change dir back. */
 
 changedir_back:
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 }
 
 
@@ -792,7 +818,46 @@ void RestoreBackupWebpageSpoolFile(URL *Url)
  /* Change dir back. */
 
 changedir_back:
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Open the backup copy of a file in a spool subdirectory to read from.
+
+  int OpenBackupWebpageSpoolFile Returns a file descriptor.
+
+  URL *Url The URL to open.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+int OpenBackupWebpageSpoolFile(URL *Url)
+{
+ int fd=-1;
+
+ /* Change to the spool directory. */
+
+ if(chdir(Url->proto))
+    return(-1);
+
+ if(chdir(Url->dir))
+   {ChangeBackToSpoolDir();return(-1);}
+
+ /* Open the file for the web page. */
+ {
+   local_URLToFileName(Url,bakfile);
+
+   *bakfile='D';
+   strcat(bakfile,"~");
+
+   fd=open(bakfile,O_RDONLY|O_BINARY);
+ }
+ /* init_io(fd) not called since fd is returned */
+
+ /* Change dir back and tidy up. */
+
+ ChangeBackToSpoolDir();
+
+ return(fd);
 }
 
 
@@ -820,6 +885,14 @@ void DeleteBackupWebpageSpoolFile(URL *Url)
    *bakfile='D';
    strcat(bakfile,"~");
 
+   /* It might seem strange to touch a file just before deleting it, but there is
+      a reason.  The backup file is linked to the files in the prevtime(x)
+      directories.  Touching it here will update all of the linked files so that
+      sorting the prevtime(x) index by date changed will distinguish files that
+      have been fetched again since that prevtime(x) index. */
+
+   utime(bakfile,NULL);
+
    if(unlink(bakfile))
      PrintMessage(Warning,"Cannot unlink backup cached file '%s/%s/%s' [%!s].",Url->proto,Url->dir,bakfile);
 
@@ -830,58 +903,93 @@ void DeleteBackupWebpageSpoolFile(URL *Url)
  /* Change dir back. */
 
 changedir_back:
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Create a lock file in a spool subdirectory.
 
+  int CreateLockWebpageSpoolFile Returns 1 if created OK or 0 in case of error.
+
   URL *Url The URL to lock.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void CreateLockWebpageSpoolFile(URL *Url)
+int CreateLockWebpageSpoolFile(URL *Url)
 {
  struct stat buf;
+ int retval=1;
 
  /* Check for configuration file option. */
 
  if(!ConfigBoolean(LockFiles))
-    return;
+    return(1);
 
- /* Change to the spool directory. */
+ /* Create the spool directory if needed and change to it. */
+
+ if(stat(Url->proto,&buf))
+   {
+    PrintMessage(Inform,"Directory '%s' does not exist [%!s]; creating one.",Url->proto);
+    if(mkdir(Url->proto,(mode_t)ConfigInteger(DirPerm)))
+      {PrintMessage(Warning,"Cannot create directory '%s' [%!s].",Url->proto);return(0);}
+   }
+ else
+    if(!S_ISDIR(buf.st_mode))
+      {PrintMessage(Warning,"The file '%s' is not a directory.",Url->proto);return(0);}
 
  if(chdir(Url->proto))
-   {PrintMessage(Warning,"Cannot change to directory '%s' [%!s].",Url->proto);return;}
+   {PrintMessage(Warning,"Cannot change to directory '%s' [%!s].",Url->proto);return(0);}
+
+ if(stat(Url->dir,&buf))
+   {
+    PrintMessage(Inform,"Directory '%s/%s' does not exist [%!s]; creating one.",Url->proto,Url->dir);
+    if(mkdir(Url->dir,(mode_t)ConfigInteger(DirPerm)))
+      {PrintMessage(Warning,"Cannot create directory '%s/%s' [%!s].",Url->proto,Url->dir);retval=0;goto changedir_back;}
+   }
+ else
+    if(!S_ISDIR(buf.st_mode))
+      {PrintMessage(Warning,"The file '%s/%s' is not a directory.",Url->proto,Url->dir);retval=0;goto changedir_back;}
 
  if(chdir(Url->dir))
-   {PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s].",Url->proto,Url->dir);goto changedir_back;}
+   {PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s].",Url->proto,Url->dir);retval=0;goto changedir_back;}
 
  /* Create the lock file for the web page. */
 
  {
-   local_URLToFileName(Url,orgfile)
-   *orgfile='D';
+   local_URLToFileName(Url,lockfile)
 
-   {
-     local_strdup(orgfile,lockfile)
+   *lockfile='L';
 
-     *lockfile='L';
-
-     if(!stat(lockfile,&buf))
+   if(!stat(lockfile,&buf))
+     {
        PrintMessage(Inform,"Lock file already exists for '%s'.",Url->name);
-     else
-       {
-	 if(link(orgfile,lockfile))
-	   PrintMessage(Warning,"Cannot make a lock file for '%s/%s/%s' [%!s].",Url->proto,Url->dir,orgfile);
-       }
-   }
+       retval=0;
+     }
+   else
+     {
+       int fd;
+
+       /* Using open() instead of link() allows a race condition over NFS.
+	  Using NFS for the WWWOFFLE spool is not recommended anyway. */
+
+       fd=open(lockfile,O_WRONLY|O_CREAT|O_EXCL,(mode_t)ConfigInteger(FilePerm));
+
+       if(fd==-1)
+	 {
+	   PrintMessage(Warning,"Cannot make a lock file for '%s/%s/%s' [%!s].",Url->proto,Url->dir,lockfile);
+	   retval=0;
+	 }
+       else
+	 close(fd);
+     }
  }
 
  /* Change dir back. */
 
 changedir_back:
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
+
+ return(retval);
 }
 
 
@@ -921,7 +1029,8 @@ int ExistsLockWebpageSpoolFile(URL *Url)
  /* Change dir back. */
 
 changedir_back:
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
+
  return(existsL);
 }
 
@@ -961,7 +1070,7 @@ void DeleteLockWebpageSpoolFile(URL *Url)
  /* Change dir back. */
 
 changedir_back:
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 }
 
 
@@ -1025,7 +1134,7 @@ int CreateLastTimeSpoolFile(URL *Url)
 
  /* Change dir back. */
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 
  return(retval);
 }
@@ -1048,10 +1157,10 @@ char *DeleteLastTimeSpoolFile(URL *Url)
 
  for(i=0;i<=NUM_PREVTIME_DIR;i++)
    {
-    char lasttime[16];
+    char lasttime[sizeof("prevtime")+10];
 
     if(i)
-       sprintf(lasttime,"prevtime%d",i);
+       sprintf(lasttime,"prevtime%u",(unsigned)i);
     else
        strcpy(lasttime,"lasttime");
 
@@ -1065,14 +1174,16 @@ char *DeleteLastTimeSpoolFile(URL *Url)
 
        if(!stat(name,&buf))
          {
-          if(unlink(name))
-             err=PrintMessage(Warning,"Cannot unlink lasttime request '%s/%s' [%!s].",lasttime,name);
+	   if(unlink(name)) {
+	     if(err) free(err);
+             err=GetPrintMessage(Warning,"Cannot unlink lasttime request '%s/%s' [%!s].",lasttime,name);
+	   }
 
           *name='U';
           unlink(name);
          }
 
-       fchdir(fSpoolDir);
+       ChangeBackToSpoolDir();
       }
    }
 
@@ -1086,7 +1197,7 @@ char *DeleteLastTimeSpoolFile(URL *Url)
 
 void CycleLastTimeSpoolFile(void)
 {
- char lasttime[16],prevlasttime[16];
+ char lasttime[sizeof("prevtime")+10],prevlasttime[sizeof("prevtime")+10];
  struct stat buf;
  int i,fd;
 
@@ -1113,7 +1224,7 @@ void CycleLastTimeSpoolFile(void)
  for(i=NUM_PREVTIME_DIR;i>=0;i--)
    {
     if(i)
-       sprintf(lasttime,"prevtime%d",i);
+       sprintf(lasttime,"prevtime%u",(unsigned)i);
     else
        strcpy(lasttime,"lasttime");
 
@@ -1142,20 +1253,25 @@ void CycleLastTimeSpoolFile(void)
        dir=opendir(".");
 
        if(!dir)
-         {PrintMessage(Warning,"Cannot open current directory '%s' [%!s].",lasttime);fchdir(fSpoolDir);continue;}
+         {PrintMessage(Warning,"Cannot open current directory '%s' [%!s].",lasttime);ChangeBackToSpoolDir();continue;}
 
-       ent=readdir(dir);  /* skip .  */
+       ent=readdir(dir);
        if(!ent)
-         {PrintMessage(Warning,"Cannot read current directory '%s' [%!s].",lasttime);closedir(dir);fchdir(fSpoolDir);continue;}
-       ent=readdir(dir);  /* skip .. */
+         {PrintMessage(Warning,"Cannot read current directory '%s' [%!s].",lasttime);closedir(dir);ChangeBackToSpoolDir();continue;}
 
-       while((ent=readdir(dir)))
+       do
+         {
+          if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+             continue; /* skip . & .. */
+
           if(unlink(ent->d_name))
              PrintMessage(Warning,"Cannot unlink previous time page '%s/%s' [%!s].",lasttime,ent->d_name);
+         }
+       while((ent=readdir(dir)));
 
        closedir(dir);
 
-       fchdir(fSpoolDir);
+       ChangeBackToSpoolDir();
 
        if(rmdir(lasttime))
           PrintMessage(Warning,"Cannot unlink previous time directory '%s' [%!s].",lasttime);
@@ -1173,7 +1289,7 @@ void CycleLastTimeSpoolFile(void)
     PrintMessage(Warning,"Cannot create directory 'lasttime' [%!s].");
 
  fd=open("lasttime/.timestamp",O_WRONLY|O_CREAT|O_TRUNC,(mode_t)ConfigInteger(FilePerm));
- if(!fd!=-1)
+ if(fd!=-1)
     close(fd);
 }
 
@@ -1184,7 +1300,7 @@ void CycleLastTimeSpoolFile(void)
 
 void CycleLastOutSpoolFile(void)
 {
- char lastout[16],prevlastout[16];
+ char lastout[sizeof("prevout")+10],prevlastout[sizeof("prevout")+10];
  struct stat buf;
  int i,fd;
 
@@ -1212,7 +1328,7 @@ void CycleLastOutSpoolFile(void)
  for(i=NUM_PREVTIME_DIR;i>=0;i--)
    {
     if(i)
-       sprintf(lastout,"prevout%d",i);
+       sprintf(lastout,"prevout%u",(unsigned)i);
     else
        strcpy(lastout,"lastout");
 
@@ -1241,20 +1357,25 @@ void CycleLastOutSpoolFile(void)
        dir=opendir(".");
 
        if(!dir)
-         {PrintMessage(Warning,"Cannot open current directory '%s' [%!s].",lastout);fchdir(fSpoolDir);continue;}
+         {PrintMessage(Warning,"Cannot open current directory '%s' [%!s].",lastout);ChangeBackToSpoolDir();continue;}
 
-       ent=readdir(dir);  /* skip .  */
+       ent=readdir(dir);
        if(!ent)
-         {PrintMessage(Warning,"Cannot read current directory '%s' [%!s].",lastout);closedir(dir);fchdir(fSpoolDir);continue;}
-       ent=readdir(dir);  /* skip .. */
+         {PrintMessage(Warning,"Cannot read current directory '%s' [%!s].",lastout);closedir(dir);ChangeBackToSpoolDir();continue;}
 
-       while((ent=readdir(dir)))
+       do
+         {
+          if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+             continue; /* skip . & .. */
+
           if(unlink(ent->d_name))
              PrintMessage(Warning,"Cannot unlink previous time page '%s/%s' [%!s].",lastout,ent->d_name);
+         }
+       while((ent=readdir(dir)));
 
        closedir(dir);
 
-       fchdir(fSpoolDir);
+       ChangeBackToSpoolDir();
 
        if(rmdir(lastout))
           PrintMessage(Warning,"Cannot unlink previous time directory '%s' [%!s].",lastout);
@@ -1272,7 +1393,7 @@ void CycleLastOutSpoolFile(void)
     PrintMessage(Warning,"Cannot create directory 'lastout' [%!s].");
 
  fd=open("lastout/.timestamp",O_WRONLY|O_CREAT|O_TRUNC,(mode_t)ConfigInteger(FilePerm));
- if(!fd!=-1)
+ if(fd!=-1)
     close(fd);
 
  /* Link the files from the outgoing directory to the lastout directory. */
@@ -1295,29 +1416,34 @@ link_outgoing:
        PrintMessage(Warning,"Cannot open current directory '%s' [%!s].",lastout);
     else
       {
-       ent=readdir(dir);  /* skip .  */
+       ent=readdir(dir);
        if(!ent)
           PrintMessage(Warning,"Cannot read current directory '%s' [%!s].",lastout);
        else
          {
-          ent=readdir(dir);  /* skip .. */
-
-          while((ent=readdir(dir)))
+          do
             {
-             char newname[sizeof("../lastout/")+strlen(ent->d_name)];
+             if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+                continue; /* skip . & .. */
 
-             stpcpy(stpcpy(newname,"../lastout/"),ent->d_name);
+             if(*ent->d_name=='U' || *ent->d_name=='O')
+               {
+		char newname[sizeof("../lastout/")+strlen(ent->d_name)];
 
-             unlink(newname);
-             if(link(ent->d_name,newname))
-                PrintMessage(Warning,"Cannot create lastout page '%s' [%!s].",&newname[3]);
+		stpcpy(stpcpy(newname,"../lastout/"),ent->d_name);
+
+                unlink(newname);
+                if(link(ent->d_name,newname))
+                   PrintMessage(Warning,"Cannot create lastout page '%s' [%!s].",&newname[3]);
+               }
             }
+          while((ent=readdir(dir)));
          }
 
        closedir(dir);
       }
 
-    fchdir(fSpoolDir);
+    ChangeBackToSpoolDir();
    }
 }
 
@@ -1366,7 +1492,6 @@ int CreateMonitorSpoolFile(URL *Url,char MofY[13],char DofM[32],char DofW[8],cha
    *file='O';
 
    fd=open(file,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,(mode_t)ConfigInteger(FilePerm));
-   init_buffer(fd);
 
    if(fd==-1)
      {PrintMessage(Warning,"Cannot create file 'monitor/%s' [%!s].",file);}
@@ -1374,19 +1499,21 @@ int CreateMonitorSpoolFile(URL *Url,char MofY[13],char DofM[32],char DofW[8],cha
      {
        int ufd,mfd;
 
+       /* init_io(fd) not called since fd is returned */
+
        *file='U';
        ufd=open(file,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,(mode_t)ConfigInteger(FilePerm));
-       init_buffer(ufd);
 
        if(ufd!=-1)
 	 {
-	   if(write_string(ufd,Url->file)==-1)
+	   if(write_all(ufd,Url->file,strlen(Url->file))<0)
 	     {
-	       PrintMessage(Warning,"Cannot write to URL file [%!s]; disk full?");
+	       PrintMessage(Warning,"Cannot write to file 'monitor/%s' [%!s]; disk full?",file);
 	       unlink(file);
 	       close(fd);
 	       fd=-1;
 	     }
+
 	   close(ufd);
 	 }
        else
@@ -1397,21 +1524,23 @@ int CreateMonitorSpoolFile(URL *Url,char MofY[13],char DofM[32],char DofW[8],cha
 
        *file='M';
        mfd=open(file,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,(mode_t)ConfigInteger(FilePerm));
-       init_buffer(mfd);
 
        if(mfd!=-1)
 	 {
+	   init_io(mfd);
+
 	   if(write_formatted(mfd,"%s\n",MofY)<0 ||
 	      write_formatted(mfd,"%s\n",DofM)<0 ||
 	      write_formatted(mfd,"%s\n",DofW)<0 ||
 	      write_formatted(mfd,"%s\n",HofD)<0)
 	     {
-	       PrintMessage(Warning,"Cannot write to monitor time file; disk full?");
+	       PrintMessage(Warning,"Cannot write to file 'monitor/%s' [%!s]; disk full?",file);
 	       unlink(file);
 	       close(fd);
 	       fd=-1;
 	     }
 
+	   finish_io(mfd);
 	   close(mfd);
 	 }
        else
@@ -1424,10 +1553,11 @@ int CreateMonitorSpoolFile(URL *Url,char MofY[13],char DofM[32],char DofW[8],cha
 
  /* Change dir back. */
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 
  return(fd);
 }
+
 
 /*++++++++++++++++++++++++++++++++++++++
   Read a file containing the time to be monitored.
@@ -1512,7 +1642,8 @@ long ReadMonitorTimesSpoolFile(URL *Url,char MofY[13],char DofM[32],char DofW[8]
      }
  }
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
+
  return(mtime);
 }
 
@@ -1531,7 +1662,7 @@ char *DeleteMonitorSpoolFile(URL *Url)
  /* Change to the monitor directory. */
 
  if(chdir("monitor"))
-   {err=PrintMessage(Warning,"Cannot change to directory 'monitor' [%!s].");return(err);}
+   {err=GetPrintMessage(Warning,"Cannot change to directory 'monitor' [%!s].");return(err);}
 
  /* Delete the file for the request. */
 
@@ -1541,7 +1672,7 @@ char *DeleteMonitorSpoolFile(URL *Url)
     *name='O';
 
     if(unlink(name))
-       err=PrintMessage(Warning,"Cannot unlink monitor request 'monitor/%s' [%!s].",name);
+       err=GetPrintMessage(Warning,"Cannot unlink monitor request 'monitor/%s' [%!s].",name);
 
     *name='U';
     unlink(name);
@@ -1555,18 +1686,24 @@ char *DeleteMonitorSpoolFile(URL *Url)
     DIR *dir=opendir(".");
 
     if(!dir)
-      {err=PrintMessage(Warning,"Cannot open current directory 'monitor' [%!s].");goto changedir_back;}
+      {err=GetPrintMessage(Warning,"Cannot open current directory 'monitor' [%!s].");goto changedir_back;}
 
-    ent=readdir(dir);  /* skip .  */
+    ent=readdir(dir);
     if(!ent)
-      {err=PrintMessage(Warning,"Cannot read current directory 'monitor' [%!s].");closedir(dir);goto changedir_back;}
-    ent=readdir(dir);  /* skip .. */
+      {err=GetPrintMessage(Warning,"Cannot read current directory 'monitor' [%!s].");closedir(dir);goto changedir_back;}
 
-    while((ent=readdir(dir)))
+    do
       {
-       if(unlink(ent->d_name))
-          err=PrintMessage(Warning,"Cannot unlink outgoing request 'monitor/%s' [%!s].",ent->d_name);
+       if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+          continue; /* skip . & .. */
+
+       if(*ent->d_name=='U' || *ent->d_name=='O' || *ent->d_name=='M')
+	 if(unlink(ent->d_name)) {
+	   if(err) free(err);
+	   err=GetPrintMessage(Warning,"Cannot unlink monitor request 'monitor/%s' [%!s].",ent->d_name);
+	 }
       }
+    while((ent=readdir(dir)));
 
     closedir(dir);
    }
@@ -1574,7 +1711,7 @@ char *DeleteMonitorSpoolFile(URL *Url)
  /* Change dir back. */
 
 changedir_back:
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 
  return(err);
 }
@@ -1588,7 +1725,7 @@ changedir_back:
 
 int CreateTempSpoolFile(void)
 {
- char name[16];
+ char name[sizeof("temp/tmp.")+10];
  struct stat buf;
  int fd;
 
@@ -1606,13 +1743,14 @@ int CreateTempSpoolFile(void)
 
  /* Open the file */
 
- sprintf(name,"temp/tmp.%ld",(long)getpid());
+ sprintf(name,"temp/tmp.%u",(unsigned)getpid());
 
  fd=open(name,O_RDWR|O_CREAT|O_TRUNC|O_BINARY,(mode_t)ConfigInteger(FilePerm));
- init_buffer(fd);
 
  if(fd==-1)
     PrintMessage(Warning,"Cannot create temporary file '%s' [%!s].",name);
+
+ /* init_io(fd) not called since fd is returned */
 
  return(fd);
 }
@@ -1626,11 +1764,13 @@ int CreateTempSpoolFile(void)
 
 void CloseTempSpoolFile(int fd)
 {
- char name[16];
+ char name[sizeof("temp/tmp.")+10];
 
- sprintf(name,"temp/tmp.%ld",(long)getpid());
+ sprintf(name,"temp/tmp.%u",(unsigned)getpid());
  if(unlink(name)==-1)
     PrintMessage(Warning,"Cannot unlink temporary file '%s' [%!s].",name);
+
+ /* finish_io(fd) not called since fd was returned */
 
  close(fd);
 }
@@ -1681,80 +1821,78 @@ char *FileNameToURL(char *file)
 
 close_return:
  close(ufd);
+
  return(path);
 }
 
 
-#if defined(__CYGWIN__)
-
 /*++++++++++++++++++++++++++++++++++++++
-  A fchdir replacement for systems that do not have one.
+  Open the spool directory.
 
-  int fchdir Returns the error status from changing directory.
+  int ChangeToSpoolDir Changes to the spool directory (and opens a file descriptor there for later).
 
-  int fd The file descriptor of the spool directory (not used).
+  char *dir The directory to change to (and open).
   ++++++++++++++++++++++++++++++++++++++*/
 
-int fchdir(int fd)
+int ChangeToSpoolDir(char *dir)
 {
- static char *spool_dir=NULL;
+#if defined(__CYGWIN__)
 
- if(!spool_dir)
-    spool_dir=ConfigString(SpoolDir);
+ if(chdir(dir)==-1)
+    return(-1);
 
- return(chdir(spool_dir));
-}
+ if(sSpoolDir) free(sSpoolDir);
+ sSpoolDir=strdup(dir);
+
+#else
+
+ if(fSpoolDir!=-1) close(fSpoolDir);
+ fSpoolDir=open(dir,O_RDONLY);
+ if(fSpoolDir==-1 || fchdir(fSpoolDir)==-1)
+    return(-1);
 
 #endif
 
+ return(0);
+}
+
 
 /*++++++++++++++++++++++++++++++++++++++
-  Find the status of a spooled backup page.
+  Change back to the spool directory.
 
-  int SpooledBackupStatus Returns the status number.
-
-  URL *Url The URL to check.
+  int ChangeBackToSpoolDir Return -1 in case of error.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int SpooledBackupStatus(URL *Url)
+int ChangeBackToSpoolDir(void)
 {
- int status=0;
+#if defined(__CYGWIN__)
 
- /* Change to the spool directory. */
+  return chdir(sSpoolDir);
 
- if(chdir(Url->proto))
-   return(0);
+#else
 
- if(chdir(Url->dir))
-   goto changedir_back;
+ return fchdir(fSpoolDir);
 
- {
-   local_URLToFileName(Url,file)
+#endif
+}
 
-   *file='D';
-   strcat(file,"~");
-   {
-     int spool;
-     char *reply;
+int CloseSpoolDir()
+{
+  int err=0;
+#if defined(__CYGWIN__)
 
-     if((spool=open(file,O_RDONLY|O_BINARY))!=-1)
-       {
-	 init_buffer(spool);
+  if(sSpoolDir) {
+    free(sSpoolDir);
+    sSpoolDir=NULL;
+  }
 
-	 if((reply=read_line(spool,NULL)))
-	   {
-	     sscanf(reply,"%*s %d",&status);
-	     free(reply);
-	   }
-	 close(spool);
-       }
-   }
- }
+#else
 
- /* Change dir back. */
+  if(fSpoolDir!=-1) {
+    err=close(fSpoolDir);
+    fSpoolDir=-1;
+  }
+#endif
 
-changedir_back:
- fchdir(fSpoolDir);
-
- return(status);
+  return err;
 }

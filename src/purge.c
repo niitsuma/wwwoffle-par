@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/purge.c 2.55 2002/11/03 09:36:02 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/purge.c 2.63 2004/02/14 14:03:18 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Purge old files from the cache.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -75,21 +75,18 @@
 #endif
 
 #include "wwwoffle.h"
+#include "io.h"
 #include "misc.h"
 #include "headbody.h"
-#include "proto.h"
-#include "config.h"
 #include "errors.h"
+#include "config.h"
+#include "proto.h"
 
 
 /*+ Need this for Win32 to use binary mode +*/
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
-
-
-/*+ The file descriptor of the spool directory. +*/
-extern int fSpoolDir;
 
 
 /* Local functions */
@@ -121,13 +118,13 @@ static int pass;
 /*+ The blocksize. +*/
 static unsigned long blocksize;
 
-/*+ The configuraion file options, looked up once then used. +*/
-static int purge_max_size;
-static int purge_min_free;
-static int purge_use_mtime;
-static int purge_use_url;
-static int purge_default_age;
-static int compress_default_age;
+/*+ The configuration file option (looked up once then used) for +*/
+static int purge_max_size,      /*+ maximum cache size. +*/
+           purge_min_free,      /*+ minimum disk free space. +*/
+           purge_use_mtime,     /*+ using modification time instead of access time. +*/
+           purge_use_url,       /*+ using the whole URL rather than just the host. +*/
+           purge_default_age,   /*+ the default purge age. +*/
+           compress_default_age; /*+ the default compression age. +*/
 
 
 /*
@@ -260,18 +257,20 @@ void PurgeCache(int fd)
 
        dir=opendir(".");
        if(!dir)
-         {PrintMessage(Warning,"Cannot open directory '%s' [%!s]; not purged.",proto);fchdir(fSpoolDir);continue;}
+         {PrintMessage(Warning,"Cannot open directory '%s' [%!s]; not purged.",proto);ChangeBackToSpoolDir();continue;}
 
-       ent=readdir(dir);  /* skip .  */
+       ent=readdir(dir);
        if(!ent)
-         {PrintMessage(Warning,"Cannot read directory '%s' [%!s]; not purged.",proto);closedir(dir);fchdir(fSpoolDir);continue;}
-       ent=readdir(dir);  /* skip .. */
+         {PrintMessage(Warning,"Cannot read directory '%s' [%!s]; not purged.",proto);closedir(dir);ChangeBackToSpoolDir();continue;}
 
        /* Search through all of the sub directories. */
 
-       while((ent=readdir(dir)))
+       do
          {
           struct stat buf;
+
+          if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+             continue; /* skip . & .. */
 
           if(stat(ent->d_name,&buf))
              PrintMessage(Inform,"Cannot stat directory '%s/%s' [%!s]; race condition?",proto,ent->d_name);
@@ -397,9 +396,10 @@ void PurgeCache(int fd)
             }
 
          }
+       while((ent=readdir(dir)));
 
        closedir(dir);
-       fchdir(fSpoolDir);
+       ChangeBackToSpoolDir();
       }
 
     write_string(fd,"\n");
@@ -512,24 +512,47 @@ void PurgeCache(int fd)
    {
     DIR *dir;
     struct dirent* ent;
+    int count1=0,count2=0;
 
     dir=opendir(".");
     if(!dir)
       PrintMessage(Warning,"Cannot open directory 'outgoing' [%!s]; not purged.");
     else
       {
-       ent=readdir(dir);  /* skip .  */
+       ent=readdir(dir);
        if(!ent)
           PrintMessage(Warning,"Cannot read directory 'outgoing' [%!s]; not purged.");
        else
          {
-          ent=readdir(dir);  /* skip .. */
+          do
+            {
+             struct stat buf;
 
-          while((ent=readdir(dir)))
-             if(!strcmp_litbeg(ent->d_name,"tmp."))
+             if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+                continue; /* skip . & .. */
+
+             if(*ent->d_name=='U' || *ent->d_name=='O')
                {
-                struct stat buf;
+                int s;
 
+                *ent->d_name^='U'^'O';
+                s=stat(ent->d_name,&buf);
+                *ent->d_name^='U'^'O';
+
+                if(s)
+                  {
+                   PrintMessage(Inform,"Outgoing file 'outgoing/%s' is not complete (U* and O* files); deleting it.",ent->d_name);
+#if DO_DELETE
+                   if(unlink(ent->d_name))
+                      PrintMessage(Warning,"Cannot unlink file 'outgoing/%s' [%!s]; race condition?",ent->d_name);
+#else
+                   PrintMessage(Debug,"unlink(outgoing/%s).",ent->d_name);
+#endif
+                   count1++;
+                  }
+               }
+             else if(!strcmp_litbeg(ent->d_name,"tmp."))
+               {
                 if(!stat(ent->d_name,&buf) && buf.st_mtime<(now-60))
                   {
 #if DO_DELETE
@@ -538,15 +561,23 @@ void PurgeCache(int fd)
 #else
                    PrintMessage(Debug,"unlink(outgoing/%s).",ent->d_name);
 #endif
+                   count2++;
                   }
                }
+            }
+          while((ent=readdir(dir)));
          }
 
        closedir(dir);
       }
+
+    if(count1)
+       write_formatted(fd,"\nDeleted %d unmatched files (missing O* or U*) from directory 'outgoing'\n\n",count1);
+    if(count2)
+       write_formatted(fd,"\nDeleted %d temporary files from directory 'outgoing'\n\n",count2);
    }
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 
  /* Purge the tmp.* files in temp. */
 
@@ -556,20 +587,23 @@ void PurgeCache(int fd)
    {
     DIR *dir;
     struct dirent* ent;
+    int count=0;
 
     dir=opendir(".");
     if(!dir)
       PrintMessage(Warning,"Cannot open directory 'temp' [%!s]; not purged.");
     else
       {
-       ent=readdir(dir);  /* skip .  */
+       ent=readdir(dir);
        if(!ent)
           PrintMessage(Warning,"Cannot read directory 'temp' [%!s]; not purged.");
        else
          {
-          ent=readdir(dir);  /* skip .. */
+          do
+            {
+             if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+                continue; /* skip . & .. */
 
-          while((ent=readdir(dir)))
              if(!strcmp_litbeg(ent->d_name,"tmp."))
                {
                 struct stat buf;
@@ -582,15 +616,21 @@ void PurgeCache(int fd)
 #else
                    PrintMessage(Debug,"unlink(temp/%s).",ent->d_name);
 #endif
+                   count++;
                   }
                }
+            }
+          while((ent=readdir(dir)));
          }
 
        closedir(dir);
       }
+
+    if(count)
+       write_formatted(fd,"\nDeleted %d temporary files from directory 'temp'.\n\n",count);
    }
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 }
 
 
@@ -601,9 +641,9 @@ void PurgeCache(int fd)
 
   char *host The name of the host directory to purge.
 
-  int def_purge age The default purge age to use for this host.
+  int def_purge_age The default purge age to use for this host.
 
-  int def_compress age The default compress age to use for this host.
+  int def_compress_age The default compress age to use for this host.
 
   unsigned long *remain Returns the number of blocks in files that are left.
 
@@ -628,18 +668,20 @@ static void PurgeFiles(char *proto,char *host,int def_purge_age,int def_compress
 
  dir=opendir(".");
  if(!dir)
-   {PrintMessage(Warning,"Cannot open directory '%s/%s' [%!s]; not purged.",proto,host);fchdir(fSpoolDir);chdir(proto);return;}
+   {PrintMessage(Warning,"Cannot open directory '%s/%s' [%!s]; not purged.",proto,host);ChangeBackToSpoolDir();chdir(proto);return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
-   {PrintMessage(Warning,"Cannot read directory '%s/%s' [%!s]; not purged.",proto,host);closedir(dir);fchdir(fSpoolDir);chdir(proto);return;}
- ent=readdir(dir);  /* skip .. */
+   {PrintMessage(Warning,"Cannot read directory '%s/%s' [%!s]; not purged.",proto,host);closedir(dir);ChangeBackToSpoolDir();chdir(proto);return;}
 
  /* Check all of the files for age, and delete as needed. */
 
- while((ent=readdir(dir)))
+ do
    {
     struct stat buf,buf2;
+
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
 
     if(stat(ent->d_name,&buf))
        ;
@@ -759,9 +801,10 @@ static void PurgeFiles(char *proto,char *host,int def_purge_age,int def_compress
          }
       }
    }
+ while((ent=readdir(dir)));
 
  closedir(dir);
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
  chdir(proto);
 }
 
@@ -859,13 +902,14 @@ static unsigned long compress_file(char *proto,char *host,char *file)
    }
 
  ifd=open(file,O_RDONLY|O_BINARY);
- init_buffer(ifd);
 
  if(ifd==-1)
    {
     PrintMessage(Inform,"Cannot open file '%s/%s/%s' to compress it [%!s]; race condition?",proto,host,file);
     return(0);
    }
+
+ init_io(ifd);
 
  ParseReply(ifd,&spool_head,NULL);
 
@@ -876,7 +920,10 @@ static unsigned long compress_file(char *proto,char *host,char *file)
    {
     if(spool_head)
        FreeHeader(spool_head);
+
+    finish_io(ifd);
     close(ifd);
+
     utime(file,&ubuf);
     return(0);
    }
@@ -889,16 +936,21 @@ static unsigned long compress_file(char *proto,char *host,char *file)
  stpcpy(stpcpy(zfile,file),".z");
 
  ofd=open(zfile,O_WRONLY|O_BINARY|O_CREAT|O_TRUNC,buf.st_mode&07777);
- init_buffer(ofd);
 
  if(ofd==-1)
    {
     PrintMessage(Inform,"Cannot open file '%s/%s/%s' to compress to [%!s].",proto,host,zfile);
+
     FreeHeader(spool_head);
+
+    finish_io(ifd);
     close(ifd);
+
     utime(file,&ubuf);
     return(0);
    }
+
+ init_io(ofd);
 
  head=HeaderString(spool_head,NULL);
  FreeHeader(spool_head);
@@ -906,14 +958,15 @@ static unsigned long compress_file(char *proto,char *host,char *file)
  write_string(ofd,head);
  free(head);
 
- init_zlib_buffer(ofd,-2);
+ configure_io_write(ofd,-1,2,0);
 
  while((n=read_data(ifd,buffer,READ_BUFFER_SIZE))>0)
     write_data(ofd,buffer,n);
 
- finish_zlib_buffer(ofd);
-
+ finish_io(ofd);
  close(ofd);
+
+ finish_io(ifd);
  close(ifd);
 
  if(rename(zfile,file))

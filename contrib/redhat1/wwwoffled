@@ -15,6 +15,7 @@
 #	Richard Zidlicky	rz@linux-m68k.org
 #
 # Revision History:
+#       17-May-2003     amb     Changed to use /etc/wwwoffle/wwwoffle.conf
 #	30-OCT-2002	Marc	Fixed the missing "-c $CONFIG" from the
 #				command-line when calling $WWWOFFLED and
 #				$EXECWWWOFFLE
@@ -39,6 +40,7 @@
 [ ${NETWORKING} = "no" ] && exit 0
 
 export PATH=$PATH:/usr/local/sbin:/usr/local/bin
+[ -f /etc/wwwoffle/wwwoffle.conf ] && CONFIG='/etc/wwwoffle/wwwoffle.conf'
 [ -f /etc/wwwoffle.conf ] && CONFIG='/etc/wwwoffle.conf'
 [ -z "$CONFIG" ] && CONFIG='/var/spool/wwwoffle/wwwoffle.conf'
 RETVAL=0

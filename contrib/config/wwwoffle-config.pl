@@ -36,10 +36,10 @@
 # 
 
 # The `main' config-file - where to read from
-$INFILE="/etc/wwwoffle.conf.main";
+$INFILE="/etc/wwwoffle/wwwoffle.conf.main";
 
 # The `real' config-file, which wwwoffle reads
-$OUTFILE="/etc/wwwoffle.conf";
+$OUTFILE="/etc/wwwoffle/wwwoffle.conf";
 
 # Howto call `wwwoffle -config' - if you don't want it to be called 
 # prefix the line with a `#'

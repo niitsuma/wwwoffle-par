@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <!--
@@ -6,6 +6,7 @@
 Available WWWOFFLE Variables (all with a '$' prefix).
 
 localhost = The hostname of the server running wwwoffled (='$localhost').
+version   = The version of the WWWOFFLE server (='$version').
 section   = The name of the section that has been updated (='$section').
 reason    = The reason that the update failed (='$reason')
               ReadError  - The config file could not be read.
@@ -16,25 +17,25 @@ reason    = The reason that the update failed (='$reason')
 -->
 
 <HEAD>
-<TITLE>WWWOFFLE - Błąd Uaktualnienia Konfiguracji</TITLE>
 <META http-equiv="Content-Type" content="text/html; charset=ISO-8859-2">
+<TITLE>WWWOFFLE - Błąd Uaktualnienia Konfiguracji</TITLE>
+<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
-<BODY>
+<BODY class="wwwoffle-message">
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<!-- Standard WWWOFFLE Message Page Header Start -->
 
-<p align=center>
-<b>WWWOFFLE</b> - <b>E</b>ksplorator <b>Offl</b>ine <b>W</b>orld <b>W</b>ide <b>W</b>eb 
-</p>
+<div class="wwwoffle-header" align="center">
+<b>WWWOFFLE</b> <b>-</b> <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer <b>-</b> <b>v$version</b>
+</div>
+<hr class="wwwoffle-header">
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Header End -->
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<H1 align="center">WWWOFFLE - Błąd Uaktualnienia Konfiguracji</H1>
 
-<H1 align=center>WWWOFFLE - Błąd Uaktualnienia Konfiguracji</H1>
-
-<p align=center>
+<div class="wwwoffle-message" align="center">
 $reason?=ReadError{
 
 Nie można otworzyć do odczytu pliku konfiguracji <b><tt>wwwoffle.conf</tt></b>
@@ -56,10 +57,13 @@ $reason?=WriteError{
 Nie można otworzyć pliku konfiguracji <b><tt>wwwoffle.conf</tt></b> do zapisu.
 
 }{}
-</p>
+</div>
 
-<h2>Pomoc</h2>
+<!-- Standard WWWOFFLE Message Page Inline Help Start -->
 
+<h2 class="wwwoffle-inline-help">Pomoc</h2>
+
+<div class="wwwoffle-inline-help">
 $reason?=ReadError{
 
 Plik konfiguracyjny nie może zostać otwarty do odczytu lub może być otwarty, ale
@@ -95,23 +99,25 @@ Plik konfiguracji nie może zostać otwarty do zapisu.  Sprawdź, czy plik
 użytkownika, który uruchamia ten program.
 
 }{}
+</div>
 
-<p align=center>
+<!-- Standard WWWOFFLE Message Page Inline Help End -->
+
+<div class="wwwoffle-nav" align="center">
 [<a href="/control/edit/">Strona Edycji Konfiguracji</a>]
-</p>
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
-<hr>
-
-<p align=center>
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
 WWWOFFLE - [ \
 <a href="http://$localhost/Welcome.html">Strona Powitalna</a>| \
 <a href="http://$localhost/FAQ.html">Pytania i Odpowiedzi</a> \
 ] - WWWOFFLE
-</p>
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

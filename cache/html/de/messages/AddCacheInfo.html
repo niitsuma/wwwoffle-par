@@ -1,6 +1,9 @@
 
 <!-- The following section added by WWWOFFLE -->
-<!--
+
+<STYLE type="text/css">
+<!-- @import "http://$localhost/wwwoffle.css"; -->
+</STYLE>
 
 $timeunit=$time$unit
 $unit?=m{$unitstr=Minuten}{} $timeunit?=1m{$unitstr=Minute}{}
@@ -8,27 +11,22 @@ $unit?=h{$unitstr=Stunden}{} $timeunit?=1h{$unitstr=Stunde}{}
 $unit?=d{$unitstr=Tage}{}    $timeunit?=1d{$unitstr=Tag}{}
 $unit?=w{$unitstr=Wochen}{}  $timeunit?=1w{$unitstr=Woche}{}
 $unit?=M{$unitstr=Monate}{}  $timeunit?=1M{$unitstr=Monat}{}
+
 $encurl=%encode[url]
 
-Useful WWWOFFLE Buttons
+<hr class="wwwoffle-addinfo" />
+<div class="wwwoffle-addinfo" align="center">
+WWWOFFLE -  Alter: $time $unitstr - [\
+  <a href="http://$localhost/control/delete-url/?url=$encurl">L&ouml;schen</a>| \
+  <a href="http://$localhost/refresh/?$encurl">Aktual.</a>: \
+  <a href="http://$localhost/refresh-options/?$encurl">Optionen</a>| \
+  <a href="http://$localhost/monitor-options/?$encurl">Abonnieren</a>| \
+  <a href="http://$localhost/index/url?$encurl">Index</a>| \
+  <a href="http://$localhost/configuration/url?$encurl">Configure</a>| \
+  <a href="http://$localhost/info/url?$encurl">Info</a> \
+] - WWWOFFLE
+</div>
+<hr class="wwwoffle-addinfo" />
 
-$Delete  = http://$localhost/control/delete-url/?url=$encurl
-$Refresh = http://$localhost/refresh/?$encurl
-$Options = http://$localhost/refresh-options/?$encurl
-$Monitor = http://$localhost/monitor-options/?$encurl
-$Index   = http://$localhost/index/url?$encurl
-$Info    = http://$localhost/info/url?$encurl
-$Config  = http://$localhost/configuration/url?$encurl
-
--->
-<p align=center><font size=-2>
-WWWOFFLE { Alter: $time $unitstr - [
-  <a href="$Delete">L&ouml;schen</a>|
-  <a href="$Refresh">Aktual.</a>:
-  <a href="$Options">Optionen</a>|
-  <a href="$Monitor">Abonnieren</a>|
-  <a href="$Index">Index</a>|
-  <a href="$Info">Info</a>|
-  <a href="$Config">Configure</a>] }
-</font></p>
 <!-- The previous section added by WWWOFFLE -->
+

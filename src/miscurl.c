@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/miscurl.c 2.79 2002/10/04 16:52:41 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/miscurl.c 2.86 2004/09/01 18:02:34 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   Miscellaneous HTTP / HTML Url Handling functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -21,8 +21,8 @@
 #include <ctype.h>
 
 #include "misc.h"
-#include "proto.h"
 #include "config.h"
+#include "proto.h"
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -137,6 +137,7 @@ URL *SplitURL(const char *url)
  if(*ques)                       /* ../path?... */
    {
     Url->args=URLRecodeFormArgs(ques+1);
+    URLReplaceAmp(Url->args);
    }
  else
     Url->args=NULL;
@@ -157,15 +158,15 @@ URL *SplitURL(const char *url)
       pathbeg=slash;
     else                        /* www.foo.com[?]... */
       pathbeg=pathend;
-    
-     Url->hostport=STRDUP2(url,pathbeg);
 
-     if(Url->Protocol==&Protocols[0] && IsLocalHostPort(Url->hostport))
-       {
-	 free(Url->hostport);
-	 Url->hostport=GetLocalHost(1);
-	 Url->local=1;
-       }
+    Url->hostport=STRDUP2(url,pathbeg);
+
+    if(Url->Protocol==&Protocols[0] && IsLocalHostPort(Url->hostport))
+      {
+	free(Url->hostport);
+	Url->hostport=GetLocalHost(1);
+	Url->local=1;
+      }
    }
 
  /* Pathname */
@@ -437,7 +438,9 @@ char *LinkURL(URL *Url,char *link)
  char *colon=strchr(link,':');
  char *slash=strchr(link,'/');
 
- if(colon && slash && colon<slash)
+ if((colon && slash && colon<slash) ||
+    /* "mailto:" doesn't follow the rule of ':' before '/'. */
+    !strcasecmp_litbeg(link,"mailto:"))
     ;
  else if(*link=='/')
    {
@@ -454,19 +457,20 @@ char *LinkURL(URL *Url,char *link)
    }
  else
    {
-    char *p;
+    char *p,*q;
     new=(char*)malloc(strlen(Url->proto)+strlen(Url->host)+strlen(Url->path)+strlen(link)+4);
-    p=new+sprintf(new,"%s://%s%s",Url->proto,Url->host,Url->path);
+    p=stpcpy(stpcpy(stpcpy(new,Url->proto),"://"),Url->host);
+    q=stpcpy(p,Url->path);
 
     if(*link)
       {
-	while(--p>new)
-	  if(*p=='/')
+	while(--q>new)
+	  if(*q=='/')
 	    break;
 
-	stpcpy(p+1,link);
+	stpcpy(q+1,link);
 
-	CanonicaliseName(new);
+	CanonicaliseName(p);
       }
    }
 
@@ -504,16 +508,18 @@ char *CanonicaliseHost(char *host)
    {
     unsigned int ipv6[8];
     int cs=0,ce=7;
-    char *ps,*pe,*port;
+    char *ps,*pe,*port=NULL;
 
     ps=host;
-    port=strchrnul(host,0);
-    pe=port-1;
+    pe=strchrnul(host,0)-1;
 
     if(*host=='[') {
       ++ps;
       if(!(pe=strchr(ps,']'))) return(host);
-      if(*(pe+1)==':') port=pe+1;
+      if(*(pe+1)==':') {
+	port=pe+2;
+	if(!*port) port=NULL;
+      }
       --pe;
     }
 
@@ -565,18 +571,25 @@ char *CanonicaliseHost(char *host)
     }
 
    fill_in_zeros:
-    while(cs<=ce) ipv6[cs++]=0;
+    for(;cs<=ce;cs++)
+       ipv6[cs]=0;
 
-    return x_asprintf("[%x:%x:%x:%x:%x:%x:%x:%x]%s",
-               ipv6[0],ipv6[1],ipv6[2],ipv6[3],ipv6[4],ipv6[5],ipv6[6],ipv6[7],port);
+    for(cs=0;cs<8;cs++)
+       ipv6[cs]&=0xffff;
+
+    return port?
+      x_asprintf("[%x:%x:%x:%x:%x:%x:%x:%x]:%u",
+		 ipv6[0],ipv6[1],ipv6[2],ipv6[3],ipv6[4],ipv6[5],ipv6[6],ipv6[7],
+		 (unsigned int)strtoul(port,NULL,0)&0xffff):
+      x_asprintf("[%x:%x:%x:%x:%x:%x:%x:%x]",
+		 ipv6[0],ipv6[1],ipv6[2],ipv6[3],ipv6[4],ipv6[5],ipv6[6],ipv6[7]);
    }
  else if(hasletter)
-    return(host);
- else if(hasdot==3)
     return(host);
  else
    {
     unsigned int ipv4[4];
+    char *port;
 
     if(hasdot==0)
       {
@@ -591,9 +604,24 @@ char *CanonicaliseHost(char *host)
       {
        ipv4[0]=ipv4[1]=ipv4[2]=ipv4[3]=0;
        sscanf(host,"%u.%u.%u.%u",&ipv4[0],&ipv4[1],&ipv4[2],&ipv4[3]);
+
+       ipv4[0]&=0xff;
+       ipv4[1]&=0xff;
+       ipv4[2]&=0xff;
+       ipv4[3]&=0xff;
       }
 
-    return x_asprintf("%u.%u.%u.%u%s",ipv4[0],ipv4[1],ipv4[2],ipv4[3],strchrnul(host,':'));
+    port=strchr(host,':');
+    if(port) {
+      ++port;
+      if(!*port)
+	port=NULL;
+    }
+
+    return port?
+      x_asprintf("%u.%u.%u.%u:%u",ipv4[0],ipv4[1],ipv4[2],ipv4[3],
+		 (unsigned int)strtoul(port,NULL,0)&0xffff):
+      x_asprintf("%u.%u.%u.%u",ipv4[0],ipv4[1],ipv4[2],ipv4[3]);
    }
 }
 

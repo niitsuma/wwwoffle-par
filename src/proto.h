@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/proto.h 1.14 2002/08/04 10:24:43 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/proto.h 1.15 2003/07/27 07:09:06 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8.
   Information about the protocols that wwwoffle supports.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -50,34 +50,38 @@ extern Protocol Protocols[];
 /*+ The number of protocols. +*/
 extern int NProtocols;
 
+/* Definitions for SOCKS protocol */
+#define DEFSOCKSPORT 1080
+
+
 /* In http.c */
 
-char /*@null@*/ /*@observer@*/ *HTTP_Open(URL *Url);
-char /*@null@*/ /*@observer@*/ *HTTP_Request(URL *Url,Header *request_head,Body *request_body);
+char /*@null@*/ /*@only@*/ *HTTP_Open(URL *Url);
+char /*@null@*/ /*@only@*/ *HTTP_Request(URL *Url,Header *request_head,Body *request_body);
 int   HTTP_ReadHead(/*@out@*/ Header **reply_head);
 int   HTTP_ReadBody(char *s,int n);
 int   HTTP_Close(void);
 
 /* In ftp.c */
 
-char /*@null@*/ /*@observer@*/ *FTP_Open(URL *Url);
-char /*@null@*/ /*@observer@*/ *FTP_Request(URL *Url,Header *request_head,Body *request_body);
+char /*@null@*/ /*@only@*/ *FTP_Open(URL *Url);
+char /*@null@*/ /*@only@*/ *FTP_Request(URL *Url,Header *request_head,Body *request_body);
 int   FTP_ReadHead(/*@out@*/ Header **reply_head);
 int   FTP_ReadBody(char *s,int n);
 int   FTP_Close(void);
 
 /* In finger.c */
 
-char /*@null@*/ /*@observer@*/ *Finger_Open(URL *Url);
-char /*@null@*/ /*@observer@*/ *Finger_Request(URL *Url,Header *request_head,Body *request_body);
+char /*@null@*/ /*@only@*/ *Finger_Open(URL *Url);
+char /*@null@*/ /*@only@*/ *Finger_Request(URL *Url,Header *request_head,Body *request_body);
 int   Finger_ReadHead(/*@out@*/ Header **reply_head);
 int   Finger_ReadBody(char *s,int n);
 int   Finger_Close(void);
 
 /* In ssl.c */
 
-char /*@null@*/ /*@observer@*/ *SSL_Open(URL *Url);
-char /*@null@*/ /*@observer@*/ *SSL_Request(int client,URL *Url,Header *request_head);
+char /*@null@*/ /*@only@*/ *SSL_Open(URL *Url);
+char /*@null@*/ /*@only@*/ *SSL_Request(int client,URL *Url,Header *request_head);
 void  SSL_Transfer(int client);
 int   SSL_Close(void);
 
