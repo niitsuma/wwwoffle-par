@@ -346,7 +346,7 @@ static void DeleteControlPage(int fd,URL *Url,Body *request_body)
        URL *hashUrl=SplitURL(req);
 
        if(username)
-          AddURLPassword(hashUrl,username,password);
+          ChangeURLPassword(hashUrl,username,password);
 
        realhash=HashOutgoingSpoolFile(hashUrl);
 
@@ -536,7 +536,7 @@ static void delete_req(int fd,char *req,int all,char *username,char *password,in
     URL *reqUrl=SplitURL(req);
 
     if(username)
-       AddURLPassword(reqUrl,username,password);
+       ChangeURLPassword(reqUrl,username,password);
 
     if(reqUrl->Protocol)
        err=DeleteOutgoingSpoolFile(reqUrl);
@@ -589,7 +589,7 @@ static void delete_mon(int fd,char *mon,int all,char *username,char *password,in
     URL *monUrl=SplitURL(mon);
 
     if(username)
-       AddURLPassword(monUrl,username,password);
+       ChangeURLPassword(monUrl,username,password);
 
     if(monUrl->Protocol)
        err=DeleteMonitorSpoolFile(monUrl);
@@ -637,7 +637,7 @@ static void delete_url(int fd,char *url,int all,char *username,char *password,in
  sprintf(count_str,"%d",count);
 
  if(username)
-    AddURLPassword(urlUrl,username,password);
+    ChangeURLPassword(urlUrl,username,password);
 
  if(urlUrl->Protocol)
     err=DeleteWebpageSpoolFile(urlUrl,all);

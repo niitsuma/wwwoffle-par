@@ -116,7 +116,7 @@ int wwwoffles(int online,int fetching,int client)
  int outgoing_read=-1,outgoing_write=-1,spool=-1,tmpclient=-1,server=-1,is_server=0;
  int exitval=-1,fetch_again=0;
  Header *request_head=NULL,*reply_head=NULL;
- Body   *request_body=NULL,*reply_body=NULL;
+ Body   *request_body=NULL;
  int reply_status=-1;
  char *url;
  URL *Url=NULL,*Urlpw=NULL;
@@ -131,7 +131,6 @@ int wwwoffles(int online,int fetching,int client)
  int client_compression=0,request_compression=0,server_compression=0;
 #endif
  int client_chunked=0,request_chunked=0,server_chunked=0;
- int spool_head_size=0;
  int redirect_count=0;
 
 
@@ -452,7 +451,7 @@ int wwwoffles(int online,int fetching,int client)
       newUrl=SplitURL(newurl);
 
       if(Url->user)
-	 AddURLPassword(newUrl,Url->user,Url->pass);
+	 ChangeURLPassword(newUrl,Url->user,Url->pass);
 
       PrintMessage(Inform,"Aliased URL='%s'%s.",newUrl->name,newUrl->user?" (With username/password)":"");
       PrintMessage(Debug,"Aliased proto='%s'; host='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
@@ -692,7 +691,7 @@ int wwwoffles(int online,int fetching,int client)
        if(url!=newurl)
          {
           if(Url->user)
-             AddURLPassword(newUrl,Url->user,Url->pass);
+             ChangeURLPassword(newUrl,Url->user,Url->pass);
 
           free(url);
           url=newurl;
@@ -918,7 +917,8 @@ int wwwoffles(int online,int fetching,int client)
  if(Url->user && ConfigBooleanURL(TryWithoutPassword,Url))
    {
     Urlpw=Url;
-    Url=SplitURL(Url->name);
+    Url=CopyURL(Url);
+    ChangeURLPassword(Url,NULL,NULL);
 
     if(!Urlpw->pass)
       {
@@ -1830,7 +1830,6 @@ passwordagain:
    ----------------------------------------*/
 
  /* reply_head=NULL; */
- /* reply_body=NULL; */
 
  /* Read the reply from the server. */
 
@@ -2093,8 +2092,10 @@ passwordagain:
 
        if(!new_url)
           PrintMessage(Warning,"Cannot parse the reply for the new location.");
-       else
+       else {
           fetch_again+=RecurseFetchRelocation(Url,new_url);
+	  free(new_url);
+       }
       }
    }
 
@@ -2114,9 +2115,6 @@ passwordagain:
     outgoing_write=-1;
    }
 
- /* Initialise the body. */
-
- reply_body=ReallocBody(reply_body,READ_BUFFER_SIZE);
 
  /*----------------------------------------
    mode = Spool, SpoolGet, SpoolPragma, SpoolRefresh, Real, RealRefresh, RealNoCache, RealNoPassword, Fetch or FetchNoPassword
@@ -2134,11 +2132,10 @@ passwordagain:
  if(mode==Real || mode==RealNoCache || mode==RealNoPassword)
    {
 #   define CUNDEF (~0L)
-    char *head;
-    int reply_head_size;
     int err=0,spool_err=0,n=0;
     unsigned long bytes_start,content_length=CUNDEF;
     int modify=0;
+    char buffer[READ_BUFFER_SIZE];
 
     /* Print a message for auditing. */
 
@@ -2157,8 +2154,9 @@ passwordagain:
     /* Generate the header and write it to the cache unmodified. */
 
     if(mode!=RealNoCache) {
-      head=HeaderString(reply_head,&spool_head_size);
-      if((spool_err=write_data(spool,head,spool_head_size))<0)
+      int headlen;
+      char *head=HeaderString(reply_head,&headlen);
+      if((spool_err=write_data(spool,head,headlen))<0)
 	PrintMessage(Warning,"Cannot write to cache file [%!s]; disk full?");
       free(head);
     }
@@ -2243,18 +2241,18 @@ passwordagain:
 
     /* Write the header to the client if this is the actual reply. */
 
-    head=HeaderString(reply_head,&reply_head_size);
-
     if(mode!=RealNoPassword)
       {
-       if(StderrLevel==ExtraDebug)
-          PrintMessage(ExtraDebug,"Outgoing Reply Head (to client)\n%s",head);
+	int headlen;
+	char *head=HeaderString(reply_head,&headlen);
+	if(StderrLevel==ExtraDebug)
+	  PrintMessage(ExtraDebug,"Outgoing Reply Head (to client)\n%s",head);
 
-       if((err=write_data(client,head,reply_head_size))<0)
-	 PrintMessage(Warning,"Error writing to client [%!s]; client disconnected?");
+	if((err=write_data(client,head,headlen))<0)
+	  PrintMessage(Warning,"Error writing to client [%!s]; client disconnected?");
+
+	free(head);
       }
-
-    free(head);
 
     if(server!=-1) /* can happen if ftp built-in error message */
        tell_io(server,&bytes_start,NULL);
@@ -2283,7 +2281,7 @@ passwordagain:
 	  modify_Url=Url;
 	  modify_read_fd=-1;
 	  modify_write_fd=client;
-	  modify_copy_fd=spool;
+	  modify_copy_fd=(spool_err>=0?spool:-1);
 	  modify_err=0;
 	  modify_n=0;
 
@@ -2298,7 +2296,7 @@ passwordagain:
       else
 	for(;;)
 	  {
-	    n=(Url->Protocol->readbody)(reply_body->content,READ_BUFFER_SIZE);
+	    n=(Url->Protocol->readbody)(buffer,READ_BUFFER_SIZE);
 	    if(n<0)
 	      PrintMessage(Warning,"Error reading reply body from remote host [%!s].");
 	    if(n<=0)
@@ -2307,13 +2305,13 @@ passwordagain:
 	    /* Write the data to the cache. */
 
 	    if(mode!=RealNoCache && spool_err>=0)
-	      if((spool_err=write_data(spool,reply_body->content,n))<0)
+	      if((spool_err=write_data(spool,buffer,n))<0)
                 PrintMessage(Warning,"Cannot write to cache file [%!s]; disk full?");
 
 	    /* Write the data to the client if it wants the body now. */
 
 	    if(mode!=RealNoPassword && !head_only) {
-	      if((err=write_data(client,reply_body->content,n))<0) {
+	      if((err=write_data(client,buffer,n))<0) {
 		PrintMessage(Warning,"Error writing to client [%!s]; client disconnected?");
 		break;
 	      }
@@ -2350,7 +2348,7 @@ passwordagain:
 
 	      for(;;)
 		{
-		  n=(Url->Protocol->readbody)(reply_body->content,READ_BUFFER_SIZE);
+		  n=(Url->Protocol->readbody)(buffer,READ_BUFFER_SIZE);
 		  if(n<0)
 		    PrintMessage(Warning,"Error reading reply body from remote host [%!s].");
 		  if(n<=0)
@@ -2358,7 +2356,7 @@ passwordagain:
 
 		  /* Write the data to the cache. */
 
-		  if((spool_err=write_data(spool,reply_body->content,n))<0) {
+		  if((spool_err=write_data(spool,buffer,n))<0) {
 		    PrintMessage(Warning,"Cannot write to cache file [%!s]; disk full?");
 		    break;
 		  }
@@ -2478,19 +2476,22 @@ passwordagain:
 
     /* While the server has data write it to the cache. */
 
-    if(spool_err>=0)
+    if(spool_err>=0) {
+      char buffer[READ_BUFFER_SIZE];
+
       for(;;) {
-	n=(Url->Protocol->readbody)(reply_body->content,READ_BUFFER_SIZE);
+	n=(Url->Protocol->readbody)(buffer,READ_BUFFER_SIZE);
 	if(n<0)
 	  PrintMessage(Warning,"Error reading reply body from remote host [%!s].");
 	if(n<=0)
 	  break;
 
-	if((spool_err=write_data(spool,reply_body->content,n))<0) {
+	if((spool_err=write_data(spool,buffer,n))<0) {
 	  PrintMessage(Warning,"Cannot write to cache file [%!s]; disk full?");
 	  break;
 	}
       }
+    }
 
     /* If there is an error with the server and we don't keep partial pages write the error to the cache. */
 
@@ -2608,7 +2609,7 @@ passwordagain:
     /* Get the header from the cache. */
 
     if(reply_head) {FreeHeader(reply_head); /* reply_head=NULL; */ }
-    reply_status=ParseReply(spool,&reply_head,&spool_head_size);
+    reply_status=ParseReply(spool,&reply_head);
 
     PrintMessage(Inform,"Cache Access Status='Cached Page Used'."); /* Used in audit-usage.pl */
 
@@ -2628,7 +2629,9 @@ passwordagain:
 	  }
 
 	if(!fstat(spool,&buf)) {
+	  unsigned long spool_head_size;
 	  size=buf.st_size;
+	  tell_io(spool,&spool_head_size,NULL);
 	  content_length=size-spool_head_size;
 	}
 	else
@@ -2791,14 +2794,15 @@ passwordagain:
 	   else
 	     {
 	       int n;
+	       char buffer[READ_BUFFER_SIZE];
 
 	       for(;;) {
-		 n=read_data(spool,reply_body->content,READ_BUFFER_SIZE);
+		 n=read_data(spool,buffer,READ_BUFFER_SIZE);
 		 if(n<0)
 		   PrintMessage(Warning,"Error reading spool file for '%s' [%!s].",Url->name);
 		 if(n<=0)
 		   break;
-		 if(write_data(client,reply_body->content,n)<0)
+		 if(write_data(client,buffer,n)<0)
 		   {
 		     PrintMessage(Warning,"Error writing to client [%!s]; disconnected?");
 		     break;
@@ -2907,7 +2911,6 @@ passwordagain:
    {
     off_t size;
     unsigned long content_length;
-    int reply_head_size;
 
     if(reply_head) {
        FreeHeader(reply_head);
@@ -2929,12 +2932,17 @@ passwordagain:
 
     /* Read the head back in again. */
 
-    reply_status=ParseReply(tmpclient,&reply_head,&reply_head_size);
+    reply_status=ParseReply(tmpclient,&reply_head);
 
     if(reply_head)
       {
        int err=0;
-       content_length=size-reply_head_size;
+
+       {
+	 unsigned long reply_head_size;
+	 tell_io(tmpclient,&reply_head_size,NULL);
+	 content_length=size-reply_head_size;
+       }
 
        if(!reply_head->version)  /* If status line was missing, construct one according to CGI specification */
 	 {
@@ -2978,7 +2986,6 @@ passwordagain:
 			   PrintMessage(Debug,"While in mode SpoolInternal the reply head contains redirection to a local page '%s'.",val);
 
 			   FreeHeader(reply_head); reply_head=NULL;
-			   if(reply_body) {FreeBody(reply_body); reply_body=NULL;}
 			   createlasttimespoolfile=0;
 
 			   /* restore original mode */
@@ -3082,11 +3089,12 @@ passwordagain:
        /* Write the header to the client. */
 
        {
-	 char *head=HeaderString(reply_head,&reply_head_size);
+	 int headlen;
+	 char *head=HeaderString(reply_head,&headlen);
 
 	 if(StderrLevel==ExtraDebug)
 	   PrintMessage(ExtraDebug,"Outgoing Reply Head (to client):\n%s",head);
-	 if((err=write_data(client,head,reply_head_size))<0)
+	 if((err=write_data(client,head,headlen))<0)
 	   PrintMessage(Warning,"Error writing to client [%!s]; client disconnected?");
 
 	 free(head);
@@ -3097,8 +3105,7 @@ passwordagain:
        if(err>=0 && !head_only)
 	 {
 	   int n;
-
-	   reply_body=ReallocBody(reply_body,READ_BUFFER_SIZE);
+	   char buffer[READ_BUFFER_SIZE];
 
 	   /* Initialise the client compression. */
 
@@ -3113,12 +3120,12 @@ passwordagain:
 	     configure_io_write(client,-1,-1,1);
 
 	   for(;;) {
-	     n=read_data(tmpclient,reply_body->content,READ_BUFFER_SIZE);
+	     n=read_data(tmpclient,buffer,READ_BUFFER_SIZE);
 	     if(n<0)
 	       PrintMessage(Warning,"Error reading temporary spool file for '%s' [%!s].",Url->name);
 	     if(n<=0)
 	       break;
-	     if(write_data(client,reply_body->content,n)<0) {
+	     if(write_data(client,buffer,n)<0) {
 	       PrintMessage(Warning,"Error writing to client [%!s]; client disconnected?");
 	       break;
 	     }
@@ -3208,16 +3215,11 @@ clean_up:
  if(is_client_searcher && request_head && spool_exists)
     TouchWebpageSpoolFile(Url,spool_exists);
 
- /* If there is a reply head and body free them. */
+ /* If there is a reply head free it. */
 
  if(reply_head) {
     FreeHeader(reply_head);
     reply_head=NULL;
- }
-
- if(reply_body) {
-    FreeBody(reply_body);
-    reply_body=NULL;
  }
 
  /* If we have fetched a version of a URL without a password then fetch the real one. */
@@ -3289,10 +3291,7 @@ close_client:
 
  /* If we need to fetch more then tell the parent process. */
 
- if(exitval!=-1)
-   exit(exitval);
- else
-   return(fetch_again?4:0);
+ return (exitval!=-1)?exitval:fetch_again?4:0;
 }
 
 
@@ -3323,8 +3322,10 @@ int wwwoffles_read_data(char *data,int len)
     /* Write the data to the cache. */
 
     if(modify_copy_fd!=-1)
-       if(write_data(modify_copy_fd,data,modify_n)==-1)
+      if(write_data(modify_copy_fd,data,modify_n)==-1) {
           PrintMessage(Warning,"Cannot write to cache file; disk full?");
+	  modify_copy_fd=-1;
+      }
    }
 
  return(modify_n);

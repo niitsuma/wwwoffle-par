@@ -324,35 +324,39 @@ URL *SplitURL(const char *url)
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Add a password to an existing URL.
+  Change the password in an existing URL.
 
   URL *Url The URL to add the username and password to.
 
   char *user The username.
 
   char *pass The password.
+
+  If user and pass are NULL, the username & password are removed.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void AddURLPassword(URL *Url,char *user,char *pass)
+void ChangeURLPassword(URL *Url,char *user,char *pass)
 {
- if(Url->user)
-    free(Url->user);
+ if(Url->user) {
+   free(Url->user);
+   Url->user=NULL;
+ }
 
- Url->user=strdup(user);
+ if(user)
+   Url->user=strdup(user);
 
- if(Url->pass)
-    free(Url->pass);
- Url->pass=NULL;
+ if(Url->pass) {
+   free(Url->pass);
+   Url->pass=NULL;
+ }
 
  if(pass)
-   {
-    Url->pass=strdup(pass);
-   }
+   Url->pass=strdup(pass);
 
  if(Url->file!=Url->name)
     free(Url->file);
 
- {
+ if(user) {
    char *encuser=URLEncodePassword(Url->user);
    char *encpass=(Url->pass)?URLEncodePassword(Url->pass):NULL;
    char *p=(char*)malloc(strlen(Url->name)+
@@ -376,6 +380,8 @@ void AddURLPassword(URL *Url,char *user,char *pass)
    *p++='@';
    stpcpy(p,Url->hostp);
  }
+ else
+   Url->file=Url->name;
 
  /* Since we have changed the "file" field, a possible cached hash value must 
     be invalidated */
@@ -384,6 +390,50 @@ void AddURLPassword(URL *Url,char *user,char *pass)
    free(Url->hash);
    Url->hash=NULL;
  }
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Copy a URL to newly allocated memory.
+
+  URL *Url The URL to copy.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+URL *CopyURL(URL *Url)
+{
+  URL *copy=(URL*)malloc(sizeof(URL));
+
+  copy->name=strdup(Url->name);
+
+  copy->link=(Url->link!=Url->name)?strdup(Url->link):copy->name;
+
+  copy->file=(Url->file!=Url->name)?strdup(Url->file):copy->name;
+
+  copy->hostp=copy->name+(Url->hostp-Url->name);
+  copy->pathp=copy->name+(Url->pathp-Url->name);
+  copy->pathendp=copy->name+(Url->pathendp-Url->name);
+
+  copy->proto=strdup(Url->proto);
+  copy->hostport=strdup(Url->hostport);
+  copy->host=(Url->host!=Url->hostport)?strdup(Url->host):copy->hostport;
+  copy->port=(Url->port)?copy->hostport+(Url->port-Url->hostport):NULL;
+  copy->portnum=Url->portnum;
+  copy->path=strdup(Url->path);
+  copy->params=(Url->params)?strdup(Url->params):NULL;
+  copy->args=(Url->args)?strdup(Url->args):NULL;
+
+  copy->Protocol=Url->Protocol;
+
+  copy->user=(Url->user)?strdup(Url->user):NULL;
+  copy->pass=(Url->pass)?strdup(Url->pass):NULL;
+
+  copy->dir=(Url->dir!=Url->hostport)?strdup(Url->dir):copy->hostport;
+
+  copy->hash=(Url->hash)?strdup(Url->hash):NULL;
+
+  copy->local=Url->local;
+
+  return copy;
 }
 
 
@@ -458,8 +508,8 @@ char *LinkURL(URL *Url,char *link)
  else
    {
     char *p,*q;
-    new=(char*)malloc(strlen(Url->proto)+strlen(Url->host)+strlen(Url->path)+strlen(link)+4);
-    p=stpcpy(stpcpy(stpcpy(new,Url->proto),"://"),Url->host);
+    new=(char*)malloc(strlen(Url->proto)+strlen(Url->hostport)+strlen(Url->path)+strlen(link)+4);
+    p=stpcpy(stpcpy(stpcpy(new,Url->proto),"://"),Url->hostport);
     q=stpcpy(p,Url->path);
 
     if(*link)

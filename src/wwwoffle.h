@@ -114,7 +114,7 @@ void ModifyRequest(URL *Url,Header *request_head);
 void MakeRequestProxyAuthorised(char *proxy,Header *request_head);
 void MakeRequestNonProxy(URL *Url,Header *request_head);
 
-int ParseReply(int fd,/*@out@*/ Header **reply_head,/*@out@*/ int *reply_head_size);
+int ParseReply(int fd,/*@out@*/ Header **reply_head);
 
 int SpooledPageStatus(URL *Url,int backup);
 

@@ -298,7 +298,7 @@ static void UncompressHost(char *proto,char *host)
 
        init_io(ifd);
 
-       ParseReply(ifd,&spool_head,NULL);
+       ParseReply(ifd,&spool_head);
 
        if(spool_head && GetHeader2(spool_head,"Pragma","wwwoffle-compressed"))
          {

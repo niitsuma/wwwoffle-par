@@ -54,6 +54,8 @@ DocType ParseDocument(int fd,URL *Url,int all);
 void AddReference(/*@null@*/ char* name,RefType type);
 void FinishReferences(void);
 void SetBaseURL(URL *Url);
+void SetBase_url(char* url);
+URL *GetBaseURL();
 char /*@null@*/ /*@observer@*/ **GetReferences(RefType type);
 void ResetReferences(void);
 

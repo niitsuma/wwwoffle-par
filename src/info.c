@@ -110,7 +110,7 @@ static void InfoCachedPage(int fd,URL *Url,int which)
    {
      init_io(spool);
 
-     ParseReply(spool,&spooled_head,NULL);
+     ParseReply(spool,&spooled_head);
 
 #if USE_ZLIB
      if(spooled_head && GetHeader2(spooled_head,"Pragma","wwwoffle-compressed"))

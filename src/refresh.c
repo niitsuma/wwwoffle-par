@@ -645,7 +645,7 @@ static int request_url(URL *Url,char *refresh,URL *refUrl)
        init_io(new_outgoing);
 
        if(refUrl->pass && !strcmp(refUrl->hostport,Url->hostport))
-          AddURLPassword(Url,refUrl->user,refUrl->pass);
+          ChangeURLPassword(Url,refUrl->user,refUrl->pass);
 
        if(refresh)
           reqUrl=SplitURL(refresh);

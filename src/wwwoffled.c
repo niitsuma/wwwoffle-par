@@ -471,7 +471,7 @@ int main(int argc, char** argv)
          }
 #endif
 
-    tv.tv_sec=10;
+    tv.tv_sec=(got_sighup || got_sigchld)?1:10;
     tv.tv_usec=0;
 
     if(select(nfds,&readfd,NULL,NULL,&tv)!=-1)

@@ -1452,7 +1452,7 @@ static char *webpagetitle(URL *Url)
    Header *spooled_head=NULL;
 
    init_io(fd);
-   status=ParseReply(fd,&spooled_head,NULL);
+   status=ParseReply(fd,&spooled_head);
 
    if(spooled_head) {
      if(status==200) {

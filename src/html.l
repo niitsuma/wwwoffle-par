@@ -239,14 +239,8 @@ static void handle_img_tag(Tag *tag,int fetch_webbug_images);
 /*+ The refresh content of a Meta tag. +*/
 static /*@null@*/ char *meta_refresh=NULL;
 
-/*+ The content of a Base tag. +*/
-static /*@null@*/ char *base_url=NULL;
-
 /*+ The file descriptor that we are reading from. +*/
 static int html_yyfd=-1;
-
-/*+ The base URL of this page. +*/
-static /*@null@*/ URL *baseUrl=NULL;
 
 
 
@@ -281,10 +275,7 @@ void ParseHTML(int fd,URL *Url)
 {
  PrintMessage(Debug,"Parsing document using HTML parser.");
 
- baseUrl=Url;
- base_url=NULL;
-
- SetBaseURL(baseUrl);
+ SetBaseURL(Url);
 
  if(meta_refresh)
     free(meta_refresh);
@@ -293,12 +284,6 @@ void ParseHTML(int fd,URL *Url)
  html_yyfd=fd;
 
  parse_html(Url);
-
- if(base_url)
-   {
-    baseUrl=SplitURL(base_url);
-    SetBaseURL(baseUrl);
-   }
 
  reset_parser();
 }
@@ -314,7 +299,7 @@ char *MetaRefresh(void)
 {
  if(meta_refresh)
    {
-    char *new=LinkURL(baseUrl,meta_refresh);
+    char *new=LinkURL(GetBaseURL(),meta_refresh);
     if(new!=meta_refresh)
       {
        free(meta_refresh);
@@ -768,7 +753,7 @@ static void parse_html(URL *Url)
        /* Other simple ones using a single attribute. */
 
        else if(key==att_href && tag==tag_base && html_yylval!=NULL)
-         {base_url=strdup(html_yylval);}
+         {SetBase_url(html_yylval);}
 
        /* More complicated ones that depend on other attributes are stored and done later. */
 

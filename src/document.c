@@ -62,7 +62,7 @@ DocType ParseDocument(int fd,URL *Url,int all)
  char *mimetype;
  DocType doctype=DocUnknown;
 
- baseUrl=Url;
+ SetBaseURL(Url);
  add_all=all;
 
  if((mimetype = GetMIMEType(fd)) != NULL)
@@ -157,7 +157,7 @@ static char *GetMIMEType(int fd)
 
  /* Get the header and examine it. */
 
- ParseReply(fd,&doc_header,NULL);
+ ParseReply(fd,&doc_header);
 
  contenttype=GetHeader(doc_header,"Content-Type");
 
@@ -266,10 +266,24 @@ void FinishReferences(void)
 
 void SetBaseURL(URL *Url)
 {
- if(Url)
-    baseUrl=Url;
+  if(Url) {
+    if(baseUrl) FreeURL(baseUrl);
+    baseUrl=CopyURL(Url);
+  }
 }
 
+void SetBase_url(char *url)
+{
+  if(url) {
+    if(baseUrl) FreeURL(baseUrl);
+    baseUrl=SplitURL(url);
+  }
+}
+
+URL *GetBaseURL()
+{
+  return baseUrl;
+}
 
 /*++++++++++++++++++++++++++++++++++++++
   Get a list of the references of the specified type.

@@ -158,7 +158,7 @@ int Finger_ReadHead(Header **reply_head)
 
  if(proxy)
    {
-    ParseReply(server,reply_head,NULL);
+    ParseReply(server,reply_head);
 
     return(server);
    }

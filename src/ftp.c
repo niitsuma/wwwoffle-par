@@ -826,7 +826,7 @@ int FTP_ReadHead(Header **reply_head)
 
  if(proxy)
    {
-    ParseReply(server_ctrl,reply_head,NULL);
+    ParseReply(server_ctrl,reply_head);
 
     return(server_ctrl);
    }

@@ -302,6 +302,30 @@ static /*@null@*/ URL *baseUrl=NULL;
 /*+ Set this to disable the output. +*/
 static int disable_output=DISABLE_NONE;
 
+inline static void setbaseUrl(URL *Url)
+{
+  if(Url) {
+    if(baseUrl) FreeURL(baseUrl);
+    baseUrl=CopyURL(Url);
+  }
+}
+
+inline static void setbase_url(char *url)
+{
+  if(url) {
+    if(baseUrl) FreeURL(baseUrl);
+    baseUrl=SplitURL(url);
+  }
+}
+
+inline static void cleanup_baseUrl()
+{
+  if(baseUrl) {
+    FreeURL(baseUrl);
+    baseUrl=NULL;
+  }
+}
+
 
 /*++++++++++++++++++++++++++++++++++++++
   Output the file with the modificatons if it is HTML, else just output.
@@ -386,14 +410,15 @@ void OutputHTMLWithModifications(URL *Url,int spool,char *content_type)
        fix_mixed_cyrillic=1;
    }
 
- baseUrl=Url;
+ setbaseUrl(Url);
 
  if(!first)
     htmlmodify_yyrestart(NULL);
 
  modify_html(Url);
 
- cache_info=NULL;
+ if(cache_info) {free(cache_info); cache_info=NULL;}
+ cleanup_baseUrl();
 
  first=0;
 }
@@ -1430,7 +1455,7 @@ static void modify_html(URL *Url)
        /* Base tag */
 
        if(key==att_href && htmlmodify_yylval && tag==tag_base)
-          baseUrl=SplitURL(htmlmodify_yylval);
+          setbase_url(htmlmodify_yylval);
 
        /* Script events */
 

@@ -165,7 +165,7 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
 
 	if(*pass) *pass++=0; else pass=NULL;
 
-	AddURLPassword(Url,user,pass);
+	ChangeURLPassword(Url,user,pass);
 
 	free(userpass);
 
@@ -290,7 +290,7 @@ int RequireChanges(int fd,URL *Url,char **ims,char **inm)
  int status,retval=0;
  Header *spooled_head=NULL;
 
- status=ParseReply(fd,&spooled_head,NULL);
+ status=ParseReply(fd,&spooled_head);
 
  if(status==0 || fstat(fd,&buf))
    {
@@ -424,7 +424,7 @@ int IsModified(int fd,Header *request_head)
  int is_modified=1;
  Header *spooled_head=NULL;
 
- ParseReply(fd,&spooled_head,NULL);
+ ParseReply(fd,&spooled_head);
 
  if(spooled_head)
    {
@@ -768,16 +768,14 @@ void MakeRequestNonProxy(URL *Url,Header *request_head)
   int *reply_head_size: return the size of the head of the reply.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int ParseReply(int fd,Header **reply_head,int *reply_head_size)
+int ParseReply(int fd,Header **reply_head)
 {
  char *line=NULL;
 
  *reply_head=NULL;
- if(reply_head_size) *reply_head_size=0;
 
  while((line=read_line(fd,line)))
    {
-    if(reply_head_size) *reply_head_size+=strlen(line);
     if(!*reply_head)   /* first line */
       {
        if(!CreateHeader(line,0,reply_head))

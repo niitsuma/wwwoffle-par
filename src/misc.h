@@ -79,7 +79,8 @@ typedef struct _HeaderList HeaderList;
 /* in miscurl.c */
 
 URL /*@only@*/ /*@unique@*/ *SplitURL(const char *url);
-void AddURLPassword(URL *Url,char *user,/*@null@*/ char *pass);
+void ChangeURLPassword(URL *Url,/*@null@*/ char *user,/*@null@*/ char *pass);
+URL *CopyURL(URL *Url);
 void FreeURL(/*@special@*/ URL *Url) /*@releases Url@*/;
 
 char *LinkURL(URL *Url,char *link);

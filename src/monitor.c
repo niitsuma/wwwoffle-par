@@ -498,20 +498,22 @@ void RequestMonitoredPages(void)
                 PrintMessage(Warning,"Cannot open outgoing spool file for monitored URL '%s'; [%!s].",url);
              else
                {
-                char *contents=(char*)malloc(buf.st_size+1);
-                URL *Url=SplitURL(url);
+		int n;
+                char buffer[READ_BUFFER_SIZE];
+                /* URL *Url=SplitURL(url); */
 
                 init_io(ofd);
 
-                read_data(ifd,contents,buf.st_size);
-                if(write_data(ofd,contents,buf.st_size)==-1)
-                   PrintMessage(Warning,"Cannot write to outgoing file; disk full?");
+                while((n=read_data(ifd,buffer,READ_BUFFER_SIZE))>0)
+		  if(write_data(ofd,buffer,n)<0) {
+		    PrintMessage(Warning,"Cannot write to outgoing file; disk full?");
+		    break;
+		  }
 
                 finish_io(ofd);
                 CloseOutgoingSpoolFile(ofd,Url);
 
-                free(contents);
-                FreeURL(Url);
+                /* FreeURL(Url); */
                }
 
              chdir("monitor");

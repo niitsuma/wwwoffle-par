@@ -911,7 +911,7 @@ static unsigned long compress_file(char *proto,char *host,char *file)
 
  init_io(ifd);
 
- ParseReply(ifd,&spool_head,NULL);
+ ParseReply(ifd,&spool_head);
 
  if(!spool_head ||
     GetHeader(spool_head,"Content-Encoding") ||
