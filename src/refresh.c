@@ -29,7 +29,7 @@
 #include "sockets.h"
 #include "errors.h"
 
-
+#ifndef CLIENT_ONLY
 /*+ The options for recursive or normal fetching. +*/
 static char *recurse_url=NULL,*recurse_limit="";
 static int recurse_depth=-1,recurse_force=0;
@@ -571,6 +571,7 @@ static int request_url(URL *Url,char *refresh,URL *refUrl)
 
  return(retval);
 }
+#endif
 
 
 /*++++++++++++++++++++++++++++++++++++++

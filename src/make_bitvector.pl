@@ -1,6 +1,15 @@
 #!/usr/bin/perl -w
-
-# Copyright 2002 Paul A. Rombouts.
+#
+# A Perl script to convert tables represented by strings of characters
+# into bit vector tables.
+#
+# Written by Paul A. Rombouts
+#
+# This file Copyright 2002 Paul A. Rombouts
+# It may be distributed under the GNU Public License, version 2, or
+# any higher version.  See section COPYING of the GNU Public license
+# for conditions under which this file may be redistributed.
+#
 
 use strict;
 

@@ -152,7 +152,7 @@ static void SearchIndex(int fd,URL *Url)
           goto found_protocol;
 
     *proto=0;
-   found_protocol:
+   found_protocol: ;
    }
 
  if(!lasttime &&

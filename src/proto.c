@@ -30,11 +30,15 @@ Protocol Protocols[]={
   1,                            /* proxyable */
   1,                            /* postable */
   1,                            /* putable */
+#ifndef CLIENT_ONLY
   HTTP_Open,                    /* open */
   HTTP_Request,                 /* request */
   HTTP_ReadHead,                /* readhead */
   HTTP_ReadBody,                /* readbody */
   HTTP_Close                    /* close */
+#else
+  NULL,NULL,NULL,NULL,NULL
+#endif
  },
  {
   Protocol_FTP,                 /* number */
@@ -43,11 +47,15 @@ Protocol Protocols[]={
   1,                            /* proxyable */
   0,                            /* postable */
   1,                            /* putable */
+#ifndef CLIENT_ONLY
   FTP_Open,                     /* open */
   FTP_Request,                  /* request */
   FTP_ReadHead,                 /* readhead */
   FTP_ReadBody,                 /* readbody */
   FTP_Close                     /* close */
+#else
+  NULL,NULL,NULL,NULL,NULL
+#endif
  },
  {
   Protocol_Finger,              /* number */
@@ -56,11 +64,15 @@ Protocol Protocols[]={
   0,                            /* proxyable */
   0,                            /* postable */
   0,                            /* putable */
+#ifndef CLIENT_ONLY
   Finger_Open,                  /* open */
   Finger_Request,               /* request */
   Finger_ReadHead,              /* readhead */
   Finger_ReadBody,              /* readbody */
   Finger_Close                  /* close */
+#else
+  NULL,NULL,NULL,NULL,NULL
+#endif
  }
 };
 

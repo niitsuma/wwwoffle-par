@@ -43,6 +43,7 @@
 #include "errors.h"
 #include "config.h"
 
+#ifndef CLIENT_ONLY
 
 /*+ The time that the program went online. +*/
 time_t OnlineTime=0;
@@ -108,7 +109,7 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
     if(!*request_head) /* first line */
       {
        if(CreateHeader(line,1,request_head)<=0 || !(*request_head)->url)
-	 return(NULL);
+	 goto free_return_null;
 
        url=strdup((*request_head)->url);
       }
@@ -119,10 +120,12 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
 
  /* Timeout or Connection lost? */
  
- if(!line || !*request_head)
-   {PrintMessage(Warning,"Nothing to read from the wwwoffle proxy socket; timed out or connection lost? [%!s]."); return(NULL);}
- else
-   free(line);
+ if(!line || !*request_head) {
+   PrintMessage(Warning,"Nothing to read from the wwwoffle proxy socket; timed out or connection lost? [%!s].");
+   goto free_return_null;
+ }
+
+ free(line); line=NULL;
 
  
  /* Find the content length */
@@ -182,8 +185,7 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
     if(length<0)
       {
        PrintMessage(Warning,"POST or PUT request must have a valid Content-Length header.");
-       free(url);
-       return(NULL);
+       goto free_return_null;
       }
 
     *request_body=CreateBody(length);
@@ -201,8 +203,7 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
        if(l)
          {
           PrintMessage(Warning,"POST or PUT request must have data length specified in Content-Length header.");
-          free(url);
-          return(NULL);
+          goto free_return_null;
          }
       }
 
@@ -233,6 +234,11 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
    }
 
  return(url);
+
+free_return_null:
+ if(line) free(line);
+ if(url) free(url);
+ return NULL;
 }
 
 
@@ -628,7 +634,7 @@ void ModifyRequest(URL *Url,Header *request_head)
 
    PrintMessage(Debug,"CensorRequestHeader (%s) replaced '%s' by '%s'.",optionname,referer?referer:"(none)",newval);
    ReplaceInHeader(request_head,"Referer",newval);
- dontrefertoself:
+ dontrefertoself: ;
  }
 
  /* Censor the header */
@@ -700,6 +706,7 @@ void MakeRequestNonProxy(URL *Url,Header *request_head)
  RemoveFromHeader(request_head,"Proxy-Connection");
  RemoveFromHeader(request_head,"Proxy-Authorization");
 }
+#endif
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -741,6 +748,36 @@ int ParseReply(int fd,Header **reply_head,int *reply_head_size)
 }
 
 
+int ParseReply_or_timeout(int fd,Header **reply_head,int *reply_head_size)
+{
+ char *line=NULL;
+
+ *reply_head=NULL;
+ if(reply_head_size) *reply_head_size=0;
+
+ while((line=read_line_or_timeout(fd,line)))
+   {
+    if(reply_head_size) *reply_head_size+=strlen(line);
+    if(!*reply_head)   /* first line */
+      {
+       if(!CreateHeader(line,0,reply_head))
+          break;
+      }
+    else
+      if(!AddToHeaderRaw(*reply_head,line))
+	break;
+   }
+
+ if(line) free(line);
+
+ if(*reply_head)
+    return((*reply_head)->status);
+ else
+    return(0);
+}
+
+
+#ifndef CLIENT_ONLY
 /*++++++++++++++++++++++++++++++++++++++
   Find the status of a spooled page.
 
@@ -874,7 +911,9 @@ void ModifyReply(URL *Url,Header *reply_head)
    }
  
  /* Delete the "expires" field from "Set-Cookie:" server headers.
-    Most browsers will not store such cookies permanently and forget them in between sessions. */
+    Most browsers will not store such cookies permanently and forget them in between sessions.
+    An exception is made for an expire date in the past. These should cause browsers
+    to delete cookies and we don't want to prevent that */
 
  if(!Url->local && ConfigBooleanURL(SessionCookiesOnly,Url)) {
    int i;
@@ -891,7 +930,13 @@ void ModifyReply(URL *Url,Header *reply_head)
 	   p+=strlitlen("expires");
 	   for(;;++p) {if(!*p) goto nexti; if(!isspace(*p)) break;}
 	   if(*p!='=') continue;
-	   do {if(!*++p) goto chop_line;} while(*p!=';' && (*p!=',' || !(comma++)));
+	   do {if(!*++p) goto chop_line;} while(isspace(*p));
+	   {
+	     char *s=p;
+	     while(*p!=';' && (*p!=',' || !(comma++))) {if(!*++p) break;}
+	     if(s<p && STRDUP3(s,p,DateToTimeT)<time(NULL)) continue;
+	   }
+	   if(!*p) goto chop_line;
 	   {char *t=p; p=q; while((*q++=*t++));}
 	 }
        }
@@ -901,7 +946,7 @@ void ModifyReply(URL *Url,Header *reply_head)
        *++q=0;
 
      }
-   nexti:
+   nexti: ;
    }
  }
 
@@ -954,6 +999,7 @@ static void censor_header(ConfigItem confitem,URL *Url,Header *head)
        PrintMessage(Debug,"CensorHeader removed '%s: %s'.",head->line[i].key,head->line[i].val);
        RemoveFromHeaderIndexed(head,i);
       }
-   next_i:
+   next_i: ;
    }
 }
+#endif

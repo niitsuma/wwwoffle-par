@@ -138,7 +138,7 @@ char *HTTP_Request(URL *Url,Header *request_head,Body *request_body)
 
 int HTTP_ReadHead(Header **reply_head)
 {
- ParseReply(server,reply_head,NULL);
+ ParseReply_or_timeout(server,reply_head,NULL);
 
  return(server);
 }

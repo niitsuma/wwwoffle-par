@@ -75,11 +75,12 @@ int getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid);
 
 
 /* Some global variables used to pass on information about remote client */
-char *client_hostname=NULL, *client_ip=NULL;
-char *proxy_user=NULL;
+extern char *client_hostname, *client_ip;
+extern char *proxy_user;
+extern int online;          /*+ The online / offline / autodial status. +*/
 
 
-/* First a macro definition that makes life a little easier. */
+/* A macro definition that makes environment variable setting a little easier. */
 #define putenv_var_val(varname,value,failaction) \
 { \
   char *envstr = (char *)malloc(sizeof(varname "=")+strlen(value)); \
@@ -217,6 +218,12 @@ char *proxy_user=NULL;
       sprintf(length,"%d",request_body->length);
       putenv_var_val("CONTENT_LENGTH",length, return -1);
     }
+
+  {
+    char onlinestr[12];
+    sprintf(onlinestr,"%d",online);
+    putenv_var_val("ONLINE",onlinestr, return -1);
+  }
 
   return retval;
 }

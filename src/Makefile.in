@@ -71,7 +71,7 @@ compile :: wwwoffled \
 	   convert-cache \
 	   uncompress-cache
 
-compile ::
+compile :: local_test.o
 	@cd testprogs && $(MAKE) compile
 
 ######## INSTALLATION ########
@@ -133,13 +133,11 @@ distclean :: clean
 ######## PROGRAMS ########
 
 WWWOFFLE_OBJ=wwwoffle.o \
-	     http.o ftp.o finger.o ssl.o \
-	     refresh.o \
-             messages.o local.o cgi.o \
-	     parse.o spool.o \
-	     document.o html.o xml.o vrml.o javaclass.o \
-	     configrdwr.o configmisc.o configdata.o configfunc.o \
-	     errors.o io.o miscurl.o miscencdec.o headbody.o proto.o sockets.o md5.o
+             refresh_client.o \
+             parse_client.o \
+             document.o html.o xml.o vrml.o javaclass.o \
+             configrdwr.o configmisc.o configdata.o configfunc.o \
+             errors.o io.o miscurl.o miscencdec.o headbody.o proto_client.o sockets.o md5.o
 
 wwwoffle : $(WWWOFFLE_OBJ)
 	$(LINK) $(WWWOFFLE_OBJ) -o $@ $(LIBRARY)
@@ -162,12 +160,10 @@ wwwoffled : $(WWWOFFLED_OBJ)
 ####
 
 WWWOFFLE_TOOLS_OBJ=wwwoffle-tools.o \
-	           http.o ftp.o finger.o ssl.o \
 	           spool.o \
-		   messages.o local.o cgi.o \
-	           parse.o \
+	           parse_client.o \
 	           configrdwr.o configmisc.o configdata.o configfunc.o \
-	           errors.o io.o miscurl.o miscencdec.o headbody.o proto.o sockets.o md5.o
+	           errors.o io.o miscurl.o miscencdec.o headbody.o proto_client.o sockets.o md5.o
 
 wwwoffle-tools : $(WWWOFFLE_TOOLS_OBJ)
 	$(LINK) $(WWWOFFLE_TOOLS_OBJ) -o $@ $(LIBRARY)
@@ -175,11 +171,9 @@ wwwoffle-tools : $(WWWOFFLE_TOOLS_OBJ)
 ####
 
 CONVERT_OBJ=convert-cache.o \
-	    http.o ftp.o finger.o ssl.o \
-	    messages.o local.o cgi.o \
-	    parse.o \
+	    parse_client.o \
 	    configrdwr.o configmisc.o configdata.o configfunc.o \
-	    errors.o io.o miscurl.o miscencdec.o headbody.o proto.o sockets.o spool.o md5.o
+	    errors.o io.o miscurl.o miscencdec.o headbody.o proto_client.o sockets.o spool.o md5.o
 
 convert-cache : $(CONVERT_OBJ)
 	$(LINK) $(CONVERT_OBJ) -o $@ $(LIBRARY)
@@ -187,27 +181,28 @@ convert-cache : $(CONVERT_OBJ)
 ####
 
 UNCOMPRESS_OBJ=uncompress-cache.o \
-	       http.o ftp.o finger.o ssl.o \
-	       messages.o local.o cgi.o \
-	       parse.o \
+	       parse_client.o \
 	       configrdwr.o configmisc.o configdata.o configfunc.o \
-	       errors.o io.o miscurl.o miscencdec.o headbody.o proto.o sockets.o spool.o md5.o
+	       errors.o io.o miscurl.o miscencdec.o headbody.o proto_client.o sockets.o spool.o md5.o
 
 uncompress-cache : $(UNCOMPRESS_OBJ)
 	$(LINK) $(UNCOMPRESS_OBJ) -o $@ $(LIBRARY)
 
 ######## OBJECT FILES ########
 
-.SUFFIXES:
-.SUFFIXES: .c .o
 
-.c.o:
+wwwoffle.o $(WWWOFFLED_OBJ) wwwoffle-tools.o convert-cache.o uncompress-cache.o: %.o : %.c
 	$(COMPILE) $< -o $@ $(INCLUDE)
 
+%_client.o: %.c
+	$(COMPILE) -DCLIENT_ONLY $< -o $@ $(INCLUDE)
+
+%_test.o: %.c
+	$(COMPILE) -DTEST_ONLY $< -o $@ $(INCLUDE)
 
 wwwoffle.o         : wwwoffle.c         autoconfig.h wwwoffle.h misc.h            errors.h config.h sockets.h         document.h version.h
 wwwoffled.o        : wwwoffled.c        autoconfig.h wwwoffle.h misc.h            errors.h config.h sockets.h                    version.h
-wwwoffles.o        : wwwoffles.c        autoconfig.h wwwoffle.h misc.h headbody.h errors.h config.h sockets.h proto.h document.h
+wwwoffles.o        : wwwoffles.c        autoconfig.h wwwoffle.h misc.h headbody.h errors.h config.h sockets.h proto.h document.h version.h
 
 wwwoffle-tools.o   : wwwoffle-tools.c   autoconfig.h wwwoffle.h misc.h            errors.h config.h                              version.h
 
@@ -241,13 +236,13 @@ search.o           : search.c           autoconfig.h wwwoffle.h misc.h          
 index.o            : index.c            autoconfig.h wwwoffle.h misc.h headbody.h errors.h config.h           proto.h document.h
 info.o             : info.c             autoconfig.h wwwoffle.h misc.h headbody.h errors.h config.h           proto.h document.h
 monitor.o          : monitor.c          autoconfig.h wwwoffle.h misc.h headbody.h errors.h config.h
-refresh.o          : refresh.c          autoconfig.h wwwoffle.h misc.h headbody.h errors.h config.h sockets.h         document.h
+refresh.o refresh_client.o: refresh.c   autoconfig.h wwwoffle.h misc.h headbody.h errors.h config.h sockets.h         document.h
 
 messages.o         : messages.c         autoconfig.h wwwoffle.h misc.h            errors.h config.h                              version.h
-local.o            : local.c            autoconfig.h wwwoffle.h misc.h headbody.h errors.h config.h                              version.h
+local.o local_test.o: local.c           autoconfig.h wwwoffle.h misc.h headbody.h errors.h config.h                              version.h
 cgi.o              : cgi.c              autoconfig.h wwwoffle.h misc.h headbody.h errors.h config.h                              version.h
 
-parse.o            : parse.c            autoconfig.h wwwoffle.h misc.h headbody.h errors.h config.h           proto.h
+parse.o parse_client.o: parse.c         autoconfig.h wwwoffle.h misc.h headbody.h errors.h config.h           proto.h
 purge.o            : purge.c            autoconfig.h wwwoffle.h misc.h headbody.h errors.h config.h           proto.h
 spool.o            : spool.c            autoconfig.h wwwoffle.h misc.h            errors.h config.h
 
@@ -256,7 +251,7 @@ io.o               : io.c               autoconfig.h wwwoffle.h misc.h          
 miscencdec.o       : miscencdec.c       autoconfig.h            misc.h                                                                                  md5.h
 miscurl.o          : miscurl.c          autoconfig.h            misc.h                     config.h           proto.h
 headbody.o         : headbody.c         autoconfig.h            misc.h headbody.h
-proto.o            : proto.c            autoconfig.h            misc.h                                        proto.h
+proto.o proto_client.o: proto.c         autoconfig.h            misc.h                                        proto.h
 
 sockets.o          : sockets.c          autoconfig.h                   errors.h          sockets.h \
                      sockets4.c sockets6.c

@@ -110,6 +110,7 @@ void MakeRequestProxyAuthorised(char *proxy,Header *request_head);
 void MakeRequestNonProxy(URL *Url,Header *request_head);
 
 int ParseReply(int fd,/*@out@*/ Header **reply_head,/*@out@*/ int *reply_head_size);
+int ParseReply_or_timeout(int fd,/*@out@*/ Header **reply_head,/*@out@*/ int *reply_head_size);
 
 int SpooledPageStatus(URL *Url);
 

@@ -59,7 +59,7 @@ static HeaderList /*@null@*/ /*@only@*/ *accept_languages=NULL;
 static int num_lang_dirs=0;
 static char **lang_dirs=NULL;
 
-
+#ifndef TEST_ONLY
 /*++++++++++++++++++++++++++++++++++++++
   Output a local page.
   LocalPage writes the content directly to the client and returns 1,
@@ -203,6 +203,7 @@ int LocalPage(int clientfd,int tmpfd,URL *Url,Header *request_head,Body *request
 
  return retval;
 }
+#endif
 
 
 /*++++++++++++++++++++++++++++++++++++++

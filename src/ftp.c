@@ -804,7 +804,7 @@ int FTP_ReadHead(Header **reply_head)
 
  if(proxy)
    {
-    ParseReply(server_ctrl,reply_head,NULL);
+    ParseReply_or_timeout(server_ctrl,reply_head,NULL);
 
     return(server_ctrl);
    }
@@ -983,8 +983,7 @@ static char *htmlise_dir_entry(char *line)
 
        if(*p[0].beg=='d')
 	 isdir=1;
-
-       if(*p[0].beg=='l')
+       else if(*p[0].beg=='l')
 	 islink=1;
      }
 

@@ -52,7 +52,7 @@
 #define MAX_REDIRECT 8
 
 /* pass on name of proxy user via global variable */
-extern char* proxy_user;
+char* proxy_user=NULL;
 
 static void uninstall_sighandlers(void);
 
@@ -1901,33 +1901,13 @@ passwordagain:
  /* else
     reply_head=NULL; */
 
- /* Get the header from the cache. */
-
- if(mode==Spool || mode==SpoolPragma)
-   {
-    if(reply_head) {FreeHeader(reply_head); reply_head=NULL; }
-    reply_status=ParseReply(spool,&reply_head,&spool_head_size);
-
-    if(!reply_head)
-      {
-       PrintMessage(Warning,"Spooled Reply Head (from cache) is empty; deleting it.");
-       DeleteWebpageSpoolFile(Url,0);
-      }
-    else if(DebuggingLevel==ExtraDebug)
-      {
-       char *headerstring=HeaderString(reply_head,NULL);
-       PrintMessage(ExtraDebug,"Spooled Reply Head (from cache)\n%s",headerstring);
-       free(headerstring);
-      }
-   }
-
  /* Close the outgoing file if any. */
 
  if(outgoing>=0)
    {
     if(mode==Fetch)
        close(outgoing);
-    if(mode==SpoolGet || mode==SpoolRefresh || mode==SpoolPragma)
+    else if(mode==SpoolGet || mode==SpoolRefresh || mode==SpoolPragma)
        CloseOutgoingSpoolFile(outgoing,Url);
    }
 
@@ -1952,7 +1932,7 @@ passwordagain:
    {
     char *head,*errmsg=NULL;
     int reply_head_size;
-    int err=0,spool_err=0,n=0,bytes=0;
+    int err=0,spool_err=0,n=0;
     int modify=0;
 
     /* Print a message for auditing. */
@@ -2056,44 +2036,59 @@ passwordagain:
       init_zlib_buffer(client,-client_compression);
 #endif
 
-    /* While there is data to read ... */
+    {
+      int bytes=0,intr_download_size=0;
 
-    while(err>=0 && (n=(Url->Protocol->readbody)(reply_body->content,READ_BUFFER_SIZE))>0)
-      {
-	bytes+=n;
+      /* While there is data to read ... */
 
-	/* Write the data to the cache. */
+      while((n=(Url->Protocol->readbody)(reply_body->content,READ_BUFFER_SIZE))>0)
+	{
+	  bytes+=n;
 
-	if(spool_err>=0 && mode!=RealNoCache)
-	  if((spool_err=write_data(spool,reply_body->content,n))<0)
-	    PrintMessage(Warning,"Cannot write to cache file [%!s]; disk full?");
+	  /* Write the data to the cache. */
 
-	/* Write the data to the client if it wants the body now. */
+	  if(spool_err>=0 && mode!=RealNoCache)
+	    if((spool_err=write_data(spool,reply_body->content,n))<0)
+	      PrintMessage(Warning,"Cannot write to cache file [%!s]; disk full?");
 
-	if(mode!=RealNoPassword && !head_only && !modify)
-	  if((err=write_data(client,reply_body->content,n))<0)
-	    PrintMessage(Warning,"Error writing to client [%!s]; client disconnected?");
+	  if(err>=0) {
+	    /* Write the data to the client if it wants the body now. */
 
-	/* In case of error writing to client decide if to continue reading from server. */
+	    if(mode!=RealNoPassword && !head_only && !modify) {
+	      if((err=write_data(client,reply_body->content,n))<0) {
+		PrintMessage(Warning,"Error writing to client [%!s]; client disconnected?");
+		if(spool_err<0) goto read_host_done;
+		{
+		  /* In case of error writing to client decide if to continue reading from server. */
 
-	if(err<0)
-	  {
-	    char *length=GetHeader(reply_head,"Content-Length");
-
-	    if(length)
-	      {
-		int size=atoi(length);
-		if(size<(ConfigIntegerURL(IntrDownloadSize,Url)<<10) ||
-		   (100*(double)bytes/(double)size)>ConfigIntegerURL(IntrDownloadPercent,Url)) {
-		  err=0;
-		  head_only=1; /* cheat to stop writing to client */
+		  char *length=GetHeader(reply_head,"Content-Length");
+		  intr_download_size=ConfigIntegerURL(IntrDownloadSize,Url)<<10;
+		  if(length) {
+		    int size=atoi(length);
+		    if(size>=intr_download_size) {
+		      if((100*(double)bytes/(double)size)<=ConfigIntegerURL(IntrDownloadPercent,Url))
+			goto read_host_done;
+		      intr_download_size=size+1;
+		    }
+		  }
+		  else if(bytes>=intr_download_size)
+		    goto read_host_done;
 		}
 	      }
+	    }
+	    else if(spool_err<0)
+	      goto read_host_done;
 	  }
-      }
+	  else if(spool_err<0 || bytes>=intr_download_size)
+	    goto read_host_done;
+	}
 
-    if(n<0)
-      errmsg=PrintMessage(Warning,"Error reading reply body from remote host [%!s].");
+      if(n<0)
+	errmsg=PrintMessage(Warning,"Error reading reply body from remote host [%!s].");
+      else err=0;
+
+    read_host_done: ;
+    }
 
     /* Finish with the server decompression. */
 
@@ -2354,17 +2349,12 @@ passwordagain:
                       NULL);
           mode=SpoolInternal; goto spoolinternal;
          }
-
-       /* Read the header again in case it changed */
-
-       if(reply_head)
-	 {FreeHeader(reply_head); reply_head=NULL; }
-
-       lseek(spool,0,SEEK_SET);
-       init_buffer(spool);
-
-       reply_status=ParseReply(spool,&reply_head,&spool_head_size);
       }
+
+    /* Get the header from the cache. */
+
+    if(reply_head) {FreeHeader(reply_head); reply_head=NULL; }
+    reply_status=ParseReply(spool,&reply_head,&spool_head_size);
 
     PrintMessage(Inform,"Cache Access Status='Cached Page Used'."); /* Used in audit-usage.pl */
 
@@ -2372,6 +2362,12 @@ passwordagain:
 
     if(reply_head)
       {
+	if(DebuggingLevel==ExtraDebug)
+	  {
+	    char *headerstring=HeaderString(reply_head,NULL);
+	    PrintMessage(ExtraDebug,"Spooled Reply Head (from cache)\n%s",headerstring);
+	    free(headerstring);
+	  }
 
        /* If the page is a previous error message then delete the cached one and restore the backup. */
 
@@ -2423,7 +2419,10 @@ passwordagain:
          }
       }
     else
-       PrintMessage(Debug,"Spooled page has no header.");
+      {
+	PrintMessage(Warning,"Spooled Reply Head (from cache) is empty; deleting it.");
+	DeleteWebpageSpoolFile(Url,0);
+      }
 
     if(modify
 #if USE_ZLIB

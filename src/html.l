@@ -8,6 +8,7 @@ K               [a-z0-9-]
 %x DQUOTED SQUOTED
 %x SCRIPT_START SCRIPT SCRIPT_COMMENT_C SCRIPT_COMMENT_CPP SCRIPT_DQUOTED SCRIPT_SQUOTED
 %x STYLE_START STYLE
+%x TITLE_START TITLE
 
 %{
 /***************************************
@@ -59,6 +60,7 @@ K               [a-z0-9-]
 #define LEX_PLAINTEXT      1
 #define LEX_COMMENT        2
 #define LEX_DOCTYPE        3
+#define LEX_TITLE_TEXT     4
 
 #define LEX_TAG_BEGIN     11
 #define LEX_TAG_END       12
@@ -662,11 +664,8 @@ static void parse_html(URL *Url)
     switch(yychar)
       {
       case LEX_PLAINTEXT:
-       break;
-
+      case LEX_TITLE_TEXT:
       case LEX_COMMENT:
-       break;
-
       case LEX_DOCTYPE:
        break;
 
@@ -806,50 +805,33 @@ char *HTML_title(int fd)
 
  html_yyfd=fd;
 
- /* Parse HTML until title tag is found. */
+ /* Parse HTML until title text is found. */
 
  while((yychar=html_yylex()))
-   if(yychar==LEX_TAG_BEGIN) {
-     if(!strcasecmp(html_yylval,"title"))
-       goto found_title;
-     else if(!strcasecmp(html_yylval,"/head"))
+   if(yychar==LEX_TITLE_TEXT)
+     goto found_title;
+   else if(yychar==LEX_TAG_BEGIN) {
+     if(!strcasecmp(html_yylval,"/title") || !strcasecmp(html_yylval,"/head"))
        break;
    }
 
  goto cleanup_return;
 
 found_title:
- while((yychar=html_yylex()))
-    switch(yychar)
-      {
-      case LEX_PLAINTEXT:
-	if(html_yylval) {
-	  char *t=html_yylval,*end;
+ if(html_yylval) {
+   char *t=html_yylval,*end;
 
-	  /* trim the string */
-	  for(;;++t) {
-	    if(!*t) goto cleanup_return;
-	    if(!isspace(*t)) break;
-	  }
-	  end=strchrnul(t,0);
-	  do {if(--end<t) goto cleanup_return;} while(isspace(*end));
-	  ++end;
+   /* trim the string */
+   for(;;++t) {
+     if(!*t) goto cleanup_return;
+     if(!isspace(*t)) break;
+   }
+   end=strchrnul(t,0);
+   do {if(--end<t) goto cleanup_return;} while(isspace(*end));
+   ++end;
 
-	  result= STRDUP2(t,end);
-	}
-	goto cleanup_return;
-
-      case LEX_TAG_END_XHTML:
-      case LEX_TAG_END:
-      case LEX_ATTR_KEY:
-      case LEX_ATTR_VAL_DQ:
-      case LEX_ATTR_VAL_SQ:
-      case LEX_ATTR_VAL:
-	break;
-
-      default:
-	goto cleanup_return;
-      }
+   result= STRDUP2(t,end);
+ }
 
 cleanup_return:
  reset_parser();
@@ -910,6 +892,8 @@ cleanup_return:
 <TAG_START>"script"/">"     { BEGIN(TAG); after_tag=SCRIPT_START; html_yylval=yytext; return(LEX_TAG_BEGIN); }
 <TAG_START>"style"/{W}      { BEGIN(TAG); after_tag=STYLE_START;  html_yylval=yytext; return(LEX_TAG_BEGIN); }
 <TAG_START>"style"/">"      { BEGIN(TAG); after_tag=STYLE_START;  html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"title"/{W}      { BEGIN(TAG); after_tag=TITLE_START;  html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"title"/">"      { BEGIN(TAG); after_tag=TITLE_START;  html_yylval=yytext; return(LEX_TAG_BEGIN); }
 <TAG_START>"/"?{K}+/" "     { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
 <TAG_START>"/"?{K}+/\t      { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
 <TAG_START>"/"?{K}+/\n      { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
@@ -992,6 +976,15 @@ cleanup_return:
 <STYLE>"<"/"/style"         { BEGIN(TAG_START); }
 <STYLE>"<"                  { }
 <STYLE>[^<]+                { }
+
+ /* Title, added by Paul Rombouts */
+
+<TITLE_START>{W}*/"</title" { BEGIN(INITIAL); }
+<TITLE_START>(.|\n)         { unput(yytext[0]); reset_string; BEGIN(TITLE); }
+
+<TITLE>"<"/"/title"         { BEGIN(TAG_START); html_yylval=string; return(LEX_TITLE_TEXT); }
+<TITLE>"<"                  |
+<TITLE>[^<]+                { append_string(yytext); }
 
  /* End of file */
 

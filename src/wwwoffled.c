@@ -121,7 +121,7 @@ int nofork=0;
 
 /* some code to save the hostname and ip address of the client in global variables */
 /* static char saved_hostname[max_hostname_len],saved_ip[ipaddr_strlen]; */
-extern char *client_hostname, *client_ip;
+char *client_hostname=NULL, *client_ip=NULL;
 #define save_client_hostname_ip(host,ip) {client_hostname=host; client_ip=ip;}
 
 /*++++++++++++++++++++++++++++++++++++++

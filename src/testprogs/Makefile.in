@@ -59,12 +59,10 @@ distclean : clean
 ######## PROGRAMS ########
 
 TEST_DOC_OBJ=test-doc.o \
-	     ../http.o ../ftp.o ../finger.o ../ssl.o \
 	     ../document.o ../html.o ../xml.o ../vrml.o ../javaclass.o \
-	     ../messages.o ../local.o ../cgi.o \
 	     ../parse.o ../spool.o \
 	     ../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
-	     ../errors.o ../io.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../md5.o
+	     ../errors.o ../io.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto_client.o ../sockets.o ../md5.o
 
 test-doc : $(TEST_DOC_OBJ)
 	$(LINK) $(TEST_DOC_OBJ) -o $@ $(LIBRARY)
@@ -72,11 +70,10 @@ test-doc : $(TEST_DOC_OBJ)
 ####
 
 TEST_MSG_OBJ=test-msg.o \
-	     ../http.o ../ftp.o ../finger.o ../ssl.o \
-	     ../messages.o ../local.o ../cgi.o \
+	     ../messages.o ../local_test.o \
 	     ../parse.o ../spool.o \
 	     ../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
-	     ../errors.o ../io.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../md5.o
+	     ../errors.o ../io.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto_client.o ../sockets.o ../md5.o
 
 test-msg : $(TEST_MSG_OBJ)
 	$(LINK) $(TEST_MSG_OBJ) -o $@ $(LIBRARY)
@@ -84,22 +81,18 @@ test-msg : $(TEST_MSG_OBJ)
 ####
 
 TEST_MODIFY_OBJ=test-modify.o \
-	     ../http.o ../ftp.o ../finger.o ../ssl.o \
 	     ../htmlmodify.o \
-	     ../messages.o ../local.o ../cgi.o \
+	     ../messages.o ../local_test.o \
 	     ../parse.o ../spool.o \
 	     ../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
-	     ../errors.o ../io.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../md5.o
+	     ../errors.o ../io.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto_client.o ../sockets.o ../md5.o
 
 test-modify : $(TEST_MODIFY_OBJ)
 	$(LINK) $(TEST_MODIFY_OBJ) -o $@ $(LIBRARY)
 
 ######## OBJECT FILES ########
 
-.SUFFIXES:
-.SUFFIXES: .c .o
-
-.c.o:
+%.o : %.c
 	$(COMPILE) $< -o $@ $(INCLUDE) -I..
 
 test-doc.o    : test-doc.c    ../wwwoffle.h ../misc.h ../document.h

@@ -543,7 +543,7 @@ static char *ParseLine(char **line)
 
 	  errmsg=x_asprintf("Unrecognised text outside of section (not section label) '%s'.",l);
 	  parse_section=-1;
-	 found_section:
+	 found_section: ;
          }
       }
 

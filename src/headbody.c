@@ -110,7 +110,7 @@ int CreateHeader(const char *line,int type,Header **head)
                                         /*              ^               */
     new->note=STRDUP2(p,end);
 
-   finish_rep:
+   finish_rep: ;
    }
 
  upcase(new->version);
@@ -283,7 +283,7 @@ void RemoveFromHeader2(Header *head,const char* key,const char *val)
       } while(isspace(*r));
       *++r=0;
     }
-  nexti:
+  nexti: ;
   }
 }
 
@@ -372,7 +372,7 @@ char *GetHeader2(Header *head,const char* key,const char *val)
        ++p;
      }
    }
- nexti:
+ nexti: ;
  }
 
  return NULL;
@@ -422,7 +422,7 @@ char *GetHeader2Val(Header *head,const char* key,const char *subkey)
        ++p;
      }
    }
- nexti:
+ nexti: ;
  }
 
  return NULL;

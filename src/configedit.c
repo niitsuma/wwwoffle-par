@@ -1102,7 +1102,7 @@ static void ConfigurationURLPage(int fd,char *url)
 		       free(entrystr);
 		     }
 		     listed[nl++]=item->key[j].string;
-		   alreadylisted:
+		   alreadylisted: ;
 		   }
 		 }
 	       }
@@ -1111,7 +1111,7 @@ static void ConfigurationURLPage(int fd,char *url)
 
 	   found_current:
 	     current=ConfigEntryString(item,j);
-	   skip_current:
+	   skip_current: ;
 	   }
 	 }
 

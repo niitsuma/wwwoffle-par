@@ -1,21 +1,28 @@
-	  Alternative WWWOFFLE implementation - version 2.7h-par
-	  ======================================================
+	  Alternative WWWOFFLE implementation - version 2.7h-par-2
+	  ========================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
 am making available so other people can run it and/or study the source code.
-Present version is 2.7h-par (I've simply appended my initials to the version
+Present version is 2.7h-par-2 (I've simply appended my initials to the version
 number). The first part of this file describes how to patch, compile, install
 and run wwwoffled. The second part lists in more detail the changes I've made to
 AMB's code.
 
 Before compiling and installing WWWOFFLE according to AMB's installation
 instructions described in the INSTALL file you must first apply my patch file
-wwwoffled-2.7h-par.diff.gz using the command:
+wwwoffled-2.7h-par-2.diff.gz. Use a freshly untarred copy of Andrew Bishop's
+original version 2.7h source, cd into the source directory wwwoffle-2.7h and
+apply the command:
 
-gzip -cd <path_to_patch>/wwwoffle-2.7h-par.diff.gz | patch -p2 -N -E
+gzip -cd <path_to_patch>/wwwoffle-2.7h-par-2.diff.gz | patch -p2 -N -E
 
 Note: because I have used GNU extensions you will need to compile with gcc and
 link with glibc. This will not be a problem with most Linux distributions.
+If you get some weird error messages about "Malformed UTF-8 characters" from the
+perl interpreter (this happened to me after I upgraded to Red Hat 9) try again
+after running the command (assuming you use a bash shell):
+
+  export LANG=${LANG%%.*}
 
 If you want to use an existing WWWOFFLE configuration file then you must make
 the following change to the configuration file before you can actually run
@@ -70,6 +77,9 @@ I've introduced a few extensions to the way WWWOFFLE can be configured:
   functionality of sites that require you to accept cookies. You can use a
   URL-specification to make exceptions for sites whose cookies you want to keep.
   The syntax for this option is [<URL-SPEC>] session-cookies-only = yes | no.
+  Note: in version 2.7h-par-2 the "expires" field is only stripped if it refers
+  to a time in the future. Expire times in the past should cause browsers to
+  delete cookies and I don't want to prevent that.
 
 - I've added an option to the OfflineOptions section called
   "cache-control-no-cache" that is very similar to "pragma-no-cache", except
@@ -103,6 +113,20 @@ The rest of this file lists in some detail some other modifications I've made,
 but you don't have to read it if you simply want to run wwwoffled as you're used
 to.
 
+- New in version 2.7h-par-2: I've made the wwwoffle control executable smaller
+  by eliminating a lot of unnecessary code.
+
+- New in version 2.7h-par-2: More consistent timeout behavior. In the original
+  WWWOFFLE version, when a connection is established with a remote server, but
+  the server takes forever to send a reply header, wwwoffled sometimes would
+  take a very long time to timeout. I think I have now fixed this problem.
+  Thanks to Marc Boucher for pointing out the cause of this problem in the
+  source code.
+
+- New in version 2.7h-par-2: An environment variable ONLINE is passed on to
+  CGI-scripts. This has the value 1 if WWWOFFLE is online, 0 if offline, and -1
+  in autodial mode.
+
 - I've added a new option to the cache index pages that enables you to see the
   titles of the listed webpages (those that WWWOFFLE can find in the cache). I
   find it useful because it generally gives you a better idea what the pages are
@@ -111,6 +135,7 @@ to.
   to revert to English only by removing all non-english directories in
   /var/spool/wwwoffle/html. To see if this feature is available look at the top
   of an index page for a (Show Titles) option.
+  Note: in version 2.7h-par-2 the parsing of titles has been improved.
 
 - I've fixed a bug (at least I consider it a bug) that caused all references to
   a webpage to disappear from the lasttime indexes whenever a webserver replies
