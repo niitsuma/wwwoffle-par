@@ -121,57 +121,68 @@ static void InfoSelectPage(int fd,URL *Url,Body *request_body)
 
 static void InfoCachedPage(int fd,URL *Url,Header *request_head,int which)
 {
+ char *refurl;
+ URL *refUrl;
  int spool;
- char *refurl=URLDecodeFormArgs(Url->args);
- URL *refUrl=SplitURL(refurl);
+ Header *spooled_head=NULL;
 
  HTMLMessageHead(fd,200,"WWWOFFLE Info Spooled",
                  NULL);
 
- spool=OpenWebpageSpoolFile(1,refUrl);
- /* init_buffer(spool); */
+ if(out_err==-1) return;
+
+ refurl=URLDecodeFormArgs(Url->args);
+ refUrl=SplitURL(refurl);
+
+ if((spool=OpenWebpageSpoolFile(1,refUrl))!=-1) {
+   /* init_buffer(spool); */
+   ParseReply(spool,&spooled_head,NULL);
+ }
+
 
  HTMLMessageBody(fd,"InfoCached-Head",
                  "url",refUrl->name,
-                 "cached",spool==-1?"":"yes",
+                 "cached",(spool!=-1 && spooled_head)?"yes":"",
                  NULL);
 
  if(spool!=-1)
    {
-    Header *spooled_head=NULL;
-
-    ParseReply(spool,&spooled_head,NULL);
-
+     if(spooled_head)
+       {
+	 if(out_err!=-1)
+	   {
 #if USE_ZLIB
-    if(GetHeader2(spooled_head,"Pragma","wwwoffle-compressed"))
-      {
-       char *content_encoding;
+	     if(GetHeader2(spooled_head,"Pragma","wwwoffle-compressed"))
+	       {
+		 char *content_encoding;
 
-       if((content_encoding=GetHeader(spooled_head,"Content-Encoding")))
-         {
-          RemoveFromHeader(spooled_head,"Content-Encoding");
-          RemoveFromHeader2(spooled_head,"Pragma","wwwoffle-compressed");
-          init_zlib_buffer(spool,2);
-         }
-      }
+		 if((content_encoding=GetHeader(spooled_head,"Content-Encoding")))
+		   {
+		     RemoveFromHeader(spooled_head,"Content-Encoding");
+		     RemoveFromHeader2(spooled_head,"Pragma","wwwoffle-compressed");
+		     init_zlib_buffer(spool,2);
+		   }
+	       }
 #endif
 
-    if(which==0)
-       InfoCached(fd,spool,refUrl,spooled_head);
-    else if(which==1)
-       InfoContents(fd,spool,refUrl,spooled_head);
-    else if(which==2)
-       InfoSource(fd,spool,refUrl,spooled_head);
-
-    FreeHeader(spooled_head);
-    close(spool);
+	     if(which==0)
+	       InfoCached(fd,spool,refUrl,spooled_head);
+	     else if(which==1)
+	       InfoContents(fd,spool,refUrl,spooled_head);
+	     else if(which==2)
+	       InfoSource(fd,spool,refUrl,spooled_head);
+	   }
+	 FreeHeader(spooled_head);
+       }
+     close(spool);
    }
 
- HTMLMessageBody(fd,"InfoCached-Tail",
-                 NULL);
+ if(out_err!=-1)
+   HTMLMessageBody(fd,"InfoCached-Tail",
+		   NULL);
 
- free(refurl);
  FreeURL(refUrl);
+ free(refurl);
 }
 
 
@@ -242,25 +253,39 @@ static void InfoContents(int fd,int spool,URL *Url,Header *spooled_head)
     list[1]=NULL;
 
     output_content(fd,"Refresh",list);
+
+    if(out_err==-1) return;
    }
 
- if((list=GetReferences(RefStyleSheet)))
+ if((list=GetReferences(RefStyleSheet))) {
     output_content(fd,"StyleSheet",list);
+    if(out_err==-1) return;
+ }
 
- if((list=GetReferences(RefImage)))
+ if((list=GetReferences(RefImage))) {
     output_content(fd,"Image",list);
+    if(out_err==-1) return;
+ }
 
- if((list=GetReferences(RefFrame)))
+ if((list=GetReferences(RefFrame))) {
     output_content(fd,"Frame",list);
+    if(out_err==-1) return;
+ }
 
- if((list=GetReferences(RefScript)))
+ if((list=GetReferences(RefScript))) {
     output_content(fd,"Script",list);
+    if(out_err==-1) return;
+ }
 
- if((list=GetReferences(RefObject)))
+ if((list=GetReferences(RefObject))) {
     output_content(fd,"Object",list);
+    if(out_err==-1) return;
+ }
 
- if((list=GetReferences(RefInlineObject)))
+ if((list=GetReferences(RefInlineObject))) {
     output_content(fd,"Object",list);
+    if(out_err==-1) return;
+ }
 
  if((list=GetReferences(RefLink)))
     output_content(fd,"Link",list);
@@ -302,6 +327,7 @@ static void output_content(int fd,char *type,char **url)
                     NULL);
 
     FreeURL(Url);
+    if(out_err==-1) break;
    }
 }
 
@@ -342,7 +368,7 @@ static void InfoSource(int fd,int spool,URL *Url,Header *spooled_head)
    {
     char *type=GetHeader(spooled_head,"Content-Type");
 
-    if(!strncmp(type,"text/",5))
+    if(type && (!strcmp_litbeg(type,"text/") || !strcmp_litbeg(type,"application/x-javascript")))
        text=1;
    }
 
@@ -350,12 +376,12 @@ static void InfoSource(int fd,int spool,URL *Url,Header *spooled_head)
                  "text",text?"yes":"",
                  NULL);
 
- if(text)
+ if(out_err!=-1 && text)
    {
     int n;
     char buffer[READ_BUFFER_SIZE+1];
 
-    write_string(fd,"<pre>\n");
+    if((out_err=write_string(fd,"<pre>\n"))==-1) return;
 
     while((n=read_data(spool,buffer,READ_BUFFER_SIZE))>0)
       {
@@ -364,10 +390,12 @@ static void InfoSource(int fd,int spool,URL *Url,Header *spooled_head)
        buffer[n]=0;
        html=HTMLString(buffer,0);
 
-       write_string(fd,html);
+       out_err=write_string(fd,html);
+       free(html);
+       if(out_err==-1) return;       
       }
 
-    write_string(fd,"</pre>\n");
+    out_err=write_string(fd,"</pre>\n");
    }
 }
 
@@ -386,7 +414,7 @@ static void InfoRequestPage(int fd,URL *Url)
 
  refurl=URLDecodeFormArgs(Url->args);
 
- HTMLMessage(fd,302,"WWWOFFLE Refresh Redirect",NULL,"Redirect",
+ HTMLMessage(fd,302,"WWWOFFLE Refresh Redirect",refurl,"Redirect",
              "location",refurl,
              NULL);
 
@@ -416,18 +444,36 @@ static void InfoRequestedPage(int fd,URL *Url,Header *request_head,Body *request
 
  ModifyRequest(Url,request_head);
 
+ /* Add the compression header */
+
+#if USE_ZLIB
+ {
+   int compress_spec=ConfigIntegerURL(RequestCompressedData,Url);
+   if(compress_spec && !NotCompressed(NULL,Url->path))
+     {
+       AddToHeader(request_head,"Accept-Encoding",
+		   (compress_spec==1) ? "deflate, identity; q=0.1":
+		   (compress_spec==2) ? "x-gzip, gzip, identity; q=0.1":
+		   "deflate; q=1.0, x-gzip; q=0.9, gzip; q=0.9, identity; q=0.1");
+     }
+ }
+#endif
+
  head2=HeaderString(request_head,&headlen);
  head2[headlen-4]=0;
 
- HTMLMessage(fd,200,"WWWOFFLE Info Request",
-             NULL,
-             "InfoRequest",
-             "url",Url->name,
-             "head1",head1,
-             "head2",head2,
-             "anybody",request_body?"yes":"",
-             "body",request_body?request_body->content:NULL,
-             NULL);
+ HTMLMessageHead(fd,200,"WWWOFFLE Info Request",
+		 "Cache-Control","no-cache",
+		 NULL);
+
+ if(out_err!=-1)
+   HTMLMessageBody(fd,"InfoRequest",
+		   "url",Url->name,
+		   "head1",head1,
+		   "head2",head2,
+		   "anybody",request_body?"yes":"",
+		   "body",request_body?request_body->content:NULL,
+		   NULL);
 
  free(head1);
  free(head2);

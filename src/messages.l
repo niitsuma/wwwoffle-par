@@ -483,41 +483,11 @@ static char *call_function(char *func)
    if(!strcmp(funcname,"encode"))
      result=URLEncodeFormArgs(val);
    else if(!strcmp(funcname,"decode"))
-     {
-       char *ques=strchr(val,'?');
-       char *dec;
-
-       if(ques)
-	 {
-	   char *dec_path,*dec_args;
-
-	   dec_path=STRDUP3(val,ques,URLDecodeGeneric);
-	   dec_args=URLDecodeFormArgs(ques+1);
-       
-	   dec=(char*)malloc(strlen(dec_path)+strlen(dec_args)+2);
-	   {
-	     char *p=stpcpy(dec,dec_path);
-	     *p++='?';
-	     stpcpy(p,dec_args);
-	   }
-	   free(dec_path);
-	   free(dec_args);
-	 }
-       else
-	 dec=URLDecodeGeneric(val);
-
-       result=HTMLString(dec,1);
-
-       free(dec);
-     }
+     result=HTML_url(val);
    else if(!strcmp(funcname,"html"))
-     {
-       result=HTMLString(val,1);
-     }
+     result=HTMLString(val,1);
    else if(!strcmp(funcname,"htmlitems"))
-     {
-       result=HTMLString(val,2);
-     }
+     result=HTMLString(val,2);
  }
 
  val=add_variable(func,result);

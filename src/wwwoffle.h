@@ -84,11 +84,11 @@ int SpooledBackupStatus(URL *Url);
   ++++++++++++++++++++++++++++++++++++++*/
 
 #define local_URLToFileName(Url,filename) \
- char *_hash=(Url->hash?Url->hash:(Url->hash=MakeHash(Url->file))); \
+ char *_hash=GetHash(Url); \
  size_t _hash_size=strlen(_hash)+1; \
  char filename[_hash_size+2]; \
- *filename='X'; \
- memcpy(filename+1,_hash,_hash_size);
+ *(filename)='X'; \
+ memcpy((filename)+1,_hash,_hash_size);
 
 
 #if defined(__CYGWIN__)

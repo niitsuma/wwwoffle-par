@@ -966,17 +966,16 @@ changedir_back:
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Create a file in the lasttime directory.
+  Create a file in the lasttime directory (removing any existing ones).
 
-  int CreateLastTimeSpoolFile Returns 1 if the file already exists.
+  int CreateLastTimeSpoolFile Returns 1 if it succeeds.
 
   URL *Url The URL to create.
   ++++++++++++++++++++++++++++++++++++++*/
 
 int CreateLastTimeSpoolFile(URL *Url)
 {
- struct stat buf;
- int exists=0;
+ int retval=0;
 
  if(!ConfigBoolean(CreateHistoryIndexes))
     return(1);
@@ -989,34 +988,46 @@ int CreateLastTimeSpoolFile(URL *Url)
  /* Create the file. */
 
  {
-   local_URLToFileName(Url,file)
-   *file='D';
+   char *hash=GetHash(Url);
+   char name[strlen(Url->proto)+strlen(Url->dir)+strlen(hash)+7];
+   char *file,*p;
 
-   if(stat(file,&buf))
+   p=stpcpy(stpcpy(name,"../"),Url->proto);
+   *p++='/';
+   p=stpcpy(p,Url->dir);
+   *p++='/';
+   file=p;
+   *p++='D';
+   p=stpcpy(p,hash);
+
+   if(unlink(file) && errno!=ENOENT)
+     PrintMessage(Warning,"Cannot remove file 'lasttime/%s' [%!s].",file);
+   else
      {
-       char name[strlen(Url->proto)+strlen(Url->dir)+strlen(file)+6];
-       sprintf(name,"../%s/%s/%s",Url->proto,Url->dir,file);
-
        if(link(name,file))
-	 {PrintMessage(Warning,"Cannot create file 'lasttime/%s' [%!s].",file);}
+	 PrintMessage(Warning,"Cannot create file 'lasttime/%s' [%!s].",file);
        else
 	 {
 	   *file='U';
-	   sprintf(name,"../%s/%s/%s",Url->proto,Url->dir,file);
 
-	   if(link(name,file))
-	     {PrintMessage(Warning,"Cannot create file 'lasttime/%s' [%!s].",file);}
+	   if(unlink(file) && errno!=ENOENT)
+	     PrintMessage(Warning,"Cannot remove file 'lasttime/%s' [%!s].",file);
+	   else
+	     {
+	       if(link(name,file))
+		 PrintMessage(Warning,"Cannot create file 'lasttime/%s' [%!s].",file);
+	       else
+		 retval=1;
+	     }
 	 }
      }
-   else
-     exists=1;
  }
 
  /* Change dir back. */
 
  fchdir(fSpoolDir);
 
- return(exists);
+ return(retval);
 }
 
 
@@ -1723,14 +1734,14 @@ int SpooledBackupStatus(URL *Url)
    *file='D';
    strcat(file,"~");
    {
-     int spool=open(file,O_RDONLY|O_BINARY);
+     int spool;
+     char *reply;
 
-     init_buffer(spool);
-     if(spool!=-1)
+     if((spool=open(file,O_RDONLY|O_BINARY))!=-1)
        {
-	 char *reply=read_line(spool,NULL);
+	 init_buffer(spool);
 
-	 if(reply)
+	 if((reply=read_line(spool,NULL)))
 	   {
 	     sscanf(reply,"%*s %d",&status);
 	     free(reply);

@@ -58,6 +58,8 @@
 #include "proto.h"
 #include "config.h"
 #include "errors.h"
+#include "headbody.h"
+#include "document.h"
 
 
 /*+ A type to contain the information required to sort the files. +*/
@@ -111,11 +113,11 @@ static time_t now;
 
 static void IndexRoot(int fd);
 static void IndexProtocol(int fd,char *proto,SortMode mode,int allopt);
-static void IndexHost(int fd,char *proto,char *host,SortMode mode,int allopt);
-static void IndexOutgoing(int fd,SortMode mode,int allopt);
-static void IndexMonitor(int fd,SortMode mode,int allopt);
-static void IndexLastTime(int fd,char *name,SortMode mode,int allopt);
-static void IndexLastOut(int fd,char *name,SortMode mode,int allopt);
+static void IndexHost(int fd,char *proto,char *host,SortMode mode,int allopt,int titleopt);
+static void IndexOutgoing(int fd,SortMode mode,int allopt,int titleopt);
+static void IndexMonitor(int fd,SortMode mode,int allopt,int titleopt);
+static void IndexLastTime(int fd,char *name,SortMode mode,int allopt,int titleopt);
+static void IndexLastOut(int fd,char *name,SortMode mode,int allopt,int titleopt);
 
 static int is_indexed(URL *Url,ConfigItem config);
 
@@ -129,6 +131,7 @@ static int sort_type(FileIndex **a,FileIndex **b);
 static int sort_domain(FileIndex **a,FileIndex **b);
 static int sort_time(FileIndex **a,FileIndex **b);
 static int sort_random(FileIndex **a,FileIndex **b);
+static char *webpagetitle(URL *Url);
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -146,7 +149,7 @@ void IndexPage(int fd,URL *Url)
  SortMode sort=NSortModes,s;
  Protocol *protocol=NULL;
  int outgoing=0,monitor=0,lasttime=0,prevtime=0,lastout=0,prevout=0,mainpage=0;
- int delopt=0,refopt=0,monopt=0,allopt=0,confopt=0,infoopt=0;
+ int delopt=0,refopt=0,monopt=0,allopt=0,confopt=0,infoopt=0,titleopt=0;
  int i;
 
  if(!strcmp(Url->path,"/index/url"))
@@ -192,7 +195,7 @@ void IndexPage(int fd,URL *Url)
 
  {
    int nprev;
-   
+
    outgoing=!strcmp(proto,"outgoing");
    monitor =!strcmp(proto,"monitor");
    lasttime=!strcmp(proto,"lasttime");
@@ -228,6 +231,8 @@ void IndexPage(int fd,URL *Url)
           confopt=1;
        else if(!strcmp(*a,"info"))
           infoopt=1;
+       else if(!strcmp(*a,"title"))
+          titleopt=1;
       }
 
     free(args[0]);
@@ -272,22 +277,26 @@ void IndexPage(int fd,URL *Url)
                     "all"    ,allopt?";all":"",
                     "config" ,confopt?";config":"",
                     "info"   ,infoopt?";info":"",
+                    "title"  ,titleopt?";title":"",
                     NULL);
 
     if(out_err==-1) return;
 
     if(outgoing)
-       IndexOutgoing(fd,sort,allopt);
+       IndexOutgoing(fd,sort,allopt,titleopt);
     else if(monitor)
-       IndexMonitor(fd,sort,allopt);
+       IndexMonitor(fd,sort,allopt,titleopt);
     else if(lasttime || prevtime)
-       IndexLastTime(fd,proto,sort,allopt);
+       IndexLastTime(fd,proto,sort,allopt,titleopt);
     else if(lastout || prevout)
-       IndexLastOut(fd,proto,sort,allopt);
-    else if(protocol && !*host)
-       IndexProtocol(fd,proto,sort,allopt);
-    else if(protocol && *host)
-       IndexHost(fd,proto,host,sort,allopt);
+       IndexLastOut(fd,proto,sort,allopt,titleopt);
+    else if(protocol)
+      {
+       if(!*host)
+	 IndexProtocol(fd,proto,sort,allopt);
+       else
+	 IndexHost(fd,proto,host,sort,allopt,titleopt);
+      }
     else
        IndexRoot(fd);
 
@@ -425,7 +434,7 @@ free_return:
   int allopt The option to show all pages including unlisted ones.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void IndexHost(int fd,char *proto,char *host,SortMode mode,int allopt)
+static void IndexHost(int fd,char *proto,char *host,SortMode mode,int allopt,int titleopt)
 {
  DIR *dir;
  struct dirent* ent;
@@ -500,7 +509,7 @@ static void IndexHost(int fd,char *proto,char *host,SortMode mode,int allopt)
 
  for(i=0;i<nfiles;i++)
    {
-     if(out_err!=-1 && (allopt || is_indexed(files[i]->url,IndexListHost)))
+    if(out_err!=-1 && (allopt || is_indexed(files[i]->url,IndexListHost)))
       {
        char count[12];
 
@@ -509,12 +518,19 @@ static void IndexHost(int fd,char *proto,char *host,SortMode mode,int allopt)
        if(mode==Dated)
           dated_separator(fd,i,&lastdays,&lasthours);
 
-       HTMLMessageBody(fd,"IndexHost-Body",
-                       "count",count,
-                       "url",files[i]->url->name,
-                       "link",files[i]->url->link,
-                       "item",files[i]->url->pathp,
-                       NULL);
+       {
+	 char *item=NULL;
+
+	 if(titleopt) item=webpagetitle(files[i]->url);
+	 if(!item)    item=HTML_url(files[i]->url->pathp);
+	 HTMLMessageBody(fd,"IndexHost-Body",
+			 "count",count,
+			 "url",files[i]->url->name,
+			 "link",files[i]->url->link,
+			 "item",item,
+			 NULL);
+	 free(item);
+       }
 
        nindexed++;
       }
@@ -552,7 +568,7 @@ free_return:
   int allopt The option to show all pages including unlisted ones.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void IndexOutgoing(int fd,SortMode mode,int allopt)
+static void IndexOutgoing(int fd,SortMode mode,int allopt,int titleopt)
 {
  DIR *dir;
  struct dirent* ent;
@@ -618,12 +634,19 @@ static void IndexOutgoing(int fd,SortMode mode,int allopt)
        if(mode==Dated)
           dated_separator(fd,i,&lastdays,&lasthours);
 
-       HTMLMessageBody(fd,"IndexOutgoing-Body",
-                       "count",count,
-                       "url",files[i]->url->name,
-                       "link",files[i]->url->link,
-                       "item",files[i]->url->name,
-                       NULL);
+       {
+	 char *item=NULL;
+
+	 if(titleopt) item=webpagetitle(files[i]->url);
+	 if(!item)    item=HTML_url(files[i]->url->name);
+	 HTMLMessageBody(fd,"IndexOutgoing-Body",
+			 "count",count,
+			 "url",files[i]->url->name,
+			 "link",files[i]->url->link,
+			 "item",item,
+			 NULL);
+	 free(item);
+       }
 
        nindexed++;
       }
@@ -662,7 +685,7 @@ free_return:
   int allopt The option to show all pages including unlisted ones.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void IndexMonitor(int fd,SortMode mode,int allopt)
+static void IndexMonitor(int fd,SortMode mode,int allopt,int titleopt)
 {
  DIR *dir;
  struct dirent* ent;
@@ -741,14 +764,21 @@ static void IndexMonitor(int fd,SortMode mode,int allopt)
        if(mode==Dated)
           dated_separator(fd,i,&lastdays,&lasthours);
 
-       HTMLMessageBody(fd,"IndexMonitor-Body",
-                       "count",count,
-                       "url",files[i]->url->name,
-                       "link",files[i]->url->link,
-                       "item",files[i]->url->name,
-                       "last",laststr,
-                       "next",nextstr,
-                       NULL);
+       {
+	 char *item=NULL;
+
+	 if(titleopt) item=webpagetitle(files[i]->url);
+	 if(!item)    item=HTML_url(files[i]->url->name);
+	 HTMLMessageBody(fd,"IndexMonitor-Body",
+			 "count",count,
+			 "url",files[i]->url->name,
+			 "link",files[i]->url->link,
+			 "item",item,
+			 "last",laststr,
+			 "next",nextstr,
+			 NULL);
+	 free(item);
+       }
 
        nindexed++;
       }
@@ -789,7 +819,7 @@ free_return:
   int allopt The option to show all pages including unlisted ones.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void IndexLastTime(int fd,char *name,SortMode mode,int allopt)
+static void IndexLastTime(int fd,char *name,SortMode mode,int allopt,int titleopt)
 {
  DIR *dir;
  struct dirent* ent;
@@ -863,12 +893,19 @@ static void IndexLastTime(int fd,char *name,SortMode mode,int allopt)
        if(mode==Dated)
           dated_separator(fd,i,&lastdays,&lasthours);
 
-       HTMLMessageBody(fd,"IndexLastTime-Body",
-                       "count",count,
-                       "url",files[i]->url->name,
-                       "link",files[i]->url->link,
-                       "item",files[i]->url->name,
-                       NULL);
+       {
+	 char *item=NULL;
+
+	 if(titleopt) item=webpagetitle(files[i]->url);
+	 if(!item)    item=HTML_url(files[i]->url->name);
+	 HTMLMessageBody(fd,"IndexLastTime-Body",
+			 "count",count,
+			 "url",files[i]->url->name,
+			 "link",files[i]->url->link,
+			 "item",item,
+			 NULL);
+	 free(item);
+       }
 
        nindexed++;
       }
@@ -909,7 +946,7 @@ free_return:
   int allopt The option to show all pages including unlisted ones.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void IndexLastOut(int fd,char *name,SortMode mode,int allopt)
+static void IndexLastOut(int fd,char *name,SortMode mode,int allopt,int titleopt)
 {
  DIR *dir;
  struct dirent* ent;
@@ -983,12 +1020,19 @@ static void IndexLastOut(int fd,char *name,SortMode mode,int allopt)
        if(mode==Dated)
           dated_separator(fd,i,&lastdays,&lasthours);
 
-       HTMLMessageBody(fd,"IndexLastOut-Body",
-                       "count",count,
-                       "url",files[i]->url->name,
-                       "link",files[i]->url->link,
-                       "item",files[i]->url->name,
-                       NULL);
+       {
+	 char *item=NULL;
+
+	 if(titleopt) item=webpagetitle(files[i]->url);
+	 if(!item)    item=HTML_url(files[i]->url->name);
+	 HTMLMessageBody(fd,"IndexLastOut-Body",
+			 "count",count,
+			 "url",files[i]->url->name,
+			 "link",files[i]->url->link,
+			 "item",item,
+			 NULL);
+	 free(item);
+       }
 
        nindexed++;
       }
@@ -1043,9 +1087,6 @@ static int is_indexed(URL *Url,ConfigItem config)
 
 static void add_dir(char *name,SortMode mode)
 {
-#if defined(__CYGWIN__)
- int i;
-#endif
  struct stat buf;
 
  if(stat(name,&buf))
@@ -1059,9 +1100,12 @@ static void add_dir(char *name,SortMode mode)
     files[nfiles]=(FileIndex*)malloc(sizeof(FileIndex));
 
 #if defined(__CYGWIN__)
- for(i=0;name[i];i++)
-    if(name[i]=='!')
-       name[i]=':';
+    {
+      char *p;
+      for(p=name;*p;++p)
+	if(*p=='!')
+	  *p=':';
+    }
 #endif
 
     files[nfiles]->name=strdup(name);
@@ -1105,27 +1149,26 @@ static void add_file(char *name,SortMode mode)
    {PrintMessage(Inform,"Cannot stat file '%s' [%!s]; race condition?",name);free(url);return;}
  else if(S_ISREG(buf.st_mode))
    {
+    URL *Url;
+
     if(!(nfiles%16))
       {
-       if(!files)
-          files=(FileIndex**)malloc(16*sizeof(FileIndex*));
-       else
-          files=(FileIndex**)realloc(files,(nfiles+16)*sizeof(FileIndex*));
+	files=(FileIndex**)realloc(files,(nfiles+16)*sizeof(FileIndex*));
       }
     files[nfiles]=(FileIndex*)malloc(sizeof(FileIndex));
 
-    files[nfiles]->url=SplitURL(url);
-    files[nfiles]->name=files[nfiles]->url->name;
+    files[nfiles]->url=Url=SplitURL(url);
+    files[nfiles]->name=Url->name;
 
     if(mode==Domain)
-       files[nfiles]->host=files[nfiles]->url->hostport;
+       files[nfiles]->host=Url->hostport;
     else if(mode==Type)
       {
-       char *p=strchrnul(files[nfiles]->url->path,0);
+       char *p=strchrnul(Url->path,0);
 
        files[nfiles]->type="";
 
-       while(--p>=files[nfiles]->url->path && *p!='/')
+       while(--p>=Url->path && *p!='/')
 	 if(*p=='.') {
 	   files[nfiles]->type=p;
 	   break;
@@ -1321,3 +1364,67 @@ static int sort_random(FileIndex **a,FileIndex **b)
 
  return(chosen);
 }
+
+
+/* Added by Paul Rombouts */
+
+/*+ Need this for Win32 to use binary mode +*/
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
+
+/*++++++++++++++++++++++++++++++++++++++
+  Find the title in spooled webpage.
+
+  char *webpagetitle Returns the title.
+
+  URL *Url The URL of the webpage.
+  ++++++++++++++++++++++++++++++++++++++*/
+static char *webpagetitle(URL *Url)
+{
+ char *title=NULL;
+ int fd;
+
+ {
+   char *hash=GetHash(Url);
+   char name[strlen(Url->proto)+strlen(Url->dir)+strlen(hash)+4];
+   char *p;
+
+   p=stpcpy(name,Url->proto);
+   *p++='/';
+   p=stpcpy(p,Url->dir);
+   *p++='/';
+   *p++='D';
+   p=stpcpy(p,hash);
+
+   fd=open(name,O_RDONLY|O_BINARY);
+ }
+
+ if(fd!=-1) {
+   int status;
+   Header *spooled_head=NULL;
+
+   init_buffer(fd);
+   status=ParseReply(fd,&spooled_head,NULL);
+
+   if(spooled_head) {
+     if(status==200) {
+       if((title= GetHeader(spooled_head,"Title")))
+	 title= HTMLString(title,0);
+       else {
+	 char *type= GetHeader(spooled_head,"Content-Type");
+
+	 if(type && !strcmp_litbeg(type,"text/html"))
+	   title=HTML_title(fd);
+       }
+     }
+
+     FreeHeader(spooled_head);
+   }
+
+   close(fd);
+ }
+
+ return title;
+}
+

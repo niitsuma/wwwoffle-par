@@ -1,9 +1,9 @@
-	  Alternative WWWOFFLE implementation - version 2.7g-par
+	  Alternative WWWOFFLE implementation - version 2.7g-par-2
 	  ======================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
 am making available so other people can run it and/or study the source code.
-Present version is 2.7g-par (I've simply appended my initials to the version
+Present version is 2.7g-par-2 (I've simply appended my initials to the version
 number). The first part of this file describes how to patch, compile, install
 and run wwwoffled. The second part lists in more detail the changes I've made to
 AMB's code.
@@ -12,7 +12,7 @@ Before compiling and installing WWWOFFLE according to AMB's installation
 instructions described in the INSTALL file you must first apply my patch file
 wwwoffled-2.7g-par.diff.gz using the command:
 
-gzip -cd <path_to_patch>/wwwoffle-2.7g-par.diff.gz | patch -p2 -N -E
+gzip -cd <path_to_patch>/wwwoffle-2.7g-par-2.diff.gz | patch -p2 -N -E
 
 Note: because I have used GNU extensions you will need to compile with gcc and
 link with glibc. This will not be a problem with most Linux distributions.
@@ -90,9 +90,24 @@ The rest of this file lists in some detail some other modifications I've made,
 but you don't have to read it if you simply want to run wwwoffled as you're used
 to.
 
+- New in version 2.7g-2: I've added a new option to the cache index pages that
+  enables you to see the titles of the listed webpages (those that WWWOFFLE can
+  find in the cache). I find it useful because it generally gives you a better
+  idea what the pages are about. Note: this feature requires modified message
+  template files and they are not available in all languages. The quickest way
+  to remedy this problem is to revert to English only by removing all non-english
+  directories in /var/spool/wwwoffle/html. To see if this feature is available
+  look at the top of an index page for a (Show Titles) option.
+
+- New in version 2.7g-2: I've fixed a bug (at least I consider it a bug) that
+  caused all references to a webpage to disappear from the lasttime indexes
+  whenever a webserver replies with 304 (Not Modified). My version of the code
+  will not add a new entry to the lasttime directory in this case, but it will
+  not remove existing ones either.
+
 - New in version 2.7g: I've made a few changes to improve WWWOFFLE's ability to
   block sites that (ab)use the SSL protocol (i.e. the URL starts with https) for
-  ads. If WWWOFFLE refuses a SSL-proxy connect because the host appears the the
+  ads. If WWWOFFLE refuses a SSL-proxy connect because the host appears on the
   DontGet list, WWWOFFLE will now give a more sensible error message instead of
   the confusing 'SSL port not allowed' message. I've also changed the
   wwwoffle.pac file so that the SSL connections that I want to block go through

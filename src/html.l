@@ -237,6 +237,24 @@ static int html_yyfd=-1;
 static /*@null@*/ URL *baseUrl=NULL;
 
 
+
+/* Must use static variables since the parser returns often. */
+static char *string=NULL;
+static size_t stringallocsize=0,stringlen=0;
+static int after_tag=INITIAL;
+
+inline static void reset_parser()
+{
+  if(string) free(string);
+  string=NULL;
+  stringallocsize=0; stringlen=0;
+  after_tag=INITIAL;
+  YY_FLUSH_BUFFER;
+  BEGIN(INITIAL);
+  html_yylval=NULL;
+}
+
+
 /*++++++++++++++++++++++++++++++++++++++
   Parse the HTML and look for references to image/links/frames.
 
@@ -247,8 +265,6 @@ static /*@null@*/ URL *baseUrl=NULL;
 
 void ParseHTML(int fd,URL *Url)
 {
- static int first=1;
-
  PrintMessage(Debug,"Parsing document using HTML parser.");
 
  baseUrl=Url;
@@ -261,8 +277,6 @@ void ParseHTML(int fd,URL *Url)
  meta_refresh=NULL;
 
  html_yyfd=fd;
- if(!first)
-    html_yyrestart(NULL);
 
  parse_html(Url);
 
@@ -272,7 +286,7 @@ void ParseHTML(int fd,URL *Url)
     SetBaseURL(baseUrl);
    }
 
- first=0;
+ reset_parser();
 }
 
 
@@ -777,6 +791,72 @@ static void parse_html(URL *Url)
 }
 
 
+/*++++++++++++++++++++++++++++++++++++++
+  Parse the HTML and look for the title.
+
+  int fd The file descriptor of the file to parse.
+
+  char *HTML_title returns a pointer to a newly allocated string or NULL.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+char *HTML_title(int fd)
+{
+ int yychar;
+ char *result=NULL;
+
+ html_yyfd=fd;
+
+ /* Parse HTML until title tag is found. */
+
+ while((yychar=html_yylex()))
+   if(yychar==LEX_TAG_BEGIN) {
+     if(!strcasecmp(html_yylval,"title"))
+       goto found_title;
+     else if(!strcasecmp(html_yylval,"/head"))
+       break;
+   }
+
+ goto cleanup_return;
+
+found_title:
+ while((yychar=html_yylex()))
+    switch(yychar)
+      {
+      case LEX_PLAINTEXT:
+	if(html_yylval) {
+	  char *t=html_yylval,*end;
+
+	  /* trim the string */
+	  for(;;++t) {
+	    if(!*t) goto cleanup_return;
+	    if(!isspace(*t)) break;
+	  }
+	  end=strchrnul(t,0);
+	  do {if(--end<t) goto cleanup_return;} while(isspace(*end));
+	  ++end;
+
+	  result= STRDUP2(t,end);
+	}
+	goto cleanup_return;
+
+      case LEX_TAG_END_XHTML:
+      case LEX_TAG_END:
+      case LEX_ATTR_KEY:
+      case LEX_ATTR_VAL_DQ:
+      case LEX_ATTR_VAL_SQ:
+      case LEX_ATTR_VAL:
+	break;
+
+      default:
+	goto cleanup_return;
+      }
+
+cleanup_return:
+ reset_parser();
+ return result;
+}
+
+
 #ifndef html_yywrap
 /*+ Needed in lex but does nothing. +*/
 #define html_yywrap() 1
@@ -784,14 +864,14 @@ static void parse_html(URL *Url)
 
 /*+ Reset the current string. +*/
 #define reset_string \
-{if(string) *string=0; stringused=0;}
+{if(string) *string=0; stringlen=0;}
 
 /*+ append information to the current string. +*/
 #define append_string(xx) \
-{size_t _str_len=strlen(xx),_new_len=stringused+_str_len; \
+{size_t _str_len=strlen(xx),_new_len=stringlen+_str_len; \
  if(_new_len>=stringallocsize) string=(char*)realloc((void*)string,stringallocsize=_new_len+1); \
- memcpy(string+stringused,xx,_str_len+1); \
- stringused=_new_len;}
+ memcpy(string+stringlen,xx,_str_len+1); \
+ stringlen=_new_len;}
 
 /*+ A macro to read data that can be used by the lexer. +*/
 #define YY_INPUT(buf,result,max_size) \
@@ -800,82 +880,76 @@ static void parse_html(URL *Url)
 %}
 
 %%
- /* Must use static variables since the parser returns often. */
- static char *string=NULL;
- static size_t stringallocsize=0,stringused=0;
- static int after_tag=INITIAL;
-
-
  /* Handle comments and other tags */
 
-[^<]+                       { /* html_yylval=html_yytext; return(LEX_PLAINTEXT); */ }
+[^<]+                       { html_yylval=yytext; return(LEX_PLAINTEXT); }
 "<!DOCTYPE"                 { BEGIN(DOCTYPE); reset_string; }
 "<!--"                      { BEGIN(COMMENT); reset_string; }
 "<!"{W}*"-"*                { BEGIN(COMMENT_BAD); reset_string; }
-"<"{W}*                     { BEGIN(TAG_START); reset_string; /* append_string(html_yytext); */ }
+"<"{W}*                     { BEGIN(TAG_START); reset_string; /* append_string(yytext); */ }
 
  /* Doctype (DTD) */
 
 <DOCTYPE>">"                { BEGIN(INITIAL); /* html_yylval=string; return(LEX_DOCTYPE); */ }
-<DOCTYPE>[^>]+              { /* append_string(html_yytext); */ }
+<DOCTYPE>[^>]+              { /* append_string(yytext); */ }
 
  /* Comments - COMMENT_BAD is not a legal comment format (except <!>) but people use it as one.
                COMMENT is not strictly correct, but works better than the real thing. */
 
 <COMMENT>"--"{W}*">"        { BEGIN(INITIAL); /* html_yylval=string; return(LEX_COMMENT); */ }
-<COMMENT>">"                { /* append_string(html_yytext); */ }
-<COMMENT>"-"                { /* append_string(html_yytext); */ }
-<COMMENT>[^->]+             { /* append_string(html_yytext); */ }
+<COMMENT>">"                |
+<COMMENT>"-"                |
+<COMMENT>[^->]+             { /* append_string(yytext); */ }
 
 <COMMENT_BAD>">"            { BEGIN(INITIAL); /* html_yylval=string; return(LEX_COMMENT); */ }
-<COMMENT_BAD>[^>]+          { /* append_string(html_yytext); */ }
+<COMMENT_BAD>[^>]+          { /* append_string(yytext); */ }
 
  /* Tags */
 
-<TAG_START>"script"/{W}     { BEGIN(TAG); after_tag=SCRIPT_START; html_yylval=html_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"script"/">"     { BEGIN(TAG); after_tag=SCRIPT_START; html_yylval=html_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"style"/{W}      { BEGIN(TAG); after_tag=STYLE_START;  html_yylval=html_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"style"/">"      { BEGIN(TAG); after_tag=STYLE_START;  html_yylval=html_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{K}+/" "     { BEGIN(TAG); after_tag=INITIAL;      html_yylval=html_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{K}+/\t      { BEGIN(TAG); after_tag=INITIAL;      html_yylval=html_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{K}+/\n      { BEGIN(TAG); after_tag=INITIAL;      html_yylval=html_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{K}+/\r      { BEGIN(TAG); after_tag=INITIAL;      html_yylval=html_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{K}+/">"     { BEGIN(TAG); after_tag=INITIAL;      html_yylval=html_yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"script"/{W}     { BEGIN(TAG); after_tag=SCRIPT_START; html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"script"/">"     { BEGIN(TAG); after_tag=SCRIPT_START; html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"style"/{W}      { BEGIN(TAG); after_tag=STYLE_START;  html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"style"/">"      { BEGIN(TAG); after_tag=STYLE_START;  html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"/"?{K}+/" "     { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"/"?{K}+/\t      { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"/"?{K}+/\n      { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"/"?{K}+/\r      { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"/"?{K}+/">"     { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
 <TAG_START>(.|\n)           { BEGIN(INITIAL); }
 
-<TAG>{W}*"/>"               { BEGIN(after_tag);                        html_yylval=""; return(LEX_TAG_END_XHTML); }
-<TAG>">"                    { BEGIN(after_tag);                        html_yylval=""; return(LEX_TAG_END); }
-<TAG>"<"                    { BEGIN(after_tag); unput(html_yytext[0]); html_yylval=""; return(LEX_TAG_END); }
-<TAG>{K}+                   { BEGIN(TAG_ATTR_KEY); html_yylval=html_yytext; return(LEX_ATTR_KEY); }
+<TAG>{W}*"/>"               { BEGIN(after_tag);                   html_yylval=""; return(LEX_TAG_END_XHTML); }
+<TAG>">"                    { BEGIN(after_tag);                   html_yylval=""; return(LEX_TAG_END); }
+<TAG>"<"                    { BEGIN(after_tag); unput(yytext[0]); html_yylval=""; return(LEX_TAG_END); }
+<TAG>{K}+                   { BEGIN(TAG_ATTR_KEY); html_yylval=yytext; return(LEX_ATTR_KEY); }
 <TAG>(.|\n)                 { }
 
 <TAG_ATTR_KEY>{W}*=         { BEGIN(TAG_ATTR_VAL); }
-<TAG_ATTR_KEY>(.|\n)        { BEGIN(TAG); unput(html_yytext[0]); html_yylval=NULL; return(LEX_ATTR_VAL); }
+<TAG_ATTR_KEY>(.|\n)        { BEGIN(TAG); unput(yytext[0]); html_yylval=NULL; return(LEX_ATTR_VAL); }
 
 <TAG_ATTR_VAL>\"{W}*        { BEGIN(DQUOTED); reset_string; }
 <TAG_ATTR_VAL>\'{W}*        { BEGIN(SQUOTED); reset_string; }
 <TAG_ATTR_VAL>{W}+          { }
-<TAG_ATTR_VAL>{F}+          { BEGIN(TAG);                        html_yylval=html_yytext; return(LEX_ATTR_VAL); }
-<TAG_ATTR_VAL>(.|\n)        { BEGIN(TAG); unput(html_yytext[0]); html_yylval="";          return(LEX_ATTR_VAL); }
+<TAG_ATTR_VAL>{F}+          { BEGIN(TAG);                   html_yylval=yytext; return(LEX_ATTR_VAL); }
+<TAG_ATTR_VAL>(.|\n)        { BEGIN(TAG); unput(yytext[0]); html_yylval="";     return(LEX_ATTR_VAL); }
 
  /* Quoted strings */
 
-<DQUOTED>\\\"               { append_string(html_yytext); }
-<DQUOTED>\\                 { append_string(html_yytext); }
+<DQUOTED>\\\"               |
+<DQUOTED>\\                 { append_string(yytext); }
 <DQUOTED>{W}*\"             { BEGIN(TAG); html_yylval=string; return(LEX_ATTR_VAL_DQ); }
 <DQUOTED>[\r\n]+            { }
-<DQUOTED>[^\\\"\r\n]+       { append_string(html_yytext); }
+<DQUOTED>[^\\\"\r\n]+       { append_string(yytext); }
 
-<SQUOTED>\\\'               { append_string(html_yytext); }
-<SQUOTED>\\                 { append_string(html_yytext); }
+<SQUOTED>\\\'               |
+<SQUOTED>\\                 { append_string(yytext); }
 <SQUOTED>{W}*\'             { BEGIN(TAG); html_yylval=string; return(LEX_ATTR_VAL_SQ); }
 <SQUOTED>[\r\n]+            { }
-<SQUOTED>[^\\\'\r\n]+       { append_string(html_yytext); }
+<SQUOTED>[^\\\'\r\n]+       { append_string(yytext); }
 
  /* Scripts */
 
 <SCRIPT_START>{W}*/"</script" { BEGIN(INITIAL); }
-<SCRIPT_START>(.|\n)        { unput(html_yytext[0]); BEGIN(SCRIPT); }
+<SCRIPT_START>(.|\n)        { unput(yytext[0]); BEGIN(SCRIPT); }
 
 <SCRIPT>\"                  { BEGIN(SCRIPT_DQUOTED); }
 <SCRIPT>\'                  { BEGIN(SCRIPT_SQUOTED); }
@@ -913,7 +987,7 @@ static void parse_html(URL *Url)
  /* Styles */
 
 <STYLE_START>{W}*/"</style" { BEGIN(INITIAL); }
-<STYLE_START>(.|\n)         { unput(html_yytext[0]); BEGIN(STYLE); }
+<STYLE_START>(.|\n)         { unput(yytext[0]); BEGIN(STYLE); }
 
 <STYLE>"<"/"/style"         { BEGIN(TAG_START); }
 <STYLE>"<"                  { }
@@ -921,5 +995,5 @@ static void parse_html(URL *Url)
 
  /* End of file */
 
-<<EOF>>                     { free(string); stringallocsize=stringused=0; BEGIN(INITIAL); return(0); }
+ /* <<EOF>>                 { if(string) free(string); string=NULL; stringallocsize=stringlen=0; after_tag=INITIAL; YY_FLUSH_BUFFER; BEGIN(INITIAL); html_yylval=NULL; return(0); } */
 %%

@@ -110,7 +110,7 @@ int wwwoffles(int online,int browser,int client)
  char *url;
  URL *Url=NULL,*Urlpw=NULL;
  Mode mode=None;
- int outgoing_exists=0,lasttime_exists=0;
+ int outgoing_exists=0,createlasttimespoolfile=0;
  time_t spool_exists=0,spool_exists_pw=0;
  int conditional_request_ims=0,conditional_request_inm=0;
  char *user_agent;
@@ -855,11 +855,11 @@ int wwwoffles(int online,int browser,int client)
    {
     char *referer=GetHeader(request_head,"Referer");
 
-    if(referer && strstr(referer,"/info/request"))
+    if(referer && strstr(referer,"/info/url"))
       {
        URL *refUrl=SplitURL(referer);
 
-       if(refUrl->local && !strcmp_litbeg(refUrl->path,"/info/request"))
+       if(refUrl->local && !strcmp_litbeg(refUrl->path,"/info/url"))
          {
           InfoPage(tmpclient,Url,request_head,request_body);
           FreeURL(refUrl);
@@ -1443,7 +1443,7 @@ passwordagain:
 
     CreateLockWebpageSpoolFile(Url);
 
-    lasttime_exists=CreateLastTimeSpoolFile(Url);
+    createlasttimespoolfile=1;
    }
 
  /* Set up the file descriptor for the spool file (to read). */
@@ -1803,8 +1803,7 @@ passwordagain:
 	  close(spool); spool=-1;
           DeleteLockWebpageSpoolFile(Url);
           RestoreBackupWebpageSpoolFile(Url);
-          if(!lasttime_exists)
-             DeleteLastTimeSpoolFile(Url);
+          createlasttimespoolfile=0;
          }
 
        /* If fetching then parse the document for links. */
@@ -1884,6 +1883,7 @@ passwordagain:
 	DeleteLockWebpageSpoolFile(Url);
 	close(spool);
 	spool=-1;
+	createlasttimespoolfile=0;
 
 	if(mode==Fetch)
 	  {
@@ -1898,13 +1898,14 @@ passwordagain:
 
  /* If there is no server then blank the reply header. */
 
- else
-    reply_head=NULL;
+ /* else
+    reply_head=NULL; */
 
  /* Get the header from the cache. */
 
  if(mode==Spool || mode==SpoolPragma)
    {
+    if(reply_head) {FreeHeader(reply_head); reply_head=NULL; }
     reply_status=ParseReply(spool,&reply_head,&spool_head_size);
 
     if(!reply_head)
@@ -1920,10 +1921,6 @@ passwordagain:
       }
    }
 
- /* Initialise the body. */
-
- reply_body=CreateBody(READ_BUFFER_SIZE);
-
  /* Close the outgoing file if any. */
 
  if(outgoing>=0)
@@ -1934,6 +1931,14 @@ passwordagain:
        CloseOutgoingSpoolFile(outgoing,Url);
    }
 
+
+ /* Create an entry in the last time spool directory (if appropriate). */
+
+ if(createlasttimespoolfile) CreateLastTimeSpoolFile(Url);
+
+ /* Initialise the body. */
+
+ reply_body=CreateBody(READ_BUFFER_SIZE);
 
  /*----------------------------------------
    mode = Spool, SpoolGet, SpoolPragma, SpoolRefresh, Real, RealRefresh, RealNoCache, RealNoPassword, Fetch or FetchNoPassword
@@ -2358,7 +2363,7 @@ passwordagain:
        /* Read the header again in case it changed */
 
        if(reply_head)
-          FreeHeader(reply_head);
+	 {FreeHeader(reply_head); reply_head=NULL; }
 
        lseek(spool,0,SEEK_SET);
        init_buffer(spool);
@@ -2641,8 +2646,10 @@ passwordagain:
     unsigned long size;
     int reply_head_size;
 
-    if(reply_head)
+    if(reply_head) {
        FreeHeader(reply_head);
+       reply_head=NULL;
+    }
 
     if(!reply_body)
        reply_body=CreateBody(READ_BUFFER_SIZE);
@@ -2700,6 +2707,8 @@ passwordagain:
 		       if((++redirect_count)<=MAX_REDIRECT)
 			 {
 			   PrintMessage(Debug,"While in mode SpoolInternal the reply head contains redirection to a local page '%s'.",val);
+
+			   FreeHeader(reply_head); reply_head=NULL;
 
 			   /* restore original mode */
 			   if(online==1 && browser)       mode=Real;

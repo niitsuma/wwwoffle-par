@@ -60,6 +60,7 @@ void ResetReferences(void);
 
 void ParseHTML(int fd,URL *Url);
 char *MetaRefresh(void);
+char *HTML_title(int fd);  /* added by Paul Rombouts */
 
 /* In javaclass.c */
 

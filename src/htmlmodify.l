@@ -385,12 +385,12 @@ int OutputHTMLWithModifications(int client,int spool,URL *Url)
  htmlmodify_read_err=0;
  if(!first)
     htmlmodify_yyrestart(NULL);
+ first=0;
 
  modify_html(Url);
 
  cache_info=NULL;
 
- first=0;
  return(htmlmodify_read_err);
 }
 
@@ -1434,14 +1434,14 @@ static void modify_html(URL *Url)
 
 /*+ Reset the current string. +*/
 #define reset_string \
-{if(string) *string=0; stringused=0;}
+{if(string) *string=0; stringlen=0;}
 
 /*+ append information to the current string. +*/
 #define append_string(xx) \
-{size_t _str_len=strlen(xx),_new_len=stringused+_str_len; \
+{size_t _str_len=strlen(xx),_new_len=stringlen+_str_len; \
  if(_new_len>=stringallocsize) string=(char*)realloc((void*)string,stringallocsize=_new_len+1); \
- memcpy(string+stringused,xx,_str_len+1); \
- stringused=_new_len;}
+ memcpy(string+stringlen,xx,_str_len+1); \
+ stringlen=_new_len;}
 
 /*+ A macro to read data that can be used by the lexer. +*/
 #define YY_INPUT(buf,result,max_size) \
@@ -1452,7 +1452,7 @@ static void modify_html(URL *Url)
 %%
  /* Must use static variables since the parser returns often. */
  static char *string=NULL;
- static size_t stringallocsize=0,stringused=0;
+ static size_t stringallocsize=0,stringlen=0;
  static int after_tag=INITIAL;
 
 
@@ -1585,5 +1585,5 @@ static void modify_html(URL *Url)
 
  /* End of file */
 
-<<EOF>>                     { free(string); stringallocsize=stringused=0; BEGIN(INITIAL); return(0); }
+<<EOF>>                     { if(string) free(string); string=NULL; stringallocsize=stringlen=0; after_tag=INITIAL; BEGIN(INITIAL); htmlmodify_yylval=NULL; return(0); }
 %%

@@ -13,7 +13,7 @@ notindexed = The number of pages that are not indexed (='$notindexed').
 -->
 
 $notindexed?=0{$anynotindexed=0}{$anynotindexed=$total}
-$anynotindexed?=0{}{<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor;all$config$info"><i>$notindexed pages not indexed</i></a>}
+$anynotindexed?=0{}{<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor;all$config$info$title"><i>$notindexed pages not indexed</i></a>}
 
 $delete?{$totaldelete=$total}{$totaldelete=0}
 $totaldelete?=0{}
@@ -24,15 +24,15 @@ $totaldelete?=0{}
 }
 
 <p align=center>
-[$number?{<a href="/index/lastout/?sort=$sort$delete$refresh$monitor$all$config$info">Last Outgoing</a>}{Last Outgoing}]
+[$number?{<a href="/index/lastout/?sort=$sort$delete$refresh$monitor$all$config$info$title">Last Outgoing</a>}{Last Outgoing}]
 [Previous Outgoing
-$number?=1{(1)}{<a href="/index/prevout1/?sort=$sort$delete$refresh$monitor$all$config$info">(1)</a>}
-$number?=2{(2)}{<a href="/index/prevout2/?sort=$sort$delete$refresh$monitor$all$config$info">(2)</a>}
-$number?=3{(3)}{<a href="/index/prevout3/?sort=$sort$delete$refresh$monitor$all$config$info">(3)</a>}
-$number?=4{(4)}{<a href="/index/prevout4/?sort=$sort$delete$refresh$monitor$all$config$info">(4)</a>}
-$number?=5{(5)}{<a href="/index/prevout5/?sort=$sort$delete$refresh$monitor$all$config$info">(5)</a>}
-$number?=6{(6)}{<a href="/index/prevout6/?sort=$sort$delete$refresh$monitor$all$config$info">(6)</a>}
-$number?=7{(7)}{<a href="/index/prevout7/?sort=$sort$delete$refresh$monitor$all$config$info">(7)</a>}
+$number?=1{(1)}{<a href="/index/prevout1/?sort=$sort$delete$refresh$monitor$all$config$info$title">(1)</a>}
+$number?=2{(2)}{<a href="/index/prevout2/?sort=$sort$delete$refresh$monitor$all$config$info$title">(2)</a>}
+$number?=3{(3)}{<a href="/index/prevout3/?sort=$sort$delete$refresh$monitor$all$config$info$title">(3)</a>}
+$number?=4{(4)}{<a href="/index/prevout4/?sort=$sort$delete$refresh$monitor$all$config$info$title">(4)</a>}
+$number?=5{(5)}{<a href="/index/prevout5/?sort=$sort$delete$refresh$monitor$all$config$info$title">(5)</a>}
+$number?=6{(6)}{<a href="/index/prevout6/?sort=$sort$delete$refresh$monitor$all$config$info$title">(6)</a>}
+$number?=7{(7)}{<a href="/index/prevout7/?sort=$sort$delete$refresh$monitor$all$config$info$title">(7)</a>}
 ]
 </p>
 

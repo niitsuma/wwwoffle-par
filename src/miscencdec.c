@@ -852,3 +852,36 @@ char* HTMLString(const char* c,int nbsp)
 
  return(result);
 }
+
+
+
+char *HTML_url(char *url)
+{
+  char *ques=strchr(url,'?');
+  char *dec,*result;
+
+  if(ques)
+    {
+      char *dec_path,*dec_args;
+
+      dec_path=STRDUP3(url,ques,URLDecodeGeneric);
+      dec_args=URLDecodeFormArgs(ques+1);
+       
+      dec=(char*)malloc(strlen(dec_path)+strlen(dec_args)+2);
+      {
+	char *p=stpcpy(dec,dec_path);
+	*p++='?';
+	stpcpy(p,dec_args);
+      }
+      free(dec_path);
+      free(dec_args);
+    }
+  else
+    dec=URLDecodeGeneric(url);
+
+  result=HTMLString(dec,1);
+
+  free(dec);
+
+  return result;
+}

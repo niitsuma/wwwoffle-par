@@ -238,7 +238,7 @@ connect.o          : connect.c          autoconfig.h wwwoffle.h misc.h          
 control.o          : control.c          autoconfig.h wwwoffle.h misc.h            errors.h config.h sockets.h
 controledit.o      : controledit.c      autoconfig.h wwwoffle.h misc.h            errors.h config.h
 search.o           : search.c           autoconfig.h wwwoffle.h misc.h            errors.h config.h           proto.h
-index.o            : index.c            autoconfig.h wwwoffle.h misc.h            errors.h config.h           proto.h
+index.o            : index.c            autoconfig.h wwwoffle.h misc.h headbody.h errors.h config.h           proto.h document.h
 info.o             : info.c             autoconfig.h wwwoffle.h misc.h headbody.h errors.h config.h           proto.h document.h
 monitor.o          : monitor.c          autoconfig.h wwwoffle.h misc.h headbody.h errors.h config.h
 refresh.o          : refresh.c          autoconfig.h wwwoffle.h misc.h headbody.h errors.h config.h sockets.h         document.h

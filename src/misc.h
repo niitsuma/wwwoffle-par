@@ -140,6 +140,14 @@ char /*@only@*/ **SplitFormArgs(char *str);
 
 char /*@only@*/ *MakeHash(const char *args);
 
+/* Added by Paul Rombouts:
+   The following function can be used as a mnemonic version of MakeHash. */
+inline static char *GetHash(URL *Url)
+{
+  if(!(Url->hash)) Url->hash=MakeHash(Url->file);
+  return Url->hash;
+}
+
 #define MAXDATESIZE 32
 #define MAXDURATIONSIZE 64
 void RFC822Date_r(time_t t,int utc,char *buf);
@@ -151,6 +159,7 @@ char /*@only@*/ *Base64Decode(const char *str,/*@out@*/ int *l);
 char /*@only@*/ *Base64Encode(const char *str,int l);
 
 char /*@only@*/ *HTMLString(const char* c,int nbsp);
+char /*@only@*/ *HTML_url(char *url);
 
 
 
