@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/javaclass.c 1.7 2001/07/20 19:06:36 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/javaclass.c 1.10 2004/01/11 10:29:59 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Inspect a .class Object and look for other Objects.
   ******************/ /******************
   Written by W. Pfannenmueller
 
-  This file Copyright 1998,99,2001 W. Pfannenmueller
+  This file Copyright 1998,99,2000,01,02,03,04 W. Pfannenmueller & Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -18,13 +18,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
-#include <unistd.h>
 
-#include "wwwoffle.h"
-#include "document.h"
-#include "misc.h"
+#include "io.h"
 #include "errors.h"
+#include "document.h"
 
 
 #define DEBUG_HTML 0
@@ -97,7 +94,7 @@ int InspectJavaClass(int fd,URL *Url)
 }            
 
 
-Int getInt(int fd)
+static Int getInt(int fd)
 {
      return 
           read_byte(fd) * 256 * 256 * 256 +
@@ -106,14 +103,14 @@ Int getInt(int fd)
           read_byte(fd);
 }
 
-Short getShort(int fd)
+static Short getShort(int fd)
 {
      return 
           read_byte(fd) * 256 +
           read_byte(fd);
 }
 
-Byte getByte(int fd)
+static Byte getByte(int fd)
 {
      return 
           read_byte(fd);
@@ -132,7 +129,7 @@ Byte getByte(int fd)
 #define CONSTANT_InterfaceMethodref 11 
 #define CONSTANT_NameAndType 12 
 
-char *readUtf8(int fd) 
+static char *readUtf8(int fd) 
 {
     char *ret;
     Short i;
@@ -177,7 +174,7 @@ static unsigned char *UnicodeToUTF8(unsigned char *uni,int len)
     return ret;
 }
 
-char *readUnicode(int fd) 
+static char *readUnicode(int fd) 
 {
     Short i;
     Short len = getShort(fd);
@@ -190,7 +187,7 @@ char *readUnicode(int fd)
 }
 
 
-int readCONSTANTS(int fd)
+static int readCONSTANTS(int fd)
 {
     int ret = 0;
     int i;
@@ -279,7 +276,7 @@ int readCONSTANTS(int fd)
     return ret;
 }
 
-char *addclass(char *name)
+static char *addclass(char *name)
 {
     char *ret = (char *)malloc(strlen(name) + sizeof(class));
     strcpy(ret,name);
@@ -288,7 +285,7 @@ char *addclass(char *name)
     return ret;
 }
 
-int isStandardClass(char *name)
+static int isStandardClass(char *name)
 {
     int i;
     for(i = 0; i < (sizeof(standardClasses)/sizeof(char *)); i++)
@@ -304,7 +301,7 @@ int isStandardClass(char *name)
     return 0;
 }
 
-int read_byte(int fd)
+static int read_byte(int fd)
 {
    unsigned char byte;
    if(read_data(fd,(char*)&byte,1) != 1)

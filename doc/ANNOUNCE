@@ -1,4 +1,4 @@
-          WWWOFFLE - World Wide Web Offline Explorer - Version 2.7h
+          WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c
           =========================================================
 
 
@@ -28,7 +28,10 @@ While Online
     - Control which pages cannot be accessed.
         - Allow replacement of blocked pages.
     - Control which pages are not to be stored in the cache.
+    - Create backups of cached pages when server cannot be contacted.
+        - Option to create backup when server sends back an error page.
     - Requests compressed pages from web servers (compile time option).
+    - Requests chunked transfer encoding from web servers.
 
 While Offline
     - Can be configured to use dial-on-demand for pages that are not cached.
@@ -70,6 +73,7 @@ Convenience
         - Replace webbug images (images of 1 pixel square).
         - Demoronise HTML character sets.
         - Stop animated GIFs.
+        - Remove Cookies in meta tags.
     - Provides information about cached pages
         - Headers, raw and modified.
         - Contents, images, links etc.
@@ -92,6 +96,7 @@ Convenience
         - Interactive or command line control.
         - Compression of cached pages based on age.
     - Provides compressed pages to web browser (compile time option).
+    - Use chunked transfer-encoding to web browser.
 
 Indexes
     - Multiple indexes of pages stored in cache
@@ -125,26 +130,30 @@ Configuration
 Changes
 -------
 
-Since version 2.7g:
+Since version 2.8b:
 
 Bug Fixes:
- Have more verbose error messages for invalid POST requests.  Fix the way the
- upgrade-config script handles the no-lasttime-index to create-history-indexes
- change.  Change the way that the user selects to view request headers on the
- info pages.  Handle Accept-Language header more robustly.
-
-
-*NOTE* This version contains some security related fixes and should be used in
-       preference to earlier versions.
+ Don't hang up when reply-chunked-data is true and doing SSL connections.  Don't
+ output WWWOFFLE error page if local CGI output anything.  Fix CGI & search file
+ descriptor problem.  Print correct number of bytes read from ftp server.
+ Remove memory leak.  Add missing header to FTP redirect and don't crash.  Fix
+ upgrade-config.pl script handling of DOS format files.  Use correct name for
+ keep-cache-if-not-found option webpage template.  Make '-d 0' and '-d0' work
+ the same for wwwoffle.  Fix passworded pages with changing transfer encodings.
+ Fix problem with missing spacers when sorting by date changed.  Add
+ hints to the web pages on how to monitor a URL with special options.  Fix bad
+ spacing in the monitor form.  Make sure that new temporary files and log file
+ have sensible permissions.  Remove possible crash using configuration pages
+ adding item to empty section.  Clarify some error messages and documentation.
 
 
 Availability
 ------------
 
-Version 2.7h uploaded, but may not be available yet
+Version 2.8c uploaded, but may not be available yet
 
-FTP server: ftp://ftp.ibiblio.org/pub/Linux/apps/www/servers/wwwoffle-2.7h.tgz
-FTP server: ftp://ftp.demon.co.uk/pub/unix/httpd/wwwoffle-2.7h.tgz
+FTP  server: ftp://ftp.ibiblio.org/pub/Linux/apps/www/servers/wwwoffle-2.8c.tgz
+HTTP server: http://www.gedanken.demon.co.uk/download-wwwoffle/wwwoffle-2.8c.tgz
 
 Web page: http://www.gedanken.demon.co.uk/wwwoffle/
 
@@ -152,7 +161,7 @@ Web page: http://www.gedanken.demon.co.uk/wwwoffle/
 Author & Copyright
 ------------------
 
-This program is copyright Andrew M. Bishop 1996,97,98,99,2000,01,02
+This program is copyright Andrew M. Bishop 1996,97,98,99,2000,01,02,03,04
 (amb@gedanken.demon.co.uk) and distributed under GPL.
 
 email: amb@gedanken.demon.co.uk

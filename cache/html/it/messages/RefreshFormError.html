@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <!--
@@ -6,62 +6,71 @@
 Available WWWOFFLE Variables (all with a '$' prefix).
 
 localhost = The hostname of the server running wwwoffled (='$localhost').
+version   = The version of the WWWOFFLE server (='$version').
 body      = The body of the request (='$body').
 
 -->
 
 <HEAD>
 <TITLE>WWWOFFLE - Errore Modulo Interattivo di Aggiornamento</TITLE>
+<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
-<BODY>
+<BODY class="wwwoffle-message">
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<!-- Standard WWWOFFLE Message Page Header Start -->
 
-<p align=center>
-<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
-</p>
+<div class="wwwoffle-header" align="center">
+<b>WWWOFFLE</b> <b>-</b> <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer <b>-</b> <b>v$version</b>
+</div>
+<hr class="wwwoffle-header">
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Header End -->
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<H1 align="center">WWWOFFLE Errore Modulo Interattivo di Aggiornamento</H1>
 
-<H1 align=center>WWWOFFLE Errore Modulo Interattivo di Aggiornamento</H1>
-
-<p align=center>
+<div class="wwwoffle-message" align="center">
 $body?
 {
 La risposta dal modulo inviata dal tuo browser
-<br>
+<p class="wwwoffle-url">
 <b><tt>$body</tt></b>
-<br>
+</p>
 ha un errore e non pu&ograve; essere interpretata.
 }
 {
 La risposta dal modulo inviata dal tuo browser non ha il body.
 }
-</p>
+</div>
 
-<h2>Aiuto</h2>
+<!-- Standard WWWOFFLE Message Page Inline Help Start -->
 
+<h2 class="wwwoffle-inline-help">Aiuto</h2>
+
+<div class="wwwoffle-inline-help">
 Il browser ha inviato una risposta non valida al modulo nella Pagina di Richiesta di Aggiornamento.
 O il browser ha inviato una risposta vuota invece dei dati del modulo, o c'&egrave; stato un
 errore di rete inviando i dati del modulo, o i dati inviati non sono validi.
 Dovresti provare a reinserire i dati nel modulo e reinviarli di nuovo.
+</div>
 
-<p align=center>
+<!-- Standard WWWOFFLE Message Page Inline Help End -->
+
+<div class="wwwoffle-nav" align="center">
 [<a href="http://$localhost/refresh-options/">Torna alla Pagina di Aggiornamento</a>]
-</p>
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
-<hr>
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
+WWWOFFLE - [ \
+<a href="http://$localhost/Welcome.html">Pagina di Benvenuto</a>| \
+<a href="http://$localhost/FAQ.html">FAQ</a> \
+] - WWWOFFLE
+</div>
 
-<p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Pagina di Benvenuto</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
-</p>
-
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

@@ -12,11 +12,11 @@ Namazu can't find anything with wrong spelling.
 
 If you gained no results or too few results, you can add one
 or more related keywords with <code
-class="operator">or</code> operator. It makes your search
-more hittable. e.g., <br>
+class="operator">or</code> operator.  You should get more results.
+e.g., <br>
 <code class="example">tex or ptex or latex or latex2e</code><br>
 
-If you gaind too many results, you can add one or more
+If you gained too many results, you can add one or more
 related keywords with <code class="operator">and</code>
 operator. It makes your search more limited. e.g., <br>
 <code class="example">latex and dvi2ps and eps</code>

@@ -1,13 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/cgi.c 1.8 2002/11/28 18:53:49 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/cgi.c 1.17 2004/03/01 19:51:05 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
   CGI Execution functions.
   ******************/ /******************
   Written by Paul A. Rombouts
   Modified by Andrew M. Bishop
 
-  This file Copyright 2002 Paul A. Rombouts & Andrew M. Bishop
+  This file Copyright 2002,03,04 Paul A. Rombouts & Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -16,6 +16,7 @@
 
 #include "autoconfig.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -23,12 +24,16 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
 
-#include "version.h"
 #include "wwwoffle.h"
+#include "io.h"
+#include "misc.h"
 #include "errors.h"
 #include "config.h"
-#include "misc.h"
+#include "sockets.h"
+#include "version.h"
 
 
 /*--------------------------------------------------------------------------------
@@ -65,7 +70,7 @@
  restriction:
 
   - The Location: header returned from the CGI is not used to send the specified
-    URL to the browser in place of the CGI output but is sent to the browser to
+    URL to the client in place of the CGI output but is sent to the client to
     handle.  This removes the possibility of an infinite recursion in the WWWOFFLE
     server.
 
@@ -73,13 +78,9 @@
 
 /* Local functions */
 
-static int putenv_request(char *file, Header *request_head, /*@null@*/ Body *request_body);
+static int putenv_request(int fd,char *file, Header *request_head, /*@null@*/ Body *request_body);
 static int exec_cgi(int fd, char *file, Header *request_head, /*@null@*/ Body *request_body);
-static void handle_cgi_headers(int fd_in,int fd_out);
-
-
-/* Some global variables used to pass on information about remote client */
-char *client_hostname=NULL, *client_ip=NULL;
+static int handle_cgi_headers(int fd_in,int fd_out);
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -127,25 +128,19 @@ void LocalCGI(int fd,URL *Url,char *file,Header *request_head,Body *request_body
     PrintMessage(Warning,"Refuse to run local CGI program file '%s' with root privileges.",file);
 
  if(!exec_success)
-   {
-    lseek(fd,0,SEEK_SET);
-    init_buffer(fd);
-    ftruncate(fd,0);
-
     HTMLMessage(fd,500,"WWWOFFLE Local Program Execution Error",NULL,"ExecCGIFailed",
                 "url",Url->path,
                 NULL);
-   }
 }
 
 
 /* A macro definition that makes environment variable setting a little easier. */
 #define putenv_var_val(variable,value) \
 { \
-  char *envstr = (char *)malloc(sizeof(variable "=")+strlen(value)); \
+  char *envstr=(char *)malloc(sizeof(variable "=")+strlen(value)); \
   strcpy(envstr,variable "="); \
   strcpy(envstr+sizeof(variable),value); \
-  if(putenv(envstr) == -1) \
+  if(putenv(envstr)==-1) \
      return(-1); \
 }
 
@@ -154,6 +149,8 @@ void LocalCGI(int fd,URL *Url,char *file,Header *request_head,Body *request_body
   Put information of request headers into environment according to CGI-specification.
 
   int putenv_request Returns 0 on success or -1 on error.
+
+  int fd The file descriptor for the client.
 
   char *file Filename of script.
 
@@ -165,11 +162,13 @@ void LocalCGI(int fd,URL *Url,char *file,Header *request_head,Body *request_body
   the implementation neater by not freeing memory and using same macro for each.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int putenv_request(char *file, Header *request_head, Body *request_body)
+static int putenv_request(int fd,char *file, Header *request_head, Body *request_body)
 {
  int i;
- char portstr[12];
+ char portstr[12],*host,*ip;
  URL *Url;
+
+ /*@-mustfreefresh@*/
 
  putenv_var_val("SERVER_SOFTWARE","WWWOFFLE/" WWWOFFLE_VERSION);
 
@@ -202,11 +201,17 @@ static int putenv_request(char *file, Header *request_head, Body *request_body)
 
  putenv_var_val("PATH_TRANSLATED",file);
 
- if(client_hostname && client_ip && strcmp(client_ip,client_hostname))
-    putenv_var_val("REMOTE_HOST",client_hostname);
+ if(!SocketRemoteName(fd,&host,&ip,NULL))
+   {
+    if(ip && host && strcmp(ip,host))
+       putenv_var_val("REMOTE_HOST",host);
 
- if(client_ip)
-    putenv_var_val("REMOTE_ADDR",client_ip);
+    if(ip)
+      {
+       char *canonical_ip=CanonicaliseHost(ip);
+       putenv_var_val("REMOTE_ADDR",canonical_ip);
+      }
+   }
 
  for(i=0;i<request_head->n;++i)
    {
@@ -236,21 +241,23 @@ static int putenv_request(char *file, Header *request_head, Body *request_body)
              *p = toupper(*q);
           else if(*q == '-')
              *p = '_';
-          else
+          else                  /* key contains illegal character, ignore key */
             {
-             /* key contains illegal character, ignore key */
              free(envstr);
-             continue;
+             p=NULL;
+             break;
             }
          }
 
-       *p++ = '=';
-       strcpy(p, request_head->val[i]);
+       if(p)
+         {
+          *p++ = '=';
+          strcpy(p, request_head->val[i]);
 
-       if(putenv(envstr) == -1)
-          return(-1);
+          if(putenv(envstr) == -1)
+             return(-1);
+         }
       }
-
    }
 
  if(request_body)
@@ -260,6 +267,8 @@ static int putenv_request(char *file, Header *request_head, Body *request_body)
     putenv_var_val("CONTENT_LENGTH",length);
    }
 
+ /*@=mustfreefresh@*/
+
  return(0);
 }
 
@@ -267,7 +276,7 @@ static int putenv_request(char *file, Header *request_head, Body *request_body)
 /*++++++++++++++++++++++++++++++++++++++
   Execute a local file as CGI program.
 
-  int ExecLocalCGI returns 1 on success, 0 on failure.
+  int exec_cgi returns 1 on success, 0 on failure.
 
   int fd The file descriptor to write the output to.
 
@@ -285,100 +294,121 @@ static int exec_cgi(int fd, char *file, Header *request_head, Body *request_body
 
  if(pipe(cgi_out))
    {
-    PrintMessage(Warning, "Cannnot create pipe for local CGI program '%s' output [%!s].", file);
-    return 0;
+    PrintMessage(Warning,"Cannnot create pipe for local CGI program '%s' output [%!s].",file);
+    return(0);
    }
 
  if((childpid = fork()) == -1)
-    PrintMessage(Warning, "Cannnot fork to execute local CGI program '%s' [%!s].", file);
- else if(childpid == 0)   /* The child */
+    PrintMessage(Warning,"Cannnot fork to execute local CGI program '%s' [%!s].",file);
+ else if(childpid==0)   /* The child */
    {
-    if(!strcmp(request_head->method,"POST") || !strcmp(request_head->method,"PUT"))
-      {
-       int cgi_in=CreateTempSpoolFile();
-       init_buffer(cgi_in);
+    int cgi_in;
 
-       if(cgi_in==-1)
-         {
-          PrintMessage(Warning, "Cannnot create temporary file for local CGI program '%s' input [%!s].", file);
-          return 0;
-         }
-
-       if(write_data(cgi_in,request_body->content,request_body->length)<0)
-          PrintMessage(Warning, "Failed to write data to local CGI program '%s' [%!s].", file);
-
-       lseek(cgi_in,0,SEEK_SET);
-       init_buffer(cgi_in);
-
-       if(cgi_in!=0)
-         {
-          if(dup2(cgi_in,0) == -1)
-             PrintMessage(Fatal,"Cannnot create standard input for local CGI program '%s' [%!s].", file);
-          close(cgi_in);
-         }
-
-       if(putenv_request(file,request_head,request_body) == -1)
-          PrintMessage(Warning, "Failed to create environment for local CGI program '%s' [%!s].", file);
-      }
-    else
-       if(putenv_request(file,request_head,NULL) == -1)
-          PrintMessage(Warning, "Failed to create environment for local CGI program '%s' [%!s].", file);
-
-    if(cgi_out[1]!=1)
-      {
-       if(dup2(cgi_out[1],1) == -1)
-          PrintMessage(Fatal,"Cannnot create standard output for local CGI program '%s' [%!s].", file);
-       close(cgi_out[1]);
-      }
     close(cgi_out[0]);
 
-    execl(file, file, NULL);
+    /* Create the temporary file for the request body (if present). */
 
-    PrintMessage(Fatal, "Failed to execute local CGI program '%s' [%!s].", file);
+    if(request_body)
+      {
+       cgi_in=CreateTempSpoolFile();
+
+       if(cgi_in==-1)
+          PrintMessage(Fatal,"Cannnot create temporary file for local CGI program '%s' input [%!s].",file);
+
+       init_io(cgi_in);
+
+       if(write_data(cgi_in,request_body->content,request_body->length)<0)
+          PrintMessage(Fatal,"Failed to write data to local CGI program '%s' [%!s].",file);
+
+       lseek(cgi_in,0,SEEK_SET);
+       reinit_io(cgi_in);
+      }
+    else
+       cgi_in=open("/dev/null",O_RDONLY);
+
+    /* Set up the environment and stdin/stdout. */
+
+    if(putenv_request(fd,file,request_head,request_body) == -1)
+       PrintMessage(Fatal,"Failed to create environment for local CGI program '%s' [%!s].",file);
+
+    if(cgi_in!=STDIN_FILENO)
+      {
+       if(dup2(cgi_in,STDIN_FILENO)==-1)
+          PrintMessage(Fatal,"Cannnot create standard input for local CGI program '%s' [%!s].",file);
+       close(cgi_in);
+      }
+
+    if(cgi_out[1]!=STDOUT_FILENO)
+      {
+       if(dup2(cgi_out[1],STDOUT_FILENO)==-1)
+          PrintMessage(Fatal,"Cannnot create standard output for local CGI program '%s' [%!s].",file);
+       close(cgi_out[1]);
+      }
+
+    if(dup(STDERR_FILENO)==-1 && errno==EBADF) /* stderr is not open */
+      {
+       int cgi_err=open("/dev/null",O_WRONLY);
+
+       if(cgi_err!=STDERR_FILENO)
+         {
+          if(dup2(cgi_err,STDERR_FILENO)==-1)
+             PrintMessage(Fatal,"Cannnot create standard error for local CGI program '%s' [%!s].",file);
+          close(cgi_err);
+         }
+      }
+
+    execl(file,file,NULL);
+
+    PrintMessage(Fatal,"Failed to execute local CGI program '%s' [%!s].",file);
    }
  else   /* The parent */
    {
     int statval;
+    int headok;
 
-    PrintMessage(Inform, "Forked local CGI program '%s' (pid=%d).", file,childpid);
+    PrintMessage(Inform,"Forked local CGI program '%s' (pid=%d).",file,childpid);
 
     close(cgi_out[1]);
-    init_buffer(cgi_out[0]);
+    init_io(cgi_out[0]);
 
-    handle_cgi_headers(cgi_out[0],fd);
+    headok=handle_cgi_headers(cgi_out[0],fd);
 
+    finish_io(cgi_out[0]);
     close(cgi_out[0]);
 
-    if(waitpid(childpid, &statval, 0) != -1)
+    if(waitpid(childpid,&statval,0)!=-1)
       {
        if(WIFEXITED(statval)) 
          {
-          int exitstatus = WEXITSTATUS(statval);
-          PrintMessage(exitstatus?Warning:Inform,
-                       "Local CGI program '%s' (pid=%d) exited with status %d.", file,childpid,exitstatus);
-          if(exitstatus <=1)
-             return 1;
+          int exitstatus=WEXITSTATUS(statval);
+          PrintMessage(exitstatus?Warning:Inform,"Local CGI program '%s' (pid=%d) exited with status %d.",file,childpid,exitstatus);
+          if(exitstatus<=1)
+             return(1);
          }
        else 
-          PrintMessage(Warning, "Local CGI program '%s' (pid=%d) terminated by signal %d.", file,childpid,WTERMSIG(statval));
+          PrintMessage(Warning,"Local CGI program '%s' (pid=%d) terminated by signal %d.",file,childpid,WTERMSIG(statval));
       }
     else
-       PrintMessage(Warning, "wait failed for local CGI program '%s' (pid=%d) [%!s].", file,childpid);
+       PrintMessage(Warning,"Wait failed for local CGI program '%s' (pid=%d) [%!s].",file,childpid);
+
+    return(headok);
    }
 
- return 0;
+ return(0);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Handle the CGI headers and create proper headers.
 
+  int handle_cgi_headers Return 1 if we found a good header.
+
   int fd_in The input data from the CGI.
 
   int fd_out The output data to the client.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void handle_cgi_headers(int fd_in,int fd_out)
+static int handle_cgi_headers(int fd_in,int fd_out)
 {
  Header *cgi_head=NULL;
  char *line=NULL;
@@ -388,7 +418,9 @@ static void handle_cgi_headers(int fd_in,int fd_out)
 
  line=read_line(fd_in,line);
 
- if(!strncmp(line,"HTTP/",sizeof("HTTP")))
+ if(!line)
+    return(0);
+ else if(!strncmp(line,"HTTP/",sizeof("HTTP")))
     cgi_head=CreateHeader(line,0);
  else
    {
@@ -396,9 +428,13 @@ static void handle_cgi_headers(int fd_in,int fd_out)
     AddToHeaderRaw(cgi_head,line);
    }
 
- while((line=read_line(fd_in,line)))
-    if(!AddToHeaderRaw(cgi_head,line))
-       break;
+ if(*line && !isspace(*line))
+    while((line=read_line(fd_in,line)))
+       if(!AddToHeaderRaw(cgi_head,line))
+          break;
+
+ if(line)
+    free(line);
 
  if((val=GetHeader(cgi_head,"Status")))
    {
@@ -440,4 +476,6 @@ static void handle_cgi_headers(int fd_in,int fd_out)
 
  while((n=read_data(fd_in,buffer,READ_BUFFER_SIZE))>0)
     write_data(fd_out,buffer,n);
+
+ return(1);
 }

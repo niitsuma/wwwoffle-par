@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/sockets4.c 2.21 2002/01/14 19:46:45 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/sockets4.c 2.25 2004/01/17 16:29:37 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   IPv4 Socket manipulation routines.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -15,7 +15,6 @@
 
 #include "autoconfig.h"
 
-#include <stdio.h>
 #include <string.h>
 
 #include <sys/types.h>
@@ -37,7 +36,6 @@
 
 #include <netdb.h>
 #include <sys/param.h>
-#include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -52,15 +50,19 @@
 /* Local functions */
 
 static void sigalarm(int signum);
-static struct hostent *gethostbyname_or_timeout(char *name);
-static struct hostent *gethostbyaddr_or_timeout(char *addr,int len,int type);
+static struct hostent /*@null@*/ *gethostbyname_or_timeout(char *name);
+static struct hostent /*@null@*/ *gethostbyaddr_or_timeout(char *addr,int len,int type);
 static int connect_or_timeout(int sockfd,struct sockaddr *serv_addr,int addrlen);
 
 /* Local variables */
 
+/*+ The timeout on DNS lookups. +*/
 static int timeout_dns=0;
+
+/*+ The timeout for socket connections. +*/
 static int timeout_connect=0;
 
+/*+ A longjump variable for aborting DNS lookups. +*/
 static jmp_buf dns_jmp_env;
 
 
@@ -324,46 +326,58 @@ int CloseSocket(int socket)
 }
 
 
-#ifdef __CYGWIN__
-
 /*++++++++++++++++++++++++++++++++++++++
-  Closes a previously opened socket, a workaround for cygwin on sockets carried across a fork().
+  Shuts down a previously opened socket cleanly.
 
-  int CloseCygwinSocket Returns 0 on success, -1 on error.
+  int ShutdownSocket Returns 0 on success, -1 on error.
 
   int socket The socket to close
   ++++++++++++++++++++++++++++++++++++++*/
 
-int CloseCygwinSocket(int socket)
+int ShutdownSocket(int socket)
 {
- /* Workaround winsock bug - "David McNab" <david@rebirthing.co.nz> */
-
- int sock_flags;
  struct linger lingeropt;
 
- /* flush out the socket - set it to blocking, then write to it */
- sock_flags=fcntl(socket,F_GETFL,0);
- if(sock_flags!=-1)
-   {
-    /* reset NONBLOCK bit to enable blocking */
-    fcntl(socket,F_SETFL,sock_flags & ~O_NONBLOCK);
-   }
-
- /* this is the guts of the workaround for Winsock close bug */
  shutdown(socket, 1);
 
- /* enable lingering */
- lingeropt.l_onoff = 1;
- lingeropt.l_linger = 15;
- if (setsockopt(socket, SOL_SOCKET, SO_LINGER, &lingeropt, sizeof(lingeropt)) < 0)
-    PrintMessage(Important, "Cygwin setsockopt() error [%!s].");
+ /* Check socket and read until end or error. */
 
- /* Winsock bug averted - now we're safe to close the socket */
+ while(1)
+   {
+    char buffer[1024];
+    int n;
+    fd_set readfd;
+    struct timeval tv;
+
+    FD_ZERO(&readfd);
+
+    FD_SET(socket,&readfd);
+
+    tv.tv_sec=tv.tv_usec=0;
+
+    n=select(socket+1,&readfd,NULL,NULL,&tv);
+
+    if(n>0)
+      {
+       n=read(socket,buffer,1024);
+
+       if(n<=0)
+          break;
+      }
+    else if(n==0 || errno!=EINTR)
+       break;
+   }
+
+ /* Enable lingering */
+
+ lingeropt.l_onoff=1;
+ lingeropt.l_linger=15;
+
+ if(setsockopt(socket,SOL_SOCKET,SO_LINGER,&lingeropt,sizeof(lingeropt))<0)
+    PrintMessage(Important,"Failed to set socket SO_LINGER option [%!s].");
 
  return(CloseSocket(socket));
 }
-
-#endif
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -509,7 +523,7 @@ start:
  /* DNS with timeout */
 
  action.sa_handler = sigalarm;
- sigemptyset (&action.sa_mask);
+ sigemptyset(&action.sa_mask);
  action.sa_flags = 0;
  if(sigaction(SIGALRM, &action, NULL) != 0)
    {
@@ -530,7 +544,7 @@ start:
 
  alarm(0);
  action.sa_handler = SIG_IGN;
- sigemptyset (&action.sa_mask);
+ sigemptyset(&action.sa_mask);
  action.sa_flags = 0;
  if(sigaction(SIGALRM, &action, NULL) != 0)
     PrintMessage(Warning, "Failed to clear SIGALRM.");

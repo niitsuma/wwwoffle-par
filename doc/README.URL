@@ -1,4 +1,4 @@
-            WWWOFFLE - World Wide Web Offline Explorer - Version 2.6
+            WWWOFFLE - World Wide Web Offline Explorer - Version 2.8
             ========================================================
 
 
@@ -180,10 +180,17 @@ The name arguments is what I use, the same thing is called 'query' in the RFCs.
 
    b) The arguments are converted to canonical form using URLRecodeFormArgs().
 
+   c) The arguments may have used '&amp;' in place of '&' since the former is
+      valid HTML for an href and the latter is not.  A replacement is performed
+      to replace '&amp;' with '&'.
+
 
 | This is a change since version 2.5, previously no decoding/encoding of the
 | arguments was performed.  This lead to the problem where the same URL could
 | be refered to by different names due to URL encoding differences.
+
+| This is a change since version 2.8, previously no replacement of '&amp;'
+| with '&' was performed.
 
 
 

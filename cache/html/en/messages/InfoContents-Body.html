@@ -56,7 +56,7 @@ Links to external objects, for example Java.
 $header?=Link{
 <h2>Links</h2>
 
-Links to other web pages.
+Links to other web pages or e-mail.
 }{}
 
 $header?{
@@ -65,13 +65,14 @@ $open
 }{}
 
 $encurl=%encode[refurl]
+$htmlurl=%html[refurl]
 <li> \
 [<a href="http://$localhost/info/url?$encurl">Info</a>] \
 [<a href="http://$localhost/configuration/url?$encurl">Config</a>] \
 [<a href="http://$localhost/index/url?$encurl">Index</a>] \
 [<tt>$cached?{+}{-}</tt>] \
 &nbsp; \
-<a href="$refurl">$refurl</a>
+<a href="$htmlurl">$refurl</a>
 $dontget?{<br>&nbsp;&nbsp;&nbsp;&nbsp;Blocked by config file DontGet section $type=}{}
 $cached?{}{$type=}
-$type?=Image{<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="$refurl"><img src="$refurl"></a>}{}
+$type?=Image{<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="$htmlurl"><img src="$htmlurl" alt="$htmlurl"></a>}{}

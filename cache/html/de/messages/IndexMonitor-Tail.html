@@ -18,6 +18,7 @@ $anynotindexed?=0{}{<a href="/index/$type$subtype?sort=$sort$delete$refresh$moni
 $delete?{$totaldelete=$total}{$totaldelete=0}
 $totaldelete?=0{}
 {
+<p>
 <input type="submit" value="Ausgew&auml;hlte l&ouml;schen">
 </form>
 <form action="/control/delete-mon-all" method=post>
@@ -25,8 +26,9 @@ $totaldelete?=0{}
 </form>
 }
 
-<p align=center>
-[<a href="/monitor-options/">Neue Seite abonnieren</a>]
-</p>
+<hr class="wwwoffle-index-buttons-bottom" width="50%">
+<div class="wwwoffle-index-buttons-bottom" align="center">
+<a href="/monitor-options/">[Neue Seite abonnieren]</a>
+</div>
 
 <!-- This is just the tail of the index body since the contents are different for each index -->

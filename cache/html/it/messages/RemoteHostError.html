@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <!--
@@ -6,6 +6,7 @@
 Available WWWOFFLE Variables (all with a '$' prefix).
 
 localhost = The hostname of the server running wwwoffled (='$localhost').
+version   = The version of the WWWOFFLE server (='$version').
 url       = The URL that was asked for (='$url').
 cache     = A flag to indicate if the page is being written to the cache or browser (='$cache').
 backup    = A flag to indicate if there is a backup page in the cache (='$backup').
@@ -16,84 +17,99 @@ reason    = A flag to indicate the reason (='$reason').
             ...             - Another reason.
 
 $decurl=%decode[url]
+$encurl=%encode[url]
 
 -->
 
 <HEAD>
 <TITLE>WWWOFFLE - Errore Host Remoto</TITLE>
+<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
-<BODY>
+<BODY class="wwwoffle-message">
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<!-- Standard WWWOFFLE Message Page Header Start -->
 
-<p align=center>
-<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
-</p>
+<div class="wwwoffle-header" align="center">
+<b>WWWOFFLE</b> <b>-</b> <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer <b>-</b> <b>v$version</b>
+</div>
+<hr class="wwwoffle-header">
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Header End -->
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<H1 align="center">WWWOFFLE Errore Host Remoto</H1>
 
-<H1 align=center>WWWOFFLE Errore Host Remoto</H1>
-
-<p align=center>
+<div class="wwwoffle-message" align="center">
 La tua richiesta per l'URL
-<br>
+<p class="wwwoffle-url">
 <b><tt>$decurl</tt></b>
-<br>
+</p>
 &egrave; fallita perch&eacute;
-
-<br>
+<p class="wwwoffle-error">
 $reason?=TimeoutReply
 {L'host remoto ha fallito nel mandare la risposta nel tempo stabilito.
 $done="yes"}{}
 $reason?=TimeoutTransfer
 {L'host remoto ha fallito nel mandare alcuni dei dati nel tempo stabilito.
 $done="yes"}{}
-$reason?=CompressCorrupt
-{The remote host sent compressed data that could not be uncompressed.
+$reason?=DataCorrupt
+{The remote host sent compressed or encoded data that could not be uncompressed or decoded.
 $done="yes"}{}
 $reason?=ClientClose
 {Il client (browser) ha chiuso il collegamento durante la richiesta.
 $done="yes"}{}
-$done?{}{<b>$reason</b>}
-<br>
+$done?{}{$reason}
 </p>
-
-<p>
 $cache?
 {Questo messaggio d'errore &egrave; stato ora eliminato dalla cache.}
 {}
-
 <p>
 $backup?
 {Ricaricare questa pagina porter&agrave; alla versione precedente.}
 {Ricaricare questa pagina porter&agrave; a richiederla nuovamente.}
+</div>
 
-<h2>Aiuto</h2>
+<!-- Standard WWWOFFLE Message Page Inline Help Start -->
 
+<h2 class="wwwoffle-inline-help">Aiuto</h2>
+
+<div class="wwwoffle-inline-help">
 Il server WWWOFFLE non &egrave; stato in grado di completare la richiesta di questa URL a causa
 di un problema con lo scaricamento di qusta pagina.  Questo pu&ograve; succedere perch&eacute;
 il server remoto non invia alcuna risposta nel tempo stabilito oppure una richiesta &egrave;
 stata interrotta per via dell'assenza di dati nel tempo stabilito. Un'altra possibile causa per
 questo messaggio &egrave; che il browser ha chiuso la connessione prima che l'intera pagina fosse
 scaricata. L'esatta ragione in questo caso &egrave; indicata nel messaggio d'errore riportato sopra.
-<br>
+<p>
 Quando esiste una versione di riserva di questa pagina nella cache, allora il ricaricamento di
 questa pagina porter&agrave; alla visualizzazzione di quella versione. Quando non c'&egrave;
 una versione di riserva nella cache, allora il ricaricamento causer&agrave; una nuova richesta.
+</div>
 
+<!-- Standard WWWOFFLE Message Page Inline Help End -->
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<div class="wwwoffle-nav" align="center">
+[ \
+Cancel| \
+<a href="http://$localhost/refresh/?$encurl">Refresh</a>: \
+<a href="http://$localhost/refresh-options/?$encurl">Options</a>| \
+<a href="http://$localhost/monitor-options/?$encurl">Monitor</a>| \
+<a href="http://$localhost/index/url?$encurl">Index</a>| \
+<a href="http://$localhost/configuration/url?$encurl">Configure</a> \
+]
+</div>
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
-<p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Pagina di Benvenuto</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
-</p>
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
+WWWOFFLE - [ \
+<a href="http://$localhost/Welcome.html">Pagina di Benvenuto</a>| \
+<a href="http://$localhost/FAQ.html">FAQ</a> \
+] - WWWOFFLE
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

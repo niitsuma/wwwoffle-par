@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configpriv.h 1.17 2002/08/21 14:28:30 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configpriv.h 1.20 2004/01/17 16:22:18 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Configuration file management functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -15,10 +15,6 @@
 
 #ifndef CONFIGPRIV_H
 #define CONFIGPRIV_H    /*+ To stop multiple inclusions. +*/
-
-#define CONFIG_DEBUG_DUMP 0
-
-#define CONFIG_VERIFY_ABORT 1
 
 
 /*          How the Configuration data structures relate to each other
@@ -137,7 +133,7 @@ typedef struct _ConfigItemDef
  int         same_key;          /*+ Set to true if the entry can repeat with the same key. +*/
  ConfigType  key_type;          /*+ The type of the key on the left side of the equals sign. +*/
  ConfigType  val_type;          /*+ The type of the value on the right side of the equals sign. +*/
- char       *def_val;           /*+ The default value if no other is specified. +*/
+ /*@null@*/ char *def_val;      /*+ The default value if no other is specified. +*/
 }
 ConfigItemDef;
 
@@ -218,15 +214,11 @@ void RestoreBackupConfigFile(void);
 void PurgeBackupConfigFile(int restore_startup);
 void PurgeConfigFile(void);
 
-void FreeConfigItem(/*@null@*/ /*@only@*/ ConfigItem item);
+void FreeConfigItem(/*@null@*/ /*@special@*/ ConfigItem item) /*@releases item@*/;
 void FreeKeyOrValue(/*@only@*/ KeyOrValue *keyval,ConfigType type);
 
 int MatchUrlSpecification(UrlSpec *spec,char *proto,char *host,char *path,/*@null@*/ char *args);
 int WildcardMatch(char *string,char *pattern,int nocase);
-
-#if CONFIG_DEBUG_DUMP
-void DumpConfigFile(void);
-#endif
 
 char *ConfigEntryString(ConfigItem item,int which);
 void ConfigEntryStrings(ConfigItem item,int which,/*@out@*/ char **url,/*@out@*/ char **key,/*@out@*/ char **val);
@@ -242,6 +234,7 @@ char *DefaultFTPPassWord(void);
 
 /* Variable definitions */
 
+/*+ The contents of the whole configuration file. +*/
 extern ConfigFile CurrentConfig;
 
 

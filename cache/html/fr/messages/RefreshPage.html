@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <!--
@@ -6,6 +6,7 @@
 WWWOFFLE : Variables disponibles (mettre le prefixe '$').
 
 localhost = Le serveur sur lequel wwwoffled tourne (='$localhost').
+version   = The version of the WWWOFFLE server (='$version').
 url       = L'URL demande (ou rien) (='$url').
 
 La section FetchOptions du fichier de configuration:
@@ -19,21 +20,21 @@ La section FetchOptions du fichier de configuration:
 
 <HEAD>
 <TITLE>WWWOFFLE - Formulaire d'Actualisation</TITLE>
+<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
-<BODY>
+<BODY class="wwwoffle-message">
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<!-- Standard WWWOFFLE Message Page Header Start -->
 
-<p align=center>
-<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
-</p>
+<div class="wwwoffle-header" align="center">
+<b>WWWOFFLE</b> <b>-</b> <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer <b>-</b> <b>v$version</b>
+</div>
+<hr class="wwwoffle-header">
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Header End -->
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
-
-<H1 align=center>WWWOFFLE - Formulaire d'Actualisation</H1>
+<H1 align="center">WWWOFFLE - Formulaire d'Actualisation</H1>
 
 Vous pouvez utiliser ce formulaire pour capturer ou actualiser des URL : soit un seul, soit plusieurs en suivant r&eacute;cursivement les liens. 
 
@@ -97,19 +98,21 @@ NB :
   <li>Pour faire un "finger" sur utilisateur@la.bas vous devez entrer l'URL finger://la.bas/utilisateur.
 </ol>
 
-<p align=center>
+<div class="wwwoffle-nav" align="center">
 [<a href="/index/outgoing/?sort=alpha">Voir la liste des pages &agrave; t&eacute;l&eacute;charger</a>]
-</p>
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
-<hr>
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
+WWWOFFLE - [ \
+<a href="http://$localhost/Welcome.html">Page d'accueil</a>| \
+<a href="http://$localhost/FAQ.html">FAQ</a> \
+] - WWWOFFLE
+</div>
 
-<p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Page d'accueil</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
-</p>
-
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

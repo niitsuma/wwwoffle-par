@@ -1,6 +1,6 @@
-# $Header: /home/amb/wwwoffle/doc/RCS/Makefile.in 1.11 2002/07/27 16:11:40 amb Exp $
+# $Header: /home/amb/wwwoffle/doc/RCS/Makefile.in 1.12 2003/10/31 19:44:49 amb Exp $
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.7d.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8.
 #
 # Documentation Makefile.
 #
@@ -103,12 +103,15 @@ html-docs :
 	for lang in $(LANGUAGES); do \
 	  [ ! -f $$lang/FAQ -o "x$(PERL)" = "x" ] || \
 	    ( rm -f ../cache/html/$$lang/FAQ.html ;\
-	      $(PERL) scripts/FAQ-html.pl         < $$lang/FAQ         > ../cache/html/$$lang/FAQ.html ) ;\
+	      $(PERL) scripts/FAQ-html.pl         < $$lang/FAQ         > ../cache/html/$$lang/FAQ.html ;\
+	      chmod 644 ../cache/html/$$lang/FAQ.html ) ;\
 	  [ ! -f $$lang/README.CONF -o "x$(PERL)" = "x" ] || \
 	    ( rm -f ../cache/html/$$lang/README.CONF.html ;\
 	      $(PERL) scripts/README.CONF-html.pl < $$lang/README.CONF > ../cache/html/$$lang/README.CONF.html ;\
+	      chmod 644 ../cache/html/$$lang/README.CONF.html ;\
 	      rm -f ../cache/html/$$lang/messages/README.CONF.txt ;\
-	      $(PERL) scripts/README.CONF-msg.pl  < $$lang/README.CONF > ../cache/html/$$lang/messages/README.CONF.txt ) ;\
+	      $(PERL) scripts/README.CONF-msg.pl  < $$lang/README.CONF > ../cache/html/$$lang/messages/README.CONF.txt ;\
+	      chmod 644 ../cache/html/$$lang/messages/README.CONF.txt ) ;\
 	done
 
 ######## CLEAN UP ########

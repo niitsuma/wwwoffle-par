@@ -1,10 +1,9 @@
 #!/usr/bin/perl
-#-*-perl-*-
 
 #
 # Copyright Andrew M. Bishop 1996.97,98,2001.
 #
-# $Header: /home/amb/wwwoffle/doc/scripts/RCS/README.CONF-man.pl 1.1 2001/09/04 19:10:42 amb Exp $
+# $Header: /home/amb/wwwoffle/doc/scripts/RCS/README.CONF-man.pl 1.2 2003/06/15 11:08:22 amb Exp $
 #
 # Usage: README.CONF-man.pl wwwoffle.conf.man.template < README.CONF > wwwoffle.conf.man
 #
@@ -35,110 +34,110 @@ while(<STDIN>)
   {
    chop;
 
-# Separator
+   # Separator
 
    if ($_ eq "--------------------------------------------------------------------------------")
-       {
-        $hr=1;
-        $intro=0;
-       }
+     {
+      $hr=1;
+      $intro=0;
+     }
 
-# Underlines
+   # Underlines
 
-   elsif(m/^ *[-=]+ *$/)
-       {
-        next;
-       }
+   elsif (m/^ *[-=]+ *$/)
+     {
+      next;
+     }
 
-# Section heading
+   # Section heading
 
    elsif ($hr==1 && m/^([-A-Za-z0-9]+)$/)
-       {
-        $section = $1;
+     {
+      $section = $1;
 
-        if($section eq "WILDCARD")
-            {
-             $appendix=1;
-            }
+      if ($section eq "WILDCARD")
+        {
+         $appendix=1;
+        }
 
-        $intro=1 if($intro==-1);
+      $intro=1 if($intro==-1);
 
-        print "\n.SH $section\n\n";
+      print "\n.SH $section\n\n";
 
-        $hr=0;
-        $blank=0;
-        $first=1;
-       }
+      $hr=0;
+      $blank=0;
+      $first=1;
+     }
 
-# Item
+   # Item
 
    elsif (!$intro && !$appendix && m/^(\[?<URL-SPEC>\]? *)?(.?[-()a-z0-9]+)( *= *.+)?$/)
-       {
-        s/-/\\-/g;
-        s/\./\\./g;
+     {
+      s/-/\\-/g;
+      s/\./\\./g;
 
-        print ".TP\n.B $_\n";
+      print ".TP\n.B $_\n";
 
-        $blank=0;
-        $first=1;
-       }
+      $blank=0;
+      $first=1;
+     }
 
-# Item
+   # Item
 
-   elsif(!$intro && !$appendix && (m/^(\[!\])?URL-SPECIFICATION/ || m/^\(/))
-       {
-        s/-/\\-/g;
-        s/\./\\./g;
+   elsif (!$intro && !$appendix && (m/^(\[!\])?URL-SPECIFICATION/ || m/^\(/))
+     {
+      s/-/\\-/g;
+      s/\./\\./g;
 
-        print ".TP\n.B $_\n";
+      print ".TP\n.B $_\n";
 
-        $blank=0;
-        $first=1;
-       }
+      $blank=0;
+      $first=1;
+     }
 
-# Blank
+   # Blank
 
    elsif (m/^$/)
-       {
-        $blank=1 if(!$first);
-        $dl=0;
-       }
+     {
+      $blank=1 if(!$first);
+      $dl=0;
+     }
 
-# Text list
+   # Text list
 
-   elsif($appendix && m%^([-a-zA-Z0-9():?*/.]+)   +(.+)%)
-       {
-        $thing=$1;
-        $descrip=$2;
+   elsif ($appendix && m%^([-a-zA-Z0-9():?*/.]+)   +(.+)%)
+     {
+      $thing=$1;
+      $descrip=$2;
 
-        s/-/\\-/g;
-        s/\./\\./g;
+      s/-/\\-/g;
+      s/\./\\./g;
 
-        print ".TP\n.B $thing\n$descrip\n";
+      print ".TP\n.B $thing\n$descrip\n";
 
-        $blank=0;
-        $first=0;
-        $dl=1;
-       }
+      $blank=0;
+      $first=0;
+      $dl=1;
+     }
 
-# Text
+   # Text
 
    else
-       {
-        s/^ *//;
+     {
+      s/^ *//;
 
-        s/-/\\-/g;
-        s/\./\\./g;
+      s/-/\\-/g;
+      s/\./\\./g;
 
-        s%(wwwoffle\\.conf|CHANGES\\.CONF|URL\\-SPECIFICATION|URL\\-SPEC|WILDCARD) *%\n.I $1\n%g;
-        s%^\n%%;
+      s%(wwwoffle\\.conf|CHANGES\\.CONF|URL\\-SPECIFICATION|URL\\-SPEC|WILDCARD) *%\n.I $1\n%g;
+      s%^\n%%;
 
-        print ".LP\n" if($blank);
-        print "$_\n";
+      print ".LP\n" if($blank);
+      print "$_\n";
 
-        $blank=0;
-        $first=0;
-       }
+      $blank=0;
+      $first=0;
+     }
   }
 
 print "\n";

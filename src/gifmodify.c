@@ -1,14 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/gifmodify.c 1.5 2002/06/23 15:05:22 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/gifmodify.c 1.8 2003/07/27 15:59:49 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8.
   A function for filtering GIF data streams in order to "disable" the mostly
   annoying animations.
   ******************/ /******************
   Written by Ingo Kloecker
   Modified by Andrew M. Bishop
 
-  Copyright 1999 Ingo Kloecker
+  Copyright 1999,2000,01,02,03 Ingo Kloecker and Andrew M. Bishop
 
   This file may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -21,8 +21,9 @@
 #include <string.h>
 
 #include "wwwoffle.h"
+#include "io.h"
 #include "document.h"
-#include "errors.h"
+
 
 /*
   OutputGIFWithModifications - function to disable the animation of GIF89a files
@@ -46,7 +47,7 @@
   http://members.aol.com/royalef/gifabout.htm
 */
 
-void OutputGIFWithModifications(int client,int spool,/*@unused@*/ URL *Url)
+void OutputGIFWithModifications(void)
 {
  int bytes_to_skip=0;
  unsigned char blocktype='t';
@@ -59,7 +60,7 @@ void OutputGIFWithModifications(int client,int spool,/*@unused@*/ URL *Url)
  unsigned char gifstream[READ_BUFFER_SIZE];
  int n;
 
- while((n=read_data(spool,(char*)gifstream,READ_BUFFER_SIZE))>0)
+ while((n=wwwoffles_read_data((char*)gifstream,READ_BUFFER_SIZE))>0)
    {
     int offset=0;
 
@@ -180,6 +181,6 @@ void OutputGIFWithModifications(int client,int spool,/*@unused@*/ URL *Url)
     bytes_to_skip -= n-offset;
   }
 
-  write_data(client,(char*)gifstream,n);
+  wwwoffles_write_data((char*)gifstream,n);
  }
 }

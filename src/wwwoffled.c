@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffled.c 2.58 2002/10/20 10:07:57 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffled.c 2.73 2004/02/25 19:35:19 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
   A demon program to maintain the database and spawn the servers.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -41,12 +41,13 @@
 #include <signal.h>
 #include <grp.h>
 
-#include "version.h"
 #include "wwwoffle.h"
+#include "io.h"
 #include "misc.h"
+#include "errors.h"
 #include "config.h"
 #include "sockets.h"
-#include "errors.h"
+#include "version.h"
 
 
 static void usage(int verbose);
@@ -90,14 +91,11 @@ int purge_pid=0;
 /*+ The current status, fetching or not. +*/
 int fetching=0;
 
-/*+ The file descriptor of the spool directory. +*/
-int fSpoolDir=-1;
+/*+ Set when the demon is to shutdown due to a sigexit. +*/
+static sig_atomic_t got_sigexit=0;
 
-/*+ Set to 1 when the demon is to shutdown. +*/
-int closedown=0;
-
-/*+ Set to 1 when the demon is to re-read config file due to a sighup. +*/
-static int readconfig=0;
+/*+ Set when the demon is to re-read config file due to a sighup. +*/
+static sig_atomic_t got_sighup=0;
 
 /*+ Remember that we got a SIGCHLD +*/
 static sig_atomic_t got_sigchld=0;
@@ -111,9 +109,6 @@ static int print_pid=0;
 /*+ True if the -f option was passed on the command line. +*/
 int nofork=0;
 
-/* Global variables used to pass on information about remote client to CGI. */
-extern char *client_hostname,*client_ip;
-
 
 /*++++++++++++++++++++++++++++++++++++++
   The main program.
@@ -124,7 +119,7 @@ int main(int argc, char** argv)
  int i;
  int err;
  struct stat buf;
- char *config_file=NULL;
+ char *config_file=NULL,*log_file=NULL;
  int uid,gid;
 
  /* Parse the command line options */
@@ -140,12 +135,26 @@ int main(int argc, char** argv)
     if(!strcmp(argv[i],"-d"))
       {
        detached=0;
-       if(i<(argc-1) && isdigit(argv[i+1][0]) && !argv[i+1][1])
+
+       if(i<(argc-1) && isdigit(argv[i+1][0]))
          {
-          DebuggingLevel=Fatal+1-atoi(argv[++i]);
-          if(DebuggingLevel<0)
-             DebuggingLevel=0;
+          StderrLevel=Fatal+1-atoi(argv[++i]);
+
+          if(StderrLevel<0 || StderrLevel>Fatal)
+            {fprintf(stderr,"wwwoffled: The '-d' option requires a number between 0 and %d.\n",Fatal+1); exit(1);}
          }
+
+       continue;
+      }
+
+    if(!strcmp(argv[i],"-l"))
+      {
+       if(++i>=argc)
+         {fprintf(stderr,"wwwoffled: The '-l' option requires a filename.\n"); exit(1);}
+       if(argv[i][0]!='/')
+         {fprintf(stderr,"wwwoffled: The '-l' option requires an absolute pathname.\n"); exit(1);}
+
+       log_file=argv[i];
        continue;
       }
 
@@ -174,6 +183,19 @@ int main(int argc, char** argv)
     fprintf(stderr,"wwwoffled: Unknown option '%s'.\n",argv[i]); exit(1);
    }
 
+ /* Combination options */
+
+ if(log_file)
+   {
+    if(nofork)
+       log_file=NULL;           /* -f overrides -l */
+    else
+       detached=1;              /* -l overrides -d */
+
+    if(StderrLevel==-1)
+       StderrLevel=Inform;      /* -l sets log level if no -d */
+   }
+
  /* Initialise things. */
 
  for(i=0;i<MAX_FETCH_SERVERS;i++)
@@ -182,15 +204,21 @@ int main(int argc, char** argv)
  for(i=0;i<MAX_SERVERS;i++)
     server_pids[i]=0;
 
+ if(log_file)
+    OpenErrorLog(log_file);
+
  InitErrorHandler("wwwoffled",0,1); /* use stderr and not syslog to start with. */
 
  /* Read the configuration file. */
 
  InitConfigurationFile(config_file);
 
- init_buffer(2);
- if(ReadConfigurationFile(2))
+ init_io(STDERR_FILENO);
+
+ if(ReadConfigurationFile(STDERR_FILENO))
     PrintMessage(Fatal,"Error in configuration file '%s'.",ConfigurationFileName());
+
+ finish_io(STDERR_FILENO);
 
  InitErrorHandler("wwwoffled",ConfigInteger(UseSyslog),1); /* enable syslog if requested. */
 
@@ -370,23 +398,30 @@ int main(int argc, char** argv)
  if(!S_ISDIR(buf.st_mode))
     PrintMessage(Fatal,"The spool directory %s is not a directory.",SpoolDir);
 
- err=chdir(ConfigString(SpoolDir));
+ err=ChangeToSpoolDir(ConfigString(SpoolDir));
  if(err==-1)
     PrintMessage(Fatal,"Cannot change to spool directory %s [%!s].",ConfigString(SpoolDir));
 
-#if !defined(__CYGWIN__)
- fSpoolDir=open(".",O_RDONLY);
- if(fSpoolDir==-1)
-    PrintMessage(Fatal,"Cannot open the spool directory '%s' [%!s].",ConfigString(SpoolDir));
-#endif
-
  /* Detach from terminal */
+
+ close(STDIN_FILENO);
+ close(STDOUT_FILENO);
 
  if(detached)
    {
+    close(STDERR_FILENO);
+
     demoninit();
+
     PrintMessage(Important,"Detached from terminal and changed pid to %d.",getpid());
-    InitErrorHandler("wwwoffled",1,0); /* pid changes after detaching, enable syslog, disable stderr. */
+
+    if(log_file)
+       OpenErrorLog(log_file);
+
+    if(log_file)
+       InitErrorHandler("wwwoffled",-1,1); /* pid changes after detaching, keep stderr. */
+    else
+       InitErrorHandler("wwwoffled",-1,0); /* pid changes after detaching, disable stderr. */
    }
 
  install_sighandlers();
@@ -438,12 +473,18 @@ int main(int argc, char** argv)
              int port,client;
 
              client=AcceptConnect(wwwoffle_fd[nfd]);
-             init_buffer(client);
 
              if(client>=0)
                {
+                init_io(client);
+                configure_io_read(client,ConfigInteger(SocketTimeout),0,0);
+                configure_io_write(client,ConfigInteger(SocketTimeout),0,0);
+
                 if(SocketRemoteName(client,&host,&ip,&port))
+                  {
+                   finish_io(client);
                    CloseSocket(client);
+                  }
                 else
                   {
                    char *canonical_ip=CanonicaliseHost(ip);
@@ -455,11 +496,15 @@ int main(int argc, char** argv)
                       CommandConnect(client);
 
                       if(fetch_fd!=client)
+                        {
+                         finish_io(client);
                          CloseSocket(client);
+                        }
                      }
                    else
                      {
                       PrintMessage(Warning,"WWWOFFLE Connection rejected from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
+                      finish_io(client);
                       CloseSocket(client);
                      }
 
@@ -475,10 +520,13 @@ int main(int argc, char** argv)
              int port,client;
 
              client=AcceptConnect(http_fd[nfd]);
-             init_buffer(client);
 
              if(client>=0)
                {
+                init_io(client);
+                configure_io_read(client,ConfigInteger(SocketTimeout),0,0);
+                configure_io_write(client,ConfigInteger(SocketTimeout),0,0);
+
                 if(!SocketRemoteName(client,&host,&ip,&port))
                   {
                    char *canonical_ip=CanonicaliseHost(ip);
@@ -486,11 +534,7 @@ int main(int argc, char** argv)
                    if(IsAllowedConnectHost(host) || IsAllowedConnectHost(canonical_ip))
                      {
                       PrintMessage(Inform,"HTTP Proxy connection from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
-
-                      client_hostname=host;
-                      client_ip=canonical_ip;
-
-                      ForkServer(client,1);
+                      ForkServer(client);
                      }
                    else
                       PrintMessage(Warning,"HTTP Proxy connection rejected from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
@@ -500,10 +544,13 @@ int main(int argc, char** argv)
                   }
 
                 if(nofork)
-                   closedown=1;
+                   got_sigexit=1;
 
                 if(!nofork)
+                  {
+                   finish_io(client);
                    CloseSocket(client);
+                  }
                }
             }
 #if USE_IPV6
@@ -511,11 +558,18 @@ int main(int argc, char** argv)
 #endif
       }
 
-    if(readconfig)
+    if(got_sighup)
       {
-       readconfig=0;
+       got_sighup=0;
 
        PrintMessage(Important,"SIGHUP signalled.");
+
+       if(log_file)
+         {
+          PrintMessage(Important,"Closing and opening log file.");
+
+          OpenErrorLog(log_file);
+         }
 
        PrintMessage(Important,"WWWOFFLE Re-reading Configuration File.");
 
@@ -531,6 +585,7 @@ int main(int argc, char** argv)
        int isserver=0;
 
        /* To avoid race conditions, reset the flag before fetching the status */
+
        got_sigchld=0;
 
        while((pid=waitpid(-1,&status,WNOHANG))>0)
@@ -570,6 +625,7 @@ int main(int argc, char** argv)
                }
 
           /* Check if the child that terminated is one of the fetching wwwoffles */
+
           for(i=0;i<max_fetch_servers;i++)
              if(fetch_pids[i]==pid)
                {
@@ -596,30 +652,32 @@ int main(int argc, char** argv)
        start fetch servers to look for jobs in the spool directory. */
 
     while(fetching && n_fetch_servers<max_fetch_servers && n_servers<max_servers)
-       ForkServer(fetch_fd,0);
+       ForkServer(fetch_fd);
 
     if(fetch_fd!=-1 && !fetching && n_fetch_servers==0)
       {
        write_string(fetch_fd,"WWWOFFLE No more to fetch.\n");
+
+       finish_io(fetch_fd);
        CloseSocket(fetch_fd);
        fetch_fd=-1;
 
        PrintMessage(Important,"WWWOFFLE Fetch finished.");
 
-       ForkRunModeScript(ConfigString(RunFetch),"fetch","stop",fetch_fd);
+       ForkRunModeScript(ConfigString(RunFetch),"fetch","stop",-1);
       }
    }
- while(!closedown);
+ while(!got_sigexit);
 
  /* Close down and exit. */
 
- if(http_fd[0]!=-1) CloseSocket(http_fd[0]);
- if(wwwoffle_fd[0]!=-1) CloseSocket(wwwoffle_fd[0]);
+ /* These four sockets don't need finish_io() calling because they never
+    had init_io() called, they are just bound to a port listening. */
 
-#if USE_IPV6
+ if(http_fd[0]!=-1) CloseSocket(http_fd[0]);
  if(http_fd[1]!=-1) CloseSocket(http_fd[1]);
+ if(wwwoffle_fd[0]!=-1) CloseSocket(wwwoffle_fd[0]);
  if(wwwoffle_fd[1]!=-1) CloseSocket(wwwoffle_fd[1]);
-#endif
 
  if(!nofork)
    {
@@ -672,10 +730,6 @@ int main(int argc, char** argv)
 
  FinishConfigurationFile();
 
-#if !defined(__CYGWIN__)
- close(fSpoolDir);
-#endif
-
  return(0);
 }
 
@@ -703,31 +757,34 @@ static void usage(int verbose)
 
  if(verbose)
     fprintf(stderr,
-            "(c) Andrew M. Bishop 1996,97,98,99,2000,01 [       amb@gedanken.demon.co.uk ]\n"
-            "                                           [http://www.gedanken.demon.co.uk/]\n"
+            "(c) Andrew M. Bishop 1996,97,98,99,2000,01,02,03 [       amb@gedanken.demon.co.uk ]\n"
+            "                                                 [http://www.gedanken.demon.co.uk/]\n"
             "\n");
 
  fprintf(stderr,
          "Usage: wwwoffled -h | --help | --version\n"
-         "       wwwoffled [-c <config-file>] [-d [<log-level>]]\n"
+         "       wwwoffled [-c <config-file>] [-d [<log-level>]] [-l <log-file>] [-f] [-p]\n"
          "\n");
 
  if(verbose)
     fprintf(stderr,
-            "   -h | --help         : Display this help.\n"
+            "   -h | --help      : Display this help.\n"
             "\n"
-            "   --version           : Display the version number of wwwoffled.\n"
+            "   --version        : Display the version number of wwwoffled.\n"
             "\n"
-            "   -c <config-file>    : The name of the configuration file to use.\n"
-            "                         (Default %s).\n"
+            "   -c <config-file> : The name of the configuration file to use.\n"
+            "                      (Default %s).\n"
             "\n"
-            "   -d [<log-level>]    : Do not detach from the terminal and use stderr.\n"
-            "                         0 <= log-level <= %d (default in config file).\n"
+            "   -d [<log-level>] : Do not detach from the terminal and use stderr.\n"
+            "                      0 <= log-level <= %d (default in config file).\n"
             "\n"
-            "   -f                  : Do not fork children for each HTTP request.\n"
-            "                         (Exits after first request, implies -d)\n"
+            "   -l <log-file>    : Detach from the terminal and use specified log file.\n"
+            "                      (Using log-level = 4 unless -d specifies different.)\n"
             "\n"
-            "   -p                  : Print the pid of wwwoffled on stdout (unless -d).\n"
+            "   -f               : Do not fork children for each HTTP request.\n"
+            "                      (Exits after first request, implies -d, overrides -l.)\n"
+            "\n"
+            "   -p               : Print the pid of wwwoffled on stdout (unless -d).\n"
             "\n",ConfigurationFileName(),Fatal+1);
 
  exit(0);
@@ -761,11 +818,6 @@ static void demoninit(void)
 
     exit(0);
    }
-
- /* Close fds */
- close(STDIN_FILENO);
- close(STDOUT_FILENO);
- close(STDERR_FILENO);
 }
 
 
@@ -779,7 +831,7 @@ static void install_sighandlers(void)
 
  /* SIGCHLD */
  action.sa_handler = sigchild;
- sigemptyset (&action.sa_mask);
+ sigemptyset(&action.sa_mask);
  action.sa_flags = 0;
  if(sigaction(SIGCHLD, &action, NULL) != 0)
     PrintMessage(Warning, "Cannot install SIGCHLD handler.");
@@ -807,7 +859,7 @@ static void install_sighandlers(void)
 
  /* SIGPIPE */
  action.sa_handler = SIG_IGN;
- sigemptyset (&action.sa_mask);
+ sigemptyset(&action.sa_mask);
  action.sa_flags = 0;
  if(sigaction(SIGPIPE, &action, NULL) != 0)
     PrintMessage(Warning, "Cannot ignore SIGPIPE.");
@@ -834,7 +886,7 @@ static void sigchild(/*@unused@*/ int signum)
 
 static void sigexit(/*@unused@*/ int signum)
 {
- closedown=1;
+ got_sigexit=1;
 }
 
 
@@ -846,5 +898,5 @@ static void sigexit(/*@unused@*/ int signum)
 
 static void sighup(/*@unused@*/ int signum)
 {
- readconfig=1;
+ got_sighup=1;
 }

@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <!--
@@ -6,6 +6,7 @@
 WWWOFFLE : Variables disponibles (mettre le prefixe '$').
 
 localhost = Le serveur sur lequel wwwoffled tourne (='$localhost').
+version   = The version of the WWWOFFLE server (='$version').
 url       = Defini si on doit supprimer une page (='$url').
 mon       = Defini si on doit supprimer une page surveillee (='$mon').
 req       = Defini si on doit supprimer une requete en attente (='$req').
@@ -18,25 +19,25 @@ hash      = Set to the hash that this request included. (='$hash').
 $url?{<TITLE>WWWOFFLE - Suppression de Pages</TITLE>}{}
 $mon?{<TITLE>WWWOFFLE - Suppression de Pages Suivies</TITLE>}{}
 $req?{<TITLE>WWWOFFLE - Suppression de Requ&ecirc;tes en Attente</TITLE>}{}
+<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
-<BODY>
+<BODY class="wwwoffle-message">
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<!-- Standard WWWOFFLE Message Page Header Start -->
 
-<p align=center>
-<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
-</p>
+<div class="wwwoffle-header" align="center">
+<b>WWWOFFLE</b> <b>-</b> <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer <b>-</b> <b>v$version</b>
+</div>
+<hr class="wwwoffle-header">
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Header End -->
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+$url?{<H1 align="center">WWWOFFLE - Suppression de Pages</H1>}{}
+$mon?{<H1 align="center">WWWOFFLE - Suppression de Pages Suivies</H1>}{}
+$req?{<H1 align="center">WWWOFFLE - Suppression de Requ&ecirc;tes en Attente</H1>}{}
 
-$url?{<H1 align=center>WWWOFFLE - Suppression de Pages</H1>}{}
-$mon?{<H1 align=center>WWWOFFLE - Suppression de Pages Suivies</H1>}{}
-$req?{<H1 align=center>WWWOFFLE - Suppression de Requ&ecirc;tes en Attente</H1>}{}
-
-<p align=center>
+<div class="wwwoffle-message" align="center">
 $url?{
 
 Votre requ&ecirc;te pour effacer des URL du cache a retourn&eacute; :
@@ -51,8 +52,7 @@ $req?{
 Votre requ&ecirc;te pour effacer des requ&ecirc;tes mises en attente a retourn&eacute; :
 
 }{}
-
-</p>
+</div>
 
 <p>
 <form action="$path" method="post">

@@ -1,5 +1,5 @@
-             WWWOFFLE - Installation Instructions - Version 2.7
-             ==================================================
+             WWWOFFLE - Installation Instructions - Version 2.8b
+             ===================================================
 
 
 There are only 10 steps required to install WWWOFFLE from the source code to a
@@ -38,7 +38,7 @@ Compilation
         --with-confdir=<directory>      - Set the compiled-in default value for
                                           the configuration file directory, (can
                                           be overridden on the command line)
-                                          (default /etc).
+                                          (default /etc/wwwoffle).
 
         **** Important ****
    To compile WWWOFFLE you will require a C compiler (e.g. gcc) a version of lex
@@ -55,6 +55,12 @@ Compilation
         **** Important ****
    If you already use WWWOFFLE then you should stop the existing version running
    before doing the installation of the new version.
+        **** Important ****
+
+        **** Important ****
+   The files that are installed by this step should be owned by the user that
+   will be running WWWOFFLE (either the user that starts it or the user specified
+   in the run-uid and run-gid options in the configuration file.)
         **** Important ****
 
    You should look out for any output from make that is prefixed with
@@ -96,10 +102,10 @@ Configuration
 
    This may require the full path to the wwwoffled program (usually
    /usr/local/sbin/wwwoffled) and the full path to the configuration file
-   (usually /etc/wwwoffle.conf) if not using the defaules, for example:
-   /usr/local/sbin/wwwoffled -c /etc/wwwoffle.conf
+   (usually /etc/wwwoffle/wwwoffle.conf) if not using the defaules, for example:
+   /usr/local/sbin/wwwoffled -c /etc/wwwoffle/wwwoffle.conf
 
-6) Start your WWW Browser and set up localhost:8080 as the proxy.
+6) Start your web browser and set up localhost:8080 as the proxy.
    Disable caching between sessions within the browser.
 
    Select the URL http://localhost:8080/ in the browser to test that WWWOFFLE is
@@ -170,7 +176,7 @@ defaults for the wwwoffle program.
 #define DEF_SPOOLDIR "/var/spool/wwwoffle"
 
 /*+ The default configuration file directory. +*/
-#define DEF_CONFDIR "/etc"
+#define DEF_CONFDIR "/etc/wwwoffle"
 
 
 The next four limit the number of connections that wwwoffled will accept at a
@@ -198,13 +204,6 @@ IndexLastOut-Tail.html must be edited for the links to these to be visible.
 
 /*+ The number of pretime directories to create (lasttime history). +*/
 #define NUM_PREVTIME_DIR 7
-
-
-The next one is the size of the buffer that is used when reading data from the
-cache or from the network socket.
-
-/*+ The size of the buffer to use when reading from the cache or a socket. +*/
-#define READ_BUFFER_SIZE 1024
 
 
 The next two give the permissions that are used for the creation of directories

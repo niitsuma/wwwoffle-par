@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/ssl.c 1.17 2002/10/12 19:49:22 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/ssl.c 1.21 2004/02/24 19:26:03 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
   SSL (Secure Socket Layer) Tunneling functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1998,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -16,10 +16,6 @@
 #include "autoconfig.h"
 
 #include <stdlib.h>
-#include <string.h>
-
-#include <sys/types.h>
-#include <unistd.h>
 
 #if TIME_WITH_SYS_TIME
 # include <sys/time.h>
@@ -32,12 +28,12 @@
 # endif
 #endif
 
-#include <fcntl.h>
 #include <errno.h>
 
 #include "wwwoffle.h"
-#include "errors.h"
+#include "io.h"
 #include "misc.h"
+#include "errors.h"
 #include "config.h"
 #include "sockets.h"
 #include "proto.h"
@@ -88,13 +84,18 @@ char *SSL_Open(URL *Url)
  if(server_port)
    {
     server=OpenClientSocket(hoststr,server_port);
-    init_buffer(server);
 
     if(server==-1)
-       msg=PrintMessage(Warning,"Cannot open the SSL connection to %s port %d; [%!s].",hoststr,server_port);
+       msg=GetPrintMessage(Warning,"Cannot open the SSL connection to %s port %d; [%!s].",hoststr,server_port);
+    else
+      {
+       init_io(server);
+       configure_io_read(server,ConfigInteger(SocketTimeout),0,0);
+       configure_io_write(server,ConfigInteger(SocketTimeout),0,0);
+      }
    }
  else
-    msg=PrintMessage(Warning,"No port given for the SSL connection to %s.",server_host);
+    msg=GetPrintMessage(Warning,"No port given for the SSL connection to %s.",server_host);
 
  RejoinHostPort(server_host,hoststr,portstr);
 
@@ -133,14 +134,12 @@ char *SSL_Request(int client,URL *Url,Header *request_head)
     PrintMessage(ExtraDebug,"Outgoing Request Head (to SSL proxy)\n%s",head);
 
     if(write_string(server,head)==-1)
-       msg=PrintMessage(Warning,"Failed to write to remote SSL proxy; [%!s].");
+       msg=GetPrintMessage(Warning,"Failed to write to remote SSL proxy; [%!s].");
 
     free(head);
    }
  else
-    HTMLMessageHead(client,200,"WWWOFFLE SSL OK",
-                    "Content-Type",NULL,
-                    NULL);
+    write_string(client,"HTTP/1.0 200 WWWOFFLE SSL OK\r\n\r\n");
 
  return(msg);
 }
@@ -206,5 +205,6 @@ void SSL_Transfer(int client)
 
 int SSL_Close(void)
 {
+ finish_io(server);
  return(CloseSocket(server));
 }

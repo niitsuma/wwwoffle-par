@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/errors.c 2.32 2002/08/04 10:27:34 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/errors.c 2.44 2004/05/21 08:50:22 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
   Generate error messages in a standard format optionally to syslog and stderr.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -33,13 +33,19 @@
 # endif
 #endif
 
-#include <sys/fcntl.h>
+#include <fcntl.h>
 
 #ifdef __STDC__
 #include <stdarg.h>
 #else
 #include <varargs.h>
 #endif
+
+/*+ Need this for Win32 to use binary mode +*/
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
+
 
 /* syslog definitions */
 
@@ -60,6 +66,7 @@ static void closelog(void);
 static void syslog(int level,const char* format,char* string);
 #endif /* __CYGWIN__ */
 
+
 /* errno and str_error() definitions */
 
 #include <errno.h>
@@ -79,6 +86,7 @@ char* strerror(int err)
     return("Unknown error");
 }
 #endif /* defined(__sun__) && !defined(__svr4__) */
+
 
 /* h_errno and h_strerror() definitions */
 
@@ -133,15 +141,18 @@ static char* h_strerror(int err)
  return("Unknown error");
 }
 
-/* z_errno and z_errstr definitions */
 
-#if USE_ZLIB
-/*+ The compression error number. +*/
-extern int z_errno;
+#include "io.h"
+#include "errors.h"
 
-/*+ The compression error message string. +*/
-extern char *z_strerror;
-#endif
+/* io_errno and io_errstr definitions */
+
+/*+ The chunked encoding/compression error number. +*/
+extern int io_errno;
+
+/*+ The chunked encoding/compression error message string. +*/
+extern char *io_strerror;
+
 
 /* gai_errno and gai_strerror() definitions */
 
@@ -151,9 +162,9 @@ extern int gai_errno;
 #endif
 
 
-#include "errors.h"
-#include "config.h"
-#include "misc.h"
+/* The function that does the work. */
+
+static char /*@observer@*/ *print_message(ErrorLevel errlev,const char* fmt,va_list ap);
 
 /*+ The name of the program. +*/
 static char *program="?";
@@ -179,8 +190,8 @@ static int use_syslog=0,        /*+ use syslog. +*/
            use_stderr=1;        /*+ use stderr. +*/
 
 /*+ The level of error logging +*/
-ErrorLevel LoggingLevel=Important,  /*+ in the config file for syslog and stderr. +*/
-           DebuggingLevel=-1;       /*+ on the command line for stderr. +*/
+ErrorLevel SyslogLevel=Important, /*+ in the config file for syslog. +*/
+           StderrLevel=-1;        /*+ on the command line for stderr. +*/
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -218,14 +229,50 @@ void InitErrorHandler(char *name,int syslogable,int stderrable)
 
  pid=getpid();
 
- last_time=time(NULL)-3300;
+ last_time=time(NULL)-3590;
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Open the log file.
+
+  char *name The name of the log file.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+void OpenErrorLog(char *name)
+{
+ int log;
+
+ close(STDERR_FILENO);
+
+ log=open(name,O_WRONLY|O_CREAT|O_BINARY,0600);
+
+ use_stderr=1;
+
+ if(log==-1)
+   {
+    use_stderr=0;
+    PrintMessage(Warning,"Cannot open log file '%s' [%!s].",name);
+   }
+ else
+   {
+    lseek(log,0,SEEK_END);
+
+    if(log!=STDERR_FILENO)
+       if(dup2(log,STDERR_FILENO)==-1)
+         {
+          close(log);
+          use_stderr=0;
+          PrintMessage(Warning,"Cannot put log file on stderr [%!s].");
+         }
+   }
+
+ last_time=1;
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Print an error message.
-
-  char *PrintMessage Return the error message (except the pid etc.).
 
   ErrorLevel errlev Which error level.
 
@@ -234,18 +281,90 @@ void InitErrorHandler(char *name,int syslogable,int stderrable)
   ... The rest of the arguments (printf style).
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *PrintMessage(ErrorLevel errlev,const char* fmt, ...)
+void PrintMessage(ErrorLevel errlev,const char* fmt, ...)
 {
- int str_len=16+strlen(fmt);
- static /*@only@*/ char* string=NULL;
  va_list ap;
- int i,j;
- time_t this_time=time(NULL);
 
  /* Shortcut (bypass if debug) */
 
- if(errlev<=Debug && (errlev<LoggingLevel && errlev<DebuggingLevel))
+ if(errlev<=Debug && (errlev<SyslogLevel && errlev<StderrLevel))
+    return;
+
+ /* Print the message */
+
+#ifdef __STDC__
+ va_start(ap,fmt);
+#else
+ va_start(ap);
+#endif
+
+ print_message(errlev,fmt,ap);
+
+ va_end(ap);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Print an error message and return the string.
+
+  char *GetPrintMessage Return the error message (except the pid etc.).
+
+  ErrorLevel errlev Which error level.
+
+  const char* fmt The format of the message.
+
+  ... The rest of the arguments (printf style).
+  ++++++++++++++++++++++++++++++++++++++*/
+
+char *GetPrintMessage(ErrorLevel errlev,const char* fmt, ...)
+{
+ va_list ap;
+ char *string,*malloced;
+
+ /* Shortcut (bypass if debug) */
+
+ if(errlev<=Debug && (errlev<SyslogLevel && errlev<StderrLevel))
     return(NULL);
+
+ /* Print the message */
+
+#ifdef __STDC__
+ va_start(ap,fmt);
+#else
+ va_start(ap);
+#endif
+
+ string=print_message(errlev,fmt,ap);
+
+ va_end(ap);
+
+ /* Copy the message and return it */
+
+ malloced=(char*)malloc(strlen(string)+1);
+ strcpy(malloced,string);
+
+ return(malloced);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Print an error message and return the string.
+
+  char *print_message Return the error message (except the pid etc.).
+
+  ErrorLevel errlev Which error level.
+
+  const char* fmt The format of the message.
+
+  va_list ap The rest of the arguments (printf style).
+  ++++++++++++++++++++++++++++++++++++++*/
+
+static char *print_message(ErrorLevel errlev,const char* fmt,va_list ap)
+{
+ int str_len=16+strlen(fmt);
+ static /*@only@*/ char* string=NULL;
+ int i,j;
+ time_t this_time=time(NULL);
 
  /* Periodic timestamp */
 
@@ -256,18 +375,14 @@ char *PrintMessage(ErrorLevel errlev,const char* fmt, ...)
        fprintf(stderr,"%s[%ld] Timestamp: %s",program,(long)pid,ctime(&this_time)); /* Used in audit-usage.pl */
    }
 
- /* Parsing of printf style arguments. */
+ /* Prepare a string. */
 
  if(string)
     free(string);
 
  string=(char*)malloc(str_len);
 
-#ifdef __STDC__
- va_start(ap,fmt);
-#else
- va_start(ap);
-#endif
+ /* Parsing of printf style arguments. */
 
  for(i=0,j=0;fmt[i];i++)
     if(fmt[i]!='%')
@@ -283,10 +398,8 @@ char *PrintMessage(ErrorLevel errlev,const char* fmt, ...)
             {
              if(errno==ERRNO_USE_H_ERRNO)
                 strp=h_strerror(h_errno);
-#if USE_ZLIB
-             else if(errno==ERRNO_USE_Z_ERRNO)
-                strp=z_strerror;
-#endif
+             else if(errno==ERRNO_USE_IO_ERRNO)
+                strp=io_strerror;
 #if USE_IPV6
              else if(errno==ERRNO_USE_GAI_ERRNO)
                 strp=(char*)gai_strerror(gai_errno);
@@ -298,10 +411,8 @@ char *PrintMessage(ErrorLevel errlev,const char* fmt, ...)
             {
              if(errno==ERRNO_USE_H_ERRNO)
                 sprintf(strp=str,"%d (h_errno)",h_errno);
-#if USE_ZLIB
-             else if(errno==ERRNO_USE_Z_ERRNO)
-                sprintf(strp=str,"%d (z_errno)",z_errno);
-#endif
+             else if(errno==ERRNO_USE_IO_ERRNO)
+                sprintf(strp=str,"%d (io_errno)",io_errno);
 #if USE_IPV6
              else if(errno==ERRNO_USE_GAI_ERRNO)
                 sprintf(strp=str,"%d (gai_errno)",gai_errno);
@@ -340,30 +451,22 @@ char *PrintMessage(ErrorLevel errlev,const char* fmt, ...)
        j+=strlen(strp);
       }
 
-#if defined(__CYGWIN__)
- if(string[j-1]=='\n')
-    j--;
- string[j++]='\r';
- string[j++]='\n';
-#else
- if(string[j-1]!='\n')
-    string[j++]='\n';
-#endif
- string[j]=0;
+ string[j--]=0;
 
- va_end(ap);
+ while(j>=0 && (string[j]=='\r' || string[j]=='\n'))
+    string[j--]=0;
 
  /* Output the result. */
 
- if(use_syslog && errlev>=LoggingLevel && ErrorPriority[errlev]!=-1)
+ if(use_syslog && errlev>=SyslogLevel && ErrorPriority[errlev]!=-1)
     syslog(ErrorPriority[errlev],"%s",string);
 
- if(use_stderr && ((DebuggingLevel==-1 && errlev>=LoggingLevel) || (DebuggingLevel!=-1 && errlev>=DebuggingLevel)))
+ if(use_stderr && ((StderrLevel==-1 && errlev>=SyslogLevel) || (StderrLevel!=-1 && errlev>=StderrLevel)))
    {
-    if(LoggingLevel==ExtraDebug || DebuggingLevel==ExtraDebug)
-       fprintf(stderr,"%s[%ld] %10ld: %s: %s",program,(long)pid,this_time,ErrorString[errlev],string);
+    if(SyslogLevel==ExtraDebug || StderrLevel==ExtraDebug)
+       fprintf(stderr,"%s[%ld] %10ld: %s: %s\n",program,(long)pid,this_time,ErrorString[errlev],string);
     else
-       fprintf(stderr,"%s[%ld] %s: %s",program,(long)pid,ErrorString[errlev],string);
+       fprintf(stderr,"%s[%ld] %s: %s\n",program,(long)pid,ErrorString[errlev],string);
    }
 
  if(errlev==Fatal)
@@ -371,6 +474,7 @@ char *PrintMessage(ErrorLevel errlev,const char* fmt, ...)
 
  return(string);
 }
+
 
 #if defined(__CYGWIN__)
 
@@ -392,8 +496,10 @@ static void openlog(char *facility)
     *p--=0;
  strcat(syslogfile,"wwwoffle.syslog");
 
- syslog_file=open(syslogfile,O_WRONLY|O_CREAT|O_APPEND);
- init_buffer(syslog_file);
+ syslog_file=open(syslogfile,O_WRONLY|O_CREAT|O_APPEND,0600);
+
+ if(syslog_file!=-1)
+    init_io(syslog_file);
 
  syslog_facility=facility;
 }
@@ -405,6 +511,12 @@ static void openlog(char *facility)
 
 static void closelog(void)
 {
+ if(syslog_file!=-1)
+   {
+    finish_io(syslog_file);
+    close(syslog_file);
+   }
+
  syslog_file=-1;
  syslog_facility=NULL;
 }
@@ -417,7 +529,7 @@ static void closelog(void)
 static void syslog(int level,const char* format,char* string)
 {
  if(syslog_file!=-1 && syslog_facility)
-    write_formatted(syslog_file,"%s[%ld](%s): %s",syslog_facility,(long)pid,ErrorString[level],string);
+    write_formatted(syslog_file,"%s[%ld](%s): %s\r\n",syslog_facility,(long)pid,ErrorString[level],string);
 }
 
 #endif /* __CYGWIN__ */

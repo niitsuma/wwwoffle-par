@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configfunc.c 1.13 2002/08/21 14:28:30 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configfunc.c 1.17 2004/01/17 16:23:46 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Configuration item checking functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -18,25 +18,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 #include <pwd.h>
-#include <unistd.h>
 #include <sys/types.h>
+#include <unistd.h>
 
-#include "wwwoffle.h"
 #include "misc.h"
+#include "errors.h"
 #include "configpriv.h"
 #include "config.h"
-#include "proto.h"
 #include "sockets.h"
-#include "errors.h"
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Determine an email address to use as the FTP password.
 
-  char *DefaultFTPPassword Returns a best-guess password.
+  char *DefaultFTPPassWord Returns a best-guess password.
   ++++++++++++++++++++++++++++++++++++++*/
 
 char *DefaultFTPPassWord(void)
@@ -345,7 +342,7 @@ int NotCompressed(char *mime_type,char *path)
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Decide if the header line is to be sent to the server/browser.
+  Decide if the header line is to be sent to the server/client.
 
   char *CensoredHeader Returns the value to be inserted or NULL if it is to be removed.
 
@@ -503,7 +500,6 @@ int IsAliased(char *proto,char *host,char *path,char **new_proto,char **new_host
 
 int ConfigInteger(ConfigItem item)
 {
-#if CONFIG_VERIFY_ABORT
  if(!item)
     PrintMessage(Fatal,"Configuration file error at %s:%d",__FILE__,__LINE__);
 
@@ -515,7 +511,6 @@ int ConfigInteger(ConfigItem item)
 
  if(item->nentries>1)
     PrintMessage(Fatal,"Configuration file error at %s:%d",__FILE__,__LINE__);
-#endif
 
  if(item->nentries==1)
     return(item->val[0].integer);
@@ -537,7 +532,6 @@ char *ConfigString(ConfigItem item)
  if(!item)
     return(NULL);
 
-#if CONFIG_VERIFY_ABORT
  if(item->itemdef->url_type!=0)
     PrintMessage(Fatal,"Configuration file error at %s:%d",__FILE__,__LINE__);
 
@@ -546,7 +540,6 @@ char *ConfigString(ConfigItem item)
 
  if(item->nentries>1)
     PrintMessage(Fatal,"Configuration file error at %s:%d",__FILE__,__LINE__);
-#endif
 
  if(item->nentries==1)
     return(item->val[0].string);
@@ -569,7 +562,6 @@ int ConfigIntegerURL(ConfigItem item,URL *Url)
 {
  int i;
 
-#if CONFIG_VERIFY_ABORT
  if(!item)
     PrintMessage(Fatal,"Configuration file error at %s:%d",__FILE__,__LINE__);
 
@@ -578,7 +570,6 @@ int ConfigIntegerURL(ConfigItem item,URL *Url)
 
  if(item->itemdef->same_key!=0)
     PrintMessage(Fatal,"Configuration file error at %s:%d",__FILE__,__LINE__);
-#endif
 
  for(i=0;i<item->nentries;i++)
    {
@@ -609,13 +600,11 @@ char *ConfigStringURL(ConfigItem item,URL *Url)
  if(!item)
     return(NULL);
 
-#if CONFIG_VERIFY_ABORT
  if(item->itemdef->url_type!=1)
     PrintMessage(Fatal,"Configuration file error at %s:%d",__FILE__,__LINE__);
 
  if(item->itemdef->same_key!=0)
     PrintMessage(Fatal,"Configuration file error at %s:%d",__FILE__,__LINE__);
-#endif
 
  for(i=0;i<item->nentries;i++)
    {
@@ -637,6 +626,8 @@ char *ConfigStringURL(ConfigItem item,URL *Url)
 
   int ConfigBooleanMatchURL Return true if it is in the list.
 
+  ConfigItem item The configuration item to match.
+
   URL *Url The URL to search the list for.
   ++++++++++++++++++++++++++++++++++++++*/
 
@@ -647,13 +638,11 @@ int ConfigBooleanMatchURL(ConfigItem item,URL *Url)
  if(!item)
     return(0);
 
-#if CONFIG_VERIFY_ABORT
  if(item->itemdef->url_type!=0)
     PrintMessage(Fatal,"Configuration file error at %s:%d",__FILE__,__LINE__);
 
  if(item->itemdef->same_key!=1)
     PrintMessage(Fatal,"Configuration file error at %s:%d",__FILE__,__LINE__);
-#endif
 
  for(i=0;i<item->nentries;i++)
     if(MatchUrlSpecification(item->key[i].urlspec,Url->proto,Url->host,Url->path,Url->args))

@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/document.c 1.17 2002/06/23 14:56:49 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/document.c 1.21 2003/06/30 10:17:20 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8.
   Document parsing functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1998,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -20,11 +20,11 @@
 #include <ctype.h>
 
 #include "wwwoffle.h"
-#include "document.h"
-#include "errors.h"
-#include "proto.h"
 #include "misc.h"
+#include "errors.h"
 #include "config.h"
+#include "proto.h"
+#include "document.h"
 
 
 /*+ The list of references. +*/
@@ -35,6 +35,9 @@ static int nreferences[NRefTypes];
 
 /*+ The base URL from which references are related. +*/
 static URL *baseUrl;
+
+/*+ A flag to indicate that all references are to be added. +*/
+static int add_all=0;
 
 
 static DocType GetDocumentType(char *mimetype);
@@ -49,14 +52,17 @@ static char *GetMIMEType(int fd);
   int fd The file descriptor to read the document from.
 
   URL *Url The URL of the document.
+
+  int all Set to 1 to match all references, not just the protocols that WWWOFFLE knows.
   ++++++++++++++++++++++++++++++++++++++*/
 
-DocType ParseDocument(int fd,URL *Url)
+DocType ParseDocument(int fd,URL *Url,int all)
 {
  char *mimetype;
  DocType doctype=DocUnknown;
 
  baseUrl=Url;
+ add_all=all;
 
  if((mimetype = GetMIMEType(fd)) != NULL)
     doctype = GetDocumentType(mimetype);
@@ -82,6 +88,8 @@ DocType ParseDocument(int fd,URL *Url)
 
     if(doctype==DocHTML)
        ParseHTML(fd,Url);
+    else if(doctype==DocCSS)
+       ParseCSS(fd,Url);
     else if(doctype==DocJavaClass)
        InspectJavaClass(fd,Url);
     else if(doctype==DocXML)
@@ -102,6 +110,7 @@ static struct {
   DocType doctype;
 } docTypeList[] = {
 	{"text/html",DocHTML},
+	{"text/css",DocCSS},
 	{"application/java",DocJavaClass},
 	{"text/xml",DocXML},
 	{"application/xml",DocXML},
@@ -119,7 +128,7 @@ static struct {
   char *mimetype The mime type to be tested.
   ++++++++++++++++++++++++++++++++++++++*/
 
-DocType GetDocumentType(char *mimetype)
+static DocType GetDocumentType(char *mimetype)
 {
  int i;
 
@@ -193,18 +202,16 @@ void AddReference(char* name,RefType type)
        *p--=0;
 
     for(p=name;*p;p++)
-       if(isspace(*p))
-          return;
-       else if(*p=='#')
+       if(*p=='#')
          {
           *p=0;
           break;
          }
-       else if(*p==':' && onlychars)
+       else if(*p==':' && onlychars && !add_all)
          {
           int i;
           for(i=0;i<NProtocols;i++)
-             if(!strncmp(Protocols[i].name,name,p-name))
+             if(!strncasecmp(Protocols[i].name,name,p-name))
                 break;
 
           if(i && i==NProtocols)
@@ -230,6 +237,7 @@ void AddReference(char* name,RefType type)
       {
        references[type][nreferences[type]]=(char*)malloc(strlen(name)+1);
        strcpy(references[type][nreferences[type]],name);
+       URLReplaceAmp(references[type][nreferences[type]]);
       }
     else
        references[type][nreferences[type]]=NULL;

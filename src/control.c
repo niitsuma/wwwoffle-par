@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/control.c 2.55 2002/10/12 20:26:22 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/control.c 2.60 2004/04/25 14:24:13 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
   The HTML interactive control pages.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -22,10 +22,11 @@
 #include <unistd.h>
 
 #include "wwwoffle.h"
+#include "io.h"
 #include "misc.h"
+#include "errors.h"
 #include "config.h"
 #include "sockets.h"
-#include "errors.h"
 
 
 /*+ The action to perform. +*/
@@ -189,8 +190,9 @@ void ControlPage(int fd,URL *Url,Body *request_body)
 static void ActionControlPage(int fd,Action action,char *command)
 {
  char *localhost=GetLocalHost(0);
+ char *buffer=NULL;
+ int error=0;
  int socket=OpenClientSocket(localhost,ConfigInteger(WWWOFFLE_Port));
- init_buffer(socket);
 
  if(socket==-1)
    {
@@ -198,47 +200,57 @@ static void ActionControlPage(int fd,Action action,char *command)
     HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",
                 "error","Cannot open connection to wwwoffle server on localhost",
                 NULL);
+
+    free(localhost);
+    return;
    }
+
+ init_io(socket);
+ configure_io_read(socket,ConfigInteger(SocketTimeout),0,0);
+ configure_io_write(socket,ConfigInteger(SocketTimeout),0,0);
+
+ HTMLMessageHead(fd,200,"WWWOFFLE Control Page",
+                 "Cache-Control","no-cache",
+                 "Expires","0",
+                 NULL);
+
+ HTMLMessageBody(fd,"ControlWWWOFFLE-Head",
+                 "command",command,
+                 NULL);
+
+ /* Send the message. */
+
+ if(ConfigString(PassWord))
+    write_formatted(socket,"WWWOFFLE PASSWORD %s\r\n",ConfigString(PassWord));
+
+ if(action==Online)
+    error=write_string(socket,"WWWOFFLE ONLINE\r\n");
+ else if(action==Autodial)
+    error=write_string(socket,"WWWOFFLE AUTODIAL\r\n");
+ else if(action==Offline)
+    error=write_string(socket,"WWWOFFLE OFFLINE\r\n");
+ else if(action==Fetch)
+    error=write_string(socket,"WWWOFFLE FETCH\r\n");
+ else if(action==Config)
+    error=write_string(socket,"WWWOFFLE CONFIG\r\n");
+ else if(action==Purge)
+    error=write_string(socket,"WWWOFFLE PURGE\r\n");
+ else if(action==Status)
+    error=write_string(socket,"WWWOFFLE STATUS\r\n");
+
+ if(error==-1)
+    write_string(fd,"Error writing the command to the server.");
  else
-   {
-    char *buffer=NULL;
-    int error=0;
+    while((buffer=read_line(socket,buffer)))
+       write_string(fd,buffer);
 
-    HTMLMessage(fd,200,"WWWOFFLE Control Page",NULL,"ControlWWWOFFLE-Head",
-                "command",command,
-                NULL);
-
-    /* Send the message. */
-
-    if(ConfigString(PassWord))
-       write_formatted(socket,"WWWOFFLE PASSWORD %s\r\n",ConfigString(PassWord));
-
-    if(action==Online)
-       error=write_string(socket,"WWWOFFLE ONLINE\r\n");
-    else if(action==Autodial)
-       error=write_string(socket,"WWWOFFLE AUTODIAL\r\n");
-    else if(action==Offline)
-       error=write_string(socket,"WWWOFFLE OFFLINE\r\n");
-    else if(action==Fetch)
-       error=write_string(socket,"WWWOFFLE FETCH\r\n");
-    else if(action==Config)
-       error=write_string(socket,"WWWOFFLE CONFIG\r\n");
-    else if(action==Purge)
-       error=write_string(socket,"WWWOFFLE PURGE\r\n");
-    else if(action==Status)
-       error=write_string(socket,"WWWOFFLE STATUS\r\n");
-
-    if(error==-1)
-       write_string(fd,"Error writing the command to the server.");
-    else
-       while((buffer=read_line(socket,buffer)))
-          write_string(fd,buffer);
-
-    HTMLMessageBody(fd,"ControlWWWOFFLE-Tail",
-                    NULL);
-   }
+ HTMLMessageBody(fd,"ControlWWWOFFLE-Tail",
+                 NULL);
 
  free(localhost);
+
+ finish_io(socket);
+ CloseSocket(socket);
 }
 
 
@@ -283,7 +295,7 @@ static void DeleteControlPage(int fd,URL *Url,Body *request_body)
        if(!strncmp(*argsp,"password=",9))
           password=&(*argsp)[9];
        if(!strncmp(*argsp,"url=",4))
-          page=URLDecodeFormArgs(&(*argsp)[4]);
+          page=TrimArgs(URLDecodeFormArgs(&(*argsp)[4]));
       }
    }
 
@@ -337,13 +349,13 @@ static void DeleteControlPage(int fd,URL *Url,Body *request_body)
        FreeURL(hashUrl);
       }
 
-    if(hash && (!req || !realhash || strcmp(hash,realhash)))
+    if(hash && req && (!realhash || strcmp(hash,realhash)))
       {
        HTMLMessageBody(fd,"ControlDelete-Body",
                        "count","",
                        "url",all?"":req,
                        "all",all?"yes":"",
-                       "error","Hash does not match",
+                       "error",realhash?"Hash does not match":"Request already deleted",
                        NULL);
       }
     else if(req)
@@ -518,7 +530,7 @@ static void delete_req(int fd,char *req,int all,char *username,char *password,in
     if(reqUrl->Protocol)
        err=DeleteOutgoingSpoolFile(reqUrl);
     else
-       err="Illegal Protocol";
+       err=strcpy((char*)malloc(24),"Illegal Protocol");
 
     FreeURL(reqUrl);
    }
@@ -529,6 +541,9 @@ static void delete_req(int fd,char *req,int all,char *username,char *password,in
                  "all",all?"yes":"",
                  "error",err,
                  NULL);
+
+ if(err)
+    free(err);
 }
 
 
@@ -567,7 +582,7 @@ static void delete_mon(int fd,char *mon,int all,char *username,char *password,in
     if(monUrl->Protocol)
        err=DeleteMonitorSpoolFile(monUrl);
     else
-       err="Illegal Protocol";
+       err=strcpy((char*)malloc(24),"Illegal Protocol");
 
     FreeURL(monUrl);
    }
@@ -578,6 +593,9 @@ static void delete_mon(int fd,char *mon,int all,char *username,char *password,in
                  "all",all?"yes":"",
                  "error",err,
                  NULL);
+
+ if(err)
+    free(err);
 }
 
 
@@ -611,7 +629,7 @@ static void delete_url(int fd,char *url,int all,char *username,char *password,in
  if(urlUrl->Protocol)
     err=DeleteWebpageSpoolFile(urlUrl,!!all);
  else
-    err="Illegal Protocol";
+    err=strcpy((char*)malloc(24),"Illegal Protocol");
 
  HTMLMessageBody(fd,"ControlDelete-Body",
                  "count",count>0?count_str:"",
@@ -620,5 +638,7 @@ static void delete_url(int fd,char *url,int all,char *username,char *password,in
                  "error",err,
                  NULL);
 
+ if(err)
+    free(err);
  FreeURL(urlUrl);
 }

@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle-tools.c 1.38 2002/11/27 17:33:36 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle-tools.c 1.44 2004/02/14 14:03:18 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Tools for use in the cache for version 2.x.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -15,6 +15,7 @@
 
 #include "autoconfig.h"
 
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,7 +35,6 @@
 # endif
 #endif
 
-#include <utime.h>
 #include <sys/stat.h>
 
 #if HAVE_DIRENT_H
@@ -53,13 +53,13 @@
 #endif
 
 #include <fcntl.h>
-#include <errno.h>
 #include <grp.h>
 
 #include "wwwoffle.h"
-#include "version.h"
+#include "io.h"
 #include "misc.h"
 #include "errors.h"
+#include "version.h"
 #include "config.h"
 
 
@@ -90,9 +90,6 @@ static void wwwoffle_hash(URL *Url);
 
 static void ls(char *file);
 
-/*+ A file descriptor for the spool directory. +*/
-int fSpoolDir=-1;
-
 
 /*++++++++++++++++++++++++++++++++++++++
   The main program
@@ -100,7 +97,6 @@ int fSpoolDir=-1;
 
 int main(int argc,char **argv)
 {
- char cwd[PATH_MAX+1];
  struct stat buf;
  URL **Url=NULL;
  int mode=0;
@@ -213,7 +209,7 @@ int main(int argc,char **argv)
  else if(mode==WRITE && (argc!=2 || (argc>1 && !strcmp(argv[1],"--help"))))
    {fprintf(stderr,"Usage: wwwoffle-write [-c <config-file>] <URL>\n");exit(0);}
  else if(mode==HASH && (argc!=2 || (argc>1 && !strcmp(argv[1],"--help"))))
-   {fprintf(stderr,"Usage: [-c <config-file>] wwwoffle-hash <URL>\n");exit(0);}
+   {fprintf(stderr,"Usage: wwwoffle-hash [-c <config-file>] <URL>\n");exit(0);}
 
  /* Initialise */
 
@@ -223,18 +219,22 @@ int main(int argc,char **argv)
 
  if(config_file)
    {
-    init_buffer(2);
+    init_io(STDERR_FILENO);
 
-    if(ReadConfigurationFile(2))
+    if(ReadConfigurationFile(STDERR_FILENO))
        PrintMessage(Fatal,"Error in configuration file '%s'.",config_file);
+
+    finish_io(STDERR_FILENO);
    }
 
  umask(0);
 
- if(mode!=HASH && ((stat("outgoing",&buf) || !S_ISDIR(buf.st_mode)) ||
-                   (stat("http",&buf) || !S_ISDIR(buf.st_mode))))
+ if(mode==HASH)
+    ;
+ else if((stat("outgoing",&buf) || !S_ISDIR(buf.st_mode)) ||
+         (stat("http",&buf) || !S_ISDIR(buf.st_mode)))
    {
-    if(chdir(ConfigString(SpoolDir)))
+    if(ChangeToSpoolDir(ConfigString(SpoolDir)))
       {fprintf(stderr,"The %s program must be started from the spool directory\n"
                       "Cannot change to the '%s' directory.\n",argv0,ConfigString(SpoolDir));exit(1);}
     if((stat("outgoing",&buf) || !S_ISDIR(buf.st_mode)) ||
@@ -242,12 +242,14 @@ int main(int argc,char **argv)
       {fprintf(stderr,"The %s program must be started from the spool directory\n"
                       "There is no accessible 'outgoing' directory here so it can't be right.\n",argv0);exit(1);}
    }
+ else
+   {
+    char cwd[PATH_MAX+1];
 
-#if !defined(__CYGWIN__)
- fSpoolDir=open(".",O_RDONLY);
- if(fSpoolDir==-1)
-    PrintMessage(Fatal,"Cannot open the spool directory '%s' [%!s].",getcwd(cwd,PATH_MAX));
-#endif
+    getcwd(cwd,PATH_MAX);
+
+    ChangeToSpoolDir(cwd);
+   }
 
  /* Get the arguments */
 
@@ -376,10 +378,6 @@ int main(int argc,char **argv)
  else if(mode==HASH)
     wwwoffle_hash(Url[1]);
 
-#if !defined(__CYGWIN__)
- close(fSpoolDir);
-#endif
-
  exit(0);
 }
 
@@ -396,7 +394,7 @@ static void wwwoffle_ls(URL *Url)
    {PrintMessage(Warning,"Cannot change to directory '%s' [%!s].",Url->proto);return;}
 
  if(chdir(Url->dir))
-   {PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s].",Url->proto,Url->dir);fchdir(fSpoolDir);return;}
+   {PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s].",Url->proto,Url->dir);ChangeBackToSpoolDir();return;}
 
  if(strcmp(Url->path,"/"))
    {
@@ -413,23 +411,26 @@ static void wwwoffle_ls(URL *Url)
     DIR *dir=opendir(".");
 
     if(!dir)
-      {PrintMessage(Warning,"Cannot open current directory '%s/%s' [%!s].",Url->proto,Url->dir);fchdir(fSpoolDir);return;}
+      {PrintMessage(Warning,"Cannot open current directory '%s/%s' [%!s].",Url->proto,Url->dir);ChangeBackToSpoolDir();return;}
 
-    ent=readdir(dir);  /* skip .  */
+    ent=readdir(dir);
     if(!ent)
-      {PrintMessage(Warning,"Cannot read current directory '%s/%s' [%!s].",Url->proto,Url->dir);closedir(dir);fchdir(fSpoolDir);return;}
-    ent=readdir(dir);  /* skip .. */
+      {PrintMessage(Warning,"Cannot read current directory '%s/%s' [%!s].",Url->proto,Url->dir);closedir(dir);ChangeBackToSpoolDir();return;}
 
-    while((ent=readdir(dir)))
+    do
       {
+       if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+          continue; /* skip . & .. */
+
        if(*ent->d_name=='D' && ent->d_name[strlen(ent->d_name)-1]!='~')
           ls(ent->d_name);
       }
+    while((ent=readdir(dir)));
 
     closedir(dir);
    }
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 }
 
 
@@ -450,22 +451,25 @@ static void wwwoffle_ls_special(char *name)
  dir=opendir(".");
 
  if(!dir)
-   {PrintMessage(Warning,"Cannot open current directory '%s' [%!s].",name);fchdir(fSpoolDir);return;}
+   {PrintMessage(Warning,"Cannot open current directory '%s' [%!s].",name);ChangeBackToSpoolDir();return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
-   {PrintMessage(Warning,"Cannot read current directory '%s' [%!s].",name);closedir(dir);fchdir(fSpoolDir);return;}
- ent=readdir(dir);  /* skip .. */
+   {PrintMessage(Warning,"Cannot read current directory '%s' [%!s].",name);closedir(dir);ChangeBackToSpoolDir();return;}
 
- while((ent=readdir(dir)))
+ do
    {
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
     if((*ent->d_name=='D' || *ent->d_name=='O') && ent->d_name[strlen(ent->d_name)-1]!='~')
        ls(ent->d_name);
    }
+ while((ent=readdir(dir)));
 
  closedir(dir);
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 }
 
 
@@ -524,20 +528,22 @@ static void wwwoffle_mv(URL *Url1,URL *Url2)
    {PrintMessage(Warning,"Cannot change to directory '%s' [%!s].",Url1->proto);return;}
 
  if(chdir(Url1->dir))
-   {PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s].",Url1->proto,Url1->dir);fchdir(fSpoolDir);return;}
+   {PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s].",Url1->proto,Url1->dir);ChangeBackToSpoolDir();return;}
 
  dir=opendir(".");
 
  if(!dir)
-   {PrintMessage(Warning,"Cannot open current directory '%s/%s' [%!s].",Url1->proto,Url1->dir);fchdir(fSpoolDir);return;}
+   {PrintMessage(Warning,"Cannot open current directory '%s/%s' [%!s].",Url1->proto,Url1->dir);ChangeBackToSpoolDir();return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
-   {PrintMessage(Warning,"Cannot read current directory '%s/%s' [%!s].",Url1->proto,Url1->dir);closedir(dir);fchdir(fSpoolDir);return;}
- ent=readdir(dir);  /* skip .. */
+   {PrintMessage(Warning,"Cannot read current directory '%s/%s' [%!s].",Url1->proto,Url1->dir);closedir(dir);ChangeBackToSpoolDir();return;}
 
- while((ent=readdir(dir)))
+ do
    {
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
     if(*ent->d_name=='D')
       {
        char *url1=FileNameToURL(ent->d_name);
@@ -574,10 +580,14 @@ static void wwwoffle_mv(URL *Url1,URL *Url2)
           *name1=*name2='U';
           sprintf(path2,"../../%s/%s/%s",Url2->proto,Url2->dir,name2);
           fd2=open(path2,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,DEF_FILE_PERM);
-          init_buffer(fd2);
-          write_string(fd2,Url->name);
-          close(fd2);
-          unlink(name2);
+          if(fd2!=-1)
+            {
+             init_io(fd2);
+             write_string(fd2,Url->name);
+             finish_io(fd2);
+             close(fd2);
+             unlink(name2);
+            }
 
           free(url1);
           free(url2);
@@ -587,10 +597,11 @@ static void wwwoffle_mv(URL *Url1,URL *Url2)
          }
       }
    }
+ while((ent=readdir(dir)));
 
  closedir(dir);
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 }
 
 
@@ -623,8 +634,8 @@ static void wwwoffle_read(URL *Url)
  if(spool==-1)
     return;
 
- init_buffer(1);
- init_buffer(spool);
+ init_io(1);
+ init_io(spool);
 
  while((line=read_line(spool,line)))
    {
@@ -641,17 +652,14 @@ static void wwwoffle_read(URL *Url)
 
 #if USE_ZLIB
  if(compression)
-    init_zlib_buffer(spool,compression);
+    configure_io_read(spool,-1,compression,0);
 #endif
 
  while((n=read_data(spool,buffer,READ_BUFFER_SIZE))>0)
     write_data(1,buffer,n);
 
-#if USE_ZLIB
- if(compression)
-    finish_zlib_buffer(spool);
-#endif
-
+ finish_io(1);
+ finish_io(spool);
  close(spool);
 }
 
@@ -670,12 +678,14 @@ static void wwwoffle_write(URL *Url)
  if(spool==-1)
     return;
 
- init_buffer(0);
- init_buffer(spool);
+ init_io(0);
+ init_io(spool);
 
  while((n=read_data(0,buffer,READ_BUFFER_SIZE))>0)
     write_data(spool,buffer,n);
 
+ finish_io(0);
+ finish_io(spool);
  close(spool);
 }
 

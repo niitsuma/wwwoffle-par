@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configdata.c 2.133 2002/11/03 09:35:56 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configdata.c 2.147 2004/01/11 10:28:20 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Configuration data functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -15,19 +15,19 @@
 
 #include "autoconfig.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "wwwoffle.h"
+#include "io.h"
 #include "misc.h"
+#include "errors.h"
 #include "configpriv.h"
 #include "config.h"
 #include "sockets.h"
-#include "errors.h"
 
 
 #ifndef PATH_MAX
@@ -64,8 +64,8 @@ ConfigItem UseSyslog;
 ConfigItem PassWord;
 
 /*+ Maximum number of servers  +*/
-ConfigItem MaxServers;          /*+ in total. +*/
-ConfigItem MaxFetchServers;     /*+ for fetching. +*/
+ConfigItem MaxServers,          /*+ in total. +*/
+           MaxFetchServers;     /*+ for fetching. +*/
 
 /*+ The item definitions in the StartUp section. +*/
 static ConfigItemDef startup_itemdefs[]={
@@ -109,20 +109,23 @@ ConfigItem ConnectRetry;
 ConfigItem SSLAllowPort;
 
 /*+ The permissions for creation of +*/
-ConfigItem DirPerm;             /*+ directories. +*/
-ConfigItem FilePerm;            /*+ files. +*/
+ConfigItem DirPerm,             /*+ directories. +*/
+           FilePerm;            /*+ files. +*/
 
 /*+ The name of a progam to run when changing mode to +*/
-ConfigItem RunOnline;           /*+ online. +*/
-ConfigItem RunOffline;          /*+ offline. +*/
-ConfigItem RunAutodial;         /*+ auto dial. +*/
-ConfigItem RunFetch;            /*+ fetch (start or stop). +*/
+ConfigItem RunOnline,           /*+ online. +*/
+           RunOffline,          /*+ offline. +*/
+           RunAutodial,         /*+ auto dial. +*/
+           RunFetch;            /*+ fetch (start or stop). +*/
 
 /*+ The option to have lock files to stop some problems. +*/
 ConfigItem LockFiles;
 
-/*+ The option to reply with compressed content encoding. +*/
+/*+ The option to reply to the client with compressed content encoding. +*/
 ConfigItem ReplyCompressedData;
+
+/*+ The option to reply to the client with chunked transfer encoding. +*/
+ConfigItem ReplyChunkedData;
 
 /*+ The paths or file extensions that are allowed to be used for CGIs. +*/
 ConfigItem ExecCGI;
@@ -143,6 +146,7 @@ static ConfigItemDef options_itemdefs[]={
  {"run-fetch"            ,&RunFetch           ,0,0,Fixed,PathName   ,NULL       },
  {"lock-files"           ,&LockFiles          ,0,0,Fixed,Boolean    ,"no"       },
  {"reply-compressed-data",&ReplyCompressedData,0,0,Fixed,Boolean    ,"no"       },
+ {"reply-chunked-data"   ,&ReplyChunkedData   ,0,0,Fixed,Boolean    ,"no"       },
  {"exec-cgi"             ,&ExecCGI            ,0,1,Fixed,Url        ,NULL       }
 };
 
@@ -153,6 +157,12 @@ static ConfigSection options_section={"Options",
 
 
 /* OnlineOptions section. */
+
+/*+ The option to allow or ignore the 'Pragma: no-cache' request when online. +*/
+ConfigItem PragmaNoCacheOnline;
+
+/*+ The option to allow or ignore the 'Cache-Control: no-cache' request when online. +*/
+ConfigItem CacheControlNoCacheOnline;
 
 /*+ The maximum age of a cached page to use in preference while online. +*/
 ConfigItem RequestChanged;
@@ -169,6 +179,12 @@ ConfigItem RequestNoCache;
 /*+ The option to re-request pages that have status code 302 (temporary redirection).+*/
 ConfigItem RequestRedirection;
 
+/*+ The option to re-request pages with a conditional request.+*/
+ConfigItem RequestConditional;
+
+/*+ The option to use Etags as a cache validator.+*/
+ConfigItem ValidateWithEtag;
+
 /*+ The option to try and get the requested URL without a password as well as with. +*/
 ConfigItem TryWithoutPassword;
 
@@ -176,28 +192,40 @@ ConfigItem TryWithoutPassword;
 ConfigItem IntrDownloadKeep;
 
 /*+ The option to keep on downloading interrupted pages if +*/
-ConfigItem IntrDownloadSize;           /*+ smaller than a given size. +*/
-ConfigItem IntrDownloadPercent;        /*+ more than a given percentage complete. +*/
+ConfigItem IntrDownloadSize,           /*+ smaller than a given size. +*/
+           IntrDownloadPercent;        /*+ more than a given percentage complete. +*/
 
 /*+ The option to keep downloads that time out. +*/
 ConfigItem TimeoutDownloadKeep;
 
-/*+ The option to request compressed content encoding. +*/
+/*+ The option to keep cached pages in case of an error message from the remote server. +*/
+ConfigItem KeepCacheIfNotFound;
+
+/*+ The option to request from the server compressed content encoding. +*/
 ConfigItem RequestCompressedData;
+
+/*+ The option to request from the server chunked transfer encoding. +*/
+ConfigItem RequestChunkedData;
 
 /*+ The item definitions in the OnlineOptions section. +*/
 static ConfigItemDef onlineoptions_itemdefs[]={
- {"request-changed"        ,&RequestChanged       ,1,0,Fixed,TimeSecs  ,"10m"},
- {"request-changed-once"   ,&RequestChangedOnce   ,1,0,Fixed,Boolean   ,"yes"},
- {"request-expired"        ,&RequestExpired       ,1,0,Fixed,Boolean   ,"no" },
- {"request-no-cache"       ,&RequestNoCache       ,1,0,Fixed,Boolean   ,"no" },
- {"request-redirection"    ,&RequestRedirection   ,1,0,Fixed,Boolean   ,"no" },
- {"try-without-password"   ,&TryWithoutPassword   ,1,0,Fixed,Boolean   ,"yes"},
- {"intr-download-keep"     ,&IntrDownloadKeep     ,1,0,Fixed,Boolean   ,"no" },
- {"intr-download-size"     ,&IntrDownloadSize     ,1,0,Fixed,FileSize  ,"1"  },
- {"intr-download-percent"  ,&IntrDownloadPercent  ,1,0,Fixed,Percentage,"80" },
- {"timeout-download-keep"  ,&TimeoutDownloadKeep  ,1,0,Fixed,Boolean   ,"no" },
- {"request-compressed-data",&RequestCompressedData,1,0,Fixed,Boolean   ,"yes"}
+ {"pragma-no-cache"        ,&PragmaNoCacheOnline      ,1,0,Fixed,Boolean   ,"yes"},
+ {"cache-control-no-cache" ,&CacheControlNoCacheOnline,1,0,Fixed,Boolean   ,"yes"},
+ {"request-changed"        ,&RequestChanged           ,1,0,Fixed,TimeSecs  ,"10m"},
+ {"request-changed-once"   ,&RequestChangedOnce       ,1,0,Fixed,Boolean   ,"yes"},
+ {"request-expired"        ,&RequestExpired           ,1,0,Fixed,Boolean   ,"no" },
+ {"request-no-cache"       ,&RequestNoCache           ,1,0,Fixed,Boolean   ,"no" },
+ {"request-redirection"    ,&RequestRedirection       ,1,0,Fixed,Boolean   ,"no" },
+ {"request-conditional"    ,&RequestConditional       ,1,0,Fixed,Boolean   ,"yes"},
+ {"validate-with-etag"     ,&ValidateWithEtag         ,1,0,Fixed,Boolean   ,"yes"},
+ {"try-without-password"   ,&TryWithoutPassword       ,1,0,Fixed,Boolean   ,"yes"},
+ {"intr-download-keep"     ,&IntrDownloadKeep         ,1,0,Fixed,Boolean   ,"no" },
+ {"intr-download-size"     ,&IntrDownloadSize         ,1,0,Fixed,FileSize  ,"1"  },
+ {"intr-download-percent"  ,&IntrDownloadPercent      ,1,0,Fixed,Percentage,"80" },
+ {"timeout-download-keep"  ,&TimeoutDownloadKeep      ,1,0,Fixed,Boolean   ,"no" },
+ {"keep-cache-if-not-found",&KeepCacheIfNotFound      ,1,0,Fixed,Boolean   ,"no" },
+ {"request-compressed-data",&RequestCompressedData    ,1,0,Fixed,Boolean   ,"yes"},
+ {"request-chunked-data"   ,&RequestChunkedData       ,1,0,Fixed,Boolean   ,"yes"}
 };
 
 /*+ OnlineOptions section. +*/
@@ -208,11 +236,11 @@ static ConfigSection onlineoptions_section={"OnlineOptions",
 
 /* OfflineOptions section. */
 
-/*+ The option to allow or ignore the 'Pragma: no-cache' request. +*/
-ConfigItem PragmaNoCache;
+/*+ The option to allow or ignore the 'Pragma: no-cache' request when offline. +*/
+ConfigItem PragmaNoCacheOffline;
 
-/*+ The option to allow or ignore the 'Cache-Control: no-cache' request. +*/
-ConfigItem CacheControlNoCache;
+/*+ The option to allow or ignore the 'Cache-Control: no-cache' request when offline. +*/
+ConfigItem CacheControlNoCacheOffline;
 
 /*+ The option to not automatically make requests while offline but to need confirmation. +*/
 ConfigItem ConfirmRequests;
@@ -222,10 +250,10 @@ ConfigItem DontRequestOffline;
 
 /*+ The item definitions in the OfflineOptions section. +*/
 static ConfigItemDef offlineoptions_itemdefs[]={
- {"pragma-no-cache"       ,&PragmaNoCache      ,1,0,Fixed,Boolean,"yes"},
- {"cache-control-no-cache",&CacheControlNoCache,1,0,Fixed,Boolean,"yes"},
- {"confirm-requests"      ,&ConfirmRequests    ,1,0,Fixed,Boolean,"no" },
- {"dont-request"          ,&DontRequestOffline ,1,0,Fixed,Boolean,"no" }
+ {"pragma-no-cache"       ,&PragmaNoCacheOffline      ,1,0,Fixed,Boolean,"yes"},
+ {"cache-control-no-cache",&CacheControlNoCacheOffline,1,0,Fixed,Boolean,"yes"},
+ {"confirm-requests"      ,&ConfirmRequests           ,1,0,Fixed,Boolean,"no" },
+ {"dont-request"          ,&DontRequestOffline        ,1,0,Fixed,Boolean,"no" }
 };
 
 /*+ OfflineOptions section. +*/
@@ -245,6 +273,9 @@ ConfigItem FetchImages;
 /*+ The option to also fetch webbug images. +*/
 ConfigItem FetchWebbugImages;
 
+/*+ The option to also fetch icon images (favourite/shortcut icons). +*/
+ConfigItem FetchIconImages;
+
 /*+ The option to only fetch images from the same host. +*/
 ConfigItem FetchSameHostImages;
 
@@ -262,6 +293,7 @@ static ConfigItemDef fetchoptions_itemdefs[]={
  {"stylesheets"          ,&FetchStyleSheets   ,1,0,Fixed,Boolean,"no" },
  {"images"               ,&FetchImages        ,1,0,Fixed,Boolean,"no" },
  {"webbug-images"        ,&FetchWebbugImages  ,1,0,Fixed,Boolean,"yes"},
+ {"icon-images"          ,&FetchIconImages    ,1,0,Fixed,Boolean,"no" },
  {"only-same-host-images",&FetchSameHostImages,1,0,Fixed,Boolean,"no" },
  {"frames"               ,&FetchFrames        ,1,0,Fixed,Boolean,"no" },
  {"scripts"              ,&FetchScripts       ,1,0,Fixed,Boolean,"no" },
@@ -319,15 +351,12 @@ static ConfigSection indexoptions_section={"IndexOptions",
 /*+ The option to turn on the modifications in this section. +*/
 ConfigItem EnableHTMLModifications;
 
-/*+ The option to turn on the modifications when online. +*/
-ConfigItem EnableModificationsOnline;
-
 /*+ The option of a tag that can be added to the bottom of the spooled pages with the date and some buttons. +*/
 ConfigItem AddCacheInfo;
 
-/*+ The options to modify the anchor tags in the HTML. +*/
-ConfigItem AnchorModifyBegin[3];
-ConfigItem AnchorModifyEnd[3];
+/*+ The options to modify the anchor tags in the HTML +*/
+ConfigItem AnchorModifyBegin[3], /*+ (before the start tag). +*/
+           AnchorModifyEnd[3];   /*+ (after the end tag). +*/
 
 /*+ The option to disable scripts and scripted actions. +*/
 ConfigItem DisableHTMLScript;
@@ -344,11 +373,14 @@ ConfigItem DisableHTMLBlink;
 /*+ The option to disable Shockwave Flash animations. +*/
 ConfigItem DisableHTMLFlash;
 
-/*+ The option to disable any <meta http-equiv=refresh content=""> tags. +*/
+/*+ The option to disable any <meta http-equiv=Refresh content=""> tags. +*/
 ConfigItem DisableHTMLMetaRefresh;
 
-/*+ The option to disable any <meta http-equiv=refresh content=""> tags that refer to the same URL. +*/
+/*+ The option to disable any <meta http-equiv=Refresh content=""> tags that refer to the same URL. +*/
 ConfigItem DisableHTMLMetaRefreshSelf;
+
+/*+ The option to disable any <meta http-equiv=Set-Cookie content=""> tags. +*/
+ConfigItem DisableHTMLMetaSetCookie;
 
 /*+ The option to disable links (anchors) to pages in the DontGet list. +*/
 ConfigItem DisableHTMLDontGetAnchors;
@@ -377,7 +409,6 @@ ConfigItem DisableAnimatedGIF;
 /*+ The item definitions in the ModifyHTMLOptions section. +*/
 static ConfigItemDef modifyhtml_itemdefs[]={
  {"enable-modify-html"       ,&EnableHTMLModifications    ,1,0,Fixed,Boolean,"no"},
- {"enable-modify-online"     ,&EnableModificationsOnline  ,1,0,Fixed,Boolean,"no"},
  {"add-cache-info"           ,&AddCacheInfo               ,1,0,Fixed,Boolean,"no"},
  {"anchor-cached-begin"      ,&AnchorModifyBegin[0]       ,1,0,Fixed,String ,NULL},
  {"anchor-cached-end"        ,&AnchorModifyEnd[0]         ,1,0,Fixed,String ,NULL},
@@ -392,6 +423,7 @@ static ConfigItemDef modifyhtml_itemdefs[]={
  {"disable-flash"            ,&DisableHTMLFlash           ,1,0,Fixed,Boolean,"no"},
  {"disable-meta-refresh"     ,&DisableHTMLMetaRefresh     ,1,0,Fixed,Boolean,"no"},
  {"disable-meta-refresh-self",&DisableHTMLMetaRefreshSelf ,1,0,Fixed,Boolean,"no"},
+ {"disable-meta-set-cookie"  ,&DisableHTMLMetaSetCookie   ,1,0,Fixed,Boolean,"no"},
  {"disable-dontget-links"    ,&DisableHTMLDontGetAnchors  ,1,0,Fixed,Boolean,"no"},
  {"disable-dontget-iframes"  ,&DisableHTMLDontGetIFrames  ,1,0,Fixed,Boolean,"no"},
  {"replace-dontget-images"   ,&ReplaceHTMLDontGetImages   ,1,0,Fixed,Boolean,"no"},
@@ -541,14 +573,18 @@ static ConfigSection dontcompress_section={"DontCompress",
 /*+ The list of censored headers. +*/
 ConfigItem CensorHeader;
 
-/*+ Flags to cause the referer header to be mangled. +*/
-ConfigItem RefererSelf;
-ConfigItem RefererSelfDir;
+/*+ Flags to cause the 'Referer' header to be mangled +*/
+ConfigItem RefererSelf,    /*+ to point to itself. +*/
+           RefererSelfDir; /*+ to point to the parent directory. +*/
+
+/*+ A flag to cause a 'User-Agent' header always to be added. +*/
+ConfigItem ForceUserAgent;
 
 /*+ The item definitions in the censor headers section. +*/
 static ConfigItemDef censorheader_itemdefs[]={
  {"referer-self"    ,&RefererSelf   ,1,0,Fixed ,Boolean,"no"},
  {"referer-self-dir",&RefererSelfDir,1,0,Fixed ,Boolean,"no"},
+ {"force-user-agent",&ForceUserAgent,1,0,Fixed ,Boolean,"no"},
  {""                ,&CensorHeader  ,1,1,String,String ,NULL}
 };
 
@@ -567,8 +603,8 @@ ConfigItem FTPUserName;
 ConfigItem FTPPassWord;
 
 /*+ The information that is needed to allow non-anonymous access, +*/
-ConfigItem FTPAuthUser;         /*+ username +*/
-ConfigItem FTPAuthPass;         /*+ password +*/
+ConfigItem FTPAuthUser,         /*+ username. +*/
+           FTPAuthPass;         /*+ password. +*/
 
 /*+ The item definitions in the FTPOptions section. +*/
 static ConfigItemDef ftpoptions_itemdefs[]={
@@ -610,8 +646,8 @@ static ConfigSection mimetypes_section={"MIMETypes",
 ConfigItem Proxies;
 
 /*+ The information that is needed to allow authorisation headers to be added, +*/
-ConfigItem ProxyAuthUser;       /*+ username +*/
-ConfigItem ProxyAuthPass;       /*+ password +*/
+ConfigItem ProxyAuthUser,       /*+ username. +*/
+           ProxyAuthPass;       /*+ password. +*/
 
 /*+ The SSL proxy to use. +*/
 ConfigItem SSLProxy;
@@ -714,7 +750,7 @@ static ConfigSection *sections[]={&startup_section,
                                   &alias_section,
                                   &purge_section};
 
-/*+ The whole file +*/
+/*+ The contents of the whole configuration file. +*/
 ConfigFile CurrentConfig={DEF_CONFDIR "/wwwoffle.conf",sizeof(sections)/sizeof(ConfigSection*),sections};
 
 
@@ -772,16 +808,17 @@ void InitConfigurationFile(char *name)
 
  DefaultConfigFile();
 
- LoggingLevel=ConfigInteger(LogLevel);
+ SyslogLevel=ConfigInteger(LogLevel);
 
  SetDNSTimeout(ConfigInteger(DNSTimeout));
  SetConnectTimeout(ConfigInteger(ConnectTimeout));
- set_read_timeout(ConfigInteger(SocketTimeout));
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Read in the configuration file.
+
+  int ReadConfigurationFile Returns 0 on success or 1 on error.
 
   int fd The file descriptor to write the error message to.
   ++++++++++++++++++++++++++++++++++++++*/
@@ -802,11 +839,10 @@ int ReadConfigurationFile(int fd)
    }
  else
    {
-    LoggingLevel=ConfigInteger(LogLevel);
+    SyslogLevel=ConfigInteger(LogLevel);
 
     SetDNSTimeout(ConfigInteger(DNSTimeout));
     SetConnectTimeout(ConfigInteger(ConnectTimeout));
-    set_read_timeout(ConfigInteger(SocketTimeout));
 
     return(0);
    }

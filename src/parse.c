@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/parse.c 2.104 2002/12/08 16:54:27 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/parse.c 2.117 2004/01/17 16:31:45 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7h.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Functions to parse the HTTP requests.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -18,7 +18,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 #include <sys/types.h>
 #include <unistd.h>
@@ -37,8 +36,9 @@
 #include <sys/stat.h>
 
 #include "wwwoffle.h"
+#include "version.h"
+#include "io.h"
 #include "misc.h"
-#include "proto.h"
 #include "errors.h"
 #include "config.h"
 
@@ -68,7 +68,8 @@ static char *deleted_http11_headers[]={"If-Match",
                                        "If-Range",
                                        "Range",
                                        "Upgrade",
-                                       "Accept-Encoding"};
+                                       "Accept-Encoding",
+                                       "TE"};
 
 /*+ The headers from the request that are re-usable. +*/
 static /*@only@*/ Header *reusable_header;
@@ -89,14 +90,14 @@ static /*@only@*/ Header *reusable_header;
 char *ParseRequest(int fd,Header **request_head,Body **request_body)
 {
  char *url=NULL,*line=NULL,*val;
- int i,length=-1;
+ int i;
 
  *request_head=NULL;
  *request_body=NULL;
 
  reusable_header=CreateHeader("GET reusable HTTP/1.0\r\n",1);
 
- while((line=read_line_or_timeout(fd,line)))
+ while((line=read_line(fd,line)))
    {
     if(!*request_head) /* first line */
       {
@@ -117,16 +118,11 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
 
  /* Timeout or Connection lost? */
  
- if(!line || !*request_head)
+ if(!line || !url || !*request_head)
    {PrintMessage(Warning,"Nothing to read from the wwwoffle proxy socket; timed out or connection lost? [%!s]."); return(NULL);}
  else
     free(line);
  
- /* Find the content length */
-
- if((val=GetHeader(*request_head,"Content-Length")))
-    length=atoi(val);
-
  /* Find re-usable headers (for recursive requests) */
 
  for(i=0;i<sizeof(reusable_headers)/sizeof(char*);i++)
@@ -176,34 +172,66 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
  if(!strcmp("POST",(*request_head)->method) ||
     !strcmp("PUT",(*request_head)->method))
    {
-    if(length<0)
+    if((val=GetHeader(*request_head,"Content-Length")))
       {
-       PrintMessage(Warning,"POST or PUT request must have a valid Content-Length header.");
-       free(url);
-       return(NULL);
-      }
+       int length=atoi(val);
 
-    *request_body=CreateBody(length);
-
-    if(length)
-      {
-       int m,l=length;
-
-       do
+       if(length<0)
          {
-          m=read_data_or_timeout(fd,&(*request_body)->content[length-l],l);
-         }
-       while(m>0 && (l-=m));
-
-       if(l)
-         {
-          PrintMessage(Warning,"POST or PUT request must have data length specified in Content-Length header.");
+          PrintMessage(Warning,"POST or PUT request must have a positive Content-Length header.");
           free(url);
           return(NULL);
          }
-      }
 
-    (*request_body)->content[length]=0;
+       *request_body=CreateBody(length);
+
+       if(length)
+         {
+          int m,l=length;
+
+          do
+            {
+             m=read_data(fd,&(*request_body)->content[length-l],l);
+            }
+          while(m>0 && (l-=m));
+
+          if(l)
+            {
+             PrintMessage(Warning,"POST or PUT request must have same data length as specified in Content-Length header (%d compared to %d).",length,length-l);
+             free(url);
+             return(NULL);
+            }
+         }
+
+       (*request_body)->content[length]=0;
+      }
+    else if(GetHeader2(*request_head,"Transfer-Encoding","chunked"))
+      {
+       int length=0,m=0;
+
+       PrintMessage(Debug,"Client has used chunked encoding.");
+       configure_io_read(fd,-1,-1,1);
+
+       *request_body=CreateBody(0);
+
+       do
+         {
+          length+=m;
+          (*request_body)->length=length+READ_BUFFER_SIZE;
+          (*request_body)->content=(char*)realloc((void*)(*request_body)->content,(*request_body)->length+3);
+          m=read_data(fd,&(*request_body)->content[length],READ_BUFFER_SIZE);
+         }
+       while(m>0);
+
+       (*request_body)->content[length]=0;
+       (*request_body)->length=length;
+      }
+    else
+      {
+       PrintMessage(Warning,"POST or PUT request must have Content-Length header or use chunked encoding.");
+       free(url);
+       return(NULL);
+      }
 
     url=(char*)realloc((void*)url,strlen(url)+40);
 
@@ -324,11 +352,13 @@ int RequireChanges(int fd,Header *request_head,URL *Url)
                        DurationToString(now-buf.st_mtime),DurationToString(requestchanged));
           retval=0;
          }
+       else if(!ConfigBooleanURL(RequestConditional,Url))
+          retval=1;
        else
          {
           char *etag,*lastmodified;
 
-          if((etag=GetHeader(spooled_head,"Etag")))
+          if(ConfigBooleanURL(ValidateWithEtag,Url) && (etag=GetHeader(spooled_head,"Etag")))
             {
              AddToHeader(request_head,"If-None-Match",etag);
 
@@ -528,6 +558,17 @@ Header *RequestURL(URL *Url,char *referer)
 
 
 /*++++++++++++++++++++++++++++++++++++++
+  Finish with the reusable headers.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+void FinishParse(void)
+{
+ if(reusable_header)
+    FreeHeader(reusable_header);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
   Modify the request taking into account censoring of header and modified URL.
 
   URL *Url The actual URL.
@@ -625,6 +666,14 @@ void ModifyRequest(URL *Url,Header *request_head)
     PrintMessage(Debug,"CensorRequestHeader (RefererSelf) replaced '%s' by '%s'.",referer?referer:"(none)",Url->name);
     RemoveFromHeader(request_head,"Referer");
     AddToHeader(request_head,"Referer",Url->name);
+   }
+
+ /* Force the insertion of a User-Agent header */
+
+ if(ConfigBooleanURL(ForceUserAgent,Url) && !GetHeader(request_head,"User-Agent"))
+   {
+    PrintMessage(Debug,"CensorRequestHeader (ForceUserAgent) inserted '%s'.","WWWOFFLE/" WWWOFFLE_VERSION);
+    AddToHeader(request_head,"User-Agent","WWWOFFLE/" WWWOFFLE_VERSION);
    }
 
  /* Censor the header */
@@ -779,18 +828,25 @@ int ParseReply(int fd,Header **reply_head)
   int SpooledPageStatus Returns the status number.
 
   URL *Url The URL to check.
+
+  int backup A flag to indicate that the backup file is to be used.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int SpooledPageStatus(URL *Url)
+int SpooledPageStatus(URL *Url,int backup)
 {
  int status=0;
- int spool=OpenWebpageSpoolFile(1,Url);
+ int spool;
 
- init_buffer(spool);
+ if(backup)
+    spool=OpenBackupWebpageSpoolFile(Url);
+ else
+    spool=OpenWebpageSpoolFile(1,Url);
 
  if(spool!=-1)
    {
     char *reply;
+
+    init_io(spool);
 
     reply=read_line(spool,NULL);
 
@@ -800,9 +856,9 @@ int SpooledPageStatus(URL *Url)
        free(reply);
       }
 
+    finish_io(spool);
     close(spool);
    }
-
 
  return(status);
 }
@@ -811,9 +867,9 @@ int SpooledPageStatus(URL *Url)
 /*++++++++++++++++++++++++++++++++++++++
   Decide which compression that we can use for the reply to the client.
 
-  int AcceptWhichCompression Returns the compression method, 1 for deflate and 2 for gzip.
+  int WhichCompression Returns the compression method, 1 for deflate and 2 for gzip.
 
-  char *content_encoding The string representing the content encoding the browser/server used.
+  char *content_encoding The string representing the content encoding the client/server used.
   ++++++++++++++++++++++++++++++++++++++*/
 
 int WhichCompression(char *content_encoding)
@@ -836,24 +892,14 @@ int WhichCompression(char *content_encoding)
 
  FreeHeaderList(list);
 
- /* ---------- NOTE ----------
-
- Mozilla (version <0.9.8) has a bug: http://bugzilla.mozilla.org/show_bug.cgi?id=105292
-
- It asks for deflate compression, but cannot handle it!
-
- When deflate and gzip have equal quality factor choose gzip.
-
- I would prefer to use deflate since it is slightly smaller.
-
- ---------- NOTE ---------- */
+ /* Deflate is a last resort, see comment in iozlib.c. */
 
  if(q_identity>q_gzip && q_identity>q_deflate)
     retval=0;
- else if(q_deflate>0 && q_deflate>q_gzip) /* Should use '>=' but see note above. */
-    retval=1;
- else if(q_gzip>0 && q_gzip>=q_deflate)   /* Should use '>' but see note above. */
+ else if(q_gzip>0)
     retval=2;
+ else if(q_deflate>0)
+    retval=1;
 
  return(retval);
 }
@@ -882,7 +928,7 @@ void ModifyReply(URL *Url,Header *reply_head)
  AddToHeader(reply_head,"Connection","close");
  AddToHeader(reply_head,"Proxy-Connection","close");
 
- /* Send errors instead when we see Location headers that send the browser to a blocked page. */
+ /* Send errors instead when we see Location headers that send the client to a blocked page. */
  
  if(ConfigBooleanURL(DontGetLocation,Url))
    {

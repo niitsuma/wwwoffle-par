@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/finger.c 1.16 2002/06/23 15:05:22 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/finger.c 1.20 2003/12/14 10:53:53 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Functions for getting URLs using Finger.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1998,99,2000,01 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -18,11 +18,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <unistd.h>
-
 #include "wwwoffle.h"
-#include "errors.h"
+#include "io.h"
 #include "misc.h"
+#include "errors.h"
 #include "config.h"
 #include "sockets.h"
 #include "proto.h"
@@ -69,10 +68,13 @@ char *Finger_Open(URL *Url)
  /* Open the connection. */
 
  server=OpenClientSocket(hoststr,server_port);
- init_buffer(server);
 
  if(server==-1)
-    msg=PrintMessage(Warning,"Cannot open the Finger connection to %s port %d; [%!s].",hoststr,server_port);
+    msg=GetPrintMessage(Warning,"Cannot open the Finger connection to %s port %d; [%!s].",hoststr,server_port);
+
+ init_io(server);
+ configure_io_read(server,ConfigInteger(SocketTimeout),0,0);
+ configure_io_write(server,ConfigInteger(SocketTimeout),0,0);
 
  RejoinHostPort(server_host,hoststr,portstr);
 
@@ -110,7 +112,7 @@ char *Finger_Request(URL *Url,Header *request_head,/*@unused@*/ Body *request_bo
     PrintMessage(ExtraDebug,"Outgoing Request Head (to proxy)\n%s",head);
 
     if(write_string(server,head)==-1)
-       msg=PrintMessage(Warning,"Failed to write to remote Finger proxy; [%!s].");
+       msg=GetPrintMessage(Warning,"Failed to write to remote Finger proxy; [%!s].");
 
     free(head);
 
@@ -128,12 +130,12 @@ char *Finger_Request(URL *Url,Header *request_head,/*@unused@*/ Body *request_bo
  if(*user)
    {
     if(write_formatted(server,"/W %s\r\n",user)==-1)
-       msg=PrintMessage(Warning,"Failed to write to remote Finger server; [%!s].");
+       msg=GetPrintMessage(Warning,"Failed to write to remote Finger server; [%!s].");
    }
  else
    {
     if(write_string(server,"/W\r\n")==-1)
-       msg=PrintMessage(Warning,"Failed to write to remote Finger server; [%!s].");
+       msg=GetPrintMessage(Warning,"Failed to write to remote Finger server; [%!s].");
    }
 
  free(user);
@@ -185,7 +187,7 @@ int Finger_ReadHead(Header **reply_head)
 
 int Finger_ReadBody(char *s,int n)
 {
- return(read_data_or_timeout(server,s,n));
+ return(read_data(server,s,n));
 }
 
 
@@ -197,5 +199,11 @@ int Finger_ReadBody(char *s,int n)
 
 int Finger_Close(void)
 {
+ unsigned long r,w;
+
+ finish_tell_io(server,&r,&w);
+
+ PrintMessage(Inform,"Server bytes; %d Read, %d Written.",r,w); /* Used in audit-usage.pl */
+
  return(CloseSocket(server));
 }

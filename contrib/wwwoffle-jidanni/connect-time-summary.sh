@@ -1,7 +1,7 @@
 #                               -*- Mode: Sh -*- 
 # connect-time-summary.sh -- find ppp connect time for this month so far
 # Copyright       : GNU General Public License
-# Author          : Dan Jacobson -- http://www.geocities.com/jidanni/
+# Author          : Dan Jacobson -- http://jidanni.org/
 # Created On      : Feb 2001
 # Last Modified By: root
 # Last Modified On: Sun Oct 28 05:35:37 2001

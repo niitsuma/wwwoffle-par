@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/connect.c 2.37 2002/08/04 10:28:10 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/connect.c 2.47 2004/01/11 10:28:49 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Handle WWWOFFLE connections received by the demon.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -35,11 +35,12 @@
 #include <signal.h>
 
 #include "wwwoffle.h"
-#include "version.h"
+#include "io.h"
 #include "misc.h"
-#include "config.h"
 #include "errors.h"
+#include "config.h"
 #include "sockets.h"
+#include "version.h"
 
 
 /*+ The time that the program went online. +*/
@@ -51,9 +52,6 @@ extern time_t OfflineTime;
 /*+ The server sockets that we listen on +*/
 extern int http_fd[2],          /*+ for the HTTP connections. +*/
            wwwoffle_fd[2];      /*+ for the WWWOFFLE connections. +*/
-
-/*+ The proxy server that we use. +*/
-extern char *proxy;
 
 /*+ The online / offline / autodial status. +*/
 extern int online;
@@ -84,9 +82,6 @@ extern int purge_pid;
 /*+ The current status, fetching or not. +*/
 extern int fetching;
 
-/*+ Set to 1 when the demon is to shutdown. +*/
-extern int closedown;
-
 /*+ True if the -f option was passed on the command line. +*/
 extern int nofork;
 
@@ -101,7 +96,7 @@ void CommandConnect(int client)
 {
  char *line=NULL;
 
- if(!(line=read_line_or_timeout(client,line)))
+ if(!(line=read_line(client,line)))
    {PrintMessage(Warning,"Nothing to read from the wwwoffle control socket [%!s]."); return;}
 
  if(strncmp(line,"WWWOFFLE ",9))
@@ -134,7 +129,7 @@ void CommandConnect(int client)
        return;
       }
 
-    if(!(line=read_line_or_timeout(client,line)))
+    if(!(line=read_line(client,line)))
       {PrintMessage(Warning,"Unexpected end of wwwoffle control command [%!s]."); return;}
 
     if(strncmp(line,"WWWOFFLE ",9))
@@ -160,6 +155,9 @@ void CommandConnect(int client)
 
     OnlineTime=time(NULL);
     online=1;
+
+    if(fetch_fd!=-1)
+       fetching=1;
    }
  else if(!strncmp(&line[9],"AUTODIAL",8))
    {
@@ -194,7 +192,10 @@ void CommandConnect(int client)
  else if(!strncmp(&line[9],"FETCH",5))
    {
     if(fetch_fd!=-1)
+      {
+       fetching=1;
        write_string(client,"WWWOFFLE Already Fetching.\n"); /* Used in wwwoffle.c */
+      }
     else if(online==0)
        write_string(client,"WWWOFFLE Must be online or autodial to fetch.\n"); /* Used in wwwoffle.c */
     else
@@ -227,6 +228,14 @@ void CommandConnect(int client)
 
     PrintMessage(Important,"WWWOFFLE Finished Re-reading Configuration File.");
    }
+ else if(!strncmp(&line[9],"DUMP",4))
+   {
+    PrintMessage(Important,"WWWOFFLE Dumping Configuration File."); /* Used in audit-usage.pl */
+
+    DumpConfigFile(client);
+
+    PrintMessage(Important,"WWWOFFLE Finished Dumping Configuration File.");
+   }
  else if(!strncmp(&line[9],"PURGE",5))
    {
     pid_t pid;
@@ -251,7 +260,13 @@ void CommandConnect(int client)
     else
       {
        if(fetch_fd!=-1)
+         {
+          finish_io(fetch_fd);
           CloseSocket(fetch_fd);
+         }
+
+       /* These four sockets don't need finish_io() calling because they never
+          had init_io() called, they are just bound to a port listening. */
 
        if(http_fd[0]!=-1) CloseSocket(http_fd[0]);
        if(http_fd[1]!=-1) CloseSocket(http_fd[1]);
@@ -265,6 +280,9 @@ void CommandConnect(int client)
 
        write_string(client,"WWWOFFLE Purge Finished.\n");
        PrintMessage(Important,"WWWOFFLE Purge finished.");
+
+       finish_io(client);
+       CloseSocket(client);
 
        exit(0);
       }
@@ -336,7 +354,7 @@ void CommandConnect(int client)
     write_string(client,"WWWOFFLE Kill Signalled.\n");
     PrintMessage(Important,"WWWOFFLE Kill."); /* Used in audit-usage.pl */
 
-    closedown=1;
+    raise(SIGINT);
    }
  else
    {
@@ -376,7 +394,13 @@ void ForkRunModeScript(char *filename,char *mode,char *arg,int client)
  else if(!pid) /* The child */
    {
     if(fetch_fd!=-1)
+      {
+       finish_io(fetch_fd);
        CloseSocket(fetch_fd);
+      }
+
+    /* These four sockets don't need finish_io() calling because they never
+       had init_io() called, they are just bound to a port listening. */
 
     if(http_fd[0]!=-1) CloseSocket(http_fd[0]);
     if(http_fd[1]!=-1) CloseSocket(http_fd[1]);
@@ -384,7 +408,10 @@ void ForkRunModeScript(char *filename,char *mode,char *arg,int client)
     if(wwwoffle_fd[1]!=-1) CloseSocket(wwwoffle_fd[1]);
 
     if(client!=fetch_fd)
+      {
+       finish_io(client);
        CloseSocket(client);
+      }
 
     if(arg)
        execl(filename,filename,mode,arg,NULL);
@@ -400,18 +427,20 @@ void ForkRunModeScript(char *filename,char *mode,char *arg,int client)
 /*++++++++++++++++++++++++++++++++++++++
   Fork a wwwoffles server.
 
-  int client The file descriptor that the data comes in on.
-
-  int browser Set to true if there is a browser connection.
+  int fd The file descriptor that the data is transfered on.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void ForkServer(int client,int browser)
+void ForkServer(int fd)
 {
  pid_t pid;
  int i;
+ int fetcher=0;
+
+ if(fetching && fetch_fd==fd)
+    fetcher=1;
 
  if(nofork)
-    wwwoffles(online,browser,client);
+    wwwoffles(online,fetcher,fd);
  else if(!nofork && (pid=fork())==-1)
     PrintMessage(Warning,"Cannot fork a server [%!s].");
  else if(pid) /* The parent */
@@ -422,7 +451,7 @@ void ForkServer(int client,int browser)
 
     n_servers++;
 
-    if(online!=0 && !browser)
+    if(online!=0 && fetcher)
       {
        for(i=0;i<max_fetch_servers;i++)
           if(fetch_pids[i]==0)
@@ -432,21 +461,27 @@ void ForkServer(int client,int browser)
       }
 
     /* Used in audit-usage.pl */
-    PrintMessage(Inform,"Forked wwwoffles -%s (pid=%d).",online==1?browser?"real":"fetch":online==-1?"autodial":"spool",pid);
+    PrintMessage(Inform,"Forked wwwoffles -%s (pid=%d).",online==1?(fetcher?"fetch":"real"):(online==-1?"autodial":"spool"),pid);
    }
  else /* The child */
    {
     int status;
 
-    if(fetch_fd!=-1 && fetch_fd!=client)
+    if(fetch_fd!=-1 && fetch_fd!=fd)
+      {
+       finish_io(fetch_fd);
        CloseSocket(fetch_fd);
+      }
+
+    /* These four sockets don't need finish_io() calling because they never
+       had init_io() called, they are just bound to a port listening. */
 
     if(http_fd[0]!=-1) CloseSocket(http_fd[0]);
     if(http_fd[1]!=-1) CloseSocket(http_fd[1]);
     if(wwwoffle_fd[0]!=-1) CloseSocket(wwwoffle_fd[0]);
     if(wwwoffle_fd[1]!=-1) CloseSocket(wwwoffle_fd[1]);
 
-    status=wwwoffles(online,browser,client);
+    status=wwwoffles(online,fetcher,fd);
 
     exit(status);
    }

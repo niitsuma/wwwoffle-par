@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <!--
@@ -6,6 +6,7 @@
 Available WWWOFFLE Variables (all with a '$' prefix).
 
 localhost = The hostname of the server running wwwoffled (='$localhost').
+version   = The version of the WWWOFFLE server (='$version').
 url       = The URL that was asked for (='$url').
 
 $decurl=%decode[url]
@@ -13,50 +14,58 @@ $decurl=%decode[url]
 -->
 
 <HEAD>
-<TITLE>WWWOFFLE - Serwer nie jest buforowany</TITLE>
 <META http-equiv="Content-Type" content="text/html; charset=ISO-8859-2">
+<TITLE>WWWOFFLE - Serwer nie jest buforowany</TITLE>
+<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
-<BODY>
+<BODY class="wwwoffle-message">
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<!-- Standard WWWOFFLE Message Page Header Start -->
 
-<p align=center>
-<b>WWWOFFLE</b> - <b>E</b>ksplorator <b>Offl</b>ine <b>W</b>orld <b>W</b>ide <b>W</b>eb
-</p>
+<div class="wwwoffle-header" align="center">
+<b>WWWOFFLE</b> <b>-</b> <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer <b>-</b> <b>v$version</b>
+</div>
+<hr class="wwwoffle-header">
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Header End -->
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<H1 align="center">WWWOFFLE: Serwer nie jest buforowany</H1>
 
-<H1 align=center>WWWOFFLE: Serwer nie jest buforowany</H1>
-
-<p align=center>
+<div class="wwwoffle-message" align="center">
 Twoja prośba pobrania URL'a
-<br>
+<p class="wwwoffle-url">
 <b><tt>$decurl</tt></b>
-<br>
+</p>
 nie powiodła się, ponieważ znajduje się on na liście serwerów i/lub ścieżek,
 które nia mają być buforowane, więc nie można ich wyświetlić w trybie offline.
-</p>
+</div>
 
-<h2>Pomoc</h2>
+<!-- Standard WWWOFFLE Message Page Inline Help Start -->
 
+<h2 class="wwwoffle-inline-help">Pomoc</h2>
+
+<div class="wwwoffle-inline-help">
 Serwer proxy WWWOFFLE został skonfigurowany tak, aby ten URL nie były
 buforowany, a pobieranie go było dozwolone tylko w trybie online. Opcja ta jest
 kontrolowana w sekcji <tt>DontCache</tt> pliku konfiguracji
 <tt>wwwoffle.conf</tt>. Plik konfiguracji zawiera informacje o tym, jak określić
 serwery, które nie będą buforowane.
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Inline Help End -->
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
-<p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Strona Powitalna</a>|<a href="http://$localhost/FAQ.html">Pytania i Odpowiedzi</a>] - WWWOFFLE
-</p>
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
+WWWOFFLE - [ \
+<a href="http://$localhost/Welcome.html">Strona Powitalna</a>| \
+<a href="http://$localhost/FAQ.html">Pytania i Odpowiedzi</a> \
+] - WWWOFFLE
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/search.c 1.24 2002/11/28 18:53:49 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/search.c 1.32 2004/03/07 17:35:14 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
   Handle the interface to the ht://Dig, mnoGoSearch (UdmSearch) and Namazu search engines.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -53,16 +53,13 @@
 
 #include <fcntl.h>
 #include <sys/wait.h>
+#include <errno.h>
 
 #include "wwwoffle.h"
+#include "io.h"
 #include "misc.h"
-#include "proto.h"
-#include "config.h"
 #include "errors.h"
-
-
-/*+ The file descriptor of the spool directory. +*/
-extern int fSpoolDir;
+#include "proto.h"
 
 
 static void SearchIndex(int fd,URL *Url);
@@ -72,10 +69,10 @@ static void SearchIndexHost(int fd,char *proto,char *host);
 static void SearchIndexLastTime(int fd);
 
 static void HTSearch(int fd,char *args);
-
 static void mnoGoSearch(int fd,char *args);
-
 static void Namazu(int fd,char *args);
+
+static void SearchScript(int fd,char *args,char *name,char *script,char *path);
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -219,7 +216,6 @@ static void SearchIndexProtocol(int fd,char *proto)
 {
  DIR *dir;
  struct dirent* ent;
- struct stat buf;
 
  /* Open the spool directory. */
 
@@ -228,16 +224,21 @@ static void SearchIndexProtocol(int fd,char *proto)
 
  dir=opendir(".");
  if(!dir)
-   {fchdir(fSpoolDir);return;}
+   {ChangeBackToSpoolDir();return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
-   {closedir(dir);fchdir(fSpoolDir);return;}
- ent=readdir(dir);  /* skip .. */
+   {closedir(dir);ChangeBackToSpoolDir();return;}
 
  /* Output all of the host sub-directories. */
 
- while((ent=readdir(dir)))
+ do
+   {
+    struct stat buf;
+
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
     if(!stat(ent->d_name,&buf) && S_ISDIR(buf.st_mode))
       {
 #if defined(__CYGWIN__)
@@ -250,10 +251,12 @@ static void SearchIndexProtocol(int fd,char *proto)
 
        write_formatted(fd,"<a href=\"%s/\"> </a>\n",ent->d_name);
       }
+   }
+ while((ent=readdir(dir)));
 
  closedir(dir);
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 }
 
 
@@ -274,7 +277,6 @@ static void SearchIndexHost(int fd,char *proto,char *host)
 #endif
  DIR *dir;
  struct dirent* ent;
- char *url;
 
  /* Open the spool subdirectory. */
 
@@ -290,20 +292,25 @@ static void SearchIndexHost(int fd,char *proto,char *host)
 #endif
 
  if(chdir(host))
-   {fchdir(fSpoolDir);return;}
+   {ChangeBackToSpoolDir();return;}
 
  dir=opendir(".");
  if(!dir)
-   {fchdir(fSpoolDir);return;}
+   {ChangeBackToSpoolDir();return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
-   {closedir(dir);fchdir(fSpoolDir);return;}
- ent=readdir(dir);  /* skip .. */
+   {closedir(dir);ChangeBackToSpoolDir();return;}
 
  /* Output all of the file names. */
 
- while((ent=readdir(dir)))
+ do
+   {
+    char *url;
+
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
     if(*ent->d_name=='D' && (url=FileNameToURL(ent->d_name)))
       {
        URL *Url=SplitURL(url);
@@ -316,10 +323,12 @@ static void SearchIndexHost(int fd,char *proto,char *host)
        FreeURL(Url);
        free(url);
       }
+   }
+ while((ent=readdir(dir)));
 
  closedir(dir);
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 }
 
 
@@ -333,7 +342,6 @@ static void SearchIndexLastTime(int fd)
 {
  DIR *dir;
  struct dirent* ent;
- char *url;
 
  /* Open the spool subdirectory. */
 
@@ -342,16 +350,21 @@ static void SearchIndexLastTime(int fd)
 
  dir=opendir(".");
  if(!dir)
-   {fchdir(fSpoolDir);return;}
+   {ChangeBackToSpoolDir();return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
-   {closedir(dir);fchdir(fSpoolDir);return;}
- ent=readdir(dir);  /* skip .. */
+   {closedir(dir);ChangeBackToSpoolDir();return;}
 
  /* Output all of the file names. */
 
- while((ent=readdir(dir)))
+ do
+   {
+    char *url;
+
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
     if(*ent->d_name=='D' && (url=FileNameToURL(ent->d_name)))
       {
        URL *Url=SplitURL(url);
@@ -364,10 +377,12 @@ static void SearchIndexLastTime(int fd)
        FreeURL(Url);
        free(url);
       }
+   }
+ while((ent=readdir(dir)));
 
  closedir(dir);
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 }
 
 
@@ -381,52 +396,7 @@ static void SearchIndexLastTime(int fd)
 
 static void HTSearch(int fd,char *args)
 {
- pid_t pid;
-
- if((pid=fork())==-1)
-   PrintMessage(Warning,"Cannot fork to call htsearch; [%!s].");
- else if(pid)
-   {
-    int status;
-
-    wait(&status);
-
-    if(WIFEXITED(status) && WEXITSTATUS(status)==0)
-       return;
-   }
- else
-   {
-    if(fd!=1)
-      {
-       close(1);
-       dup(fd);
-       close(fd);
-      }
-
-    write_string(1,"HTTP/1.0 200 htsearch output\r\n");
-
-    putenv("REQUEST_METHOD=GET");
-    if(args)
-      {
-       char *query=(char*)malloc(strlen(args)+16);
-       sprintf(query,"QUERY_STRING=%s",args);
-       putenv(query);
-      }
-    else
-       putenv("QUERY_STRING=");
-    putenv("SCRIPT_NAME=htsearch");
-    execl("search/htdig/scripts/wwwoffle-htsearch","search/htdig/scripts/wwwoffle-htsearch",NULL);
-    PrintMessage(Warning,"Cannot exec search/htdig/scripts/wwwoffle-htsearch; [%!s]");
-    exit(1);
-   }
-
- lseek(fd,0,SEEK_SET);
- init_buffer(fd);
- ftruncate(fd,0);
-
- HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",
-             "error","Problem running ht://Dig htsearch program.",
-             NULL);
+ SearchScript(fd,args,"htdig","htsearch","search/htdig/scripts/wwwoffle-htsearch");
 }
 
 
@@ -440,52 +410,7 @@ static void HTSearch(int fd,char *args)
 
 static void mnoGoSearch(int fd,char *args)
 {
- pid_t pid;
-
- if((pid=fork())==-1)
-    PrintMessage(Warning,"Cannot fork to call mnogosearch; [%!s].");
- else if(pid)
-   {
-    int status;
-
-    wait(&status);
-
-    if(WIFEXITED(status) && WEXITSTATUS(status)==0)
-       return;
-   }
- else
-   {
-    if(fd!=1)
-      {
-       close(1);
-       dup(fd);
-       close(fd);
-      }
-
-    write_string(1,"HTTP/1.0 200 mnogosearch output\r\n");
-
-    putenv("REQUEST_METHOD=GET");
-    if(args)
-      {
-       char *query=(char*)malloc(strlen(args)+16);
-       sprintf(query,"QUERY_STRING=%s",args);
-       putenv(query);
-      }
-    else
-       putenv("QUERY_STRING=");
-    putenv("SCRIPT_NAME=mnogosearch");
-    execl("search/mnogosearch/scripts/wwwoffle-mnogosearch","search/mnogosearch/scripts/wwwoffle-mnogosearch",NULL);
-    PrintMessage(Warning,"Cannot exec search/mnogosearch/scripts/wwwoffle-mnogosearch; [%!s]");
-    exit(1);
-   }
-
- lseek(fd,0,SEEK_SET);
- init_buffer(fd);
- ftruncate(fd,0);
-
- HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",
-             "error","Problem running mnoGoSearch search program.",
-             NULL);
+ SearchScript(fd,args,"mnogosearch","mnogosearch","search/mnogosearch/scripts/wwwoffle-mnogosearch");
 }
 
 
@@ -499,11 +424,51 @@ static void mnoGoSearch(int fd,char *args)
 
 static void Namazu(int fd,char *args)
 {
+ SearchScript(fd,args,"namazu","namazu","search/namazu/scripts/wwwoffle-namazu");
+}
+
+
+/* A macro definition that makes environment variable setting a little easier. */
+#define putenv_var_val(variable,value) \
+{ \
+  char *envstr=(char *)malloc(sizeof(variable "=")+strlen(value)); \
+  strcpy(envstr,variable "="); \
+  strcpy(envstr+sizeof(variable),value); \
+  if(putenv(envstr)==-1) \
+     env_err=1; \
+}
+
+/*++++++++++++++++++++++++++++++++++++++
+  Perform a search using one of the three search methods.
+
+  int fd The file descriptor to write to.
+
+  char *args The arguments of the request.
+
+  char *name The name of the search method.
+
+  char* script The name of the script.
+
+  char* path The path to the script to execute.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+static void SearchScript(int fd,char *args,char *name,char *script,char *path)
+{
  pid_t pid;
 
  if((pid=fork())==-1)
-    PrintMessage(Warning,"Cannot fork to call namazu; [%!s].");
- else if(pid)
+   {
+    PrintMessage(Warning,"Cannot fork to call %s search script; [%!s].",name);
+
+    lseek(fd,0,SEEK_SET);
+    ftruncate(fd,0);
+    reinit_io(fd);
+
+    HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",
+                "error","Problem running search program.",
+                NULL);
+   }
+ else if(pid) /* parent */
    {
     int status;
 
@@ -512,37 +477,66 @@ static void Namazu(int fd,char *args)
     if(WIFEXITED(status) && WEXITSTATUS(status)==0)
        return;
    }
- else
+ else /* child */
    {
-    if(fd!=1)
+    int cgi_fd;
+    int env_err=0;
+
+    close(STDIN_FILENO);
+    cgi_fd=open("/dev/null",O_RDONLY);
+    if(cgi_fd!=STDIN_FILENO)
       {
-       close(1);
-       dup(fd);
-       close(fd);
+       if(dup2(cgi_fd,STDIN_FILENO)==-1)
+          PrintMessage(Fatal,"Cannnot create standard input for %s search script [%!s].",name);
+       close(cgi_fd);
       }
 
-    write_string(1,"HTTP/1.0 200 namazu output\r\n");
+    if(fd!=STDOUT_FILENO)
+      {
+       close(STDOUT_FILENO);
+       if(dup2(fd,STDOUT_FILENO)==-1)
+          PrintMessage(Fatal,"Cannnot create standard output for %s search script [%!s].",name);
+       finish_io(fd);
+       close(fd);
+       init_io(STDOUT_FILENO);
+      }
 
-    putenv("REQUEST_METHOD=GET");
+    if(dup(STDERR_FILENO)==-1 && errno==EBADF) /* stderr is not open */
+      {
+       cgi_fd=open("/dev/null",O_WRONLY);
+
+       if(cgi_fd!=STDERR_FILENO)
+         {
+          if(dup2(cgi_fd,STDERR_FILENO)==-1)
+             PrintMessage(Fatal,"Cannnot create standard error for %s search script [%!s].",name);
+          close(cgi_fd);
+         }
+      }
+
+    write_formatted(STDOUT_FILENO,"HTTP/1.0 200 %s search output\r\n",name);
+
+    /*@-mustfreefresh@*/
+
+    putenv_var_val("REQUEST_METHOD","GET");
+
     if(args)
       {
-       char *query=(char*)malloc(strlen(args)+16);
-       sprintf(query,"QUERY_STRING=%s",args);
-       putenv(query);
+       putenv_var_val("QUERY_STRING",args);
       }
     else
+      {
        putenv("QUERY_STRING=");
-    putenv("SCRIPT_NAME=namazu");
-    execl("search/namazu/scripts/wwwoffle-namazu","search/namazu/scripts/wwwoffle-namazu",NULL);
-    PrintMessage(Warning,"Cannot exec search/namazu/scripts/wwwoffle-namazu; [%!s]");
+      }
+
+    putenv_var_val("SCRIPT_NAME",script);
+
+    if(env_err)
+       PrintMessage(Fatal,"Failed to create environment for %s search script [%!s].",name);
+
+    /*@=mustfreefresh@*/
+
+    execl(path,path,NULL);
+    PrintMessage(Warning,"Cannot exec %s search script %s [%!s]",name,path);
     exit(1);
    }
-
- lseek(fd,0,SEEK_SET);
- init_buffer(fd);
- ftruncate(fd,0);
-
- HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",
-             "error","Problem running Namazu search program.",
-             NULL);
 }

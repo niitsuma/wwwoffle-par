@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <!--
@@ -6,6 +6,7 @@
 WWWOFFLE : Variables disponibles (mettre le prefixe '$').
 
 localhost = Le serveur sur lequel wwwoffled tourne (='$localhost').
+version   = The version of the WWWOFFLE server (='$version').
 url       = L'URL demande; (='$url').
 cache     = Etiquette indiquant si la page est presente en cache ou sur le 
             navigateur (='$cache').
@@ -17,70 +18,80 @@ reason    = Etiquette indiquant la cause (='$reason').
             ...             - Another reason.
 
 $decurl=%decode[url]
+$encurl=%encode[url]
 
 -->
 
 <HEAD>
 <TITLE>WWWOFFLE - Erreur du Serveur Distant</TITLE>
+<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
-<BODY>
+<BODY class="wwwoffle-message">
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<!-- Standard WWWOFFLE Message Page Header Start -->
 
-<p align=center>
-<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
-</p>
+<div class="wwwoffle-header" align="center">
+<b>WWWOFFLE</b> <b>-</b> <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer <b>-</b> <b>v$version</b>
+</div>
+<hr class="wwwoffle-header">
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Header End -->
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<H1 align="center">WWWOFFLE Erreur du serveur distant</H1>
 
-<H1 align=center>WWWOFFLE Erreur du serveur distant</H1>
-
-<p align=center>
+<div class="wwwoffle-message" align="center">
 Votre requ&ecirc;te pour l'URL
-<br>
+<p class="wwwoffle-url">
 <b><tt>$decurl</tt></b>
-<br>
+</p>
 a &eacute;chou&eacute; car
-
-<br>
+<p class="wwwoffle-error">
 $reason?=TimeoutReply
 {le serveur distant n'a pas r&eacute;pondu dans les temps.
 $done="yes"}{}
 $reason?=TimeoutTransfer
 {le serveur distant n'a pas pu envoyer une partie des donn&eacute;es dans les temps
 $done="yes"}{}
-$reason?=CompressCorrupt
-{le serveur distant a enoy&eacute; des donn&eacute;es commpress&eacute;es, et la d&eacute;compression a &eacute;chou&eacute;.
+$reason?=DataCorrupt
+{The remote host sent compressed or encoded data that could not be uncompressed or decoded.
 $done="yes"}{}
 $reason?=ClientClose
 {Le client (navigateur) a ferm&eacute; la connexion pendant le transfert
 $done="yes"}{}
-$done?{}{<b>$reason</b>}
-<br>
+$done?{}{$reason}
 </p>
-
-<p>
 $cache?
 {Ce message d'erreur a maintenant &eacute;t&eacute; retir&eacute; du cache.}
 {}
-
 <p>
 $backup?
 {Le rafra&icirc;chissement de cette page renverra la version pr&eacute;c&eacute;dente.}
 {Le rafra&icirc;chissement de cette page provoquera une nouvelle requ&ecirc;te.}
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<div class="wwwoffle-nav" align="center">
+[ \
+Cancel| \
+<a href="http://$localhost/refresh/?$encurl">Refresh</a>: \
+<a href="http://$localhost/refresh-options/?$encurl">Options</a>| \
+<a href="http://$localhost/monitor-options/?$encurl">Monitor</a>| \
+<a href="http://$localhost/index/url?$encurl">Index</a>| \
+<a href="http://$localhost/configuration/url?$encurl">Configure</a> \
+]
+</div>
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
-<p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Page d'accueil</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
-</p>
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
+WWWOFFLE - [ \
+<a href="http://$localhost/Welcome.html">Page d'accueil</a>| \
+<a href="http://$localhost/FAQ.html">FAQ</a> \
+] - WWWOFFLE
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

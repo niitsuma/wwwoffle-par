@@ -171,9 +171,6 @@ Options contrôlant la modification du HTML mémorisé.
 ITEM enable-modify-html
 [<URL-SPEC>] enable-modify-html = yes | no
 Active la modification du HTML dans cette section (défaut=no). Sans cette option, les suivantes resteront sans effet. Avec cette option, il y aura un petit ralentissement.
-ITEM enable-modify-online
-[<URL-SPEC>] enable-modify-online = yes | no
-Active aussi la modification en ligne. Ceci fera attendre l'affichage du HTML et des images GIF jusqu'à traitement complet par WWWOFFLE. Ceci ne s'applique pas aux pages non mémorisées.
 ITEM add-cache-info
 [<URL-SPEC>] add-cache-info = yes | no
 À la fin des pages mémorisées apparaîtra la date et quelques liens (défaut=no).

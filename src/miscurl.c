@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/miscurl.c 2.79 2002/10/04 16:52:41 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/miscurl.c 2.84 2004/01/17 16:27:51 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Miscellaneous HTTP / HTML Url Handling functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -21,8 +21,8 @@
 #include <ctype.h>
 
 #include "misc.h"
-#include "proto.h"
 #include "config.h"
+#include "proto.h"
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -156,6 +156,7 @@ URL *SplitURL(char *url)
    {
     *ques++=0;
     Url->args=URLRecodeFormArgs(ques);
+    URLReplaceAmp(Url->args);
    }
  else
     Url->args=NULL;
@@ -450,6 +451,8 @@ char *LinkURL(URL *Url,char *link)
     new=(char*)malloc(strlen(Url->proto)+strlen(Url->host)+strlen(link)+4);
     sprintf(new,"%s://%s%s",Url->proto,Url->host,link);
    }
+ else if(!strncasecmp(link,"mailto:",7))
+    /* "mailto:" doesn't follow the rule of ':' before '/'. */ ;
  else
    {
     int j;
@@ -464,7 +467,7 @@ char *LinkURL(URL *Url,char *link)
 
        strcpy(new+j+1,link);
 
-       CanonicaliseName(new);
+       CanonicaliseName(new+strlen(Url->proto)+3+strlen(Url->host));
       }
    }
 
@@ -569,7 +572,7 @@ char *CanonicaliseHost(char *host)
        ipv6[cs]&=0xffff;
 
     if(port)
-       sprintf(newhost,"[%x:%x:%x:%x:%x:%x:%x:%x]:%d",
+       sprintf(newhost,"[%x:%x:%x:%x:%x:%x:%x:%x]:%u",
                ipv6[0],ipv6[1],ipv6[2],ipv6[3],ipv6[4],ipv6[5],ipv6[6],ipv6[7],port&0xffff);
     else
        sprintf(newhost,"[%x:%x:%x:%x:%x:%x:%x:%x]",
@@ -609,7 +612,7 @@ char *CanonicaliseHost(char *host)
        port=strtoul(colon+1,NULL,0);
 
     if(port)
-       sprintf(newhost,"%u.%u.%u.%u:%d",ipv4[0],ipv4[1],ipv4[2],ipv4[3],port&0xffff);
+       sprintf(newhost,"%u.%u.%u.%u:%u",ipv4[0],ipv4[1],ipv4[2],ipv4[3],port&0xffff);
     else
        sprintf(newhost,"%u.%u.%u.%u",ipv4[0],ipv4[1],ipv4[2],ipv4[3]);
 

@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <HTML>
 
 <!--
@@ -6,6 +6,7 @@
 Available WWWOFFLE Variables (all with a '$' prefix).
 
 localhost = The hostname of the server running wwwoffled (='$localhost').
+version   = The version of the WWWOFFLE server (='$version').
 url       = The URL that was asked for (='$url').
 
 $decurl=%decode[url]
@@ -14,52 +15,59 @@ $decurl=%decode[url]
 
 <HEAD>
 <TITLE>Kann Ihre POST oder PUT Anfrage nicht aktualisieren</TITLE>
+<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
-<BODY align=center>
+<BODY class="wwwoffle-message">
 
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<!-- Standard WWWOFFLE Message Page Header Start -->
 
-<p>
-<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
-</p>
+<div class="wwwoffle-header" align="center">
+<b>WWWOFFLE</b> <b>-</b> <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer <b>-</b> <b>v$version</b>
+</div>
+<hr class="wwwoffle-header">
 
-<hr>
-
-<!-- Standard WWWOFFLE Message Page Top Banner -->
+<!-- Standard WWWOFFLE Message Page Header End -->
 
 <H1>Kann Ihre POST oder PUT Anfrage nicht aktualisieren</H1>
 
-<p>
+<div class="wwwoffle-message" align="center">
 Ihre erneute Anfrage nach der URL
-<br>
+<p class="wwwoffle-url">
 <b><tt>$decurl</tt></b>
-<br>
+</p>
 ist fehlgeschlagen, da es generell nicht m&ouml;glich ist, Antworten von POST
 oder PUT Anfragen zu aktualisieren.
-</p>
+</div>
 
+<!-- Standard WWWOFFLE Message Page Inline Help Start -->
 
-<h3>Hilfe</h3>
+<h3 class="wwwoffle-inline-help">Hilfe</h3>
 
+<div  class="wwwoffle-inline-help">
 Die Information, die f&uuml;r die Anfrage der Seite ben&ouml;tigt wird, ist nicht
 mehr verf&uuml;gbar. Ihr Browser hat z.B. Eingaben eines Formulars mit der
 Anfrage mitgesendet, und diese Informationen wurden von WWWOFFLE nicht
-gespeichert.<p>
-
+gespeichert.
+<p>
 Die einzige M&ouml;glichkeit zum erneuten Abrufen ist zur&uuml;ck zu dem Formular zu
 gehen und es noch einmal abzuschicken, oder (falls es kein Formular war) die
 hochgeladene Seite noch einmal hochzuladen.
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Inline Help End -->
 
-<hr>
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
-<p>
-[<a href="http://$localhost/Welcome.html">Willkommensseite</a>|<a href="http://$localhost/FAQ.html">FAQ</a>]
-</p>
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
+WWWOFFLE - [ \
+<a href="http://$localhost/Welcome.html">Willkommensseite</a>| \
+<a href="http://$localhost/FAQ.html">FAQ</a> \
+] - WWWOFFLE
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

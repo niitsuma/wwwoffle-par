@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/uncompress-cache.c 1.11 2001/12/30 19:36:22 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/uncompress-cache.c 1.17 2004/02/14 14:03:18 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Uncompress the cache.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1998,99,2000,01 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -52,13 +52,13 @@
 
 #include <utime.h>
 #include <fcntl.h>
-#include <errno.h>
 
 #include "wwwoffle.h"
-#include "version.h"
+#include "io.h"
 #include "misc.h"
 #include "errors.h"
 #include "config.h"
+#include "version.h"
 
 
 /*+ Need this for Win32 to use binary mode +*/
@@ -73,10 +73,6 @@
 static void UncompressProto(char *proto);
 static void UncompressHost(char *proto,char *host);
 #endif
-
-
-/*+ A file descriptor for the spool directory. +*/
-int fSpoolDir=-1;
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -133,10 +129,12 @@ int main(int argc,char** argv)
 
  if(config_file)
    {
-    init_buffer(2);
+    init_io(STDERR_FILENO);
 
-    if(ReadConfigurationFile(2))
+    if(ReadConfigurationFile(STDERR_FILENO))
        PrintMessage(Fatal,"Error in configuration file '%s'.",config_file);
+
+    finish_io(STDERR_FILENO);
    }
 
  umask(0);
@@ -148,14 +146,8 @@ int main(int argc,char** argv)
  else
     spool_dir=argv[1];
 
- if(chdir(spool_dir))
+ if(ChangeToSpoolDir(spool_dir))
     PrintMessage(Fatal,"Cannot change to the spool directory '%s' [%!s]; uncompression failed.",spool_dir);
-
-#if !defined(__CYGWIN__)
- fSpoolDir=open(".",O_RDONLY);
- if(fSpoolDir==-1)
-    PrintMessage(Fatal,"Cannot open the spool directory '%s' [%!s]; uncompression failed.",spool_dir);
-#endif
 
  /* Create the new spool directory. */
 
@@ -182,14 +174,10 @@ int main(int argc,char** argv)
          {
           UncompressProto(proto);
 
-          fchdir(fSpoolDir);
+          ChangeBackToSpoolDir();
          }
       }
    }
-
-#if !defined(__CYGWIN__)
- close(fSpoolDir);
-#endif
 
  return(0);
 
@@ -223,15 +211,17 @@ static void UncompressProto(char *proto)
  if(!dir)
    {PrintMessage(Warning,"Cannot open spool directory '%s' [%!s]; uncompression failed.",proto);return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
    {PrintMessage(Warning,"Cannot read spool directory '%s' [%!s]; uncompression failed.",proto);closedir(dir);return;}
- ent=readdir(dir);  /* skip .. */
 
  /* Go through each entry. */
 
- while((ent=readdir(dir)))
+ do
    {
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
     if(stat(ent->d_name,&buf))
        PrintMessage(Warning,"Cannot stat file '%s/%s' [%!s] not uncompressed.",proto,ent->d_name);
     else if(S_ISDIR(buf.st_mode))
@@ -244,11 +234,12 @@ static void UncompressProto(char *proto)
 
           UncompressHost(proto,ent->d_name);
 
-          fchdir(fSpoolDir);
+          ChangeBackToSpoolDir();
           chdir(proto);
          }
       }
    }
+ while((ent=readdir(dir)));
 
  closedir(dir);
 }
@@ -280,22 +271,23 @@ static void UncompressHost(char *proto,char *host)
  if(!dir)
    {PrintMessage(Warning,"Cannot open spool directory '%s/%s' [%!s]; uncompression failed.",proto,host);return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
    {PrintMessage(Warning,"Cannot read spool directory '%s/%s' [%!s]; uncompression failed.",proto,host);closedir(dir);return;}
- ent=readdir(dir);  /* skip .. */
 
  /* Go through each entry. */
 
- while((ent=readdir(dir)))
+ do
    {
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
     if(!stat(ent->d_name,&buf) && *ent->d_name=='D' && S_ISREG(buf.st_mode))
       {
        ubuf.actime=buf.st_atime;
        ubuf.modtime=buf.st_mtime;
 
        ifd=open(ent->d_name,O_RDONLY|O_BINARY);
-       init_buffer(ifd);
 
        if(ifd==-1)
          {
@@ -303,29 +295,33 @@ static void UncompressHost(char *proto,char *host)
           continue;
          }
 
+       init_io(ifd);
+
        ParseReply(ifd,&spool_head);
 
        if(spool_head && GetHeader2(spool_head,"Pragma","wwwoffle-compressed"))
          {
           printf("    %s\n",ent->d_name);
 
-          init_zlib_buffer(ifd,2);
+          configure_io_read(ifd,-1,2,0);
 
           zfile=(char*)malloc(strlen(ent->d_name)+4);
           strcpy(zfile,ent->d_name);
           strcat(zfile,".z");
 
           ofd=open(zfile,O_WRONLY|O_BINARY|O_CREAT|O_TRUNC,buf.st_mode&07777);
-          init_buffer(ofd);
 
           if(ofd==-1)
             {
              PrintMessage(Inform,"Cannot open file '%s/%s/%s' to uncompress to [%!s].",proto,host,zfile);
              FreeHeader(spool_head);
+             finish_io(ifd);
              close(ifd);
              utime(ent->d_name,&ubuf);
              continue;
             }
+
+          init_io(ofd);
 
           RemoveFromHeader(spool_head,"Content-Encoding");
           RemoveFromHeader2(spool_head,"Pragma","wwwoffle-compressed");
@@ -338,8 +334,10 @@ static void UncompressHost(char *proto,char *host)
           while((n=read_data(ifd,buffer,READ_BUFFER_SIZE))>0)
              write_data(ofd,buffer,n);
 
-          finish_zlib_buffer(ifd);
+          finish_io(ifd);
+          close(ifd);
 
+          finish_io(ofd);
           close(ofd);
 
 #if DO_RENAME
@@ -358,10 +356,10 @@ static void UncompressHost(char *proto,char *host)
        if(spool_head)
           FreeHeader(spool_head);
 
-       close(ifd);
        utime(ent->d_name,&ubuf);
       }
    }
+ while((ent=readdir(dir)));
 
  closedir(dir);
 }

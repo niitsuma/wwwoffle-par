@@ -1,3 +1,159 @@
+Version 2.8c of WWWOFFLE released : Sat Jun 12 16:00:00 2004
+------------------------------------------------------------
+
+Bug Fixes:
+ Don't hang up when reply-chunked-data is true and doing SSL connections.  Don't
+ output WWWOFFLE error page if local CGI output anything.  Fix CGI & search file
+ descriptor problem.  Print correct number of bytes read from ftp server.
+ Remove memory leak.  Add missing header to FTP redirect and don't crash.  Fix
+ upgrade-config.pl script handling of DOS format files.  Use correct name for
+ keep-cache-if-not-found option webpage template.  Make '-d 0' and '-d0' work
+ the same for wwwoffle.  Fix passworded pages with changing transfer encodings.
+ Fix problem with missing spacers when sorting by date changed.  Add
+ hints to the web pages on how to monitor a URL with special options.  Fix bad
+ spacing in the monitor form.  Make sure that new temporary files and log file
+ have sensible permissions.  Remove possible crash using configuration pages
+ adding item to empty section.  Clarify some error messages and documentation.
+
+*NOTE* See the important notes for version 2.8 as well.
+
+
+Version 2.8b of WWWOFFLE released : Sat Feb 14 14:30:00 2004
+------------------------------------------------------------
+
+Bug Fixes:
+ Don't write compressed or chunked error messages to the cache.  Count raw bytes
+ when deciding if to continue interrupted download.  Don't continue interrupted
+ download unless keeping it.  Display dates up to 1 year in the monitor index.
+ Fix for 64 bits machines in md5.c.  Warn user if /etc/wwwoffle.conf exists when
+ installing.  Fix memory corruption problem in CGI code.  Remove crash in info
+ pages for replies with no Content-Type.  Remove socket timeouts in wwwoffle
+ program because they are in server.  Don't let the WDG HTML validator request
+ any pages.  Fix some comments, remove unused variables make unneeded global
+ variables static.  Add some more pointer checks, free unfreed memory, remove
+ unused function arguments.  Don't overwrite the existing outgoing file when
+ requesting URL.  Handle file systems where the directory entries are not in the
+ conventional order.
+
+Documentation:
+ Add more examples in wwwoffle.conf.  
+ Update INSTALL document on permissions after installation.
+ Update FAQ to say that WWWOFFLE might need restarting if changing resolv.conf.
+ Updated the Dutch translated message pages (from Paul Slootman).
+
+New Features:
+ Added an option to the wwwoffle program to dump the current configuration.
+ Added a -l option to the wwwoffled server to specify a log file location.
+ Sending a SIGHUP to the wwwoffled server closes and re-opens the log file.
+ Number of bytes transferred from/to the server/client is written to the log.
+ Updated audit-usage.pl to display bytes transferred information.
+ If 'wwwoffle -offline' stopped fetching 'wwwoffle -online|-fetch' restarts it.
+ Add in the keep-cache-if-not-found option (based on Paul Rombouts patch).
+
+
+*NOTE* See the important notes for version 2.8 as well.
+
+
+Version 2.8a of WWWOFFLE released : Tue Dec 2 18:45:00 2003
+-----------------------------------------------------------
+
+Bug Fixes:
+ Fix compilation problems on Win32 (Cygwin).  Fixed upgrade-config.pl script
+ error with WWWOFFLE User-Agent.  Fixed bugs with detecting type of compressed
+ data.  Fixed compilation problems with dietlibc.  Fix installation permission
+ problems.  Added additional paths to search scripts.  Perform a cleaner socket
+ shutdown.  Fixed CSS in wwwoffle.css file.  Fix potential and actual problems
+ with io functions.
+
+New Features:
+ Modify response headers before performing HTML modifications.
+
+Documentation:
+ Added FAQ question about Content-Length header.
+
+
+*NOTE* See the important notes for version 2.8 as well.
+
+
+Version 2.8 of WWWOFFLE released : Mon Oct 6 18:30:00 2003
+----------------------------------------------------------
+
+Bug Fixes:
+ Fix some portability problems (C++ comments, flex specifics).  Increase the
+ recursion limit for Location headers (now 8).
+
+
+*NOTE* The enable-modify-online option has been removed (there is now no extra
+       penalty to pay to perform modifications online compared to offline)
+
+*NOTE* The default location for the configuration file(s) is now /etc/wwwoffle/.
+
+
+Version 2.8-beta of WWWOFFLE released : Thu Sep 4 19:00:00 2003
+---------------------------------------------------------------
+
+Bug Fixes:
+ Fix some small memory leaks.  Purge unmatched O* and U* files from outgoing.
+ Improve spool error messages.  Validate the -d option in wwwoffled.  Keep the
+ config file permissions when writing new one.  Don't call freeaddrinfo(NULL).
+ Running 'wwwoffle URL' when online now actually fetches the URL.  Improve
+ lexical analyser code for EOF condition, speed and new version of flex.  Remove
+ some lockfile race conditions.  Better handling of non-ASCII URLs when parsing.
+ The info page for a URL now shows all links.  Index sorting by file type is
+ case insensitive.  Handle &amp; in HTML tags like '&'.  Better memory freeing
+ in certain cases.  Make the wwwoffle -[drR] options handle spaces before
+ number.  Allow wwwoffle program to request recursive fetching of depth 0.  FTP
+ requests with passwords work like HTTP.  Running 'wwwoffle http://www/bar#foo'
+ now does the right thing.  Correctly handle recursive fetch options.  Running
+ 'wwwoffle http://aaa:bbb@www.foo/bar' now does the right thing.  Allow files on
+ the local web server with spaces in them.  Fix overwriting of old error message
+ with page.  Remove title attributes from DontGet images when modifying.  Check
+ form entries for unwanted whitespace.
+
+New Features:
+ Chunked encoding from servers and to clients is now possible.
+ Changed all HTML output to HTML 4.01 DTD and validated most output pages.
+ Added in a WWWOFFLE stylesheet and some styles to the internal web pages.
+ Removed the use of temporary files between server/cache and client.
+ Remove the Content-Length header on all transfers to clients.
+ Added a parser for CSS (Stylesheets) to detect included files and images.
+ The default directory for configuration files is /etc/wwwoffle.
+ Remove the enable-modify-online option (no penalty for modifying online).
+ Handle deflate compression (the commonly implemented but wrong version).
+ Guess the compression type coming from servers (don't believe the headers).
+ Stop infinite recursion when following Location headers or Meta Refresh tags.
+ Stop infinite recursion if images are actually HTML (e.g. non-404 error pages).
+ Fetch images etc in pages with error status codes.
+
+New Options
+ Added options to enable chunked encoding from servers and to clients.
+ Added an option to disable the use of Etag as a cache validator.
+ Added an option to force the insertion of a User-Agent header.
+ Added an option to not make conditional requests to specified hosts.
+ Added an option to fetch the favourite/shortcut icons automatically.
+ The *-no-cache options now appear in OnlineOptions and OfflineOptions.
+ Add an option to disable cookies from being set by HTML meta tags.
+
+Programs:
+ Added '-g' option to wwwoffle to fetch no images, stylesheets etc.
+
+
+*NOTE* The enable-modify-online option has been removed (there is now no extra
+       penalty to pay to perform modifications online compared to offline)
+
+*NOTE* The default location for the configuration file(s) is now /etc/wwwoffle/.
+
+
+Version 2.7i of WWWOFFLE never released
+---------------------------------------
+
+Bug Fixes:
+ Allow viewing Javascript source in info pages.  Make parsing of monitor option
+ day/hour ranges more robust.  Show correct times for URLs monitored every
+ hour.  Remove newline from end of line when calling syslog.  Preserve username
+ and password in FTP links.
+
+
 Version 2.7h of WWWOFFLE released : Sun Jan 12 09:30:00 2003
 ------------------------------------------------------------
 
@@ -11,15 +167,13 @@ Bug Fixes:
 *NOTE* This version contains some security related fixes and should be used in
        preference to earlier versions.
 
-*NOTE* See also the important notes for version 2.7 listed below.
-
 
 Version 2.7g of WWWOFFLE released : Sat Nov 30 09:30:00 2002
 ------------------------------------------------------------
 
 Bug Fixes:
  When modifying HTML links to same page are displayed as cached.  Only censor
- headers for SSL if using another proxy.  Don't refetch FTP files of the same
+ headers for SSL if using another proxy.  Don't re-fetch FTP files of the same
  date as cached one.  Change some HTTP error codes to 500 instead of 200.
  Insert empty ALT tags when removing images.  Delete zero length cached files
  when requested offline.  Fix parsing of '-c' option in wwwoffle-tools.
@@ -42,8 +196,6 @@ New Features:
 *NOTE* A lot of the message pages have been modified, if any of the WWWOFFLE
        generated HTML pages look different it may be a bug has been introduced.
 
-*NOTE* See also the important notes for version 2.7 listed below.
-
 
 Version 2.7f of WWWOFFLE released : Sat Sep 28 20:45:00 2002
 ------------------------------------------------------------
@@ -51,7 +203,7 @@ Version 2.7f of WWWOFFLE released : Sat Sep 28 20:45:00 2002
 Bug Fixes:
  Fix the Set-Cookie problem again.  Convert German characters with umlauts when
  generating HTML from text.  Fix for partial decompression of gzipped pages.
- Close the client socket if the remote end cannot be determined.  Fixed namazu
+ Close the client socket if the remote end cannot be determined.  Fixed Namazu
  indexing script path error.  Don't attempt to modify HTML if the page is
  compressed.  Bug fix for allowing URL-SPECs to contain '='.
 
@@ -59,9 +211,6 @@ New Features:
  Updated German translations (most were in v2.7e also) including README.CONF.
  Added a new question to the FAQ about startup error/warning messages.
  Several new items have been added to the contrib directory.
-
-
-*NOTE* See the important notes for version 2.7 listed below.
 
 
 Version 2.7e of WWWOFFLE released : Sat Aug 31 11:30:00 2002
@@ -83,9 +232,6 @@ New Features:
  The monitor options page now accepts ranges of hours or days (e.g. '1-5').
 
 
-*NOTE* See the important notes for version 2.7 listed below.
-
-
 Version 2.7d of WWWOFFLE released : Sun Jul 28 16:30:00 2002
 ------------------------------------------------------------
 
@@ -99,8 +245,6 @@ Bug Fixes:
 
 *NOTE* This version contains some security related fixes and should be used in
        preference to earlier versions.
-
-*NOTE* See the important notes for version 2.7 listed below.
 
 
 Version 2.7c of WWWOFFLE released : Sun Jul 7 11:00:00 2002
@@ -125,11 +269,8 @@ New Features:
  The confirm-requests option now asks for confirmation for page reloads.
 
 Documentation:
- Update FAQ to reference privoxy as well as JunkBuster.
+ Update FAQ to reference Privoxy as well as JunkBuster.
  Describe how to modify htdig templates to work with WWWOFFLE.
-
-
-*NOTE* See the important notes for version 2.7 listed below.
 
 
 Version 2.7b of WWWOFFLE released : Sun Apr 21 17:45:00 2002
@@ -148,9 +289,6 @@ Bug Fixes:
 
 New Features:
   Allow CGI scripts to be used with the built-in web server.
-
-
-*NOTE* See the important notes for version 2.7 listed below.
 
 
 Version 2.7a of WWWOFFLE released : Sun Mar 10 16:00:00 2002
@@ -176,14 +314,11 @@ New Features:
  The upgrade-config.pl script warns about URL-SPECs with path='/' not '/*'.
 
 
-*NOTE* See the important notes for version 2.7 listed below.
-
-
 Version 2.7 of WWWOFFLE released : Sat Feb 9 17:00:00 2002
 ----------------------------------------------------------
 
 Bug Fixes:
- Another fix for javascript in HTML modifications.  Stop uncompress-cache from
+ Another fix for Javascript in HTML modifications.  Stop uncompress-cache from
  crashing on zero length files.  Include sys/time.h in various files.  Fix
  another bug with script removal when modifying HTML.  Make 'wwwoffle URL' put
  a request in outgoing in all cases.  Fix the configuration editing when there
@@ -197,7 +332,7 @@ Bug Fixes:
 
 New Features:
  Added the option to re-request URLs that contain a redirection to another URL.
- Display the current value of the item in the configuration url page.
+ Display the current value of the item in the configuration URL page.
  Make the referer-self and referer-self-dir options add headers if none present.
  Disable HTML modifications when a 'Cache-Control: no-transform' header is seen.
 
@@ -391,8 +526,8 @@ Bug Fixes:
  items in the configuration file.
 
 Win32 Bug Fixes:
- Fixed logfile opening problem. Added a fchdir() function for cygwin.
- Workaround cygwin socket closing problem. Change the makefile for cygwin
+ Fixed logfile opening problem. Added a fchdir() function for Cygwin.
+ Workaround Cygwin socket closing problem. Change the makefile for Cygwin
  installation (don't auto install .dll or .bat).
 
 Documentation:
@@ -514,7 +649,7 @@ Version 2.5c of WWWOFFLE released : Sat Dec 18 17:00:00 1999
 
 Bug Fixes:
  Check that the filesystem block size is non-zero before purging.  Make sure
- that SocketTimeout and ConnectTimeout are initialised.  Allow SSL tunneling to
+ that SocketTimeout and ConnectTimeout are initialised.  Allow SSL tunnelling to
  local network when offline.  Improved HTML parser (fixes Javascript breakage).
  Handle servers that fail to send a reply header.  Fixed POST requests to root
  directory (e.g. seti@home).  Fixed HEAD requests when online.  Made portable to
@@ -664,7 +799,7 @@ Bug Fixes:
  parsing.  Security fix for local web server and paths with '..'.  Make
  recursive fetching of URLs with passwords work.  Deleting a URL now deletes it
  from the lasttime/prevtime indexes also.  Allow strange characters in web-page
- passwords.  Fix a file handle leak with the builtin web server.
+ passwords.  Fix a file handle leak with the built-in web server.
 
 Win32 Bug Fixes:
  Fix the call of the htsearch script.  Open spool files in binary mode.
@@ -720,7 +855,7 @@ Version 2.4 of WWWOFFLE released : Sat Dec 12 13:30:00 1998
 Bug Fixes:
  Compilation problem on FreeBSD.  Socket name problem on Win32.  Improved the
  handling of comments in the configuration edit page.  Don't modify HTML links
- for protocols that WWWOFFLE does not handle.  Re-instate the HEAD method, but
+ for protocols that WWWOFFLE does not handle.  Reinstate the HEAD method, but
  still broken.  Remove whitespace in message HTML page language parsing.  Bug
  fixes for upgrade-config.pl.  Stop infinite recursion when fetching pages with
  cyclic links.  Fix the configuration edit textareas for HTML special
@@ -748,7 +883,7 @@ Purging:
 
 Server features:
  Added in support for the ht://Dig search engine.
- Allow Secure Socket Layer (SSL) (e.g. https) transparent proxying (tunneling).
+ Allow Secure Socket Layer (SSL) (e.g. https) transparent proxying (tunnelling).
  Disallow HTTP methods other than GET, POST and CONNECT.
  Allow the monitor interval to be set in more complex ways (more configurable).
  Enable links in HTML documents to be modified depending if it is cached or not.
@@ -768,7 +903,7 @@ Configuration File:
 Version 2.3e of WWWOFFLE released : Wed Nov 4 18:50:00 1998
 ------------------------------------------------------------
 
-Changes to compile and run on WIN32 platforms using the Cygnus cygwin dev kit.
+Changes to compile and run on WIN32 platforms using the Cygnus Cygwin dev kit.
 
 
 Version 2.3d of WWWOFFLE released : Sat Oct 11 16:30:00 1998
@@ -856,7 +991,7 @@ Version 2.2c of WWWOFFLE released : Fri Jul 10 15:30:00 1998
 Bug Fixes:
  Added Solaris ix86 into the STD_ARG test.  Stop crashes with monitor age of
  zero.  Stop Netscape complaining about a broken connection.  Make the refresh
- button work when online.  Check the protocol and notgot status correctly when
+ button work when online.  Check the protocol and not-got status correctly when
  refreshing.
 
 
@@ -874,7 +1009,7 @@ Version 2.2a of WWWOFFLE released : Sun Jun 21 16:30:00 1998
 
 Bug Fixes:
  Zero length POSTed forms work.  All HTTP headers are tested without checking
- case.  Allow access to other www servers on localhost.  Ensure the installed
+ case.  Allow access to other WWW servers on localhost.  Ensure the installed
  html files are world readable.
 
 HTML Parser
@@ -1025,7 +1160,7 @@ Fixed several small bugs:
   header will not get missed in reply.
 
 FTP directory listings are now in clickable HTML format.
-FTP requests for directories without a traiing '/' now redirect browser.
+FTP requests for directories without a trailing '/' now redirect browser.
 
 Added a button to the index to delete all pages from a host or all requests.
 
@@ -1195,7 +1330,7 @@ Added an interactive web page to control the server, as well as wwwoffle.
 Pages requested while online are refreshed only if newer than the one in cache.
 If the page requested while offline has been moved then the link is followed.
 
-Merged wwwoffles into wwwoffled to simplify them and allow future iprovements.
+Merged wwwoffles into wwwoffled to simplify them and allow future improvements.
 
 Allow wwwoffle to optionally fetch links from the specified page.
 

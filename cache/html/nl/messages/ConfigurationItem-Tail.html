@@ -2,31 +2,32 @@ $select?{
 </select>
 }{}
 </p>
-Deze configuratie item bevat $nentries $nentries?=1{entry}{entries}
-$nallowed?=1{(er is maar &eacute;&eacute;n entry toegestaan voor deze item)}{}.
+Deze configuratie item bevat $nentries $nentries?=1{entry}{entries}.
+$nallowed?=1{(er is maar &eacute;&eacute;n entry toegestaan voor deze item.)}{}
 </form>
 
 <hr width="50%">
 
-<p align=center>
+<p align="center">
+<a href="http://$localhost/configuration/$section$url?{?%encode[url]}{}">^^^ $section ^^^</a>
+<br>
 <a href="$previtem?{$previtem}{no-name}$url?{?%encode[url]}{}">&lt;&lt;&lt; $previtem?{$previtem}{<i>no-name</i>} &lt;&lt;&lt;</a>
 &nbsp;&nbsp;&nbsp; $item?{$item}{<i>no-name</i>} &nbsp;&nbsp;&nbsp;
 <a href="$nextitem?{$nextitem}{no-name}$url?{?%encode[url]}{}">&gt;&gt;&gt; $nextitem?{$nextitem}{<i>no-name</i>} &gt;&gt;&gt;</a>
 </p>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
-<hr>
-
-<p align=center>
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
 WWWOFFLE - [ \
-<a href="http://$localhost/Welcome.html">Welkomst Pagina</a>| \
-<a href="http://$localhost/README.CONF.html">README.CONF</a>| \
-<a href="http://$localhost/FAQ.html">FAQ</a> \
+<a href="http://$localhost/Welcome.html" title="Een introductie tot WWWOFFLE">Welkomst Pagina</a>| \
+<a href="http://$localhost/README.CONF.html" title="beschrijving van de WWWOFFLE configuratie bestand opties">README.CONF</a>| \
+<a href="http://$localhost/FAQ.html" title="Frequent Aangekaarte Questies over WWWOFFLE">FAQ</a> \
 ] - WWWOFFLE
-</p>
+</div>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

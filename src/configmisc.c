@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configmisc.c 1.18 2002/08/21 14:28:30 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configmisc.c 1.22 2004/01/17 16:24:31 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Configuration file data management functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -20,16 +20,12 @@
 #include <string.h>
 #include <ctype.h>
 
-#include <limits.h>
-#include <unistd.h>
-#include <sys/types.h>
 #include <pwd.h>
 #include <grp.h>
 
-#include "configpriv.h"
-#include "errors.h"
-#include "wwwoffle.h"
 #include "misc.h"
+#include "errors.h"
+#include "configpriv.h"
 
 
 /* Local functions */
@@ -66,20 +62,12 @@ void DefaultConfigFile(void)
           (*item)->val=NULL;
           (*item)->def_val=(KeyOrValue*)malloc(sizeof(KeyOrValue));
 
-#if CONFIG_VERIFY_ABORT
           if(CurrentConfig.sections[s]->itemdefs[i].key_type!=Fixed)
              PrintMessage(Fatal,"Configuration file error at %s:%d",__FILE__,__LINE__);
 
           if((errmsg=ParseKeyOrValue(CurrentConfig.sections[s]->itemdefs[i].def_val,CurrentConfig.sections[s]->itemdefs[i].val_type,(*item)->def_val)))
              PrintMessage(Fatal,"Configuration file error at %s:%d; %s",__FILE__,__LINE__,errmsg);
-#else
-          ParseKeyOrValue(CurrentConfig.sections[s]->itemdefs[i].def_val,CurrentConfig.sections[s]->itemdefs[i].val_type,(*item)->def_val);
-#endif
          }
-
-#if CONFIG_DEBUG_DUMP
- DumpConfigFile();
-#endif
 }
 
 
@@ -399,43 +387,6 @@ int WildcardMatch(char *string,char *pattern,int nocase)
 }
 
 
-#if CONFIG_DEBUG_DUMP
-
-/*++++++++++++++++++++++++++++++++++++++
-  Remove the old values if the re-read of the file succeeded.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-void DumpConfigFile(void)
-{
- int s,i,e;
-
- fprintf(stderr,"CONFIGURATION FILE\n");
-
- for(s=0;s<CurrentConfig.nsections;s++)
-   {
-    fprintf(stderr,"  Section %s\n",CurrentConfig.sections[s]->name);
-
-    for(i=0;i<CurrentConfig.sections[s]->nitemdefs;i++)
-      {
-       if(*CurrentConfig.sections[s]->itemdefs[i].name)
-          fprintf(stderr,"    Item %s\n",CurrentConfig.sections[s]->itemdefs[i].name);
-       else
-          fprintf(stderr,"    Item [default]\n");
-
-       if(*CurrentConfig.sections[s]->itemdefs[i].item)
-          for(e=0;e<(*CurrentConfig.sections[s]->itemdefs[i].item)->nentries;e++)
-            {
-             char *string=ConfigEntryString(*CurrentConfig.sections[s]->itemdefs[i].item,e);
-             fprintf(stderr,"      %s\n",string);
-             free(string);
-            }
-      }
-   }
-}
-
-#endif
-
-
 /*++++++++++++++++++++++++++++++++++++++
   Return the string that represents the Configuration type.
 
@@ -594,7 +545,7 @@ void ConfigEntryStrings(ConfigItem item,int which,char **url,char **key,char **v
 char *MakeConfigEntryString(ConfigItemDef *itemdef,char *url,char *key,char *val)
 {
  int strpos=0;
- char *string=(char*)malloc(8);
+ char *string=(char*)calloc(8,sizeof(char));
 
  /* Handle the URL */
 
@@ -727,7 +678,7 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
 
    case FileMode:
     string=(char*)malloc(1+16);
-    sprintf(string,"0%o",key_or_val.integer);
+    sprintf(string,"0%o",(unsigned)key_or_val.integer);
     break;
 
    case AgeDays:
@@ -827,7 +778,7 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
 
   char* sprintf_url_spec Return the new string.
 
-  UrlSpec urlspec The URL-SPECIFICATION to convert.
+  UrlSpec *urlspec The URL-SPECIFICATION to convert.
   ++++++++++++++++++++++++++++++++++++++*/
 
 static char* sprintf_url_spec(UrlSpec *urlspec)

@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/refresh.c 2.69 2002/08/25 07:13:40 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/refresh.c 2.78 2004/01/17 16:31:18 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   The HTML interactive page to refresh a URL.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -19,26 +19,41 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <unistd.h>
-
 #include "wwwoffle.h"
-#include "document.h"
+#include "io.h"
 #include "misc.h"
-#include "config.h"
-#include "sockets.h"
 #include "errors.h"
+#include "config.h"
+#include "document.h"
 
 
-/*+ The options for recursive or normal fetching. +*/
-static char *recurse_url=NULL,*recurse_limit="";
-static int recurse_depth=-1,recurse_force=0;
-static int recurse_stylesheets=0,recurse_images=0,recurse_frames=0,recurse_scripts=0,recurse_objects=0;
+#define MAX_RECURSE_LOCATION 8
+
+/* Local variables */
+
+/*+ The options for recursive fetching; +*/
+static char *recurse_url=NULL,  /*+ the starting URL. +*/
+            *recurse_limit="";  /*+ the the URL prefix that must match. +*/
+
+/*+ The options for the recursive fetching; +*/
+static int recurse_depth=-1,    /*+ the depth to go from this URL. +*/
+           recurse_force=0;     /*+ the option to force refreshing. +*/
+
+/*+ The options for the recursive fetching of related items; +*/
+static int recurse_stylesheets=0, /*+ stylesheets. +*/
+           recurse_images=0,      /*+ images. +*/
+           recurse_frames=0,      /*+ frames. +*/
+           recurse_scripts=0,     /*+ scripts. +*/
+           recurse_objects=0,     /*+ objects. +*/
+           recurse_location=0;    /*+ Location headers. +*/
+
+/* Local functions */
 
 static void ParseRecurseOptions(char *options);
 
 static /*@null@*/ char *RefreshFormParse(int fd,/*@null@*/ char *request_args,/*@null@*/ Body *request_body);
 
-static int request_url(URL *Url,char *refresh,URL *refUrl);
+static int request_url(URL *Url,/*@null@*/ char *refresh,URL *refUrl);
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -50,7 +65,7 @@ static int request_url(URL *Url,char *refresh,URL *refUrl);
 
   URL *Url The URL that was used to request this page.
 
-  Body *request_body The HTTP request body sent by the browser.
+  Body *request_body The HTTP request body sent by the client.
 
   int *recurse Return value set to true if a recursive fetch was asked for.
   ++++++++++++++++++++++++++++++++++++++*/
@@ -112,14 +127,15 @@ char *RefreshPage(int fd,URL *Url,Body *request_body,int *recurse)
 
   char *request_args The arguments of the requesting URL.
 
-  Body *request_body The body of the HTTP request sent by the browser.
+  Body *request_body The body of the HTTP request sent by the client.
   ++++++++++++++++++++++++++++++++++++++*/
 
 static char *RefreshFormParse(int fd,char *request_args,Body *request_body)
 {
  int i;
- char **args,*url=NULL,*limit="",*depth="0",*method=NULL,*force="";
- char *stylesheets="",*images="",*frames="",*scripts="",*objects="";
+ char **args,*url=NULL,*limit="",*method=NULL;
+ int depth=0,force=0;
+ int stylesheets=0,images=0,frames=0,scripts=0,objects=0;
  URL *Url;
  char *new_url;
 
@@ -143,23 +159,23 @@ static char *RefreshFormParse(int fd,char *request_args,Body *request_body)
  for(i=0;args[i];i++)
    {
     if(!strncmp("url=",args[i],4))
-       url=args[i]+4;
+       url=TrimArgs(URLDecodeFormArgs(args[i]+4));
     if(!strncmp("depth=",args[i],6))
-       depth=args[i]+6;
+       depth=atoi(args[i]+6);
     if(!strncmp("method=",args[i],7))
        method=args[i]+7;
     if(!strncmp("force=",args[i],6))
-       force=args[i]+6;
+       force=!!(args[i][6]=='Y');
     if(!strncmp("stylesheets=",args[i],12))
-       stylesheets=args[i]+12;
+       stylesheets=!!(args[i][12]=='Y');
     if(!strncmp("images=",args[i],7))
-       images=args[i]+7;
+       images=!!(args[i][7]=='Y');
     if(!strncmp("frames=",args[i],7))
-       frames=args[i]+7;
+       frames=!!(args[i][7]=='Y');
     if(!strncmp("scripts=",args[i],8))
-       scripts=args[i]+8;
+       scripts=!!(args[i][8]=='Y');
     if(!strncmp("objects=",args[i],8))
-       objects=args[i]+8;
+       objects=!!(args[i][8]=='Y');
    }
 
  if(url==NULL || *url==0 || method==NULL || *method==0)
@@ -167,12 +183,12 @@ static char *RefreshFormParse(int fd,char *request_args,Body *request_body)
     HTMLMessage(fd,404,"WWWOFFLE Refresh Form Error",NULL,"RefreshFormError",
                 "body",request_body?request_body->content:request_args,
                 NULL);
+    if(url) free(url);
     free(args[0]);
     free(args);
     return(NULL);
    }
 
- url=URLDecodeFormArgs(url);
  Url=SplitURL(url);
  free(url);
 
@@ -198,19 +214,17 @@ static char *RefreshFormParse(int fd,char *request_args,Body *request_body)
        *p--=0;
    }
  else
-    depth="0";
+    depth=0;
 
- new_url=CreateRefreshPath(Url,limit,atoi(depth),
-                           (int)*force,
-                           (int)*stylesheets,(int)*images,(int)*frames,(int)*scripts,(int)*objects);
+ free(args[0]);
+ free(args);
+
+ new_url=CreateRefreshPath(Url,limit,depth,force,stylesheets,images,frames,scripts,objects);
 
  if(*limit)
     free(limit);
 
  FreeURL(Url);
-
- free(args[0]);
- free(args);
 
  return(new_url);
 }
@@ -233,8 +247,6 @@ static void ParseRecurseOptions(char *options)
     char **args;
     int i;
 
-    PrintMessage(Debug,"Refresh options='%s'.",options);
-
     recurse_stylesheets=0;
     recurse_images=0;
     recurse_frames=0;
@@ -246,24 +258,30 @@ static void ParseRecurseOptions(char *options)
     for(i=0;args[i];i++)
       {
        if(!strncmp("url=",args[i],4))
-          recurse_url=URLDecodeFormArgs(args[i]+4);
+          recurse_url=TrimArgs(URLDecodeFormArgs(args[i]+4));
        if(!strncmp("depth=",args[i],6))
          {recurse_depth=atoi(args[i]+6); if(recurse_depth<0) recurse_depth=0;}
        if(!strncmp("limit=",args[i],6))
-          recurse_limit=URLDecodeFormArgs(args[i]+6);
+          recurse_limit=TrimArgs(URLDecodeFormArgs(args[i]+6));
        if(!strncmp("force=",args[i],6))
-          recurse_force=(args[i][6]=='Y')?1:0;
+          recurse_force=!!(args[i][6]=='Y');
+
        if(!strncmp("stylesheets=",args[i],12))
-          recurse_stylesheets=(args[i][12]=='Y')?1:0;
+          recurse_stylesheets=!!(args[i][12]=='Y')*2;
        if(!strncmp("images=",args[i],7))
-          recurse_images=(args[i][7]=='Y')?1:0;
+          recurse_images=!!(args[i][7]=='Y')*2;
        if(!strncmp("frames=",args[i],7))
-          recurse_frames=(args[i][7]=='Y')?1:0;
+          recurse_frames=!!(args[i][7]=='Y')*2;
        if(!strncmp("scripts=",args[i],8))
-          recurse_scripts=(args[i][8]=='Y')?1:0;
+          recurse_scripts=!!(args[i][8]=='Y')*2;
        if(!strncmp("objects=",args[i],8))
-          recurse_objects=(args[i][8]=='Y')?1:0;
+          recurse_objects=!!(args[i][8]=='Y')*2;
       }
+
+    PrintMessage(Debug,"Recursive Fetch options: depth=%d limit='%s' force=%d",
+                        recurse_depth,recurse_limit,recurse_force);
+    PrintMessage(Debug,"Recursive Fetch options: stylesheets=%d images=%d frames=%d scripts=%d objects=%d location=%d",
+                        recurse_stylesheets,recurse_images,recurse_frames,recurse_scripts,recurse_objects,recurse_location);
 
     free(args[0]);
     free(args);
@@ -275,15 +293,42 @@ static void ParseRecurseOptions(char *options)
   Set the default recursive url options to decide what needs fetching recursively.
 
   URL *Url The URL that is being fetched.
+
+  Header *head The header for the request for the URL.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void DefaultRecurseOptions(URL *Url)
+void DefaultRecurseOptions(URL *Url,Header *head)
 {
- recurse_stylesheets=ConfigBooleanURL(FetchStyleSheets,Url);
- recurse_images=ConfigBooleanURL(FetchImages,Url);
- recurse_frames=ConfigBooleanURL(FetchFrames,Url);
- recurse_scripts=ConfigBooleanURL(FetchScripts,Url);
- recurse_objects=ConfigBooleanURL(FetchObjects,Url);
+ char *value;
+
+ /* Default values */
+
+ recurse_stylesheets=ConfigBooleanURL(FetchStyleSheets,Url)*2;
+ recurse_images=ConfigBooleanURL(FetchImages,Url)*2;
+ recurse_frames=ConfigBooleanURL(FetchFrames,Url)*2;
+ recurse_scripts=ConfigBooleanURL(FetchScripts,Url)*2;
+ recurse_objects=ConfigBooleanURL(FetchObjects,Url)*2;
+
+ recurse_location=MAX_RECURSE_LOCATION;
+
+ /* Updated values depending on where the request came from */
+
+ if((value=GetHeader2(head,"Pragma","wwwoffle-stylesheets=")))
+    recurse_stylesheets=atoi(value+21);
+ if((value=GetHeader2(head,"Pragma","wwwoffle-images=")))
+    recurse_images=atoi(value+16);
+ if((value=GetHeader2(head,"Pragma","wwwoffle-frames=")))
+    recurse_frames=atoi(value+16);
+ if((value=GetHeader2(head,"Pragma","wwwoffle-scripts=")))
+    recurse_scripts=atoi(value+17);
+ if((value=GetHeader2(head,"Pragma","wwwoffle-objects=")))
+    recurse_objects=atoi(value+17);
+
+ if((value=GetHeader2(head,"Pragma","wwwoffle-location=")))
+    recurse_location=atoi(value+18);
+
+ PrintMessage(Debug,"Default Recursive Fetch options: stylesheets=%d images=%d frames=%d scripts=%d objects=%d location=%d",
+                     recurse_stylesheets,recurse_images,recurse_frames,recurse_scripts,recurse_objects,recurse_location);
 }
 
 
@@ -305,21 +350,23 @@ int RefreshForced(void)
   int RecurseFetch Returns true if there are more to be fetched.
 
   URL *Url The URL that was fetched.
-
-  int new Set to true if the page is new to the cache, else we may be in infinite recursion.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int RecurseFetch(URL *Url,int new)
+int RecurseFetch(URL *Url)
 {
  char **list,*metarefresh;
- int more=0;
+ int more=0,old_recurse_location;
  int j;
+
+ old_recurse_location=recurse_location;
 
  /* A Meta-Refresh header. */
 
- if(new && (metarefresh=MetaRefresh()))
+ if(recurse_location && (metarefresh=MetaRefresh()))
    {
     URL *metarefreshUrl=SplitURL(metarefresh);
+
+    recurse_location--;
 
     if(!metarefreshUrl->local && metarefreshUrl->Protocol)
       {
@@ -333,10 +380,14 @@ int RecurseFetch(URL *Url,int new)
 
        PrintMessage(Debug,"Meta-Refresh=%s",refresh?refresh:metarefreshUrl->name);
        more+=request_url(metarefreshUrl,refresh,Url);
+       if(refresh)
+          free(refresh);
       }
 
     FreeURL(metarefreshUrl);
    }
+
+ recurse_location=MAX_RECURSE_LOCATION;
 
  /* Any style sheets. */
 
@@ -345,11 +396,15 @@ int RecurseFetch(URL *Url,int new)
       {
        URL *stylesheetUrl=SplitURL(list[j]);
 
+       recurse_stylesheets--;
+
        if(!stylesheetUrl->local && stylesheetUrl->Protocol)
          {
           PrintMessage(Debug,"Style-Sheet=%s",stylesheetUrl->name);
           more+=request_url(stylesheetUrl,NULL,Url);
          }
+
+       recurse_stylesheets++;
 
        FreeURL(stylesheetUrl);
       }
@@ -360,6 +415,8 @@ int RecurseFetch(URL *Url,int new)
     for(j=0;list[j];j++)
       {
        URL *imageUrl=SplitURL(list[j]);
+
+       recurse_images--;
 
        if(!imageUrl->local && imageUrl->Protocol)
          {
@@ -373,15 +430,19 @@ int RecurseFetch(URL *Url,int new)
              PrintMessage(Debug,"The image URL '%s' is on a different host.",imageUrl->name);
          }
 
+       recurse_images++;
+
        FreeURL(imageUrl);
       }
 
  /* Any frames */
 
- if(new && recurse_frames && (list=GetReferences(RefFrame)))
+ if(recurse_frames && (list=GetReferences(RefFrame)))
     for(j=0;list[j];j++)
       {
        URL *frameUrl=SplitURL(list[j]);
+
+       recurse_frames--;
 
        if(!frameUrl->local && frameUrl->Protocol)
          {
@@ -395,7 +456,11 @@ int RecurseFetch(URL *Url,int new)
 
           PrintMessage(Debug,"Frame=%s",refresh?refresh:frameUrl->name);
           more+=request_url(frameUrl,refresh,Url);
+          if(refresh)
+             free(refresh);
          }
+
+       recurse_frames++;
 
        FreeURL(frameUrl);
       }
@@ -407,11 +472,15 @@ int RecurseFetch(URL *Url,int new)
       {
        URL *scriptUrl=SplitURL(list[j]);
 
+       recurse_scripts--;
+
        if(!scriptUrl->local && scriptUrl->Protocol)
          {
           PrintMessage(Debug,"Script=%s",scriptUrl->name);
           more+=request_url(scriptUrl,NULL,Url);
          }
+
+       recurse_scripts++;
 
        FreeURL(scriptUrl);
       }
@@ -423,19 +492,25 @@ int RecurseFetch(URL *Url,int new)
       {
        URL *objectUrl=SplitURL(list[j]);
 
+       recurse_objects--;
+
        if(!objectUrl->local && objectUrl->Protocol)
          {
           PrintMessage(Debug,"Object=%s",objectUrl->name);
           more+=request_url(objectUrl,NULL,Url);
          }
 
+       recurse_objects++;
+
        FreeURL(objectUrl);
       }
 
- if(new && recurse_objects && (list=GetReferences(RefInlineObject)))
+ if(recurse_objects && (list=GetReferences(RefInlineObject)))
     for(j=0;list[j];j++)
       {
        URL *objectUrl=SplitURL(list[j]);
+
+       recurse_objects--;
 
        if(!objectUrl->local && objectUrl->Protocol)
          {
@@ -449,7 +524,11 @@ int RecurseFetch(URL *Url,int new)
 
           PrintMessage(Debug,"InlineObject=%s",refresh?refresh:objectUrl->name);
           more+=request_url(objectUrl,refresh,Url);
+          if(refresh)
+             free(refresh);
          }
+
+       recurse_objects++;
 
        FreeURL(objectUrl);
       }
@@ -461,21 +540,29 @@ int RecurseFetch(URL *Url,int new)
       {
        URL *linkUrl=SplitURL(list[j]);
 
+       recurse_depth--;
+
        if(!linkUrl->local && linkUrl->Protocol)
           if(!*recurse_limit || !strncmp(recurse_limit,linkUrl->name,strlen(recurse_limit)))
             {
              char *refresh=NULL;
 
-             refresh=CreateRefreshPath(linkUrl,recurse_limit,recurse_depth-1,
+             refresh=CreateRefreshPath(linkUrl,recurse_limit,recurse_depth,
                                        recurse_force,
                                        recurse_stylesheets,recurse_images,recurse_frames,recurse_scripts,recurse_objects);
 
              PrintMessage(Debug,"Link=%s",refresh);
              more+=request_url(linkUrl,refresh,Url);
+             if(refresh)
+                free(refresh);
             }
+
+       recurse_depth++;
 
        FreeURL(linkUrl);
       }
+
+ recurse_location=old_recurse_location;
 
  return(more);
 }
@@ -496,9 +583,11 @@ int RecurseFetchRelocation(URL *Url,char *location)
  int more=0;
  URL *locationUrl=SplitURL(location);
 
- if(!locationUrl->local && locationUrl->Protocol)
+ if(recurse_location && !locationUrl->local && locationUrl->Protocol)
    {
     char *refresh=NULL;
+
+    recurse_location--;
 
     if(recurse_depth>0)
        if(!*recurse_limit || !strncmp(recurse_limit,locationUrl->name,strlen(recurse_limit)))
@@ -508,6 +597,10 @@ int RecurseFetchRelocation(URL *Url,char *location)
 
     PrintMessage(Debug,"Location=%s",refresh?refresh:locationUrl->name);
     more+=request_url(locationUrl,refresh,Url);
+    if(refresh)
+       free(refresh);
+
+    recurse_location++;
    }
 
  return(more);
@@ -537,7 +630,6 @@ static int request_url(URL *Url,char *refresh,URL *refUrl)
  else
    {
     int new_outgoing=OpenOutgoingSpoolFile(0);
-    init_buffer(new_outgoing);
 
     if(new_outgoing==-1)
        PrintMessage(Warning,"Cannot open the new outgoing request to write.");
@@ -545,7 +637,9 @@ static int request_url(URL *Url,char *refresh,URL *refUrl)
       {
        URL *reqUrl;
        Header *new_request_head;
-       char *head;
+       char *head,str[32];
+
+       init_io(new_outgoing);
 
        if(refUrl->pass && !strcmp(refUrl->host,Url->host))
           AddURLPassword(Url,refUrl->user,refUrl->pass);
@@ -560,9 +654,29 @@ static int request_url(URL *Url,char *refresh,URL *refUrl)
        if(recurse_force)
           AddToHeader(new_request_head,"Pragma","no-cache");
 
+       sprintf(str,"wwwoffle-stylesheets=%d",recurse_stylesheets);
+       AddToHeader(new_request_head,"Pragma",str);
+
+       sprintf(str,"wwwoffle-images=%d",recurse_images);
+       AddToHeader(new_request_head,"Pragma",str);
+
+       sprintf(str,"wwwoffle-frames=%d",recurse_frames);
+       AddToHeader(new_request_head,"Pragma",str);
+
+       sprintf(str,"wwwoffle-scripts=%d",recurse_scripts);
+       AddToHeader(new_request_head,"Pragma",str);
+
+       sprintf(str,"wwwoffle-objects=%d",recurse_objects);
+       AddToHeader(new_request_head,"Pragma",str);
+
+       sprintf(str,"wwwoffle-location=%d",recurse_location);
+       AddToHeader(new_request_head,"Pragma",str);
+
        head=HeaderString(new_request_head);
        if(write_string(new_outgoing,head)==-1)
           PrintMessage(Warning,"Cannot write to outgoing file; disk full?");
+
+       finish_io(new_outgoing);
        CloseOutgoingSpoolFile(new_outgoing,reqUrl);
 
        retval=1;

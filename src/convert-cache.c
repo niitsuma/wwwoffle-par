@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/convert-cache.c 1.9 2001/12/30 10:21:40 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/convert-cache.c 1.15 2004/02/14 14:02:57 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Convert the cache to handle the changed URL Decoding/Encoding.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1998,99,2000,01 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -50,13 +50,13 @@
 
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <errno.h>
 
 #include "wwwoffle.h"
-#include "version.h"
+#include "io.h"
 #include "misc.h"
 #include "errors.h"
 #include "config.h"
+#include "version.h"
 
 
 /*+ Need this for Win32 to use binary mode +*/
@@ -70,10 +70,6 @@
 static void ConvertProto(char *proto);
 static void ConvertHost(char *proto,char *host);
 static void ConvertSpecial(char *dirname);
-
-
-/*+ A file descriptor for the spool directory. +*/
-int fSpoolDir=-1;
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -128,10 +124,12 @@ int main(int argc,char** argv)
 
  if(config_file)
    {
-    init_buffer(2);
+    init_io(STDERR_FILENO);
 
-    if(ReadConfigurationFile(2))
+    if(ReadConfigurationFile(STDERR_FILENO))
        PrintMessage(Fatal,"Error in configuration file '%s'.",config_file);
+
+    finish_io(STDERR_FILENO);
    }
 
  umask(0);
@@ -143,14 +141,8 @@ int main(int argc,char** argv)
  else
     spool_dir=argv[1];
 
- if(chdir(spool_dir))
+ if(ChangeToSpoolDir(spool_dir))
     PrintMessage(Fatal,"Cannot change to the spool directory '%s' [%!s]; conversion failed.",spool_dir);
-
-#if !defined(__CYGWIN__)
- fSpoolDir=open(".",O_RDONLY);
- if(fSpoolDir==-1)
-    PrintMessage(Fatal,"Cannot open the spool directory '%s' [%!s]; conversion failed.",spool_dir);
-#endif
 
  /* Create the new spool directory. */
 
@@ -177,7 +169,7 @@ int main(int argc,char** argv)
          {
           ConvertProto(proto);
 
-          fchdir(fSpoolDir);
+          ChangeBackToSpoolDir();
          }
       }
    }
@@ -205,14 +197,10 @@ int main(int argc,char** argv)
          {
           ConvertSpecial(special);
 
-          fchdir(fSpoolDir);
+          ChangeBackToSpoolDir();
          }
       }
    }
-
-#if !defined(__CYGWIN__)
- close(fSpoolDir);
-#endif
 
  return(0);
 }
@@ -236,15 +224,17 @@ static void ConvertProto(char *proto)
  if(!dir)
    {PrintMessage(Warning,"Cannot open spool directory '%s' [%!s]; conversion failed.",proto);return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
    {PrintMessage(Warning,"Cannot read spool directory '%s' [%!s]; conversion failed.",proto);closedir(dir);return;}
- ent=readdir(dir);  /* skip .. */
 
  /* Go through each entry. */
 
- while((ent=readdir(dir)))
+ do
    {
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
     if(stat(ent->d_name,&buf))
        PrintMessage(Warning,"Cannot stat file '%s/%s' [%!s] not converted.",proto,ent->d_name);
     else if(S_ISDIR(buf.st_mode))
@@ -257,11 +247,12 @@ static void ConvertProto(char *proto)
 
           ConvertHost(proto,ent->d_name);
 
-          fchdir(fSpoolDir);
+          ChangeBackToSpoolDir();
           chdir(proto);
          }
       }
    }
+ while((ent=readdir(dir)));
 
  closedir(dir);
 }
@@ -288,15 +279,17 @@ static void ConvertHost(char *proto,char *host)
  if(!dir)
    {PrintMessage(Warning,"Cannot open spool directory '%s/%s' [%!s]; conversion failed.",proto,host);return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
    {PrintMessage(Warning,"Cannot read spool directory '%s/%s' [%!s]; conversion failed.",proto,host);closedir(dir);return;}
- ent=readdir(dir);  /* skip .. */
 
  /* Go through each entry. */
 
- while((ent=readdir(dir)))
+ do
    {
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
     if(!stat(ent->d_name,&buf) && *ent->d_name=='D' && S_ISREG(buf.st_mode))
       {
        char *url=FileNameToURL(ent->d_name);
@@ -320,11 +313,14 @@ static void ConvertHost(char *proto,char *host)
              rename(oldname,newname);
 
              ufd=open(newname,O_WRONLY|O_TRUNC|O_BINARY);
-             init_buffer(ufd);
 
              if(ufd!=-1)
                {
+                init_io(ufd);
+
                 write_string(ufd,Url->file);
+
+                finish_io(ufd);
                 close(ufd);
                }
 #endif
@@ -336,6 +332,7 @@ static void ConvertHost(char *proto,char *host)
          }
       }
    }
+ while((ent=readdir(dir)));
 
  closedir(dir);
 }
@@ -360,15 +357,17 @@ static void ConvertSpecial(char *special)
  if(!dir)
    {PrintMessage(Warning,"Cannot open spool directory '%s' [%!s]; conversion failed.",special);return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
    {PrintMessage(Warning,"Cannot read spool directory '%s' [%!s]; conversion failed.",special);closedir(dir);return;}
- ent=readdir(dir);  /* skip .. */
 
  /* Go through each entry. */
 
- while((ent=readdir(dir)))
+ do
    {
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
     if(!stat(ent->d_name,&buf) && (*ent->d_name=='O' || *ent->d_name=='D')  && S_ISREG(buf.st_mode))
       {
        char *url=FileNameToURL(ent->d_name);
@@ -396,11 +395,14 @@ static void ConvertSpecial(char *special)
              rename(oldname,newname);
 
              ufd=open(newname,O_WRONLY|O_TRUNC|O_BINARY);
-             init_buffer(ufd);
 
              if(ufd!=-1)
                {
+                init_io(ufd);
+
                 write_string(ufd,Url->file);
+
+                finish_io(ufd);
                 close(ufd);
                }
 #endif
@@ -412,6 +414,7 @@ static void ConvertSpecial(char *special)
          }
       }
    }
+ while((ent=readdir(dir)));
 
  closedir(dir);
 }

@@ -12,16 +12,17 @@
   ***************************************/
 
 #include <stdio.h>
+#include <unistd.h>
 
-#include "wwwoffle.h"
 #include "config.h"
 #include "document.h"
 #include "misc.h"
+#include "io.h"
 #include "errors.h"
 
 
-/*+ The file descriptor of the spool directory. +*/
-int fSpoolDir=-1;
+int wwwoffles_read_data(char *data,int len);
+int wwwoffles_write_data(char *data,int len);
 
 int main(int argc,char **argv)
 {
@@ -30,21 +31,70 @@ int main(int argc,char **argv)
  if(argc==1)
    {fprintf(stderr,"usage: test-modify URL < contents-of-url\n");return(1);}
 
+ StderrLevel=ExtraDebug;
+
  InitErrorHandler("test-modify",0,1);
 
  InitConfigurationFile("./wwwoffle.conf");
 
- init_buffer(2);
- if(ReadConfigurationFile(2))
+ init_io(STDERR_FILENO);
+
+ if(ReadConfigurationFile(STDERR_FILENO))
     PrintMessage(Fatal,"Error in configuration file 'wwwoffle.conf'.");
+
+ finish_io(STDERR_FILENO);
 
  Url=SplitURL(argv[1]);
 
- init_buffer(0);
+ init_io(0);
+ init_io(1);
 
- OutputHTMLWithModifications(1,0,Url);
+ OutputHTMLWithModifications(Url,0);
 
  FreeURL(Url);
 
+ finish_io(0);
+ finish_io(1);
+
  return(0);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Read data from the input.
+
+  int wwwoffles_read_data Returns the number of bytes read.
+
+  char *data The data buffer to fill in.
+
+  int len The length of the buffer to fill in.
+
+  This function is used as a callback from gifmodify.c and htmlmodify.l
+  ++++++++++++++++++++++++++++++++++++++*/
+
+int wwwoffles_read_data(char *data,int len)
+{
+ int n=read_data(0,data,len);
+
+ return(n);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Write data to the output.
+
+  int wwwoffles_write_data Returns the number of bytes written.
+
+  char *data The data to write.
+
+  int len The number of bytes to write.
+
+  This function is used as a callback from gifmodify.c and htmlmodify.l
+  ++++++++++++++++++++++++++++++++++++++*/
+
+int wwwoffles_write_data(char *data,int len)
+{
+ write_data(1,data,len);
+
+ return(len);
 }

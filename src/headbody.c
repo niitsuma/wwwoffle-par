@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/headbody.c 1.19 2002/10/13 14:42:04 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/headbody.c 1.23 2004/01/11 10:28:20 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7f.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Header and Body handling functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -344,6 +344,26 @@ void ChangeNoteInHeader(Header *head,char *note)
 
 
 /*++++++++++++++++++++++++++++++++++++++
+  Change the version string in the header.
+
+  Header *head The header to change.
+
+  char *version The new version.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+void ChangeVersionInHeader(Header *head,char *version)
+{
+ head->size-=strlen(head->version);
+
+ head->version=(char*)realloc((void*)head->version,strlen(version)+1);
+
+ strcpy(head->version,version);
+
+ head->size+=strlen(version);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
   Remove the specified key and its values.
 
   Header *head The header to remove from.
@@ -398,46 +418,46 @@ void RemoveFromHeader2(Header *head,char* key,char *val)
  for(i=0;i<head->n;i++)
     if(!strcasecmp(head->key[i],key))
       {
+       int match=0;
        char **list=split_header_list(head->val[i]);
+       char *old=head->val[i],*new=(char*)malloc(strlen(head->val[i])+1);
+       char *p=new,**l;
 
-       if(!**(list+1) && !strncasecmp(*list,val,strlen(val)))
-          RemoveFromHeader(head,key);
-       else
-         {
-          char *old=head->val[i],**l;
-
-          head->val[i]=(char*)malloc(strlen(old)+1);
-          strcpy(head->val[i],old);
+       *p=0;
           
-          for(l=list;**l;l++)
-             if(!strncasecmp(*l,val,strlen(val)))
-               {
-                char *p=head->val[i]+(*l-old),*q=head->val[i]+(*(l+1)-old),oldq=*q;
+       for(l=list;**l;l++)
+          if(strncasecmp(*l,val,strlen(val)))
+            {
+             char *q=*l;
 
-                head->size-=q-p;
+             if(p>new)
+                *p++=',';
 
-                while(*q)
-                   *p++=*q++;
+             while(q<*(l+1))
+                *p++=*q++;
 
-                *p=0;
+             *p=0;
+             q--;
 
-                if(!oldq)
-                  {
-                   p--;
-                   while(p>head->val[i] && (*p==',' || isspace(*p)))
-                     {
-                      *p--=0;
-                      head->size--;
-                     }
-                  }
-               }
+             while(p>new && (isspace(*q) || *q==','))
+                *--p=0,q--;
+            }
+          else
+             match++;
 
+       if(match)
+         {
+          head->size+=strlen(new)-strlen(old);
           free(old);
+          head->val[i]=new;
+
+          if(!*new)
+             RemoveFromHeader(head,key);
          }
+       else
+          free(new);
 
        free(list);
-
-       break;
       }
 }
 
@@ -586,11 +606,8 @@ void FreeHeader(Header *head)
     free(head->val[i]);
    }
 
- if(head->n)
-   {
-    free(head->key);
-    free(head->val);
-   }
+ free(head->key);
+ free(head->val);
 
  free(head);
 }
@@ -599,7 +616,7 @@ void FreeHeader(Header *head)
 /*++++++++++++++++++++++++++++++++++++++
   Create a new Body structure.
 
-  Header *CreateBody Returns the new body structure.
+  Body *CreateBody Returns the new body structure.
 
   int length The length of the body;
   ++++++++++++++++++++++++++++++++++++++*/
@@ -662,9 +679,6 @@ HeaderList *SplitHeaderList(char *val)
 
     if(*p==';')
        sscanf(p+1," q=%f",&qval);
-
-    while(p<*(l+1))
-       p++;
 
     if(hlist->n>=8)
        hlist->item=(HeaderListItem*)realloc((void*)hlist->item,sizeof(HeaderListItem)*(hlist->n+1));

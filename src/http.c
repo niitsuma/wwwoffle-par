@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/http.c 1.31 2002/06/23 15:05:23 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/http.c 1.35 2003/12/14 10:53:53 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Functions for getting URLs using HTTP.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -16,17 +16,15 @@
 #include "autoconfig.h"
 
 #include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-
-#include <unistd.h>
 
 #include "wwwoffle.h"
-#include "errors.h"
+#include "io.h"
 #include "misc.h"
+#include "errors.h"
 #include "config.h"
 #include "sockets.h"
 #include "proto.h"
+
 
 /*+ Set to the name of the proxy if there is one. +*/
 static /*@null@*/ /*@observer@*/ char *proxy=NULL;
@@ -69,10 +67,15 @@ char *HTTP_Open(URL *Url)
  /* Open the connection. */
 
  server=OpenClientSocket(hoststr,server_port);
- init_buffer(server);
 
  if(server==-1)
-    msg=PrintMessage(Warning,"Cannot open the HTTP connection to %s port %d; [%!s].",hoststr,server_port);
+    msg=GetPrintMessage(Warning,"Cannot open the HTTP connection to %s port %d; [%!s].",hoststr,server_port);
+ else
+   {
+    init_io(server);
+    configure_io_read(server,ConfigInteger(SocketTimeout),0,0);
+    configure_io_write(server,ConfigInteger(SocketTimeout),0,0);
+   }
 
  RejoinHostPort(server_host,hoststr,portstr);
 
@@ -113,10 +116,10 @@ char *HTTP_Request(URL *Url,Header *request_head,Body *request_body)
     PrintMessage(ExtraDebug,"Outgoing Request Head (to server)\n%s",head);
 
  if(write_string(server,head)==-1)
-    msg=PrintMessage(Warning,"Failed to write head to remote HTTP %s; [%!s].",proxy?"proxy":"server");
+    msg=GetPrintMessage(Warning,"Failed to write head to remote HTTP %s; [%!s].",proxy?"proxy":"server");
  if(request_body)
     if(write_data(server,request_body->content,request_body->length)==-1)
-       msg=PrintMessage(Warning,"Failed to write body to remote HTTP %s; [%!s].",proxy?"proxy":"server");
+       msg=GetPrintMessage(Warning,"Failed to write body to remote HTTP %s; [%!s].",proxy?"proxy":"server");
 
  free(head);
 
@@ -152,7 +155,7 @@ int HTTP_ReadHead(Header **reply_head)
 
 int HTTP_ReadBody(char *s,int n)
 {
- return(read_data_or_timeout(server,s,n));
+ return(read_data(server,s,n));
 }
 
 
@@ -164,9 +167,11 @@ int HTTP_ReadBody(char *s,int n)
 
 int HTTP_Close(void)
 {
-#if USE_ZLIB
- finish_zlib_buffer(server);
-#endif
+ unsigned long r,w;
+
+ finish_tell_io(server,&r,&w);
+
+ PrintMessage(Inform,"Server bytes; %d Read, %d Written.",r,w); /* Used in audit-usage.pl */
 
  return(CloseSocket(server));
 }

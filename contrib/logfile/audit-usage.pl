@@ -1,12 +1,12 @@
 #!/bin/sh
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.7b.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
 #
 # A Perl script to get audit information from the standard error output.
 #
 # Written by Andrew M. Bishop
 #
-# This file Copyright 1998,99,2000,01,02 Andrew M. Bishop
+# This file Copyright 1998,99,2000,01,02,03 Andrew M. Bishop
 # It may be distributed under the GNU Public License, version 2, or
 # any higher version.  See section COPYING of the GNU Public license
 # for conditions under which this file may be redistributed.
@@ -24,6 +24,7 @@ exit 1
            "Offline","-offline",
            "In Autodial Mode","-autodial",
            "Re-Reading Configuration File","-config",
+           "Dumping Configuration File","-dump",
            "Purge","-purge",
            "Status","-status",
            "Kill","-kill"
@@ -46,99 +47,72 @@ exit 1
            "Not Cached","X"
            );
 
-$time='';
-%host=();
-%user=();
-%ip=();
-%mode=();
-$url='';
+@piddata=();
 
 print "# Mode  : F=Fetch, R=Online (Real), S=Offline (Spool), A=Autodial,\n";
 print "#         W=WWWOFFLE Command, T=Timestamp, X=Error Condition\n";
 print "#\n";
 print "# Status: C=Cached version used, N=New page, F=Forced refresh, I=Internal,\n";
 print "#         M=Modified on server, U=Unmodified on server, X=Not cached\n";
-print "#         z=Compressed transfer.\n";
+print "#         +z=Compressed transfer, +c=Chunked transfer.\n";
 print "#\n";
 print "# Mode Status\n";
 print "# ---- ------\n";
-print "# / ,---'\n";
-print "#/ /         Hostname              IP Username Details\n";
-print "# ## ---------------- --------------- -------- -------\n";
+print "# /  ,---'                       Server Bytes  Client Bytes\n";
+print "#/  /         Hostname Username     Read Writ Read     Writ Details\n";
+print "# ### ---------------- -------- -------- ---- ---- -------- -------\n";
 
 while(<STDIN>)
   {
-   if(/^wwwoffled.([0-9]+)/)
+   if(/^wwwoffled\[([0-9]+)\]/)
        {
         if(/Timestamp: ([a-zA-Z0-9 :]+)/)
             {
-             $time=$1;
-             printf("T %1s%1s %16s %15s %8s %s\n","-"," ","-","-","-",$time);
+             &PrintLine(mode => "T", string => $1);
             }
-        elsif(/HTTP Proxy connection from host ([^ ]+) .([0-9a-f.:]+)/)
+        elsif(/WWWOFFLE (Online|Fetch|Offline|In Autodial Mode|Re-Reading Configuration File|Dumping Configuration File|Purge|Kill)\./)
+            {
+             &PrintLine(mode => "W", host => $host, string => "WWWOFFLE $commands{$1}");
+            }
+        elsif(/WWWOFFLE (Incorrect Password|Not a command|Unknown control command)/)
+            {
+             &PrintLine(mode => "X", host => $host, string => "WWWOFFLE Bad Connection($1)");
+            }
+        elsif(/HTTP Proxy connection from host ([^ ]+) /)
             {
              $host=$1;
-             $ip=$2;
-             $ip=~s/^::ffff:([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/\1/;
             }
-        elsif(/HTTP Proxy connection rejected from host ([^ ]+) .([0-9a-f.:]+)/)
+        elsif(/HTTP Proxy connection rejected from host ([^ ]+) /)
+            {
+             &PrintLine(mode => "X", host => $1, string => "HTTP Proxy Host Connection Rejected");
+            }
+        elsif(/WWWOFFLE Connection from host ([^ ]+) /)
             {
              $host=$1;
-             $ip=$2;
-             $ip=~s/^::ffff:([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/\1/;
-             printf("X %1s%1s %16s %15s %8s HTTP Proxy Host Connection Rejected\n","-"," ",$host,$ip,"-");
             }
-        elsif(/WWWOFFLE Connection from host ([^ ]+) .([0-9a-f.:]+)/)
+        elsif(/WWWOFFLE Connection rejected from host ([^ ]+) /)
             {
-             $host=$1;
-             $ip=$2;
-             $ip=~s/^::ffff:([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/\1/;
-            }
-        elsif(/WWWOFFLE Connection rejected from host ([^ ]+) .([0-9a-f.:]+)/)
-            {
-             $host=$1;
-             $ip=$2;
-             $ip=~s/^::ffff:([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/\1/;
-             printf("X %1s%1s %16s %15s %8s WWWOFFLE Connection Rejected\n","-"," ",$host,$ip,"-");
+             &PrintLine(mode => "X", host => $1, string => "WWWOFFLE Connection Rejected");
             }
         elsif(/Forked wwwoffles (-[a-z]+) .pid=([0-9]+)/)
             {
              $pid=$2;
              $mode=$modes{$1};
-             if($mode eq "F")
-                 {
-                  $host='-';
-                  $ip='-';
-                 }
+             $host="" if($mode eq "F");
 
-             $mode{$pid}=$mode;
-             $host{$pid}=$host;
-             $ip{$pid}=$ip;
-             $user{$pid}='-';
+             ${$piddata[$pid]}{mode}=$mode;
+             ${$piddata[$pid]}{host}=$host;
             }
         elsif(/Child wwwoffles (exited|terminated) with status ([0-9]+) .pid=([0-9]+)/)
             {
              $pid=$3;
-             $mode    =delete $mode{$pid};
-             $status  =delete $status{$pid};
-             $compress=delete $compress{$pid};
-             $host    =delete $host{$pid};
-             $ip      =delete $ip{$pid};
-             $user    =delete $user{$pid};
-             $url     =delete $url{$pid};
-             printf("%1s %1s%1s %16s %15s %8s %s\n",$mode,$status,$compress,$host,$ip,$user,$url) if($2 ne "3");
-            }
-        elsif(/WWWOFFLE (Online|Fetch|Offline|In Autodial Mode|Re-Reading Configuration File|Purge|Kill)\./)
-            {
-             $command=$commands{$1};
-             printf("W %1s%1s %16s %15s %8s WWWOFFLE %s\n","-"," ",$host,$ip,"-",$command);
-            }
-        elsif(/WWWOFFLE (Incorrect Password|Not a command|Unknown control command)/)
-            {
-             printf("X %1s%1s %16s %15s %8s WWWOFFLE Bad Connection (%s)\n","-"," ",$host,$ip,"-",$1);
+
+             &PrintLine(%{$piddata[$pid]});
+
+             undef %{$piddata[$pid]};
             }
        }
-   elsif(/^wwwoffles.([0-9]+)/)
+   elsif(/^wwwoffles\[([0-9]+)\]/)
        {
         $pid=$1;
 
@@ -146,35 +120,76 @@ while(<STDIN>)
             {
              if($1 eq "SSL") {$url="$2 (SSL)";}
              if($1 eq "URL") {$url=$2;}
-             $url{$pid}=$url;
-             $status{$pid}="I";
+             ${$piddata[$pid]}{string}=$url;
+             ${$piddata[$pid]}{status}="I";
             }
         elsif(/: Cache Access Status=\'([^\']+)/)
             {
-             $status=$statuses{$1};
-             $status{$pid}=$status;
+             ${$piddata[$pid]}{status}=$statuses{$1};
             }
         elsif(/: Server has used .Content-Encoding:/)
             {
-             $compress{$pid}="z";
+             ${$piddata[$pid]}{compress}="z";
+            }
+        elsif(/: Server has used .Transfer-Encoding:/)
+            {
+             ${$piddata[$pid]}{chunked}="c";
+            }
+        elsif(/: Server bytes; ([0-9]+) Read, ([0-9]+) Written./)
+            {
+             ${$piddata[$pid]}{server_rd}=$1;
+             ${$piddata[$pid]}{server_wr}=$2;
+            }
+        elsif(/: Client bytes; ([0-9]+) Read, ([0-9]+) Written./)
+            {
+             ${$piddata[$pid]}{client_rd}=$1;
+             ${$piddata[$pid]}{client_wr}=$2;
             }
         elsif(/HTTP Proxy connection from user '([^ ]+)'/)
             {
-             $user{$pid}=$1;
+             ${$piddata[$pid]}{user}=$1;
+            }
+        elsif(/No more outgoing requests/)
+            {
+             ${$piddata[$pid]}{mode}="W";
+             ${$piddata[$pid]}{string}="WWWOFFLE fetch finished";
             }
         elsif(/HTTP Proxy connection rejected from unauthenticated user/)
             {
-             $mode=delete $mode{$pid};
-             $host=delete $host{$pid};
-             $ip  =delete $ip{$pid};
-             printf("X %1s%1s %16s %15s %8s HTTP Proxy User Connection Rejected\n","-"," ",$host,$ip,"-");
+             ${$piddata[$pid]}{mode}="X";
+             ${$piddata[$pid]}{string}="HTTP Proxy User Connection Rejected";
             }
-        elsif(/(Cannot open temporary spool file|Could not parse HTTP request)/)
+        elsif(/(Cannot open temporary spool file|Could not parse HTTP request|The requested method '[^']+' is not supported)/)
             {
-             $mode=delete $mode{$pid};
-             $host=delete $host{$pid};
-             $ip  =delete $ip{$pid};
-             printf("X %1s%1s %16s %15s %8s Internal Error '$1'\n","-"," ",$host,$ip,"-");
+             ${$piddata[$pid]}{mode}="X";
+             ${$piddata[$pid]}{string}="WWWOFFLE Error($1)";
             }
        }
+  }
+
+#
+# Print a line
+#
+
+sub PrintLine
+  {
+   my(%params)=@_;
+
+#   foreach $key (keys %params)
+#     {
+#      print "KEY=$key VALUE=$params{$key}\n";
+#     }
+
+   foreach $variable (mode,status,compress,chunked,host,user,server_wr,server_rd,client_wr,client_rd,string)
+     {
+      next if($params{$variable});
+      $params{$variable}='-';
+      $params{$variable}='' if($variable eq compress || $variable eq chunked);
+     }
+
+   printf("%1s %1s%-2s %16s %8s %8s %4s %4s %8s %s\n",
+          $params{mode},$params{status},$params{compress}.$params{chunked},
+          $params{host},$params{user},
+          $params{server_rd},$params{server_wr},$params{client_rd},$params{client_wr},
+          $params{string});
   }

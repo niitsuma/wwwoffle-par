@@ -1,9 +1,9 @@
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
 #
 # WWWOFFLE Configuration file CONFDIR/wwwoffle.conf
 #
-# Example configuration file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop.
+# Example configuration file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop.
 # They may be distributed under the GNU Public License, version 2, or
 # any higher version.  See section COPYING of the GNU Public license
 # for conditions under which this file may be redistributed.
@@ -41,7 +41,7 @@ Options
 
  connect-retry         = no
 
- ssl-allow-port        = 443
+# ssl-allow-port        = 443
 
  dir-perm              = 0755
  file-perm             = 0644
@@ -49,6 +49,7 @@ Options
  lock-files            = no
 
  reply-compressed-data = no
+ reply-chunked-data    = yes
 
 #exec-cgi = /local/cgi-bin/*
 #exec-cgi = /local/*.cgi
@@ -57,6 +58,9 @@ Options
 
 OnlineOptions
 {
+ pragma-no-cache       = yes
+ cache-control-no-cache= yes
+
  request-changed       = 10m
 
  request-changed-once  = yes
@@ -67,6 +71,10 @@ OnlineOptions
 
  request-redirection   = no
 
+ request-conditional   = yes
+
+ validate-with-etag    = yes
+
  try-without-password  = yes
 
  intr-download-keep    = no
@@ -75,7 +83,10 @@ OnlineOptions
 
  timeout-download-keep = no
 
+ keep-cache-if-not-found = no
+
  request-compressed-data = yes
+ request-chunked-data    = yes
 }
 
 
@@ -106,6 +117,8 @@ FetchOptions
 
  webbug-images = yes
 
+ icon-images   = no
+
  only-same-host-images = no
 }
 
@@ -114,7 +127,11 @@ IndexOptions
 {
  create-history-indexes = yes
 
+ cycle-indexes-daily    = no
+
 #### Example ####
+# Do index files from /good/ in the barfoo.com domain.
+# <*://*.barfoo.com/good/*> list-any = yes
 # Don't index any hosts in the barfoo.com domain.
 # <*://*.barfoo.com> list-any = no
 # Don't index any gif or jpg files in the lasttime index.
@@ -126,8 +143,6 @@ IndexOptions
 ModifyHTML
 {
  enable-modify-html        = no
-
- enable-modify-online      = no
 
  add-cache-info            = no
 
@@ -145,12 +160,17 @@ ModifyHTML
 
  disable-blink             = no
 
+ disable-flash             = no
+
  disable-meta-refresh      = no
  disable-meta-refresh-self = no
+ disable-meta-set-cookie   = no
 
  disable-dontget-links     = no
  replace-dontget-images    = no
  replacement-dontget-image = /local/dontget/replacement.gif
+
+ disable-dontget-iframes   = no
 
  replace-webbug-images     = no
  replacement-webbug-image  = /local/dontget/replacement.gif
@@ -158,10 +178,6 @@ ModifyHTML
  demoronise-ms-chars       = no
 
  disable-animated-gif      = no
-
- disable-flash             = no
-
- disable-dontget-iframes   = no
 }
 
 
@@ -213,6 +229,8 @@ DontCache
 {
 
 #### Example ####
+# Do cache files from /good/ in the barfoo.com domain.
+# !*://*.barfoo.com/good/*
 # Don't cache any hosts in the barfoo.com domain.
 # *://*.barfoo.com
 # Don't cache any gzipped or tar files.
@@ -233,13 +251,15 @@ DontGet
 # replacement = /local/dontget/replacement.gif
 
 #### Example ####
+# Do get files from /good/ in the barfoo.com domain.
+# !*://*.barfoo.com/good/*
 # Don't get from any hosts in the barfoo.com domain.
 # *://*.barfoo.com
 # Don't get any gzipped or tar files.
 # *://*/*.gz
 # *://*/*.tar
-# Don't get any files from /adverts in the foo.com domain.
-# *://*.foo.com/adverts*
+# Don't get any files from /adverts/ in the foo.com domain.
+# *://*.foo.com/adverts/*
 # Dont get any gzipped or tar files when getting recursively.
 # <*://*/*.gz>  get-recursive = no
 # <*://*/*.tar> get-recursive = no
@@ -290,6 +310,10 @@ DontCompress
 
 CensorHeader
 {
+ referer-self     = no
+ referer-self-dir = no
+
+ force-user-agent = no
 
 ### Example ###
 # Don't send the username.
@@ -299,7 +323,7 @@ CensorHeader
 # Don't send Cookies back
 # Cookie = yes
 # Lie about the Browser type.
-# User-Agent = WWWOFFLE/2.7
+# User-Agent = WWWOFFLE/2.8
 }
 
 

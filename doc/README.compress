@@ -1,11 +1,11 @@
-            WWWOFFLE - World Wide Web Offline Explorer - Version 2.6c
+            WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b
             =========================================================
 
 
 One feature that has often been requested in WWWOFFLE is compression.  This is
 either for compression from servers on the internet or for compression of files
 in the cache.  Since adding compression of any sort is a big step I have
-implemented it for both requested cases and also from WWWOFFLE to the browser.
+implemented it for both these cases and also from WWWOFFLE to the client.
 
 The compression options are selectable at compile time and the individual
 options are chosen using the WWWOFFLE configuration file.  This means that if
@@ -56,9 +56,9 @@ compression/uncompression functions are based on file compression/uncompression
 and not in-memory compression/uncompression.
 
 
-The non-availablity of in-memory block-by-block gzip/gunzip functions is a
+The non-availability of in-memory block-by-block gzip/gunzip functions is a
 problem since WWWOFFLE needs to be able to compress data as it is flowing from
-the server to the browser.  A temporary file could be used, but this is not a
+the server to the client.  A temporary file could be used, but this is not a
 good solution in general.  To work around this problem the gzip/gunzip source
 code in the zlib library was examined and their operation (using the deflate and
 inflate algorithms with some extra fiddling at start and end) was implemented as
@@ -74,7 +74,7 @@ HTTP/1.1 and Content Negotiation
 For the compression functions to be worth having on the link from the server to
 the client there must be servers that support the function.
 
-Fortunately the HTTP/1.1 standard defines a mechanism by which browsers can
+Fortunately the HTTP/1.1 standard defines a mechanism by which clients can
 indicate to servers that they will accept compressed data.  The servers reply
 with compressed data and indicate the method by which the data has been
 compressed.  This is a specific instance of the content negotiation functions of
@@ -102,7 +102,7 @@ An important remark to make at this point is that the HTTP standard defines the
 'Content-Encoding' header to apply to the complete link from server to client
 through any proxies.  It is not intended to apply separately for the server to
 proxy and proxy to client links.  There is a 'Transfer-Encoding' header for
-this, but it does not allow for compression.
+this, but it not generally used.
 
 
 Problem 1
@@ -125,21 +125,20 @@ a client problem.
 Problem 2
 - - - - -
 
-When a request is sent for a URL that is naturally compressed then even if no
-'Accept-Encoding' header is sent then the data comes back with a
-'Content-Encoding' header.  So for example if a user requests the URL
-http://www.foo/bar.tar.gz then the data comes back gzipped with a
-'Content-Encoding: gzip' header.  If the user saves the file then he expects
-that it is saved to a file called bar.tar.gz and that it contains a compressed
-tar file.
+When a request  is sent for a URL  that is naturally compressed then  even if no
+'Accept-Encoding' header is  sent the data comes back  with a 'Content-Encoding'
+header.  So  for example  if a user  requests the  URL http://www.foo/bar.tar.gz
+then the data comes back gzipped with a 'Content-Encoding: gzip' header.  If the
+user saves the file from the browser then  he expects that it is saved to a file
+called bar.tar.gz and that it contains a compressed tar file.
 
 The problem here is that WWWOFFLE adds in an 'Accept-Encoding' header on all
-outgoing requests and decompresses the ones that come back with a
-'Content-Encoding' header and removes the header.  This just breaks what I have
-described above, the file bar.tar.gz that the browser writes out is actually a
-tar file and not a compressed tar file.  WWWOFFLE has no way to know that the
-data that was requested was compressed in its natural form or if the compression
-was added as part of the content negotiation.
+requests and decompresses the ones that come back with a 'Content-Encoding'
+header and removes the header.  This just breaks what I have described above,
+the file bar.tar.gz that the browser writes out is actually a tar file and not a
+compressed tar file.  WWWOFFLE has no way to know that the data that was
+requested was compressed in its natural form or if the compression was added as
+part of the content negotiation.
 
 
 Problem 3
@@ -152,7 +151,6 @@ The Debian Linux package manager program 'apt-get' requests files called
 Packages.gz from the server.  If WWWOFFLE uncompresses these and sends them to
 the client uncompressed then apt-get fails because the file is not compressed
 like it expects.
-
 
 Solution
 - - - -
@@ -175,8 +173,8 @@ The problem here is that when people hide the browser that they are using by
 changing the User-Agent (either in the browser or using the WWWOFFLE
 CensorHeader options) the compression may not be performed.
 
-One server that does this is www.google.com who only send compressed data to
-clients that can handle it.
+One server that does this is www.google.com which only sends compressed data to
+clients that it thinks can handle it.
 
 Solution
 - - - -
@@ -184,11 +182,6 @@ Solution
 There are two solutions here, either the user has to choose a fake User-Agent
 that will work (but there is no list of those and different servers may use
 different ones) or the server needs to be modified.
-
-For the www.google.com problem, the solution has been implemented at the server
-end by accepting "WWWOFFLE" as a User-Agent string (specifically the start of
-string) that performs compression correctly.  Obviously it is impossible to get
-every server to change their method of choosing to use compression or not.
 
 
 Compressed Cache
@@ -203,7 +196,7 @@ Problem 1
 
 If the file is stored in the cache with a 'Content-Encoding' header then
 WWWOFFLE would need to decide if it should decompress it before sending it to
-the brower.  This needs the same list of files not to compress that are
+the browser.  This needs the same list of files not to compress that are
 mentioned in the solution above.
 
 
@@ -253,6 +246,31 @@ is solved.  The list of MIME types that are used for the cache compression are
 used for deciding if it is worth compressing the file to send to the browser.
 
 
+Problems with Compression Formats
+---------------------------------
+
+Problems with the format of data sent from servers to WWWOFFLE have caused a
+variety of problems.
+
+The format of data the is normally sent back from servers when deflate
+compression is requested is not what is described in RFC 2616 the HTTP/1.1
+specification.  The format of the data in this case should have a 2 byte header
+and 4 byte trailer (as described in RFC 1950) around the deflated data (as
+described in RFC 1951).  The common format that is used is that the extra header
+and trailer are not sent, just the deflated data.
+
+If this is the de-facto standard on the internet then it would not be a problem
+and WWWOFFLE could request deflated data and not have a problem reading it.
+Unfortunately it is not this simple, there is still the possibility of receiving
+the correct zlib formatted data.  There are also web servers that are even worse
+because they send back a 10 byte gzip header followed by the 2 byte zlib header
+and then the deflated data.
+
+The only solution to this is that WWWOFFLE waits for the first few bytes of data
+to be received and then makes a choice about the format based on what it sees.
+This is the approach that is now taken in version 2.8 of WWWOFFLE, the first 16
+bytes of data are accumulated and then a decision is made.
+
 
 Andrew M. Bishop
-12 April 2001
+9 December 2003

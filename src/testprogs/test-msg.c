@@ -14,10 +14,7 @@
 #include <stdio.h>
 
 #include "wwwoffle.h"
-#include "misc.h"
 
-/*+ The file descriptor of the spool directory. +*/
-int fSpoolDir=-1;
 
 int main(int argc,char **argv)
 {

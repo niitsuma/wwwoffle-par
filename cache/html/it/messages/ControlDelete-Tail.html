@@ -3,8 +3,12 @@
 
 </dl>
 
-<hr width="50%">
+$anyerrors?{
+<!-- Standard WWWOFFLE Message Page Inline Help Start -->
 
+<h2 class="wwwoffle-inline-help">Help</h2>
+
+<div class="wwwoffle-inline-help">
 Se una o pi&ugrave; delle pagine richieste non possono essere cancellate, questo
 pu&ograve; essere dovuto al fatto che siano protette da password. Il modulo seguente
 permette di riprovare la richiesta con il nome utente e password specificati.
@@ -15,39 +19,38 @@ Nome utente: <input type="text" name="username">
 Password: <input type="password" name="password">
 <p>
 <input type="submit" value="Cancella con Nome utente e Password">
+
+</div>
+
+<!-- Standard WWWOFFLE Message Page Inline Help End -->
+}{}
 </form>
 
-<!--
+<div class="wwwoffle-nav" align="center">
+$url?{[<a href="http://$localhost/index/?sort=alpha">Indice</a>]}{}
+$mon?{[<a href="http://$localhost/index/monitor/?sort=alpha">Indice</a>]}{}
+$req?{[<a href="http://$localhost/index/outgoing/?sort=alpha">Indice</a>]}{}
+</div>
 
-Useful WWWOFFLE Buttons
-
-$url?{$index = http://$localhost/index/?sort=alpha}{}
-$mon?{$index = http://$localhost/index/monitor/?sort=alpha}{}
-$req?{$index = http://$localhost/index/outgoing/?sort=alpha}{}
-
--->
-
-<p align=center>
-[<a href="$index">Indice</a>]
-</p>
-
-<script language="JAVASCRIPT">
+<script type="text/javascript">
 <!--//
-document.write("<p align=center>");
+document.write("<p align='center'>");
 document.write("[<a href='javascript:history.go(-2)'>Go back two pages<\/a>]");
 document.write("<\/p>");
 //-->
 </script>
 
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer Start -->
 
-<hr>
+<hr class="wwwoffle-footer">
+<div class="wwwoffle-footer" align="center">
+WWWOFFLE - [ \
+<a href="http://$localhost/Welcome.html">Pagina di Benvenuto</a>| \
+<a href="http://$localhost/FAQ.html">FAQ</a> \
+] - WWWOFFLE
+</div>
 
-<p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Pagina di Benvenuto</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
-</p>
-
-<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+<!-- Standard WWWOFFLE Message Page Footer End -->
 
 </BODY>
 

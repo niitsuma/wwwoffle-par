@@ -8,10 +8,10 @@
 
 # Set the WWWOFFLE HTTP proxy server online.
 if [ -x /usr/local/bin/wwwoffle ]; then
-   /usr/local/bin/wwwoffle -online -c /var/spool/wwwoffle/wwwoffle.conf
+   /usr/local/bin/wwwoffle -online -c /etc/wwwoffle/wwwoffle.conf
 fi
 
 # Get the WWWOFFLE HTTP proxy server to fetch requested URLs.
 if [ -x /usr/local/bin/wwwoffle ]; then
-   /usr/local/bin/wwwoffle -fetch -c /var/spool/wwwoffle/wwwoffle.conf &
+   /usr/local/bin/wwwoffle -fetch -c /etc/wwwoffle/wwwoffle.conf &
 fi

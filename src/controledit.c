@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/controledit.c 2.29 2002/08/04 10:26:06 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/controledit.c 2.33 2004/01/11 10:28:20 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Configuration file management via a web-page.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -22,11 +22,21 @@
 
 #include <sys/stat.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "wwwoffle.h"
+#include "io.h"
 #include "misc.h"
-#include "config.h"
 #include "errors.h"
+#include "config.h"
+
+/*+ Need this for Win32 to use binary mode +*/
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
+
+
+/*+ A type definition to contain the contents of a configuration file section. +*/
 
 typedef struct _ControlEditSection
 {
@@ -218,18 +228,21 @@ static void ControlEditUpdate(int fd,char *section,ControlEditSection *sections)
 static ControlEditSection *read_config_file(void)
 {
  int sec_num=0,state=0;
- FILE *conf;
+ int conf;
  ControlEditSection *sections;
  char *line=NULL;
  int line_num=0;
 
- conf=fopen(ConfigurationFileName(),"r");
- if(!conf)
+ conf=open(ConfigurationFileName(),O_RDONLY|O_BINARY);
+
+ if(conf==-1)
    {PrintMessage(Warning,"Cannot open the config file '%s' for reading; [%!s].",ConfigurationFileName()); return(NULL);}
+
+ init_io(conf);
 
  sections=(ControlEditSection*)calloc(1,sizeof(ControlEditSection));
 
- while((line=fgets_realloc(line,conf)))
+ while((line=read_line(conf,line)))
    {
     char *l=line;
     char *r=line+strlen(line)-1;
@@ -293,6 +306,13 @@ static ControlEditSection *read_config_file(void)
     else if(state==4 && *l)
       {
        state=5;
+       if(strchr(l,'/'))
+         {
+          PrintMessage(Warning,"Error parsing config file, line %d, included file is not in same directory",line_num);
+          free_sections(sections);
+          free(line);
+          return(NULL);
+         }
        while(r>l && isspace(*r))
           *r--=0;
        sections[sec_num-1]->file=(char*)malloc(strlen(l)+1);
@@ -310,7 +330,8 @@ static ControlEditSection *read_config_file(void)
       }
    }
 
- fclose(conf);
+ finish_io(conf);
+ close(conf);
 
  for(sec_num=0;sections[sec_num];sec_num++)
     if(sections[sec_num]->name && sections[sec_num]->file)
@@ -330,21 +351,25 @@ static ControlEditSection *read_config_file(void)
 
        strcpy(r+1,sections[sec_num]->file);
 
-       conf=fopen(name,"r");
-       if(!conf)
+       conf=open(name,O_RDONLY|O_BINARY);
+
+       if(conf==-1)
          {PrintMessage(Warning,"Cannot open the config file '%s' for reading; [%!s].",name); free_sections(sections); free(name); return(NULL);}
+
+       init_io(conf);
 
        old=sections[sec_num]->file;
        sections[sec_num]->file=name;
        free(old);
 
-       while((line=fgets_realloc(line,conf)))
+       while((line=read_line(conf,line)))
          {
           sections[sec_num]->content=(char*)realloc((void*)sections[sec_num]->content,strlen(sections[sec_num]->content)+strlen(line)+1);
           strcat(sections[sec_num]->content,line);
          }
 
-       fclose(conf);
+       finish_io(conf);
+       close(conf);
       }
 
  return(sections);
@@ -365,7 +390,7 @@ static int write_config_file(ControlEditSection *sections)
  char *conf_file=ConfigurationFileName();
  int renamed=0,i;
  struct stat buf;
- FILE *conf;
+ int conf;
 
  /* Rename the old file as a backup. */
 
@@ -384,9 +409,12 @@ static int write_config_file(ControlEditSection *sections)
 
  free(conf_file_backup);
 
- conf=fopen(conf_file,"w");
- if(!conf)
+ conf=open(conf_file,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY);
+
+ if(conf==-1)
    {PrintMessage(Warning,"Cannot open the config file '%s' for writing; [%!s].",conf_file); return(1);}
+
+ init_io(conf);
 
  if(renamed)
    {
@@ -398,32 +426,33 @@ static int write_config_file(ControlEditSection *sections)
    {
     if(sections[i]->comment)
       {
-       fprintf(conf,"%s\n",sections[i]->comment);
+       write_formatted(conf,"%s\n",sections[i]->comment);
       }
     if(sections[i]->name)
       {
-       fprintf(conf,"%s\n",sections[i]->name);
+       write_formatted(conf,"%s\n",sections[i]->name);
 
        if(sections[i]->file)
          {
           char *p=sections[i]->file+strlen(sections[i]->file)-1;
           while(p>sections[i]->file && *p!='/')
              p--;
-          fprintf(conf,"[\n%s\n]\n\n\n",p+1);
+          write_formatted(conf,"[\n%s\n]\n\n\n",p+1);
          }
        else
          {
-          fprintf(conf,"{\n");
+          write_formatted(conf,"{\n");
           if(sections[i]->content)
-             fputs(sections[i]->content,conf);
+             write_string(conf,sections[i]->content);
           if(sections[i]->content[strlen(sections[i]->content)-1]!='\n')
-             fputs("\n",conf);
-          fprintf(conf,"}\n\n\n");
+             write_string(conf,"\n");
+          write_string(conf,"}\n\n\n");
          }
       }
    }
 
- fclose(conf);
+ finish_io(conf);
+ close(conf);
 
  for(i=0;sections[i];i++)
     if(sections[i]->name && sections[i]->file)
@@ -443,9 +472,12 @@ static int write_config_file(ControlEditSection *sections)
 
        free(conf_file_backup);
 
-       conf=fopen(sections[i]->file,"w");
-       if(!conf)
+       conf=open(sections[i]->file,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY);
+
+       if(conf==-1)
          {PrintMessage(Warning,"Cannot open the config file '%s' for writing; [%!s].",sections[i]->file); return(1);}
+
+       init_io(conf);
 
        if(renamed)
          {
@@ -453,9 +485,10 @@ static int write_config_file(ControlEditSection *sections)
           chmod(sections[i]->file,buf.st_mode&(~S_IFMT));
          }
 
-       fputs(sections[i]->content,conf);
+       write_string(conf,sections[i]->content);
 
-       fclose(conf);
+       finish_io(conf);
+       close(conf);
       }
 
  return(0);

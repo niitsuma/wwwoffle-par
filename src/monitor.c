@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/monitor.c 1.43 2002/10/20 10:08:20 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/monitor.c 1.53 2004/02/14 14:03:18 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   The functions for monitoring URLs.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1998,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -55,9 +55,10 @@
 #include <fcntl.h>
 
 #include "wwwoffle.h"
+#include "io.h"
 #include "misc.h"
-#include "config.h"
 #include "errors.h"
+
 
 /*+ Need this for Win32 to use binary mode +*/
 #ifndef O_BINARY
@@ -66,9 +67,6 @@
 
 static void MonitorFormShow(int fd,char *request_args);
 static void MonitorFormParse(int fd,char *request_args,/*@null@*/ Body *request_body);
-
-/*+ The file descriptor of the spool directory. +*/
-extern int fSpoolDir;
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -191,7 +189,7 @@ static void MonitorFormShow(int fd,char *request_args)
 
   char *request_args The arguments to the requesting URL.
 
-  Body *request_body The body of the HTTP request sent by the browser.
+  Body *request_body The body of the HTTP request sent by the client.
   ++++++++++++++++++++++++++++++++++++++*/
 
 static void MonitorFormParse(int fd,char *request_args,Body *request_body)
@@ -222,7 +220,7 @@ static void MonitorFormParse(int fd,char *request_args,Body *request_body)
  for(i=0;args[i];i++)
    {
     if(!strncmp("url=",args[i],4))
-       url=args[i]+4;
+       url=TrimArgs(URLDecodeFormArgs(args[i]+4));
     if(!strncmp("mofy1=",args[i],6))
        mofy[0]=args[i][6];
     if(!strncmp("mofy2=",args[i],6))
@@ -272,13 +270,14 @@ static void MonitorFormParse(int fd,char *request_args,Body *request_body)
     HTMLMessage(fd,404,"WWWOFFLE Monitor Form Error",NULL,"MonitorFormError",
                 "body",request_body?request_body->content:request_args,
                 NULL);
+    if(url) free(url);
     free(args[0]);
     free(args);
     return;
    }
 
- url=URLDecodeFormArgs(url);
  Url=SplitURL(url);
+ free(url);
 
  /* Parse the requested time */
 
@@ -299,6 +298,11 @@ static void MonitorFormParse(int fd,char *request_args,Body *request_body)
       {
        while(*p && !isdigit(*p))
          {
+          if(*p=='*')
+            {
+             strcpy(DofM,"1111111111111111111111111111111");
+             any=1;
+            }
           if(*p=='-')
              range=1;
           p++;
@@ -306,15 +310,19 @@ static void MonitorFormParse(int fd,char *request_args,Body *request_body)
        if(!*p)
           break;
        d=atoi(p)-1;
-       if(d>=0 && d<31)
+       if(range)
          {
-          if(range)
-             for(;lastd<=d;lastd++)
-                DofM[lastd]='1';
-          else
-             DofM[d]='1';
-          any++;
+          if(d>30)
+             d=30;
+          for(;lastd<=d;lastd++)
+             DofM[lastd]='1';
           range=0;
+          any++;
+         }
+       else if(d>=0 && d<31)
+         {
+          DofM[d]='1';
+          any++;
           lastd=d;
          }
        while(isdigit(*p))
@@ -358,15 +366,19 @@ static void MonitorFormParse(int fd,char *request_args,Body *request_body)
        if(!*p)
           break;
        h=atoi(p);
-       if(h>=0 && h<24)
+       if(range)
          {
-          if(range)
-             for(;lasth<=h;lasth++)
-                HofD[lasth]='1';
-          else
-             HofD[h]='1';
-          any++;
+          if(h>23)
+             h=23;
+          for(;lasth<=h;lasth++)
+             HofD[lasth]='1';
           range=0;
+          any++;
+         }
+       else if(h>=0 && h<24)
+         {
+          HofD[h]='1';
+          any++;
           lasth=h;
          }
        while(isdigit(*p))
@@ -374,7 +386,7 @@ static void MonitorFormParse(int fd,char *request_args,Body *request_body)
       }
 
     if(range)
-       for(;lasth<=30;lasth++)
+       for(;lasth<=23;lasth++)
           HofD[lasth]='1';
     else
        if(!any)
@@ -382,7 +394,6 @@ static void MonitorFormParse(int fd,char *request_args,Body *request_body)
    }
 
  mfd=CreateMonitorSpoolFile(Url,MofY,DofM,DofW,HofD);
- init_buffer(mfd);
 
  if(mfd==-1)
     HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",
@@ -393,8 +404,11 @@ static void MonitorFormParse(int fd,char *request_args,Body *request_body)
     Header *new_request_head=RequestURL(Url,NULL);
     char *head=HeaderString(new_request_head);
 
+    init_io(mfd);
+
     write_string(mfd,head);
 
+    finish_io(mfd);
     close(mfd);
 
     HTMLMessage(fd,200,"WWWOFFLE Monitor Will Get",NULL,"MonitorWillGet",
@@ -407,8 +421,6 @@ static void MonitorFormParse(int fd,char *request_args,Body *request_body)
 
  free(args[0]);
  free(args);
-
- free(url);
 
  FreeURL(Url);
 }
@@ -430,18 +442,20 @@ void RequestMonitoredPages(void)
 
  dir=opendir(".");
  if(!dir)
-   {PrintMessage(Warning,"Cannot open directory 'monitor'; [%!s] no files monitored.");fchdir(fSpoolDir);return;}
+   {PrintMessage(Warning,"Cannot open directory 'monitor'; [%!s] no files monitored.");ChangeBackToSpoolDir();return;}
 
- ent=readdir(dir);  /* skip .  */
+ ent=readdir(dir);
  if(!ent)
-   {PrintMessage(Warning,"Cannot read directory 'monitor'; [%!s] no files monitored.");closedir(dir);fchdir(fSpoolDir);return;}
- ent=readdir(dir);  /* skip .. */
+   {PrintMessage(Warning,"Cannot read directory 'monitor'; [%!s] no files monitored.");closedir(dir);ChangeBackToSpoolDir();return;}
 
  /* Scan through all of the files. */
 
- while((ent=readdir(dir)))
+ do
    {
     struct stat buf;
+
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
 
     if(stat(ent->d_name,&buf))
       {PrintMessage(Inform,"Cannot stat file 'monitor/%s'; [%!s] race condition?",ent->d_name);return;}
@@ -451,7 +465,7 @@ void RequestMonitoredPages(void)
        URL *Url=SplitURL(url);
        int last,next;
 
-       fchdir(fSpoolDir);
+       ChangeBackToSpoolDir();
 
        MonitorTimes(Url,&last,&next);
 
@@ -462,7 +476,6 @@ void RequestMonitoredPages(void)
        if(next==0)
          {
           int ifd=open(ent->d_name,O_RDONLY|O_BINARY);
-          init_buffer(ifd);
 
           if(ifd==-1)
              PrintMessage(Warning,"Cannot open monitored file 'monitor/%s' to read [%!s].",ent->d_name);
@@ -470,10 +483,11 @@ void RequestMonitoredPages(void)
             {
              int ofd;
 
-             fchdir(fSpoolDir);
+             init_io(ifd);
+
+             ChangeBackToSpoolDir();
 
              ofd=OpenOutgoingSpoolFile(0);
-             init_buffer(ofd);
 
              if(ofd==-1)
                 PrintMessage(Warning,"Cannot open outgoing spool file for monitored URL '%s'; [%!s].",url);
@@ -482,10 +496,13 @@ void RequestMonitoredPages(void)
                 char *contents=(char*)malloc(buf.st_size+1);
                 URL *Url=SplitURL(url);
 
+                init_io(ofd);
+
                 read_data(ifd,contents,buf.st_size);
                 if(write_data(ofd,contents,buf.st_size)==-1)
                    PrintMessage(Warning,"Cannot write to outgoing file; disk full?");
 
+                finish_io(ofd);
                 CloseOutgoingSpoolFile(ofd,Url);
 
                 free(contents);
@@ -494,6 +511,7 @@ void RequestMonitoredPages(void)
 
              chdir("monitor");
 
+             finish_io(ifd);
              close(ifd);
 
              file=URLToFileName(Url);
@@ -508,8 +526,9 @@ void RequestMonitoredPages(void)
        FreeURL(Url);
       }
    }
+ while((ent=readdir(dir)));
 
- fchdir(fSpoolDir);
+ ChangeBackToSpoolDir();
 
  closedir(dir);
 }
@@ -540,6 +559,8 @@ void MonitorTimes(URL *Url,int *last,int *next)
  if(then>now)
     then=now;
 
+ *next=0;
+
  mofy=dofm=dofw=hofd=0;
  for(when=then+3600;when<=now;when+=3600)
    {
@@ -558,10 +579,10 @@ void MonitorTimes(URL *Url,int *last,int *next)
     hofd=(hofd+1)%24;
    }
 
- if(when>now)
+ if(when>=now)
    {
     hofd=0;
-    for(when=now+3600;when<(now+31*24*3600);when+=3600)
+    for(when=now;when<(now+31*24*3600);when+=3600)
       {
        if(hofd==0)
          {

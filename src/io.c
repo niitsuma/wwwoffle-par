@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/io.c 2.29 2002/09/12 18:16:24 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/io.c 2.41 2004/01/17 16:29:37 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7f.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Functions for file input and output.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -40,225 +40,322 @@
 # endif
 #endif
 
-#include <fcntl.h>
 #include <errno.h>
 
-#if USE_ZLIB
-#include <zlib.h>
-#endif
-
-#include "wwwoffle.h"
+#include "io.h"
+#include "iopriv.h"
 #include "errors.h"
-#include "misc.h"
 
 
 /*+ The buffer size for reading lines. +*/
-#define BUFSIZE 64
-
-/*+ The buffer of data from each of the files. +*/
-static char **fdbuf=NULL;
-
-/*+ The number of bytes of data buffered for each file. +*/
-static int *fdbytes=NULL;
-
-/*+ The number of file buffers allocated. +*/
-static int nfdbuf=0;
-
-/*+ The timeout in seconds for reading from a socket. +*/
-static int read_timeout=0;
+#define LINE_BUFFER_SIZE 128
 
 
-#if USE_ZLIB
-/*+ A data structure to hold the deflate stream and the gzip info. +*/
-typedef struct _zdata
-{
- int direction;                 /*+ The direction, compress or uncompress +*/
- z_stream stream;               /*+ The deflate / inflate stream. +*/
+/*+ The number of IO contexts allocated. +*/
+static int nio=0;
 
- unsigned long crc;             /*+ The gzip crc. +*/
-
- int doing_head;                /*+ A flag to indicate that we are doing a gzip head. +*/
- int head_extra_len;            /*+ A gzip header extra field length. +*/
- int head_flag;                 /*+ A flag to store the gzip header flag. +*/
-
- int doing_body;                /*+ A flag to indicate that we are doing a gzip body. +*/
-
- int doing_tail;                /*+ A flag to indicate that we are doing a gzip tail. +*/
- unsigned long tail_crc;        /*+ The crc value stored in the gzip tail. +*/
- unsigned long tail_len;        /*+ The length value stored in the gzip tail. +*/
-}
-zdata;
-
-/*+ The buffer to hold the compression information. +*/
-static zdata **fdzlib=NULL;
-
-/*+ The size of the temporary buffer for compressing/uncompressing, smaller than the read/write buffer. +*/
-#define ZBUFFER_SIZE (READ_BUFFER_SIZE/4)
-
-/*+ A temporary buffer for decompressing from or compressing into +*/
-static char zbuffer[ZBUFFER_SIZE];
-
-/*+ The compression error number. +*/
-int z_errno=0;
-
-/*+ The compression error message string. +*/
-char *z_strerror=NULL;
-#endif
+/*+ The allocated IO contexts. +*/
+static /*@only@*/ io_context **io_contexts;
 
 
-static int read_into_buffer(int fd);
-static int read_into_buffer_or_timeout(int fd);
-static int read_from_buffer(int fd,char *buffer,int n);
+/*+ The chunked encoding/compression error number. +*/
+int io_errno=0;
 
-static int write_all(int fd,const char *data,int n);
+/*+ The chunked encoding/compression error message string. +*/
+char /*@null@*/ *io_strerror=NULL;
 
-#if USE_ZLIB
-static int read_uncompressing_from_buffer(int fd,char *buffer,int n);
-
-static int read_uncompressing(int fd,char *buffer,int n);
-
-static int write_compressing(int fd,const char *buffer,int n);
-
-static int parse_gzip_head(int fd,char *buffer,int n);
-static int parse_gzip_tail(int fd,char *buffer,int n);
-
-static void set_zerror(char *msg);
-#endif
-
-/*++++++++++++++++++++++++++++++++++++++
-  Set the timeout for reading from a socket.
-
-  int timeout The timeout in seconds.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-void set_read_timeout(int timeout)
-{
- read_timeout=timeout;
-}
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Call fgets and realloc the buffer as needed to get a whole line.
-
-  char *fgets_realloc Returns the modified buffer (NULL at the end of the file).
-
-  char *buffer The current buffer.
-
-  FILE *file The file to read from.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-char *fgets_realloc(char *buffer,FILE *file)
-{
- int n=0;
- char *buf;
-
- if(!buffer)
-    buffer=(char*)malloc((BUFSIZE+1));
-
- while((buf=fgets(&buffer[n],BUFSIZE,file)))
-   {
-    int s=strlen(buf);
-    n+=s;
-
-    if(buffer[n-1]=='\n')
-       break;
-    else
-       buffer=(char*)realloc(buffer,n+(BUFSIZE+1));
-   }
-
- if(!buf)
-   {free(buffer);buffer=NULL;}
-
- return(buffer);
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Initialise the buffer used for this file descriptor.
+  Initialise the IO context used for this file descriptor.
 
   int fd The file descriptor to initialise.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void init_buffer(int fd)
+void init_io(int fd)
 {
  if(fd==-1)
-    return;
+    PrintMessage(Fatal,"IO: Function init_io(%d) was called with an invalid argument.",fd);
 
- if(fd>=nfdbuf)
+ /* Allocate some space for new IO contexts */
+
+ if(fd>=nio)
    {
-    fdbuf=(char**)realloc((void*)fdbuf,(fd+9)*sizeof(char**));
-    fdbytes=(int*)realloc((void*)fdbytes,(fd+9)*sizeof(int));
-#if USE_ZLIB
-    fdzlib=(zdata**)realloc((void*)fdzlib,(fd+9)*sizeof(zdata*));
-#endif
+    io_contexts=(io_context**)realloc((void*)io_contexts,(fd+9)*sizeof(io_context**));
 
-    for(;nfdbuf<=(fd+8);nfdbuf++)
-      {
-       fdbuf[nfdbuf]=NULL;
-       fdbytes[nfdbuf]=0;
-#if USE_ZLIB
-       fdzlib[nfdbuf]=NULL;
-#endif
-      }
+    for(;nio<=(fd+8);nio++)
+       io_contexts[nio]=NULL;
    }
 
- if(!fdbuf[fd])
-    fdbuf[fd]=(char*)malloc(BUFSIZE);
+ /* Allocate the new context */
 
- fdbytes[fd]=0;
+ if(io_contexts[fd])
+    PrintMessage(Fatal,"IO: Function init_io(%d) was called twice without calling finish_io(%d).",fd,fd);
+
+ io_contexts[fd]=(io_context*)calloc(1,sizeof(io_context));
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Read all of the data from the file descriptor and dump it.
+  Re-initialise a file descriptor (e.g. after seeking on a file).
 
-  int empty_buffer Returns the amount that was read.
-
-  int fd The file descriptor to read from.
+  int fd The file descriptor to re-initialise.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int empty_buffer(int fd)
+void reinit_io(int fd)
 {
- int nr=fdbytes[fd];
+ io_context *context;
 
- while(1)
+ if(fd==-1)
+    PrintMessage(Fatal,"IO: Function reinit_io(%d) was called with an invalid argument.",fd);
+
+ if(nio<=fd || !io_contexts[fd])
+    PrintMessage(Fatal,"IO: Function reinit_io(%d) was called without calling init_io(%d) first.",fd,fd);
+
+ context=io_contexts[fd];
+
+ /* FIXME
+    Re-initialise when already using compression/chunked encoding
+    currently not used anywhere, only re-initialise when seeking.
+    Difficult to handle because cannot start compression part-way
+    through a data stream.
+    Getting here should be a fatal error?
+    FIXME */
+
+ if(context->r_line_data)
    {
-    int n;
-    fd_set readfd;
-    struct timeval tv;
-
-    while(1)
-      {
-       FD_ZERO(&readfd);
-
-       FD_SET(fd,&readfd);
-
-       tv.tv_sec=tv.tv_usec=0;
-
-       n=select(fd+1,&readfd,NULL,NULL,&tv);
-
-       if(n>0)
-          break;
-       else if(n==0 || errno!=EINTR)
-          return(nr);
-      }
-
-    n=read(fd,fdbuf[fd],BUFSIZE);
-
-    if(n>0)
-       nr+=n;
-    else
-       return(nr);
+    free(context->r_line_data);
+    context->r_line_data=NULL;
+    context->r_line_data_len=0;
    }
 
- /*@notreached@*/
-
- return(nr);
+ context->r_raw_bytes=0;
+ context->w_raw_bytes=0;
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Read data from a file descriptor.
+  Configure the IO context used for this file descriptor when reading.
+
+  int fd The file descriptor.
+
+  int timeout The read timeout or 0 for none or -1 to keep the same.
+
+  int zlib The flag to indicate the new zlib compression method.
+
+  int chunked The flag to indicate the new chunked encoding method.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+void configure_io_read(int fd,int timeout,int zlib,int chunked)
+{
+ io_context *context;
+ int change_buffers=0;
+
+ if(fd==-1)
+    PrintMessage(Fatal,"IO: Function configure_io_read(%d) was called with an invalid argument.",fd);
+
+ if(nio<=fd || !io_contexts[fd])
+    PrintMessage(Fatal,"IO: Function configure_io_read(%d) was called without calling init_io(%d) first.",fd,fd);
+
+ context=io_contexts[fd];
+
+ /* Set the timeout */
+
+ if(timeout>=0)
+    context->r_timeout=timeout;
+
+ /* Create the zlib decompression context */
+
+ if(zlib<0)
+    ;
+ else if(zlib && !context->r_zlib_context)
+   {
+    context->r_zlib_context=io_init_zlib_uncompress(zlib);
+    if(!context->r_zlib_context)
+       PrintMessage(Fatal,"IO: Could not initialise zlib uncompression; [%!s].");
+    change_buffers=1;
+   }
+ else if(!zlib && context->r_zlib_context)
+   {
+    /* FIXME
+       Stop decoding ready to read more non-compressed data
+       Difficult because two possible encoding types, zlib and chunked,
+       cannot finish one without finishing the other, what about wrong order?
+       Should call finish_io() and then init_io() in this case?
+       Getting here should be a fatal error?
+       Currently does nothing to allow finish_io() to work.
+       FIXME */
+   }
+
+ /* Create the chunked decoding context */
+
+ if(chunked<0)
+    ;
+ else if(chunked && !context->r_chunk_context)
+   {
+    context->r_chunk_context=io_init_chunk_decode();
+    if(!context->r_chunk_context)
+       PrintMessage(Fatal,"IO: Could not initialise chunked decoding; [%!s].");
+    change_buffers=1;
+   }
+ else if(!chunked && context->r_chunk_context)
+   {
+    /* FIXME
+       Stop decoding ready to read more non-chunked data
+       Difficult because two possible encoding types, zlib and chunked,
+       cannot finish one without finishing the other, what about wrong order?
+       Should call finish_io() and then init_io() in this case?
+       Getting here should be a fatal error?
+       Currently does nothing to allow finish_io() to work.
+       FIXME */
+   }
+
+ /* Change the buffers */
+
+ if(change_buffers)
+   {
+    if(context->r_zlch_data)
+       destroy_io_buffer(context->r_zlch_data);
+
+    if(context->r_file_data)
+       destroy_io_buffer(context->r_file_data);
+
+    if(!context->r_chunk_context && !context->r_zlib_context)
+      {
+       context->r_zlch_data=NULL;
+       context->r_file_data=NULL;
+      }
+    else if(context->r_chunk_context && !context->r_zlib_context)
+      {
+       context->r_zlch_data=NULL;
+       context->r_file_data=create_io_buffer(READ_BUFFER_SIZE);
+      }
+    else if(!context->r_chunk_context && context->r_zlib_context)
+      {
+       context->r_zlch_data=NULL;
+       context->r_file_data=create_io_buffer(READ_BUFFER_SIZE);
+      }
+    else /* if(context->r_chunk_context && context->r_zlib_context) */
+      {
+       context->r_zlch_data=create_io_buffer(READ_BUFFER_SIZE);
+       context->r_file_data=create_io_buffer(READ_BUFFER_SIZE);
+      }
+   }
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Configure the IO context used for this file descriptor when writing.
+
+  int fd The file descriptor.
+
+  int timeout The write timeout or 0 for none or -1 to keep the same.
+
+  int zlib The flag to indicate the new zlib compression method.
+
+  int chunked The flag to indicate the new chunked encoding method.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+void configure_io_write(int fd,int timeout,int zlib,int chunked)
+{
+ io_context *context;
+ int change_buffers=0;
+
+ if(fd==-1)
+    PrintMessage(Fatal,"IO: Function configure_io_write(%d) was called with an invalid argument.",fd);
+
+ if(nio<=fd || !io_contexts[fd])
+    PrintMessage(Fatal,"IO: Function configure_io_write(%d) was called without calling init_io(%d) first.",fd,fd);
+
+ context=io_contexts[fd];
+
+ /* Set the timeout */
+
+ if(timeout>=0)
+    context->w_timeout=timeout;
+
+ /* Create the zlib compression context */
+
+ if(zlib<0)
+    ;
+ else if(zlib && !context->w_zlib_context)
+   {
+    context->w_zlib_context=io_init_zlib_compress(zlib);
+    if(!context->w_zlib_context)
+       PrintMessage(Fatal,"IO: Could not initialise zlib compression; [%!s].");
+    change_buffers=1;
+   }
+ else if(!zlib && context->w_zlib_context)
+   {
+    /* FIXME
+       Stop compressing ready to write more non-compressed data
+       Difficult because two possible encoding types, zlib and chunked,
+       cannot finish one without finishing the other, what about wrong order?
+       Should call finish_io() and then init_io() in this case?
+       Getting here should be a fatal error?
+       Currently does nothing to allow finish_io() to work.
+       FIXME */
+   }
+
+ /* Create the chunked encoding context */
+
+ if(chunked<0)
+    ;
+ else if(chunked && !context->w_chunk_context)
+   {
+    context->w_chunk_context=io_init_chunk_encode();
+    if(!context->w_chunk_context)
+       PrintMessage(Fatal,"IO: Could not initialise chunked encoding; [%!s].");
+    change_buffers=1;
+   }
+ else if(!chunked && context->w_chunk_context)
+   {
+    /* FIXME
+       Stop encoding ready to write more non-chunked data
+       Difficult because two possible encoding types, zlib and chunked,
+       cannot finish one without finishing the other, what about wrong order?
+       Should call finish_io() and then init_io() in this case?
+       Getting here should be a fatal error?
+       Currently does nothing to allow finish_io() to work.
+       FIXME */
+   }
+
+ /* Create the buffers */
+
+ if(change_buffers)
+   {
+    if(context->w_zlch_data)
+       destroy_io_buffer(context->w_zlch_data);
+
+    if(context->w_file_data)
+       destroy_io_buffer(context->w_file_data);
+
+    if(!context->w_chunk_context && !context->w_zlib_context)
+      {
+       context->w_zlch_data=NULL;
+       context->w_file_data=NULL;
+      }
+    else if(context->w_chunk_context && !context->w_zlib_context)
+      {
+       context->w_zlch_data=NULL;
+       context->w_file_data=create_io_buffer(READ_BUFFER_SIZE);
+      }
+    else if(!context->w_chunk_context && context->w_zlib_context)
+      {
+       context->w_zlch_data=NULL;
+       context->w_file_data=create_io_buffer(READ_BUFFER_SIZE+16);
+      }
+    else /* if(context->w_chunk_context && context->w_zlib_context) */
+      {
+       context->w_zlch_data=create_io_buffer(READ_BUFFER_SIZE);
+       context->w_file_data=create_io_buffer(READ_BUFFER_SIZE+16);
+      }
+   }
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Read data from a file descriptor instead of read().
 
   int read_data Returns the number of bytes read or 0 for end of file.
 
@@ -271,172 +368,209 @@ int empty_buffer(int fd)
 
 int read_data(int fd,char *buffer,int n)
 {
- int nr=0;
+ io_context *context;
+ int err=0,nr=0;
+ io_buffer iobuffer;
 
-#if USE_ZLIB
-repeat:
-#endif
+ if(fd==-1)
+    PrintMessage(Fatal,"IO: Function read_data(%d) was called with an invalid argument.",fd);
 
- if(fdbytes[fd])
+ if(nio<=fd || !io_contexts[fd])
+    PrintMessage(Fatal,"IO: Function read_data(%d) was called without calling init_io(%d) first.",fd,fd);
+
+ context=io_contexts[fd];
+
+ /* Create the output buffer */
+
+ iobuffer.data=buffer;
+ iobuffer.size=n;
+ iobuffer.length=0;
+
+ /* Finish the line data if there is any */
+
+ if(context->r_line_data_len)
    {
-#if USE_ZLIB
-    if(fdzlib[fd])
-       nr=read_uncompressing_from_buffer(fd,buffer,n);
-    else
-#endif
-       nr=read_from_buffer(fd,buffer,n);
-
-    if(nr)
-       return(nr);
-   }
-
-#if USE_ZLIB
- if(fdzlib[fd])
-   {
-    nr=read_uncompressing(fd,buffer,n);
-    if(nr==0 && (fdzlib[fd]->doing_head || fdzlib[fd]->doing_body || fdzlib[fd]->doing_tail))
-       goto repeat;
-   }
- else
-#endif
-    nr=read(fd,buffer,n);
-
- return(nr);
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Read data from a file descriptor, with a timeout.
-
-  int read_or_timeout Returns the number of bytes read or -1 for a timeout.
-
-  int fd The file descriptor.
-
-  char *buffer The buffer to put the data into.
-
-  int n The maximum number of bytes to read.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-int read_data_or_timeout(int fd,char *buffer,int n)
-{
- int nr=0;
-
-#if USE_ZLIB
-repeat:
-#endif
-
- if(fdbytes[fd])
-   {
-#if USE_ZLIB
-    if(fdzlib[fd])
-       nr=read_uncompressing_from_buffer(fd,buffer,n);
-    else
-#endif
-       nr=read_from_buffer(fd,buffer,n);
-
-    if(nr)
-       return(nr);
-   }
-
- if(!read_timeout)
-   {
-#if USE_ZLIB
-    if(fdzlib[fd])
+    if(!context->r_chunk_context && !context->r_zlib_context)
       {
-       nr=read_uncompressing(fd,buffer,n);
-       if(nr==0 && (fdzlib[fd]->doing_head || fdzlib[fd]->doing_body || fdzlib[fd]->doing_tail))
-          goto repeat;
-      }
-    else
-#endif
-       nr=read(fd,buffer,n);
-   }
- else
-   {
-    fd_set readfd;
-    struct timeval tv;
-
-    while(1)
-      {
-       FD_ZERO(&readfd);
-
-       FD_SET(fd,&readfd);
-
-       tv.tv_sec=read_timeout;
-       tv.tv_usec=0;
-
-       nr=select(fd+1,&readfd,NULL,NULL,&tv);
-
-       if(nr>0)
-          break;
-       else if(nr==0 || errno!=EINTR)
+       if(iobuffer.size>context->r_line_data_len)
          {
-          if(nr==0)
-             errno=ETIMEDOUT;
-          return(-1);
+          memcpy(iobuffer.data,context->r_line_data,context->r_line_data_len);
+          iobuffer.length+=context->r_line_data_len;
+          context->r_line_data_len=0;
          }
-      }
+       else
+         {
+          memcpy(iobuffer.data,context->r_line_data,iobuffer.size);
+          iobuffer.length+=iobuffer.size;
+          memmove(context->r_line_data,context->r_line_data+iobuffer.size,context->r_line_data_len-iobuffer.size);
+          context->r_line_data_len-=iobuffer.size;
+         }
 
-#if USE_ZLIB
-    if(fdzlib[fd])
-      {
-       nr=read_uncompressing(fd,buffer,n);
-       if(nr==0 && (fdzlib[fd]->doing_head || fdzlib[fd]->doing_body || fdzlib[fd]->doing_tail))
-          goto repeat;
+       return(iobuffer.length);
       }
     else
-#endif
-       nr=read(fd,buffer,n);
+      {
+       memcpy(context->r_file_data->data,context->r_line_data,context->r_line_data_len);
+       context->r_file_data->length+=context->r_line_data_len;
+       context->r_line_data_len=0;
+      }
    }
 
- return(nr);
+ /* Read in new data */
+
+ if(!context->r_chunk_context && !context->r_zlib_context)
+   {
+    nr=io_read_with_timeout(fd,&iobuffer,context->r_timeout);
+    if(nr>0) context->r_raw_bytes+=nr;
+   }
+ else if(context->r_chunk_context && !context->r_zlib_context)
+   {
+    do
+      {
+       err=io_read_with_timeout(fd,context->r_file_data,context->r_timeout);
+       if(err>0) context->r_raw_bytes+=err;
+       if(err<0) break;
+       err=io_chunk_decode(context->r_file_data,context->r_chunk_context,&iobuffer);
+       if(err<0 || err==1) break;
+      }
+    while(iobuffer.length==0);
+    nr=iobuffer.length;
+   }
+ else if(!context->r_chunk_context && context->r_zlib_context)
+   {
+    do
+      {
+       err=io_read_with_timeout(fd,context->r_file_data,context->r_timeout);
+       if(err>0) context->r_raw_bytes+=err;
+       if(err<0) break;
+       err=io_zlib_uncompress(context->r_file_data,context->r_zlib_context,&iobuffer);
+       if(err<0 || err==1) break;
+      }
+    while(iobuffer.length==0);
+    nr=iobuffer.length;
+   }
+ else /* if(context->r_chunk_context && context->r_zlib_context) */
+   {
+    do
+      {
+       err=io_read_with_timeout(fd,context->r_file_data,context->r_timeout);
+       if(err>0) context->r_raw_bytes+=err;
+       if(err<0) break;
+       err=io_chunk_decode(context->r_file_data,context->r_chunk_context,context->r_zlch_data);
+       if(err<0) break;
+       err=io_zlib_uncompress(context->r_zlch_data,context->r_zlib_context,&iobuffer);
+       if(err<0 || err==1) break;
+      }
+    while(iobuffer.length==0);
+    nr=iobuffer.length;
+   }
+
+ if(err<0)
+    return(err);
+ else
+    return(nr);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Read a single line of data from a file descriptor.
+  Read a single line of data from a file descriptor like fgets does from a FILE*.
 
   char *read_line Returns the modified string or NULL for the end of file.
 
   int fd The file descriptor.
 
   char *line The previously allocated line of data.
-
-  This is a replacement for the previous fgets_realloc() function with file descriptors instead of stdio.
   ++++++++++++++++++++++++++++++++++++++*/
 
 char *read_line(int fd,char *line)
 {
+ io_context *context;
  int found=0,eof=0;
  int n=0;
 
- if(!line)
-    line=(char*)malloc((BUFSIZE+1));
+ if(fd==-1)
+    PrintMessage(Fatal,"IO: Function read_line(%d) was called with an invalid argument.",fd);
+
+ if(nio<=fd || !io_contexts[fd])
+    PrintMessage(Fatal,"IO: Function read_line(%d) was called without calling init_io(%d) first.",fd,fd);
+
+ context=io_contexts[fd];
+
+ /* Create the temporary line buffer if there is not one */
+
+ if(!context->r_line_data)
+   {
+    context->r_line_data=(char*)malloc(LINE_BUFFER_SIZE+1);
+    context->r_line_data_len=0;
+   }
+
+ /* Use the existing data or read in some more */
 
  do
    {
-    int i;
+    line=(char*)realloc((void*)line,n+(LINE_BUFFER_SIZE+1));
 
-    if(!fdbytes[fd])
-       if(read_into_buffer(fd)<=0)
-         {eof=1;break;}
-
-    for(i=0;i<fdbytes[fd];i++)
-       if(fdbuf[fd][i]=='\n')
-         {
-          found=1;
-          n+=read_from_buffer(fd,&line[n],i+1);
-          line[n]=0;
-          break;
-         }
-
-    if(!found)
+    if(context->r_line_data_len>0)
       {
-       n+=read_from_buffer(fd,&line[n],BUFSIZE);
-       line=(char*)realloc((void*)line,n+(BUFSIZE+1));
+       for(n=0;n<context->r_line_data_len;n++)
+          if(context->r_line_data[n]=='\n')
+            {
+             found=1;
+             n++;
+             break;
+            }
+
+       memcpy(line,context->r_line_data,n);
+
+       if(n==context->r_line_data_len)
+          context->r_line_data_len=0;
+       else
+         {
+          context->r_line_data_len-=n;
+          memmove(context->r_line_data,context->r_line_data+n,context->r_line_data_len);
+         }
+      }
+    else
+      {
+       int nn;
+       io_buffer iobuffer;
+
+       /* FIXME
+          Cannot call read_line() on compressed files.
+          Probably not important, wasn't possible with old io.c either.
+          FIXME */
+
+       iobuffer.data=line+n;
+       iobuffer.size=LINE_BUFFER_SIZE;
+       iobuffer.length=0;
+
+       nn=io_read_with_timeout(fd,&iobuffer,context->r_timeout);
+       if(nn>0) context->r_raw_bytes+=nn;
+
+       if(nn<=0)
+         {eof=1;break;}
+       else
+          nn+=n;
+
+       for(;n<nn;n++)
+          if(line[n]=='\n')
+            {
+             found=1;
+             n++;
+             break;
+            }
+
+       if(found)
+         {
+          context->r_line_data_len=nn-n;
+          memcpy(context->r_line_data,line+n,context->r_line_data_len);
+         }
       }
    }
  while(!found && !eof);
+
+ if(found)
+    line[n]=0;
 
  if(eof)
    {free(line);line=NULL;}
@@ -446,179 +580,92 @@ char *read_line(int fd,char *line)
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Read a single line of data from a file descriptor with a timeout.
-
-  char *read_line Returns the modified string or NULL for the end of file or timeout.
-
-  int fd The file descriptor.
-
-  char *line The previously allocated line of data.
-
-  This is a replacement for the previous fgets_realloc() function with file descriptors instead of stdio.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-char *read_line_or_timeout(int fd,char *line)
-{
- int found=0,eof=0;
- int n=0;
-
- if(!read_timeout)
-    return(read_line(fd,line));
-
- if(!line)
-    line=(char*)malloc((BUFSIZE+1));
-
- do
-   {
-    int i;
-
-    if(!fdbytes[fd])
-       if(read_into_buffer_or_timeout(fd)<=0)
-         {eof=1;break;}
-
-    for(i=0;i<fdbytes[fd];i++)
-       if(fdbuf[fd][i]=='\n')
-         {
-          found=1;
-          n+=read_from_buffer(fd,&line[n],i+1);
-          line[n]=0;
-          break;
-         }
-
-    if(!found)
-      {
-       n+=read_from_buffer(fd,&line[n],BUFSIZE);
-       line=(char*)realloc((void*)line,n+(BUFSIZE+1));
-      }
-   }
- while(!found && !eof);
-
- if(eof)
-   {free(line);line=NULL;}
-
- return(line);
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Read some data from a file descriptor and buffer it.
-
-  int read_into_buffer Returns the number of bytes read.
-
-  int fd The file descriptor to read from.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-static int read_into_buffer(int fd)
-{
- int n;
-
- n=read(fd,fdbuf[fd]+fdbytes[fd],BUFSIZE-fdbytes[fd]);
- fdbytes[fd]+=n;
-
- return(n);
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Read some data from a file descriptor and buffer it with a timeout.
-
-  int read_into_buffer_or_timeout Returns the number of bytes read.
-
-  int fd The file descriptor to read from.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-static int read_into_buffer_or_timeout(int fd)
-{
- int n;
- fd_set readfd;
- struct timeval tv;
-
- while(1)
-   {
-    FD_ZERO(&readfd);
-
-    FD_SET(fd,&readfd);
-
-    tv.tv_sec=read_timeout;
-    tv.tv_usec=0;
-
-    n=select(fd+1,&readfd,NULL,NULL,&tv);
-
-    if(n>0)
-       break;
-    else if(n==0 || errno!=EINTR)
-      {
-       if(n==0)
-          errno=ETIMEDOUT;
-       return(-1);
-      }
-   }
-
- n=read(fd,fdbuf[fd]+fdbytes[fd],BUFSIZE-fdbytes[fd]);
- fdbytes[fd]+=n;
-
- return(n);
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Read some data from the buffer.
-
-  int read_from_buffer Returns the number of bytes read.
-
-  int fd The file descriptor buffer to read from.
-
-  char *buffer The buffer to copy the data into.
-
-  int n The maximum number of bytes to read.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-static int read_from_buffer(int fd,char *buffer,int n)
-{
- if(n>=fdbytes[fd])
-   {
-    memcpy(buffer,fdbuf[fd],fdbytes[fd]);
-    n=fdbytes[fd];
-    fdbytes[fd]=0;
-   }
- else
-   {
-    memcpy(buffer,fdbuf[fd],n);
-    fdbytes[fd]-=n;
-    memmove(fdbuf[fd],fdbuf[fd]+n,fdbytes[fd]);
-   }
-
- return(n);
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  A function to write binary data to a file descriptor instead of write().
+  Write data to a file descriptor instead of write().
 
   int write_data Returns the number of bytes written.
 
   int fd The file descriptor.
 
-  const char *buffer The data buffer to write.
+  const char *data The data buffer to write.
 
   int n The number of bytes to write.
   ++++++++++++++++++++++++++++++++++++++*/
 
 int write_data(int fd,const char *data,int n)
 {
-#if USE_ZLIB
- if(fdzlib[fd])
-    n=write_compressing(fd,data,n);
- else
-#endif
-    n=write_all(fd,data,n);
+ io_context *context;
+ io_buffer iobuffer;
+ int err=0;
 
- return(n);
+ if(fd==-1)
+    PrintMessage(Fatal,"IO: Function write_data(%d) was called with an invalid argument.",fd);
+
+ if(nio<=fd || !io_contexts[fd])
+    PrintMessage(Fatal,"IO: Function write_data(%d) was called without calling init_io(%d) first.",fd,fd);
+
+ context=io_contexts[fd];
+
+ /* Create the temporary input buffer */
+
+ iobuffer.data=(char*)data;
+ iobuffer.size=n;
+ iobuffer.length=n;
+
+ /* Write the output data */
+
+ if(!context->w_chunk_context && !context->w_zlib_context)
+   {
+    err=io_write_with_timeout(fd,&iobuffer,context->w_timeout);
+    if(err>0) context->w_raw_bytes+=err;
+   }
+ else if(context->w_chunk_context && !context->w_zlib_context)
+   {
+    do
+      {
+       err=io_chunk_encode(&iobuffer,context->w_chunk_context,context->w_file_data);
+       if(err<0) break;
+       err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
+       if(err>0) context->w_raw_bytes+=err;
+       if(err<0) break;
+      }
+    while(iobuffer.length>0);
+   }
+ else if(!context->w_chunk_context && context->w_zlib_context)
+   {
+    do
+      {
+       err=io_zlib_compress(&iobuffer,context->w_zlib_context,context->w_file_data);
+       if(err<0) break;
+       err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
+       if(err>0) context->w_raw_bytes+=err;
+       if(err<0) break;
+      }
+    while(iobuffer.length>0);
+   }
+ else /* if(context->w_chunk_context && context->w_zlib_context) */
+   {
+    do
+      {
+       err=io_zlib_compress(&iobuffer,context->w_zlib_context,context->w_zlch_data);
+       if(err<0) break;
+       err=io_chunk_encode(context->w_zlch_data,context->w_chunk_context,context->w_file_data);
+       if(err<0) break;
+       err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
+       if(err>0) context->w_raw_bytes+=err;
+       if(err<0) break;
+      }
+    while(iobuffer.length>0);
+   }
+
+ if(err<0)
+    return(err);
+ else
+    return(n);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  A function to write a simple string to a file descriptor like fputs does to a FILE*.
+  Write a simple string to a file descriptor like fputs does to a FILE*.
 
   int write_string Returns the number of bytes written.
 
@@ -629,21 +676,12 @@ int write_data(int fd,const char *data,int n)
 
 int write_string(int fd,const char *str)
 {
- int n=strlen(str);
-
-#if USE_ZLIB
- if(fdzlib[fd])
-    n=write_compressing(fd,str,n);
- else
-#endif
-    n=write_all(fd,str,n);
-
- return(n);
+ return(write_data(fd,str,strlen(str)));
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  A function to write a formatted string to a file descriptor like fprintf does to a FILE*.
+  Write a formatted string to a file descriptor like fprintf does to a FILE*.
 
   int write_formatted Returns the number of bytes written.
 
@@ -722,12 +760,7 @@ int write_formatted(int fd,const char *fmt,...)
 
  /* Write the string. */
 
-#if USE_ZLIB
- if(fdzlib[fd])
-    n=write_compressing(fd,str,n);
- else
-#endif
-    n=write_all(fd,str,n);
+ n=write_data(fd,str,n);
 
  free(str);
 
@@ -736,604 +769,162 @@ int write_formatted(int fd,const char *fmt,...)
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  A function to write all of a buffer of data to a file descriptor.
-
-  int write_all Returns the number of bytes written.
+  Return the number of raw bytes read and written to the file descriptor.
 
   int fd The file descriptor.
 
-  const char *buffer The data buffer to write.
+  unsigned long* r Returns the number of bytes read.
 
-  int n The number of bytes to write.
+  unsigned long *w Returns the raw number of bytes written.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int write_all(int fd,const char *data,int n)
+void tell_io(int fd,unsigned long* r,unsigned long *w)
 {
- int nn=0;
+ io_context *context;
 
- /* Unroll the first loop to optimise the obvious case. */
-
- nn=write(fd,data,n);
-
- if(nn<0 || nn==n)
-    return(nn);
-
- /* Loop around until the data is finished. */
-
- do
-   {
-    int m=write(fd,data+nn,n-nn);
-
-    if(m<0)
-      {n=m;break;}
-    else
-       nn+=m;
-   }
- while(nn<n);
-
- return(n);
-}
-
-
-#if USE_ZLIB
-
-/*++++++++++++++++++++++++++++++++++++++
-  Initialise the compression buffer used for this file descriptor.
-
-  int init_zlib_buffer Returns zero on success, else return error information.
-
-  int fd The file descriptor to initialise.
-
-  int direction Set to +ve to uncompress and -ve to compress, use +/-1 for zlib & +/-2 for gzip.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-int init_zlib_buffer(int fd,int direction)
-{
  if(fd==-1)
-    return(1);
+    PrintMessage(Fatal,"IO: Function tell_io(%d) was called with an invalid argument.",fd);
 
- if(fdzlib[fd])
-    return(2);
+ if(nio<=fd || !io_contexts[fd])
+    PrintMessage(Fatal,"IO: Function tell_io(%d) was called without calling init_io(%d) first.",fd,fd);
 
- fdzlib[fd]=(zdata*)calloc(1,sizeof(zdata));
+ context=io_contexts[fd];
 
- fdzlib[fd]->direction=direction;
+ /* Return the data */
 
- if(direction>0)
-   {
-    if(direction==1)
-       z_errno=inflateInit(&fdzlib[fd]->stream);
-    else
-       z_errno=inflateInit2(&fdzlib[fd]->stream,-MAX_WBITS);
+ if(r)
+    *r=context->r_raw_bytes-context->r_line_data_len; /* Pretend we have not read the contents of the line data buffer */
 
-    if(z_errno!=Z_OK)
-      {
-       set_zerror(fdzlib[fd]->stream.msg);
-       return(3);
-      }
-
-    if(fdzlib[fd]->direction==2)
-      {
-       fdzlib[fd]->crc=crc32(0L,Z_NULL,0);
-
-       fdzlib[fd]->doing_head=1;
-       fdzlib[fd]->doing_body=0;
-      }
-    else
-      {
-       fdzlib[fd]->doing_head=0;
-       fdzlib[fd]->doing_body=1;
-      }
-
-    fdzlib[fd]->doing_tail=0;
-   }
- else if(direction<0)
-   {
-    if(direction==-1)
-       z_errno=deflateInit(&fdzlib[fd]->stream,Z_DEFAULT_COMPRESSION);
-    else
-       z_errno=deflateInit2(&fdzlib[fd]->stream,Z_DEFAULT_COMPRESSION,Z_DEFLATED,-MAX_WBITS,MAX_MEM_LEVEL,Z_DEFAULT_STRATEGY);
-
-    if(z_errno!=Z_OK)
-      {
-       set_zerror(fdzlib[fd]->stream.msg);
-       return(3);
-      }
-
-    if(direction==-2)
-      {
-       static char gz_head[10]={0x1f,0x8b,8,0,0,0,0,0,0,0xff};
-
-       write_all(fd,gz_head,10);
-       fdzlib[fd]->crc=crc32(0L,Z_NULL,0);
-      }
-   }
- else
-    return(4);
-
- return(0);
+ if(w)
+    *w=context->w_raw_bytes;
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Finalise the compression buffer used for this file descriptor.
+  Finish with the IO context used for this file descriptor and report the number of bytes.
 
-  int finish_zlib_buffer Returns zero on success, else return error information.
+  int fd The file descriptor to finish.
 
-  int fd The file descriptor to finalise.
+  unsigned long* r Returns the number of bytes read.
+
+  unsigned long *w Returns the raw number of bytes written.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int finish_zlib_buffer(int fd)
+void finish_tell_io(int fd,unsigned long* r,unsigned long *w)
 {
+ io_context *context;
+ int more;
+
  if(fd==-1)
-    return(1);
+    PrintMessage(Fatal,"IO: Function finish_io(%d) was called with an invalid argument.",fd);
 
- if(!fdzlib[fd])
-    return(2);
+ if(nio<=fd || !io_contexts[fd])
+    PrintMessage(Fatal,"IO: Function finish_io(%d) was called without calling init_io(%d) first.",fd,fd);
 
- if(fdzlib[fd]->direction>0)
+ context=io_contexts[fd];
+
+ /* Finish the reading side */
+
+ if(!context->r_chunk_context && !context->r_zlib_context)
+    ;
+ else if(context->r_chunk_context && !context->r_zlib_context)
    {
-    z_errno=inflateEnd(&fdzlib[fd]->stream);
-    if(z_errno!=Z_OK)
-      {
-       set_zerror(fdzlib[fd]->stream.msg);
-       return(3);
-      }
+    io_finish_chunk_decode(context->r_chunk_context,NULL);
    }
- else if(fdzlib[fd]->direction<0)
+ else if(!context->r_chunk_context && context->r_zlib_context)
    {
-    /* Finish deflating the buffer and writing it. */
+    io_finish_zlib_uncompress(context->r_zlib_context,NULL);
+   }
+ else /* if(context->r_chunk_context && context->r_zlib_context) */
+   {
+    io_finish_chunk_decode(context->r_chunk_context,NULL);
+    io_finish_zlib_uncompress(context->r_zlib_context,NULL);
+   }
 
+ /* Write out any remaining data */
+
+ if(!context->w_chunk_context && !context->w_zlib_context)
+    ;
+ else if(context->w_chunk_context && !context->w_zlib_context)
+   {
     do
       {
-       fdzlib[fd]->stream.avail_in=0;
-       fdzlib[fd]->stream.next_in="";
-
-       fdzlib[fd]->stream.next_out=zbuffer;
-       fdzlib[fd]->stream.avail_out=ZBUFFER_SIZE;
-
-       if(fdzlib[fd]->direction==-1)
-          z_errno=deflate(&fdzlib[fd]->stream,Z_FINISH);
-       else
-          z_errno=deflate(&fdzlib[fd]->stream,Z_FINISH);
-
-       if(z_errno==Z_STREAM_END || z_errno==Z_OK)
-          if(write_all(fd,zbuffer,ZBUFFER_SIZE-fdzlib[fd]->stream.avail_out)<0)
-             break;
-      }
-    while(fdzlib[fd]->stream.avail_out==0);
-
-    if(fdzlib[fd]->direction==-2)
-      {
-       int i;
-       char gz_tail[8];
-
-       for(i=0;i<4;i++)
+       more=io_finish_chunk_encode(context->w_chunk_context,context->w_file_data);
+       if(more>=0)
          {
-          gz_tail[i]=fdzlib[fd]->crc&0xff;
-          fdzlib[fd]->crc>>=8;
-          gz_tail[i+4]=fdzlib[fd]->stream.total_in&0xff;
-          fdzlib[fd]->stream.total_in>>=8;
+          int err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
+          if(err>0) context->w_raw_bytes+=err;
          }
-
-       write_all(fd,gz_tail,8);
       }
-
-    z_errno=deflateEnd(&fdzlib[fd]->stream);
-
-    if(z_errno!=Z_OK)
-      {
-       set_zerror(fdzlib[fd]->stream.msg);
-       return(3);
-      }
+    while(more==1);
    }
- else
-    return(4);
+ else if(!context->w_chunk_context && context->w_zlib_context)
+   {
+    do
+      {
+       more=io_finish_zlib_compress(context->w_zlib_context,context->w_file_data);
+       if(more>=0)
+         {
+          int err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
+          if(err>0) context->w_raw_bytes+=err;
+         }
+      }
+    while(more==1);
+   }
+ else /* if(context->w_chunk_context && context->w_zlib_context) */
+   {
+    do
+      {
+       more=io_finish_zlib_compress(context->w_zlib_context,context->w_zlch_data);
+       if(more>=0)
+         {
+          int more2=io_chunk_encode(context->w_zlch_data,context->w_chunk_context,context->w_file_data);
+          if(more2>=0)
+            {
+             int err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
+             if(err>0) context->w_raw_bytes+=err;
+            }
+         }
+      }
+    while(more==1);
+    do
+      {
+       more=io_finish_chunk_encode(context->w_chunk_context,context->w_file_data);
+       if(more>=0)
+         {
+          int err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
+          if(err>0) context->w_raw_bytes+=err;
+         }
+      }
+    while(more==1);
+   }
 
- free(fdzlib[fd]);
- fdzlib[fd]=NULL;
+ /* Return the data */
 
- return(0);
+ if(r)
+    *r=context->r_raw_bytes;
+
+ if(w)
+    *w=context->w_raw_bytes;
+
+ /* Free all data structures */
+
+ if(context->r_line_data)
+    free(context->r_line_data);
+
+ if(context->r_zlch_data)
+    destroy_io_buffer(context->r_zlch_data);
+
+ if(context->r_file_data)
+    destroy_io_buffer(context->r_file_data);
+
+ if(context->w_zlch_data)
+    destroy_io_buffer(context->w_zlch_data);
+
+ if(context->w_file_data)
+    destroy_io_buffer(context->w_file_data);
+
+ free(context);
+
+ io_contexts[fd]=NULL;
 }
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Read some data from the buffer.
-
-  int read_uncompressing_from_buffer Returns the number of bytes read.
-
-  int fd The file descriptor buffer to read from.
-
-  char *buffer The buffer to copy the data into.
-
-  int n The maximum number of bytes to read.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-static int read_uncompressing_from_buffer(int fd,char *buffer,int n)
-{
- if(fdzlib[fd]->doing_head)
-   {
-    int nb=parse_gzip_head(fd,fdbuf[fd],fdbytes[fd]);
-
-    if(nb<0)
-       return(-1);
-    else if(nb==fdbytes[fd])
-      {
-       fdbytes[fd]=0;
-       return(0);
-      }
-    else if(nb>0)
-      {
-       fdbytes[fd]-=nb;
-       memmove(fdbuf[fd],fdbuf[fd]+nb,fdbytes[fd]);
-      }
-   }
- else if(fdzlib[fd]->doing_tail)
-   {
-    int nb=parse_gzip_tail(fd,fdbuf[fd],fdbytes[fd]);
-
-    if(nb<0)
-       return(-1);
-    else
-      {
-       fdbytes[fd]=0;
-       return(0);
-      }
-   }
-
- fdzlib[fd]->stream.next_out=buffer;
- fdzlib[fd]->stream.avail_out=n;
-
- fdzlib[fd]->stream.next_in=fdbuf[fd];
- fdzlib[fd]->stream.avail_in=fdbytes[fd];
-
- z_errno=inflate(&fdzlib[fd]->stream,Z_NO_FLUSH);
-
- if(z_errno!=Z_STREAM_END && z_errno!=Z_OK)
-   {
-    set_zerror(fdzlib[fd]->stream.msg);
-    return(-1);
-   }
-
- if(fdzlib[fd]->direction==2)
-   {
-    fdzlib[fd]->crc=crc32(fdzlib[fd]->crc,buffer,n-fdzlib[fd]->stream.avail_out);
-
-    if(z_errno==Z_STREAM_END)
-      {
-       fdzlib[fd]->doing_body=0;
-       fdzlib[fd]->doing_tail=1;
-      }
-   }
-
- n-=fdzlib[fd]->stream.avail_out;
-
- memmove(fdbuf[fd],fdbuf[fd]+(fdbytes[fd]-fdzlib[fd]->stream.avail_in),fdzlib[fd]->stream.avail_in);
- fdbytes[fd]=fdzlib[fd]->stream.avail_in;
-
- return(n);
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Read data from a file descriptor and uncompress it.
-
-  int read_uncompressing Returns the number of bytes read or 0 for end of file.
-
-  int fd The file descriptor.
-
-  char *buffer The buffer to put the data into.
-
-  int n The maximum number of bytes to read.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-static int read_uncompressing(int fd,char *buffer,int n)
-{
- int nr;
-
- nr=read(fd,zbuffer,ZBUFFER_SIZE);
-
- if(fdzlib[fd]->doing_head && nr==0)
-    fdzlib[fd]->doing_head=0;
-
- if(fdzlib[fd]->doing_body && nr==0)
-    fdzlib[fd]->doing_body=0;
-
- if(nr<=0)
-    return(nr);
-
- if(fdzlib[fd]->doing_head)
-   {
-    int nb=parse_gzip_head(fd,zbuffer,nr);
-
-    if(nb<0)
-       return(-1);
-    else if(nb==nr)
-       return(0);
-    else if(nb>0)
-      {
-       memmove(zbuffer,zbuffer+nb,nr-nb);
-       nr-=nb;
-      }
-
-    fdzlib[fd]->doing_head=0;
-    fdzlib[fd]->doing_body=1;
-   }
- else if(fdzlib[fd]->doing_tail)
-   {
-    int nb=parse_gzip_tail(fd,zbuffer,nr);
-
-    if(nb<0)
-       return(-1);
-    else
-       return(0);
-   }
-
- fdzlib[fd]->stream.next_out=buffer;
- fdzlib[fd]->stream.avail_out=n;
-
- fdzlib[fd]->stream.next_in=zbuffer;
- fdzlib[fd]->stream.avail_in=nr;
-
- z_errno=inflate(&fdzlib[fd]->stream,Z_NO_FLUSH);
-
- if(z_errno!=Z_STREAM_END && z_errno!=Z_OK)
-   {
-    set_zerror(fdzlib[fd]->stream.msg);
-    return(-1);
-   }
-
- if(fdzlib[fd]->direction==2)
-   {
-    fdzlib[fd]->crc=crc32(fdzlib[fd]->crc,buffer,n-fdzlib[fd]->stream.avail_out);
-
-    if(z_errno==Z_STREAM_END)
-      {
-       fdzlib[fd]->doing_body=0;
-       fdzlib[fd]->doing_tail=1;
-      }
-   }
-
- /* Put the remaining bytes into fdbuf for later. */
-
- if(fdzlib[fd]->stream.avail_in)
-   {
-    if(fdzlib[fd]->stream.avail_in>BUFSIZE)
-       fdbuf[fd]=(char*)realloc((void*)fdbuf[fd],fdzlib[fd]->stream.avail_in);
-    memcpy(fdbuf[fd],fdzlib[fd]->stream.next_in,fdzlib[fd]->stream.avail_in);
-    fdbytes[fd]=fdzlib[fd]->stream.avail_in;
-   }
-
- return(n-fdzlib[fd]->stream.avail_out);
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Write data to a file descriptor and compress it.
-
-  int write_compressing Returns the number of bytes written.
-
-  int fd The file descriptor.
-
-  const char *data The data.
-
-  int n The number of bytes of data.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-static int write_compressing(int fd,const char *buffer,int n)
-{
- fdzlib[fd]->stream.avail_in=n;
- fdzlib[fd]->stream.next_in=(char*)buffer;
-
- do
-   {
-    fdzlib[fd]->stream.next_out=zbuffer;
-    fdzlib[fd]->stream.avail_out=ZBUFFER_SIZE;
-
-    z_errno=deflate(&fdzlib[fd]->stream,Z_NO_FLUSH);
-
-    if(z_errno==Z_STREAM_END || z_errno==Z_OK)
-      {
-       if(write_all(fd,zbuffer,ZBUFFER_SIZE-fdzlib[fd]->stream.avail_out)<0)
-          return(-1);
-      }
-    else
-      {
-       set_zerror(fdzlib[fd]->stream.msg);
-       return(-1);
-      }
-   }
- while(z_errno!=Z_STREAM_END && fdzlib[fd]->stream.avail_in>0);
-
- if(fdzlib[fd]->direction==-2)
-    fdzlib[fd]->crc=crc32(fdzlib[fd]->crc,buffer,n);
-
- return(n);
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Parse a gzip header.
-
-  int parse_gzip_head Returns the amount of the buffer consumed (not all if head finished).
-
-  int fd The file descriptor we are reading from.
-
-  char *buffer The buffer of new data.
-
-  int n The amount of new data.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-static int parse_gzip_head(int fd,char *buffer,int n)
-{
- unsigned char *p0=buffer,*p=buffer;
-
- do
-   {
-    switch(fdzlib[fd]->doing_head)
-      {
-      case 1:                   /* magic byte 1 */
-       if(*p!=0x1f)
-         {set_zerror("not gzip format");return(-1);}
-       fdzlib[fd]->doing_head++;n--;p++;
-       break;
-      case 2:                   /* magic byte 2 */
-       if(*p!=0x8b)
-         {set_zerror("not gzip format");return(-1);}
-       fdzlib[fd]->doing_head++;n--;p++;
-       break;
-      case 3:                   /* method byte */
-       if(*p!=Z_DEFLATED)
-         {set_zerror("not gzip format");return(-1);}
-       fdzlib[fd]->doing_head++;n--;p++;
-       break;
-      case 4:                   /* flag byte */
-       fdzlib[fd]->head_flag=*p;
-       fdzlib[fd]->doing_head++;n--;p++;
-       break;
-      case 5:                   /* time byte 0 */
-      case 6:                   /* time byte 1 */
-      case 7:                   /* time byte 2 */
-      case 8:                   /* time byte 3 */
-      case 9:                   /* xflags */
-      case 10:                  /* os flag */
-       fdzlib[fd]->doing_head++;n--;p++;
-       break;
-      case 11:                  /* extra field length byte 1 */
-       if(!(fdzlib[fd]->head_flag&0x04))
-         {fdzlib[fd]->doing_head=14;break;}
-       fdzlib[fd]->head_extra_len=*p;
-       fdzlib[fd]->doing_head++;n--;p++;
-       break;
-      case 12:                  /* extra field length byte 2 */
-       fdzlib[fd]->head_extra_len+=*p<<8;
-       fdzlib[fd]->doing_head++;n--;p++;
-       break;
-      case 13:                  /* extra field bytes */
-       if(fdzlib[fd]->head_extra_len==0)
-          fdzlib[fd]->doing_head++;
-       fdzlib[fd]->head_extra_len--;
-       n--;p++;
-       break;
-      case 14:                  /* orig name bytes */
-       if(!(fdzlib[fd]->head_flag&0x08))
-         {fdzlib[fd]->doing_head++;break;}
-       if(*p==0)
-          fdzlib[fd]->doing_head++;
-       n--;p++;
-       break;
-      case 15:                  /* comment bytes */
-       if(!(fdzlib[fd]->head_flag&0x10))
-         {fdzlib[fd]->doing_head++;break;}
-       if(*p==0)
-          fdzlib[fd]->doing_head++;
-       n--;p++;
-       break;
-      case 16:                  /* head crc byte 1 */
-       if(!(fdzlib[fd]->head_flag&0x02))
-         {fdzlib[fd]->doing_head=18;break;}
-       fdzlib[fd]->doing_head++;n--;p++;
-       break;
-      case 17:                  /* head crc byte 2 */
-       fdzlib[fd]->doing_head++;n--;p++;
-       break;
-      case 18:                  /* finished */
-      case 0:                   /* never happens */
-       n=0;
-       fdzlib[fd]->doing_head=0;
-       fdzlib[fd]->doing_body=1;
-       break;
-      }
-   }
- while(n>0);
-
- return(p-p0);
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Parse a gzip tail and check the checksum.
-
-  int parse_gzip_tail Returns the amount of the buffer consumed (not all if tail finished).
-
-  int fd The file descriptor we are reading from.
-
-  char *buffer The buffer of new data.
-
-  int n The amount of new data.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-static int parse_gzip_tail(int fd,char *buffer,int n)
-{
- unsigned char *p0=buffer,*p=buffer;
-
- do
-   {
-    switch(fdzlib[fd]->doing_tail)
-      {
-      case 1:                   /* crc byte 1 */
-       fdzlib[fd]->tail_crc=(unsigned long)*p;
-       fdzlib[fd]->doing_tail++;n--;p++;
-       break;
-      case 2:                   /* crc byte 2 */
-       fdzlib[fd]->tail_crc+=(unsigned long)*p<<8;
-       fdzlib[fd]->doing_tail++;n--;p++;
-       break;
-      case 3:                   /* crc byte 3 */
-       fdzlib[fd]->tail_crc+=(unsigned long)*p<<16;
-       fdzlib[fd]->doing_tail++;n--;p++;
-       break;
-      case 4:                   /* crc byte 4 */
-       fdzlib[fd]->tail_crc+=(unsigned long)*p<<24;
-       fdzlib[fd]->doing_tail++;n--;p++;
-       if(fdzlib[fd]->tail_crc!=fdzlib[fd]->crc)
-         {set_zerror("gzip crc error");return(-1);}
-       break;
-      case 5:                   /* length byte 1 */
-       fdzlib[fd]->tail_len=(unsigned long)*p;
-       fdzlib[fd]->doing_tail++;n--;p++;
-       break;
-      case 6:                   /* length byte 2 */
-       fdzlib[fd]->tail_len+=(unsigned long)*p<<8;
-       fdzlib[fd]->doing_tail++;n--;p++;
-       break;
-      case 7:                   /* length byte 3 */
-       fdzlib[fd]->tail_len+=(unsigned long)*p<<16;
-       fdzlib[fd]->doing_tail++;n--;p++;
-       break;
-      case 8:                   /* length byte 4 */
-       fdzlib[fd]->tail_len+=(unsigned long)*p<<24;
-       fdzlib[fd]->doing_tail++;n--;p++;
-       if(fdzlib[fd]->tail_len!=fdzlib[fd]->stream.total_out)
-         {set_zerror("gzip length error");return(-1);}
-      /*@fallthrough@*/
-      case 0:                   /* never happens */
-       n=0;
-       fdzlib[fd]->doing_tail=0;
-       break;
-      }
-   }
- while(n>0);
-
- return(p-p0);
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Set the error status when there is a compression error.
-
-  char *msg The error message.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-void set_zerror(char *msg)
-{
- errno=ERRNO_USE_Z_ERRNO;
-
- if(z_strerror)
-    free(z_strerror);
- z_strerror=(char*)malloc(8+strlen(msg)+1);
-
- sprintf(z_strerror,"zlib: %s",msg);
-}
-
-#endif /* USE_ZLIB */

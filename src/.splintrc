@@ -1,4 +1,3 @@
--warnunixlib
 +unix-lib
 -warnflags
 -warnposixheaders
@@ -15,6 +14,8 @@
 -ifempty
 +charindex
 -linelen 120
+-exportlocal
 -exitarg
 -type
+-initallelements
 -D__STDC__

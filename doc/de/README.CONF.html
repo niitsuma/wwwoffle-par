@@ -58,7 +58,7 @@ Anweisungen stehen. Zum Beispiel:<p>
 <pre>
 StartUp
 [
-	/etc/wwwoffle/startup-options.conf
+	startup-options.conf
 ]
 </pre><p>
 
@@ -400,7 +400,6 @@ Alle 'list-*' Optionen haben als Standardeinstellungen 'yes'.
 <h2><a name="ModifyHTML">Abschnitt 'ModifyHTML'</a></h2>
 
 <a name="ModifyHTML_enable-modify-html"></a><a
-name="ModifyHTML_enable-modify-online"></a><a
 name="ModifyHTML_add-cache-info"></a><a
 name="ModifyHTML_anchor-cached-begin"></a><a
 name="ModifyHTML_anchor-cached-end"></a><a
@@ -433,12 +432,6 @@ Veränderungen geschehen.<p>
         Geschwindigkeit kostet -- auch wenn es gar nichts tut.
         (Standard: yes) Falls deaktiviert, haben die nachfolgenden Optionen
 		keine Auswirkung.</td></tr>
-<tr><td><code>[URL-ANGABE] enable-modify-online = yes | no</code></td>
-	<td>Die HTML-Veränderungen auch im Online-Modus anschalten. Diese 
-		Option hat zur Folge, daß HTML oder GIF-Bilder nicht im Browser
-		erscheinen, bis sie vollständig von WWWOFFLE empfangen wurden.
-		Diese Option hat keine Auswirkungen auf Seiten, die <b> nicht</b>
-		im Cache liegen.</td></tr>
 <tr><td><code>[URL-ANGABE] add-cache-info = yes | no</code></td>
     <td>Soll am Ende jeder Seite eine <i>WWWOFFLE</i> Informationszeile
         über diese Seite eingesetzt werden (enthält Alter der Seite im

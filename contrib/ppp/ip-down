@@ -8,5 +8,5 @@
 
 # Set the WWWOFFLE HTTP proxy server offline.
 if [ -x /usr/local/bin/wwwoffle ]; then
-   /usr/local/bin/wwwoffle -offline -c /var/spool/wwwoffle/wwwoffle.conf
+   /usr/local/bin/wwwoffle -offline -c /etc/wwwoffle/wwwoffle.conf
 fi

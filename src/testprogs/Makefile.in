@@ -1,12 +1,12 @@
 # $Header: /home/amb/wwwoffle/RCS/Makefile 2.30 1998/05/30 14:27:44 amb Exp amb $
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.7.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8.
 #
 # Test Programs Makefile.
 #
 # Written by Andrew M. Bishop
 #
-# This file Copyright 1998,99,2001 Andrew M. Bishop
+# This file Copyright 1998,99,2000,01,02,03 Andrew M. Bishop
 # It may be distributed under the GNU Public License, version 2, or
 # any higher version.  See section COPYING of the GNU Public license
 # for conditions under which this file may be redistributed.
@@ -39,7 +39,8 @@ LINK=$(LD) $(LDFLAGS)
 
 compile : test-doc \
 	  test-msg \
-	  test-modify
+	  test-modify \
+	  test-io
 
 ######## INSTALLATION ########
 
@@ -48,7 +49,7 @@ install : compile
 ######## CLEAN UP ########
 
 clean :
-	-rm -f test-doc test-msg test-modify
+	-rm -f test-doc test-msg test-modify test-io
 	-rm -f core *.o *~
 
 ########
@@ -60,11 +61,12 @@ distclean : clean
 
 TEST_DOC_OBJ=test-doc.o \
 	     ../http.o ../ftp.o ../finger.o ../ssl.o \
-	     ../document.o ../html.o ../xml.o ../vrml.o ../javaclass.o \
+	     ../document.o ../html.o ../css.o ../xml.o ../vrml.o ../javaclass.o \
 	     ../messages.o ../local.o ../cgi.o \
 	     ../parse.o ../spool.o \
 	     ../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
-	     ../errors.o ../io.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../md5.o
+	     ../io.o ../iopriv.o ../iozlib.o ../iochunk.o \
+	     ../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../md5.o
 
 test-doc : $(TEST_DOC_OBJ)
 	$(LINK) $(TEST_DOC_OBJ) -o $@ $(LIBRARY)
@@ -76,7 +78,8 @@ TEST_MSG_OBJ=test-msg.o \
 	     ../messages.o ../local.o ../cgi.o \
 	     ../parse.o ../spool.o \
 	     ../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
-	     ../errors.o ../io.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../md5.o
+	     ../io.o ../iopriv.o ../iozlib.o ../iochunk.o \
+	     ../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../md5.o
 
 test-msg : $(TEST_MSG_OBJ)
 	$(LINK) $(TEST_MSG_OBJ) -o $@ $(LIBRARY)
@@ -84,15 +87,29 @@ test-msg : $(TEST_MSG_OBJ)
 ####
 
 TEST_MODIFY_OBJ=test-modify.o \
-	     ../http.o ../ftp.o ../finger.o ../ssl.o \
-	     ../htmlmodify.o \
-	     ../messages.o ../local.o ../cgi.o \
-	     ../parse.o ../spool.o \
-	     ../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
-	     ../errors.o ../io.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../md5.o
+	       	../http.o ../ftp.o ../finger.o ../ssl.o \
+	       	../htmlmodify.o \
+	       	../messages.o ../local.o ../cgi.o \
+	       	../parse.o ../spool.o \
+	       	../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
+	       	../io.o ../iopriv.o ../iozlib.o ../iochunk.o \
+	       	../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../md5.o
 
 test-modify : $(TEST_MODIFY_OBJ)
 	$(LINK) $(TEST_MODIFY_OBJ) -o $@ $(LIBRARY)
+
+####
+
+TEST_IO_OBJ=test-io.o \
+	    ../http.o ../ftp.o ../finger.o ../ssl.o \
+	    ../messages.o ../local.o ../cgi.o \
+	    ../parse.o ../spool.o \
+	    ../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
+	    ../io.o ../iopriv.o ../iozlib.o ../iochunk.o \
+	    ../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../md5.o
+
+test-io : $(TEST_IO_OBJ)
+	$(LINK) $(TEST_IO_OBJ) -o $@ $(LIBRARY)
 
 ######## OBJECT FILES ########
 
@@ -102,8 +119,11 @@ test-modify : $(TEST_MODIFY_OBJ)
 .c.o:
 	$(COMPILE) $< -o $@ $(INCLUDE) -I..
 
-test-doc.o    : test-doc.c    ../wwwoffle.h ../misc.h ../document.h
-test-msg.o    : test-msg.c    ../wwwoffle.h ../misc.h
-test-modify.o : test-modify.c ../wwwoffle.h ../misc.h
+#             #               ../wwwoffle.h ../io.h ../misc.h ../errors.h ../config.h ../sockets.h ../proto.h ../document.h
+
+test-doc.o    : test-doc.c                  ../io.h ../misc.h ../errors.h ../config.h                         ../document.h
+test-io.o     : test-io.c                   ../io.h           ../errors.h                                                  
+test-modify.o : test-modify.c               ../io.h ../misc.h ../errors.h ../config.h                         ../document.h
+test-msg.o    : test-msg.c    ../wwwoffle.h         ../misc.h                                                              
 
 ########

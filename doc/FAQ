@@ -1,9 +1,9 @@
-          WWWOFFLE VERSION 2.7 - FREQUENTLY ASKED QUESTIONS AND ANSWERS
+          WWWOFFLE VERSION 2.8 - FREQUENTLY ASKED QUESTIONS AND ANSWERS
           =============================================================
 
 
 This file contains a list of frequently asked questions and their answers
-relating to WWWOFFLE version 2.7.
+relating to WWWOFFLE version 2.8.
 
 Not all of the questions here are real users questions, some of them have been
 made up to give some help to people trying to use the program who find that the
@@ -45,14 +45,15 @@ Q 3.7   Why does WWWOFFLE not allow access to certain password protected pages?
 Q 3.8   Why does WWWOFFLE ignore some entries in the configuration file?
 Q 3.9   Why are connections refused now that I have upgraded WWWOFFLE?
 Q 3.10  What do the error messages mean when WWWOFFLE starts?
+Q 3.11  Why don't I see the progress of page downloads through WWWOFFLE?
 
 --------------------
 
 Section 4 - Applet handling
 
-Q 4.1   Why doesn't my Browser start applet XYZ?
-Q 4.2   Are unicoded applet names supported?
-Q 4.3   Why does my Netcape Browser throw the trustProxy security exception?
+Q 4.1   Why doesn't my browser start applet XYZ?
+Q 4.2   Are Unicoded applet names supported?
+Q 4.3   Why does my Netscape browser throw the trustProxy security exception?
 
 --------------------
 
@@ -83,7 +84,7 @@ about this new version then you will by definition not find the answer here.
 This FAQ is also available on the WWWOFFLE homepage along with much other
 information about the program.
 
-http://www.gedanken.demon.co.uk/wwwoffle/version-2.7/
+http://www.gedanken.demon.co.uk/wwwoffle/version-2.8/
 
 --------------------------------------------------------------------------------
 
@@ -108,14 +109,8 @@ finger : Yes
 
 https : Yes
         Since version 2.4 there has been support for transparent proxying of
-        Secure Socket Layer (SSL) connections.  This includes the https
-        protocol.
-
-gopher : No
-        This is a protocol that is less popular now that the WWW has really
-        taken off.  From looking at browsers that support it, it would seem to
-        be not impossible, but the market for it seems to be limited.
-
+        Secure Socket Layer (SSL) connections (this does not cache the data).
+        This includes the https protocol.
 
 --------------------
 
@@ -132,7 +127,7 @@ DOS/Win3 = No
         The program was not designed for DOS, the filenames used and the
         multi-process nature of the program do not allow this.
 
-Win95/Win98/WinNT = Yes (Partly)
+Win95/Win98/WinNT/Win2000/WinXP = Yes (mostly)
         A Windows 32-bit version of the program is now available thanks to the 
         Cygwin development kit that provides a UNIX system call library
         available on MS Windows.
@@ -154,6 +149,10 @@ background colour and the font size can all be changed to suit your preferences.
 To find out how to do this look in the /var/spool/wwwoffle/html/*/messages
 directory (replace /var/spool/wwwoffle with the cache directory that you
 configured if it is different) and read the README file.
+
+From version 2.8 there is now a WWWOFFLE style sheet that is included into all
+of the internally generated HTML pages.  This can be customised to change the
+colours, fonts and some of the layout of the message pages.
 
 --------------------------------------------------------------------------------
 
@@ -217,7 +216,7 @@ LocalHost
 }
 
 The first of the names is what is used by WWWOFFLE to generate these links.  The
-others are used for servers that do not get cached by the proxy.
+others are used for names that are equivalent to the first one in some cases.
 
 --------------------
 
@@ -242,6 +241,16 @@ Configuration file password
    The password is sent as plain text when using the wwwoffle program to control
    the wwwoffled server.  The encryption used for the web page authentication is
    trivial.
+
+Configuration file editing
+   The configuration file editing functions through the http interface that are
+   included in WWWOFFLE add some security concerns.  When the files are edited
+   the WWWOFFLE process will need to be able to write out the new files.  The
+   new files will be written with the same permissions as the old files into the
+   same location.  Included configuration files must be in the same directory as
+   the main configuration file.  To simplify management of this the default
+   location for the configuration files is the directory '/etc/wwwoffle' which
+   must be writable by the WWWOFFLE server but not all users.
 
 Proxy Authentication
    With the ability to be able to control access to WWWOFFLE using the HTTP/1.1
@@ -285,7 +294,7 @@ URLs with Passwords
    For simplicity they are not hidden in any way.  This means that any URL that
    uses a username/password in it can show up in the log file (with Debug or
    ExtraDebug levels only).  The files in the cache also contain the username/
-   password information and should be made inaccesible to users for that reason.
+   password information and should be made inaccessible to users for that reason.
 
 Accessing The Server
    Access to the WWWOFFLE server on the proxy port 8080 is limited to the IP
@@ -387,7 +396,9 @@ b) As above, but it does not matter what the value is for it to return a
    The solution is the same except that any User-Agent string can be used.
 
 c) The web server uses cookies to maintain state.  This is common on sites that
-   are more concerned with form than content, often without warning.
+   are more concerned with form than content, often without warning.  See Q 3.5
+   for a description of the reason that pages requiring Cookies are difficult to
+   handle.
 
 d) The browser and server are trying to use HTTP/1.1 extensions that WWWOFFLE is
    ignoring.
@@ -437,12 +448,16 @@ that it is safe to call it more than once or that it can be used to
 change the DNS lookup method.
 
 
-One solution is to run a local nameserver.  The bind package contains the
-standard nameserver, but there are simpler alternatives for end-user systems.
+One solution is to run a local DNS server.  The bind package contains the
+standard DNS server, but there are simpler alternatives for end-user systems.
 One option is pdnsd (http://home.t-online.de/home/Moestl/) which is a caching
-DNS-server.  Whichever option you choose you will need to make localhost be the
-nameserver and the nameserver configuration needs to be changed when you go
+DNS server.  Whichever option you choose you will need to make localhost be the
+DNS server and the DNS server configuration needs to be changed when you go
 online.
+
+The other solution is to stop and restart WWWOFFLE (and any other servers that
+use the standard libc DNS functions) each time that you change the
+/etc/resolv.conf file.
 
 --------------------
 
@@ -565,7 +580,7 @@ WWWOFFLE store enough information to force the browser to prompt the user.
 
 When a page is requested and there is a username and password in the request
 then WWWOFFLE will first request the page without a username and password.  This
-is so that step 1 abocve is not missed out even if the browser wanted to.  If
+is so that step 1 above is not missed out even if the browser wanted to.  If
 the page does not require a password then the version of the page without the
 password is sent to the browser.  If a password is required then WWWOFFLE will
 make a second request with the username and password and send this result to the
@@ -599,7 +614,7 @@ Section
  <http://*/*>       option = 3
 }
 
-When the URL that is being processed is http://www.bar.com/foo.html then it will
+When the URL that is being processed is http://www.bar/foo.html then it will
 match only the third of the entries and the value of the option that is used is
 3.  When the URL being processed is http://www.foo/bar.html then it will match
 all three of the entries, but it is the first one that is used.
@@ -628,7 +643,7 @@ you are using has got the IPv6 options enabled and the previous version did not.
 
 Since version 2.6d of WWWOFFLE it has supported the newest version of the
 Internet Protocol which is version 6.  This is often abbreviated to IPv6, the
-previous version of the protocol was version 4 and is often refered to as IPv4.
+previous version of the protocol was version 4 and is often referred to as IPv4.
 This is a fundamental change to the networking functions in WWWOFFLE at the
 lowest level and requires that you are using WWWOFFLE on an operating system
 that supports IPv6.  Nearly all of the changes in WWWOFFLE are hidden from the
@@ -670,7 +685,7 @@ explanatory.
 
 For example:
 
-Fatal: Error in configuration file '/etc/wwwoffle.conf'
+Fatal: Error in configuration file '/etc/wwwoffle/wwwoffle.conf'
 
 There are also a number of warnings that can appear that while they are not
 fatal may be important to try and fix or they may not.
@@ -681,7 +696,7 @@ Warning: Running with root user or group privileges is not recommended.
 
 This warning is telling you that any security related problems with WWWOFFLE
 will have more serious effects.  The WWWOFFLE programs can be run as any user,
-but it is always a good idea to run programs with the least priviledges that
+but it is always a good idea to run programs with the least privileges that
 they require.  In the case of WWWOFFLE there is no need for it to operate as the
 root user.  There are options in the wwwoffle.conf file to operate the program
 as another user.  It would be a good idea to use these options (run-uid and
@@ -710,21 +725,52 @@ systems consider that allowing IPv6 sockets to accept IPv4 connections is a
 security risk and require that separate sockets are opened.  These systems will
 not show the error message.
 
+--------------------
+
+Q 3.11  Why don't I see the progress of page downloads through WWWOFFLE?
+
+In version 2.8 of WWWOFFLE there is a change to the handling of the headers that
+are sent from WWWOFFLE to the client (browser).  The Content-Length header is
+removed in all cases so that it is not possible for the client (browser) to work
+out the fraction of the file that has been downloaded.
+
+This change has been made for many reasons, but they all come down to three
+things.  The removal of temporary files for storing a page between receiving it
+and sending it to the client, this speeds up page viewing.  The use of
+compression or chunked transfer encoding on the links from WWWOFFLE to server or
+client.  The dynamic generation or modification of web pages by WWWOFFLE.
+
+The following list contains the times that it is not possible to insert a
+Content-Length header without using a temporary file:
+
+* When you are online and the server sent compressed data (WWWOFFLE will
+  uncompress it and pass it to the client).
+* When compression is used for the WWWOFFLE to client links.
+* When you are online and the server sent data using chunked encoding (this
+  requires that there is no Content-Length header).
+* When chunked encoding is used for the WWWOFFLE to client links.
+* When the page is being sent from the cache and is stored compressed.
+* When the web page is modified by the HTML modification options.
+* When the web page is being internally generated by WWWOFFLE.
+
+To maintain consistency and simplicity of the WWWOFFLE code the Content-Length
+header is removed in all cases.
+
 --------------------------------------------------------------------------------
 
 Section 4 - Applet handling
 
 --------------------
 
-Q 4.1   Why doesn't my Browser start applet XYZ.
+Q 4.1   Why doesn't my browser start applet XYZ.
 
 [Walter Pfannenmueller <pfn@online.de> writes:]
 
-I suppose you have enabled java support.  Your Browser says something like
+I suppose you have enabled java support.  Your browser says something like
 "Can't start Applet XYZ.class".  Check if the file has been successfully
 downloaded by WWWOFFLE.  If the file is accessible, open a java console (your
 browser should provide something like that) and get more details on the problem.
-Probably it's a security - violation.  Every Browser has it's own
+Probably it's a security - violation.  Every browser has it's own
 SecurityManager class and you should consult the manual how you can lower these
 restrictions.  If your applet however tries to get in contact with some server
 functionality (servlets, RMI, CORBA), we are at the end of the possibilities of
@@ -732,7 +778,7 @@ an offline reader.
 
 --------------------
 
-Q 4.2   Are unicoded applet names supported.
+Q 4.2   Are Unicoded applet names supported.
 
 [Walter Pfannenmueller <pfn@online.de> writes:]
 
@@ -745,7 +791,7 @@ somehow awkward.
 
 --------------------
 
-Q 4.3   Why does my Netcape Browser throw the trustProxy security exception?
+Q 4.3   Why does my Netscape browser throw the trustProxy security exception?
 
 [Walter Pfannenmueller <pfn@online.de> writes:]
 
@@ -753,9 +799,9 @@ The error message should be
 
 Could not resolve IP for host ... See the trustProxy property.
 
-The Netscape Browser tries to verify the applets source host IP address.
+The Netscape browser tries to verify the applets source host IP address.
 While offline this is not possible. Therefore you have to persuade
-the Browser to trust the proxy. To do this you have to find the preferences
+the browser to trust the proxy. To do this you have to find the preferences
 file preferences.js on UNIX or prefs.js on Windows. Edit the file,
 even though it says "don't edit" and insert the line
 
@@ -948,7 +994,7 @@ Section 6 - More information about WWWOFFLE
 
 Q 6.1   Who wrote WWWOFFLE, When and Why?
 
-The WWWOFFLE program was written by Andrew M. Bishop (amb@gedanken.demon.co.uk)
+The WWWOFFLE program was written by Andrew M. Bishop <amb@gedanken.demon.co.uk>
 in 1996,97,98,99,2000,01,02.
 
 There is a WWWOFFLE home-page on the World Wide Web, available via the author's
@@ -977,7 +1023,10 @@ compression and IPv6 options that were added in the version 2.6 development
 cycle.  It also changes the source tree layout, adds a configure script for
 configuration and adds --help and --version options to the programs.  The main
 new program features are the new configuration editing pages and the automatic
-selection of translated messages based on browser settings.
+selection of translated messages based on browser settings.  Version 2.8
+released in September 2003 includes the ability to use HTTP/1.1 chunked encoding
+and better support for compression.  The internally generated HTML pages are now
+HTML 4.01 compliant and include a stylesheet for easier customisation.
 
 The Win32 version of the program was made possible by version beta-20 of the
 Cygwin development kit at the end of October 1998 when version 2.3e of WWWOFFLE
@@ -1010,16 +1059,18 @@ the list and others who are not subscribed.
 All the mailing lists are run from a computer with dial-up access only.  This
 will mean that there will be a delay for messages sent to them.
 
-To subscribe by e-mail send a message to majordomo@gedanken.demon.co.uk with the
-message 'subscribe <group-name>' in the body, e.g. 'subscribe wwwoffle-announce'.
+To subscribe by e-mail send a message to
+<wwwoffle-announce-request@gedanken.demon.co.uk>,
+<wwwoffle-users-request@gedanken.demon.co.uk>, or
+<wwwoffle-win32-request@gedanken.demon.co.uk> with the subject 'subscribe'.
 
 --------------------
 
 Q 6.3   How do I report bugs in WWWOFFLE?
 
-By e-mail, send them to me at amb@gedanken.demon.co.uk and put WWWOFFLE somewhere
-in the subject line.  You can also report bugs or provide comments via the
-feedback form on the WWWOFFLE home-page on the World Wide Web accessible via
+By e-mail, send them to me at <amb@gedanken.demon.co.uk> and put WWWOFFLE
+somewhere in the subject line.  You can also report bugs or provide comments via
+the feedback form on the WWWOFFLE home-page on the World Wide Web accessible via
 http://www.gedanken.demon.co.uk/ .
 
 Before doing this, you should check the FAQ and the WWWOFFLE web-page to see if

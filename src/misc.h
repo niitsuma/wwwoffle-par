@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/misc.h 2.39 2002/08/04 08:38:03 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/misc.h 2.44 2004/01/17 16:22:18 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Miscellaneous HTTP / HTML functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -16,10 +16,9 @@
 #ifndef MISC_H
 #define MISC_H    /*+ To stop multiple inclusions. +*/
 
-#include <stdio.h>
-
 /*+ A forward definition of the protocol type. +*/
 typedef struct _Protocol *ProtocolP;
+
 
 /*+ A URL data type. +*/
 typedef struct _URL
@@ -99,16 +98,16 @@ HeaderList;
 
 /* in miscurl.c */
 
-URL /*@only@*/ /*@unique@*/ *SplitURL(char *url);
+URL /*@special@*/ *SplitURL(char *url) /*@allocates result@*/ /*@defines result->name,result->link,result->file,result->hostp,result->pathp,result->proto,result->host,result->path,result->params,result->args,result->Protocol,result->user,result->pass,result->dir,result->local@*/;
 void AddURLPassword(URL *Url,char *user,/*@null@*/ char *pass);
-void FreeURL(/*@only@*/ URL *Url);
+void FreeURL(/*@special@*/ URL *Url) /*@releases Url@*/;
 
 char *LinkURL(URL *Url,char *link);
 
 char *CanonicaliseHost(char *host);
 void CanonicaliseName(char *name);
 
-void SplitHostPort(char *hostport,/*@out@*/ char **host,/*@out@*/ /*@null@*/ char **port);
+void SplitHostPort(char *hostport,/*@out@*/ char **host,/*@out@*/ char **port);
 void RejoinHostPort(char *hostport,char *host,/*@null@*/ char *port);
 
 
@@ -125,6 +124,8 @@ char /*@only@*/ *URLEncodePassword(const char *str);
 
 char /*@only@*/ **SplitFormArgs(char *str);
 
+char *TrimArgs(/*@returned@*/ char *str);
+
 char /*@only@*/ *MakeHash(const char *args);
 
 char /*@observer@*/ *RFC822Date(long t,int utc);
@@ -134,12 +135,14 @@ char /*@observer@*/ *DurationToString(const long duration);
 char /*@only@*/ *Base64Decode(const char *str,/*@out@*/ int *l);
 char /*@only@*/ *Base64Encode(const char *str,int l);
 
+void URLReplaceAmp(char *string);
+
 char /*@only@*/* HTMLString(const char* c,int nbsp);
 
 
 /* In headbody.c */
 
-Header /*@only@*/ *CreateHeader(char *line,int type);
+Header /*@special@*/ *CreateHeader(char *line,int type) /*@allocates result@*/ /*@defines result->method,result->url,result->note,result->version,result->key,result->val@*/;
 
 void AddToHeader(Header *head,/*@null@*/ char *key,char *val);
 int AddToHeaderRaw(Header *head,char *line);
@@ -147,6 +150,7 @@ int AddToHeaderRaw(Header *head,char *line);
 void ChangeURLInHeader(Header *head,char *url);
 void ChangeNoteInHeader(Header *head,char *note);
 void RemovePlingFromHeader(Header *head,char *url);
+void ChangeVersionInHeader(Header *head,char *version);
 
 void RemoveFromHeader(Header *head,char* key);
 void RemoveFromHeader2(Header *head,char* key,char *val);
@@ -156,45 +160,13 @@ char /*@null@*/ /*@observer@*/ *GetHeader2(Header *head,char* key,char *val);
 
 char /*@only@*/ *HeaderString(Header *head);
 
-void FreeHeader(/*@only@*/ Header *head);
+void FreeHeader(/*@special@*/ Header *head) /*@releases head@*/;
 
 Body /*@only@*/ *CreateBody(int length);
-void FreeBody(/*@only@*/ Body *body);
+void FreeBody(/*@special@*/ Body *body) /*@releases body@*/;
 
 HeaderList /*@only@*/ *SplitHeaderList(char *val);
-void FreeHeaderList(/*@only@*/ HeaderList *hlist);
-
-
-/* In io.c */
-
-void set_read_timeout(int timeout);
-
-char /*@null@*/ /*@only@*/ *fgets_realloc(/*@out@*/ /*@returned@*/ /*@null@*/ /*@only@*/ char *buffer,FILE *file);
-
-void init_buffer(int fd);
-
-int /*@alt void@*/ empty_buffer(int fd);
-
-int read_data(int fd,/*@out@*/ char *buffer,int n);
-int read_data_or_timeout(int fd,/*@out@*/ char *buffer,int n);
-
-char /*@null@*/ *read_line(int fd,/*@out@*/ /*@returned@*/ /*@null@*/ char *line);
-char /*@null@*/ *read_line_or_timeout(int fd,/*@out@*/ /*@returned@*/ /*@null@*/ char *line);
-
-int /*@alt void@*/ write_data(int fd,const char *data,int n);
-
-int /*@alt void@*/ write_string(int fd,const char *str);
-
-#ifdef __GNUC__
-int /*@alt void@*/ write_formatted(int fd,const char *fmt,...) /*@printflike@*/ __attribute__ ((format (printf,2,3)));
-#else
-int /*@alt void@*/ write_formatted(int fd,const char *fmt,...) /*@printflike@*/;
-#endif
-
-#if USE_ZLIB
-int init_zlib_buffer(int fd,int direction);
-int finish_zlib_buffer(int fd);
-#endif
+void FreeHeaderList(/*@special@*/ HeaderList *hlist) /*@releases hlist@*/;
 
 
 #endif /* MISC_H */

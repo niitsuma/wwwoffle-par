@@ -1,3 +1,8 @@
 <dt>$all?{Tutto}{} <tt>%decode[url]</tt>
-<dd>$error?{$error}{Completato OK}
+<dd>$error?{
+$error
 <input type="hidden" name="url$count" value="%decode[url]">
+$anyerrors=Y
+}{
+Completato OK
+}

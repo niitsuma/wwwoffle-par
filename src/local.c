@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/local.c 1.5 2003/01/10 19:23:25 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/local.c 1.11 2004/01/11 10:28:20 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7h.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   Serve the local web-pages and handle the language selection.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1998,99,2000,01,02 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -36,11 +36,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "version.h"
 #include "wwwoffle.h"
+#include "io.h"
+#include "misc.h"
 #include "errors.h"
 #include "config.h"
-#include "misc.h"
 
 
 /*+ Need this for Win32 to use binary mode +*/
@@ -52,7 +52,7 @@
 static char /*@null@*/ /*@observer@*/ **get_languages(int *ndirs);
 
 
-/*+ The language header that the browser sent. +*/
+/*+ The language header that the client sent. +*/
 static char /*@null@*/ /*@only@*/ *accept_language=NULL;
 
 
@@ -71,7 +71,7 @@ static char /*@null@*/ /*@only@*/ *accept_language=NULL;
 void LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
 {
  int found=0;
- char *file;
+ char *file,*path;
 
  /* Don't allow paths backwards */
 
@@ -86,7 +86,9 @@ void LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
 
  /* Get the filename */
 
- if((file=FindLanguageFile(Url->path+1)))
+ path=URLDecodeGeneric(Url->path+1);
+
+ if((file=FindLanguageFile(path)))
    {
     struct stat buf;
 
@@ -102,7 +104,6 @@ void LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
        else
          {
           int htmlfd=open(file,O_RDONLY|O_BINARY);
-          init_buffer(htmlfd);
 
           if(htmlfd==-1)
              PrintMessage(Warning,"Cannot open the local page '%s' [%!s].",file);
@@ -110,6 +111,8 @@ void LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
             {
              char *ims=NULL;
              time_t since=0;
+
+             init_io(htmlfd);
 
              PrintMessage(Debug,"Using the local page '%s'.",file);
 
@@ -133,6 +136,7 @@ void LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
                    write_data(fd,buffer,n);
                }
 
+             finish_io(htmlfd);
              close(htmlfd);
 
              found=1;
@@ -166,6 +170,8 @@ void LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
 
     free(file);
    }
+
+ free(path);
 
  if(!found)
    {
@@ -274,9 +280,6 @@ int OpenLanguageFile(char* search)
     free(file);
    }
 
- if(fd!=-1)
-    init_buffer(fd);
-
  return(fd);
 }
 
@@ -284,7 +287,7 @@ int OpenLanguageFile(char* search)
 /*++++++++++++++++++++++++++++++++++++++
   Parse the language string and add the directories to the list.
 
-  char ***get_languages Returns the list of directories to try.
+  char **get_languages Returns the list of directories to try.
 
   int *ndirs Returns the number of directories in the list.
   ++++++++++++++++++++++++++++++++++++++*/
