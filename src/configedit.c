@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configedit.c 1.22 2002/08/04 10:27:13 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configedit.c 1.24 2002/10/26 11:02:52 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   The HTML interactive configuration editing pages.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -31,7 +31,8 @@
 static void ConfigurationIndexPage(int fd,/*@null@*/ char *url);
 static void ConfigurationSectionPage(int fd,int section,/*@null@*/ char *url);
 static void ConfigurationItemPage(int fd,int section,int item,/*@null@*/ char *url,/*@null@*/ Body *request_body);
-static void ConfigurationURLPage(int fd,/*@null@*/ char *request_args);
+static void ConfigurationEditURLPage(int fd,/*@null@*/ Body *request_body);
+static void ConfigurationURLPage(int fd,/*@null@*/ char *url);
 static void ConfigurationAuthFail(int fd,char *url);
 
 /*+ The list of configuration items to list on the configuration page for a URL. +*/
@@ -175,28 +176,10 @@ void ConfigurationPage(int fd,URL *Url,Body *request_body)
       }
    }
 
- /* Parse the arguments if any */
+ /* Extract the URL argument if any (ignoring all posted forms) */
 
- if(Url->args)
-   {
-    char **args,*pling;
-
-    if(*Url->args=='!' && (pling=strstr(Url->args+1,"!POST")))
-      {
-       args=STRDUP3(Url->args+1,pling,SplitFormArgs);
-      }
-    else
-       args=SplitFormArgs(Url->args);
-
-    for(i=0;args[i];i++)
-      {
-       if(is_proper_prefix("url=",args[i]))
-          url=URLDecodeFormArgs(args[i]+strlitlen("url="));
-      }
-
-    free(args[0]);
-    free(args);
-   }
+ if(Url->args && *Url->args!='!')
+    url=URLDecodeFormArgs(Url->args);
 
  /* Determine the page to show. */
 
@@ -206,9 +189,15 @@ void ConfigurationPage(int fd,URL *Url,Body *request_body)
     goto free_return;
    }
 
+ if(!strcmp(newpath,"editurl"))
+   {
+    ConfigurationEditURLPage(fd,request_body);
+    goto free_return;
+   }
+
  if(!strcmp(newpath,"url"))
    {
-    ConfigurationURLPage(fd,Url->args);
+    ConfigurationURLPage(fd,url);
     goto free_return;
    }
 
@@ -258,13 +247,14 @@ static void ConfigurationIndexPage(int fd,char *url)
 {
  char *line=NULL;
  int file;
+ off_t seekpos=0;
  int s;
 
  file=OpenLanguageFile("messages/README.CONF.txt");
 
  if(file==-1)
    {
-    HTMLMessage(fd,200,"WWWOFFLE Configuration Page Error",NULL,"ServerError",
+    HTMLMessage(fd,500,"WWWOFFLE Configuration Page Error",NULL,"ServerError",
                 "error","Cannot open README.CONF.txt",
                 NULL);
     return;
@@ -301,6 +291,8 @@ static void ConfigurationIndexPage(int fd,char *url)
       }
     while(!(!strcmp_litbeg(line,"SECTION") && !strcmp(line+8,CurrentConfig.sections[s]->name)));
 
+    seekpos=buffered_seek_cur(file);
+
     line=read_line(file,line);
     if(line) {
       chomp_str(line);
@@ -317,7 +309,7 @@ static void ConfigurationIndexPage(int fd,char *url)
     if(out_err==-1) goto close_return;
    }
 
- lseek(file,0,SEEK_SET);
+ lseek(file,seekpos,SEEK_SET);  /* go back only to the start of the last section */
  init_buffer(file);
 
  do
@@ -361,7 +353,7 @@ static void ConfigurationSectionPage(int fd,int section,char *url)
 
  if(file==-1)
    {
-    HTMLMessage(fd,200,"WWWOFFLE Configuration Page Error",NULL,"ServerError",
+    HTMLMessage(fd,500,"WWWOFFLE Configuration Page Error",NULL,"ServerError",
                 "error","Cannot open README.CONF.txt",
                 NULL);
     return;
@@ -409,7 +401,7 @@ output_head:
     description=NULL;
 
     if(!seekpos) goto output_body;
-    lseek(file,seekpos,SEEK_SET);
+    lseek(file,seekpos,SEEK_SET);  /* go back to the start of the required section */
     init_buffer(file);
 
     do
@@ -536,7 +528,7 @@ static void ConfigurationItemPage(int fd,int section,int item,char *url,Body *re
 
     if(file==-1)
       {
-       HTMLMessage(fd,200,"WWWOFFLE Configuration Page Error",NULL,"ServerError",
+       HTMLMessage(fd,500,"WWWOFFLE Configuration Page Error",NULL,"ServerError",
                    "error","Cannot open README.CONF.txt",
                    NULL);
        goto free_entry;
@@ -742,38 +734,30 @@ inline static void chrstr_prepend(char c, char **str)
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  The configuration page for a specific URL.
+  The configuration page to edit the URL-SPECIFICATION and redirect to the real page.
 
   int fd The file descriptor to write to.
 
-  char *request_args The arguments to the configuration page.
+  Body *request_body The body of the request.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void ConfigurationURLPage(int fd,char *request_args)
+static void ConfigurationEditURLPage(int fd,Body *request_body)
 {
- char *url=NULL; URL *Url=NULL;
+ char *url=NULL;
  char *proto=NULL,*host=NULL,*port=NULL,*path=NULL,*params=NULL,*args=NULL;
  char *proto_other=NULL,*host_other=NULL,*port_other=NULL,*path_other=NULL,*params_other=NULL,*args_other=NULL;
- int file;
- char *line1=NULL,*line2=NULL;
- int configitem,s,last_s=-1,seekpos=0;
 
  /* Parse the arguments. */
 
- if(request_args)
+ if(request_body)
    {
-    char *form,**arglist;
+    char *form=URLRecodeFormArgs(request_body->content);
+    char **arglist=SplitFormArgs(form);
     int i;
-
-    form=URLRecodeFormArgs(request_args);
-    arglist=SplitFormArgs(form);
 
     for(i=0;arglist[i];i++)
       {
-       if(is_proper_prefix("url=",arglist[i]))
-          url=URLDecodeFormArgs(arglist[i]+strlitlen("url="));
-
-       else if(is_proper_prefix("proto=",arglist[i]))
+       if(is_proper_prefix("proto=",arglist[i]))
           proto=URLDecodeFormArgs(arglist[i]+strlitlen("proto="));
        else if(is_proper_prefix("host=",arglist[i]))
           host=URLDecodeFormArgs(arglist[i]+strlitlen("host="));
@@ -807,288 +791,351 @@ static void ConfigurationURLPage(int fd,char *request_args)
 
  /* Sort out a URL from the mess of arguments. */
 
- if(url)
-   {
-    URL *Url=SplitURL(url);
-
-    if(proto_other)free(proto_other);
-    if(host_other) free(host_other);
-    if(port_other) free(port_other);
-    if(path_other) free(path_other);
-    if(params_other) free(params_other);
-    if(args_other) free(args_other);
-
-    if(proto) free(proto); proto=strdup(Url->proto);
-
-    if(host) free(host); host=strdup(Url->host);
-
-    if(Url->port)
-      {
-       if(port) free(port); port=chrstr_dup(':',Url->port);
-      }
-
-    if(path) free(path); path=strdup(Url->path);
-
-    if(Url->params)
-      {
-       if(params) free(params); params=chrstr_dup(';',Url->params);
-      }
-
-    if(Url->args)
-      {
-       if(args) free(args); args=chrstr_dup('?',Url->args);
-      }
-
-    FreeURL(Url);
-   }
+ if(proto && !strcmp(proto,"OTHER") && proto_other)
+   {free(proto); proto=proto_other;}
  else
+   {if(proto_other) free(proto_other);}
+ if(!proto) proto=strdup("*");
+
+ if(host && !strcmp(host,"OTHER") && host_other)
+   {free(host); host=host_other;}
+ else
+   {if(host_other) free(host_other);}
+ if(!host) host=strdup("*");
+
+ if(port && !strcmp(port,"OTHER") && port_other)
+   {free(port); port=port_other;}
+ else
+   {if(port_other) free(port_other);}
+ if(port && *port && *port!=':') chrstr_prepend(':',&port);
+
+ if(path && !strcmp(path,"OTHER") && path_other)
+   {free(path); path=path_other;}
+ else
+   {if(path_other) free(path_other);}
+ if(path) {if(*path!='/') chrstr_prepend('/',&path);}
+ else path=strdup("/*");
+
+ if(params && !strcmp(params,"OTHER") && params_other)
+   {free(params); params=params_other;}
+ else
+   {if(params_other) free(params_other);}
+ if(params && *params && *params!=';') chrstr_prepend(';',&params);
+
+ if(args && !strcmp(args,"OTHER") && args_other)
+   {free(args); args=args_other;}
+ else
+   {if(args_other) free(args_other);}
+ if(args && *args && *args!='?') chrstr_prepend('?',&args);
+
+ {
+   int urlsize=sizeof("://")+strlen(proto)+strlen(host);
+   if(port) urlsize+=strlen(port);
+   urlsize+=strlen(path);
+   if(params) urlsize+=strlen(params);
+   if(args) urlsize+=strlen(args);
+
+   url=(char*)malloc(urlsize);
+
    {
-    int urlsize;
-
-    if(proto && !strcmp(proto,"OTHER") && proto_other)
-      {free(proto); proto=proto_other;}
-    else
-      {if(proto_other) free(proto_other);}
-    if(!proto) proto=strdup("*");
-
-    if(host && !strcmp(host,"OTHER") && host_other)
-      {free(host); host=host_other;}
-    else
-      {if(host_other) free(host_other);}
-    if(!host) host=strdup("*");
-
-    if(port && !strcmp(port,"OTHER") && port_other)
-      {free(port); port=port_other;}
-    else
-      {if(port_other) free(port_other);}
-    if(port && *port && *port!=':') chrstr_prepend(':',&port);
-
-    if(path && !strcmp(path,"OTHER") && path_other)
-      {free(path); path=path_other;}
-    else
-      {if(path_other) free(path_other);}
-    if(path) {if(*path!='/') chrstr_prepend('/',&path);}
-    else path=strdup("/*");
-
-    if(params && !strcmp(params,"OTHER") && params_other)
-      {free(params); params=params_other;}
-    else
-      {if(params_other) free(params_other);}
-    if(params && *params && *params!=';') chrstr_prepend(';',&params);
-
-    if(args && !strcmp(args,"OTHER") && args_other)
-      {free(args); args=args_other;}
-    else
-      {if(args_other) free(args_other);}
-    if(args && *args && *args!='?') chrstr_prepend('?',&args);
-
-    urlsize=4;
-    urlsize+=strlen(proto);
-    urlsize+=strlen(host);
-    if(port) urlsize+=strlen(port);
-    urlsize+=strlen(path);
-    if(params) urlsize+=strlen(params);
-    if(args) urlsize+=strlen(args);
-
-    url=(char*)malloc(urlsize);
-
-    {
-      char *p;
-      p=stpcpy(stpcpy(stpcpy(url,proto),"://"),host);
-      if(port) p=stpcpy(p,port);
-      p=stpcpy(p,path);
-      if(params) p=stpcpy(p,params);
-      if(args) p=stpcpy(p,args);
-    }
+     char *p= stpcpy(stpcpy(stpcpy(url,proto),"://"),host);
+     if(port) p=stpcpy(p,port);
+     p=stpcpy(p,path);
+     if(params) p=stpcpy(p,params);
+     if(args) p=stpcpy(p,args);
    }
+ }
 
- if(!strchr(url,'*'))
-   Url=SplitURL(url);
-
-
- /* Display the HTML */
-
- file=OpenLanguageFile("messages/README.CONF.txt");
-
- if(file==-1)
-   {
-    HTMLMessage(fd,200,"WWWOFFLE Configuration Page Error",NULL,"ServerError",
-                "error","Cannot open README.CONF.txt",
-                NULL);
-
-    goto free_return;
-   }
-
- HTMLMessageHead(fd,200,"WWWOFFLE Configuration URL Page",
-                 NULL);
-
- if(out_err==-1) goto close_free_return;
-
- HTMLMessageBody(fd,"ConfigurationUrl-Head",
-                 "wildcard",Url?"":"yes",
-                 "url",url,
-                 "proto",proto,
-                 "host",host,
-                 "port",port,
-                 "path",path,
-                 "params",params,
-                 "args",args,
-                 NULL);
-
- if(out_err==-1) goto close_free_return;
-
- /* Loop through all of the specified ConfigItems. */
-
- for(configitem=0;configitem<sizeof(URLConfigItems)/sizeof(URLConfigItems[0]);++configitem)
-   {
-    int i;
-    char *template=NULL,*description=NULL,*current=NULL;
-
-    for(s=0,i=0;s<CurrentConfig.nsections;++s)
-      for(i=0;i<CurrentConfig.sections[s]->nitemdefs;++i)
-	if(URLConfigItems[configitem]==CurrentConfig.sections[s]->itemdefs[i].item)
-	  goto found_configitem;
-
-    continue;
-
-   found_configitem:
-    if(s!=last_s)
-      {
-       last_s=s;
-
-       lseek(file,0,SEEK_SET);
-       init_buffer(file);
-       seekpos=0;
-
-       do
-         {
-	   line1=read_line(file,line1);
-	   if(!line1) goto find_current;
-	   chomp_str(line1);
-	 }
-       while(!(!strcmp_litbeg(line1,"SECTION") && !strcmp(line1+8,CurrentConfig.sections[s]->name)));
-
-       line1=read_line(file,line1); /* skip section description */
-       if(!line1) goto find_current;
-       seekpos=buffered_seek_cur(file);
-      }
-    else
-      {
-       if(!seekpos) goto find_current;
-       lseek(file,seekpos,SEEK_SET);
-       init_buffer(file);
-      }
-
-    do
-      {
-       line1=read_line(file,line1);
-       if(!line1) goto find_current;
-       chomp_str(line1);
-       if(!strcmp_litbeg(line1,"SECTION")) goto find_current;
-      }
-    while(!(!strcmp_litbeg(line1,"ITEM") && !strcmp(line1+5,CurrentConfig.sections[s]->itemdefs[i].name)));
-
-    line1=read_line(file,line1);
-    if(line1) {
-      chomp_str(line1);
-      template=line1;
-      line2=read_line(file,line2);
-      if(line2) {
-	chomp_str(line2);
-	description=line2;
-      }
-    }
-
-   find_current:
-    if(Url)
-      {
-	ConfigItem item=*URLConfigItems[configitem];
-
-	if(item) {
-	  int j;
-
-	  if(item->itemdef->key_type==UrlSpecification) {
-	    for(j=0;j<item->nentries;++j)
-	      if(MatchUrlSpecification(item->key[j].urlspec,Url))
-		goto found_current;
-	  }
-	  else if(item->itemdef->url_type) {
-	    if(item->itemdef->key_type!=String) {
-	      for(j=0;j<item->nentries;++j) {
-		if(!item->url[j] || MatchUrlSpecification(item->url[j],Url))
-		  goto found_current;
-	      }
-	    }
-	    else { /* this is more complicated, we may need to list more that one entry */
-	      int len_current=0,nl=0;
-	      char *listed[item->nentries];
-
-	      for(j=0;j<item->nentries;++j) {
-		if(!item->url[j] || MatchUrlSpecification(item->url[j],Url)) {
-		  char *entrystr; int len_entry,k;
-
-		  for(k=0;k<nl;++k) {
-		    if(!strcasecmp(listed[k],item->key[j].string))
-		      goto alreadylisted;
-		  }
-
-		  entrystr=ConfigEntryString(item,j);
-		  len_entry=strlen(entrystr);
-		  if(nl==0) {
-		    current=entrystr;
-		    len_current=len_entry;
-		  }
-		  else {
-		    current=(char*)realloc(current,len_current+len_entry+2);
-		    current[len_current]='\n';
-		    memcpy(&current[len_current+1],entrystr,len_entry+1);
-		    len_current+=len_entry+1;
-		    free(entrystr);
-		  }
-		  listed[nl++]=item->key[j].string;
-		alreadylisted:
-		}
-	      }
-	    }
-	  }
-	  goto skip_current;
-
-	found_current:
-	  current=ConfigEntryString(item,j);
-	skip_current:
-	}
-      }
-
-    HTMLMessageBody(fd,"ConfigurationUrl-Body",
-		    "section",CurrentConfig.sections[s]->name,
-		    "item",CurrentConfig.sections[s]->itemdefs[i].name,
-		    "template",template,
-		    "description",description,
-		    "current",current,
-		    NULL);
-
-    if(current) free(current);
-
-    if(out_err==-1) goto close_free_return;
-   }
-
- HTMLMessageBody(fd,"ConfigurationUrl-Tail",
-                 NULL);
-
-close_free_return:
- if(line1) free(line1);
- if(line2) free(line2);
- close(file);
-free_return:
  if(proto) free(proto);
  if(host)  free(host);
  if(port)  free(port);
  if(path)  free(path);
- if(params)  free(params);
+ if(params)free(params);
  if(args)  free(args);
- if(url)   free(url);
- if(Url)   FreeURL(Url);
 
+ /* Redirect the browser to it */
+
+ {
+   char *localhost=GetLocalHost(1);
+   char *encurl=URLEncodeFormArgs(url);
+   char relocate[sizeof("http:///configuration/url?")+strlen(localhost)+strlen(encurl)];
+
+   sprintf(relocate,"http://%s/configuration/url?%s",localhost,encurl);
+
+   HTMLMessage(fd,302,"WWWOFFLE Configuration Edit URL Redirect",relocate,"Redirect",
+	       "location",relocate,
+	       NULL);
+
+   free(encurl);
+   free(localhost);
+ }
+
+ free(url);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  The configuration page for a specific URL.
+
+  int fd The file descriptor to write to.
+
+  char *url The URL specification from the URL argument.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+static void ConfigurationURLPage(int fd,char *url)
+{
+ static char dummy_port[]=":";
+ static char dummy_param[]=";";
+ static char dummy_arg[]="?";
+ int wildcard=0,file;
+
+ /* Assume a "well-formed" URL, from the function above or a WWWOFFLE index. */
+
+ {
+   char *proto=NULL,*host=NULL,*port=NULL,*path=NULL,*params=NULL,*args=NULL;
+   char *h=url,*colon=strchr(url,':'),*slash,*semi,*ques,*pathbeg,*pathend;
+
+   if(colon && *(colon+1)=='/' && *(colon+2)=='/')
+     {
+       proto=STRDUPA2(url,colon);
+       h=colon+3;
+     }
+
+   slash=strchrnul(h,'/');
+   semi=strchrnul(h,';');
+   ques=strchrnul(h,'?');
+   pathend=ques;
+
+   if(semi<ques)  /* ../path;...[?]... */
+     {
+       pathend=semi;
+
+       if(semi+1==ques)
+	 params=dummy_param;
+       else
+	 params=STRSLICE(semi+1,ques);
+     }
+
+   if(*ques)  /* ../path?... */
+     {
+       if(*(ques+1)==0)
+	 args=dummy_arg;
+       else
+	 args=ques+1;
+     }
+
+   if(slash<pathend)
+     {
+       pathbeg=slash;
+       path=STRSLICE(pathbeg,pathend);
+     }
+   else
+     pathbeg=pathend;
+
+   if(*h=='[')
+     {
+       colon=strchrnul(h+1,']');
+       if(*colon) ++colon;
+     }
+   else
+     colon=strchrnul(h,':');
+
+   if(*colon==':' && colon<pathbeg)
+     {
+       if(colon+1==pathbeg)
+	 port=dummy_port;
+       else
+	 port=STRDUPA2(colon+1,pathbeg);
+     }
+   else
+     colon=pathbeg;
+
+   host=STRDUPA2(h,colon);
+
+   if(strchr(url,'*') || port==dummy_port || params==dummy_param || args==dummy_arg)
+     wildcard=1;
+
+   /* Display the HTML */
+
+   file=OpenLanguageFile("messages/README.CONF.txt");
+
+   if(file==-1)
+     {
+       HTMLMessage(fd,500,"WWWOFFLE Configuration Page Error",NULL,"ServerError",
+		   "error","Cannot open README.CONF.txt",
+		   NULL);
+       return;
+     }
+
+   HTMLMessageHead(fd,200,"WWWOFFLE Configuration URL Page",
+		   NULL);
+
+   if(out_err==-1) goto close_return;
+
+   HTMLMessageBody(fd,"ConfigurationUrl-Head",
+		   "wildcard",wildcard?"yes":"",
+		   "url",url,
+		   "proto",proto,
+		   "host",host,
+		   "port",port,
+		   "path",path,
+		   "params",params,
+		   "args",args,
+		   NULL);
+
+   if(out_err==-1) goto close_return;
+ }
+
+ /* Loop through all of the specified ConfigItems. */
+
+ {
+   int configitem,s,last_s=-1;
+   off_t seekpos=0;
+   char *line1=NULL,*line2=NULL;
+
+   for(configitem=0;configitem<sizeof(URLConfigItems)/sizeof(URLConfigItems[0]);++configitem)
+     {
+       int i;
+       char *template=NULL,*description=NULL,*current=NULL;
+
+       for(s=0,i=0;s<CurrentConfig.nsections;++s)
+	 for(i=0;i<CurrentConfig.sections[s]->nitemdefs;++i)
+	   if(URLConfigItems[configitem]==CurrentConfig.sections[s]->itemdefs[i].item)
+	     goto found_configitem;
+
+       continue;
+
+     found_configitem:
+       if(s!=last_s)
+	 {
+	   last_s=s;
+
+	   lseek(file,0,SEEK_SET);
+	   init_buffer(file);
+	   seekpos=0;
+
+	   do
+	     {
+	       line1=read_line(file,line1);
+	       if(!line1) goto find_current;
+	       chomp_str(line1);
+	     }
+	   while(!(!strcmp_litbeg(line1,"SECTION") && !strcmp(line1+8,CurrentConfig.sections[s]->name)));
+
+	   line1=read_line(file,line1); /* skip section description */
+	   if(!line1) goto find_current;
+	   seekpos=buffered_seek_cur(file);
+	 }
+       else
+	 {
+	   if(!seekpos) goto find_current;
+	   lseek(file,seekpos,SEEK_SET);
+	   init_buffer(file);
+	 }
+
+       do
+	 {
+	   line1=read_line(file,line1);
+	   if(!line1) goto find_current;
+	   chomp_str(line1);
+	   if(!strcmp_litbeg(line1,"SECTION")) goto find_current;
+	 }
+       while(!(!strcmp_litbeg(line1,"ITEM") && !strcmp(line1+5,CurrentConfig.sections[s]->itemdefs[i].name)));
+
+       line1=read_line(file,line1);
+       if(line1) {
+	 chomp_str(line1);
+	 template=line1;
+	 line2=read_line(file,line2);
+	 if(line2) {
+	   chomp_str(line2);
+	   description=line2;
+	 }
+       }
+
+     find_current:
+       if(!wildcard)
+	 {
+	   URL *Url=SplitURL(url);
+	   ConfigItem item=*URLConfigItems[configitem];
+
+	   if(item) {
+	     int j;
+
+	     if(item->itemdef->key_type==UrlSpecification) {
+	       for(j=0;j<item->nentries;++j)
+		 if(MatchUrlSpecification(item->key[j].urlspec,Url))
+		   goto found_current;
+	     }
+	     else if(item->itemdef->url_type) {
+	       if(item->itemdef->key_type!=String) {
+		 for(j=0;j<item->nentries;++j) {
+		   if(!item->url[j] || MatchUrlSpecification(item->url[j],Url))
+		     goto found_current;
+		 }
+	       }
+	       else { /* this is more complicated, we may need to list more that one entry */
+		 int len_current=0,nl=0;
+		 char *listed[item->nentries];
+
+		 for(j=0;j<item->nentries;++j) {
+		   if(!item->url[j] || MatchUrlSpecification(item->url[j],Url)) {
+		     char *entrystr; int len_entry,k;
+
+		     for(k=0;k<nl;++k) {
+		       if(!strcasecmp(listed[k],item->key[j].string))
+			 goto alreadylisted;
+		     }
+
+		     entrystr=ConfigEntryString(item,j);
+		     len_entry=strlen(entrystr);
+		     if(nl==0) {
+		       current=entrystr;
+		       len_current=len_entry;
+		     }
+		     else {
+		       current=(char*)realloc(current,len_current+len_entry+2);
+		       current[len_current]='\n';
+		       memcpy(&current[len_current+1],entrystr,len_entry+1);
+		       len_current+=len_entry+1;
+		       free(entrystr);
+		     }
+		     listed[nl++]=item->key[j].string;
+		   alreadylisted:
+		   }
+		 }
+	       }
+	     }
+	     goto skip_current;
+
+	   found_current:
+	     current=ConfigEntryString(item,j);
+	   skip_current:
+	   }
+	 }
+
+       HTMLMessageBody(fd,"ConfigurationUrl-Body",
+		       "section",CurrentConfig.sections[s]->name,
+		       "item",CurrentConfig.sections[s]->itemdefs[i].name,
+		       "template",template,
+		       "description",description,
+		       "current",current,
+		       NULL);
+
+       if(current) free(current);
+
+       if(out_err==-1) goto close_free_return;
+     }
+
+   HTMLMessageBody(fd,"ConfigurationUrl-Tail",
+		   NULL);
+
+ close_free_return:
+   if(line1) free(line1);
+   if(line2) free(line2);
+ }
+close_return:
+ close(file);
 }
 
 

@@ -124,7 +124,7 @@ char *Finger_Request(URL *Url,Header *request_head,/*@unused@*/ Body *request_bo
  /* Else Sort out the path. */
 
  user=Url->path+1;
- {char *slash=strchr(user,'/'); if(slash) user=strndupa(user,slash-user);}
+ {char *slash=strchr(user,'/'); if(slash) user=STRDUPA2(user,slash);}
 
  if(*user)
    {

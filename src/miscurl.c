@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/miscurl.c 2.78 2002/07/27 14:33:51 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/miscurl.c 2.79 2002/10/04 16:52:41 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   Miscellaneous HTTP / HTML Url Handling functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -455,20 +455,19 @@ char *LinkURL(URL *Url,char *link)
  else
    {
     char *p;
-    char path[strlen(Url->path)+strlen(link)+2];
+    new=(char*)malloc(strlen(Url->proto)+strlen(Url->host)+strlen(Url->path)+strlen(link)+4);
+    p=new+sprintf(new,"%s://%s%s",Url->proto,Url->host,Url->path);
 
-    p=stpcpy(path,Url->path);
+    if(*link)
+      {
+	while(--p>new)
+	  if(*p=='/')
+	    break;
 
-    while(--p>path)
-       if(*p=='/')
-          break;
+	stpcpy(p+1,link);
 
-    stpcpy(p+1,link);
-
-    CanonicaliseName(path);
-
-    new=(char*)malloc(strlen(Url->proto)+strlen(Url->hostport)+strlen(path)+4);
-    sprintf(new,"%s://%s%s",Url->proto,Url->hostport,path);
+	CanonicaliseName(new);
+      }
    }
 
  return(new);

@@ -29,13 +29,21 @@ $Delete  = http://$localhost/control/delete-url/?url=$encurl
 $Refresh = http://$localhost/refresh/?$encurl
 $Options = http://$localhost/refresh-options/?$encurl
 $Monitor = http://$localhost/monitor-options/?$encurl
-$Index   = http://$localhost/index/url/?$encurl
-$Config  = http://$localhost/configuration/url?url=$encurl
+$Index   = http://$localhost/index/url?$encurl
+$Info    = http://$localhost/info/url?$encurl
+$Config  = http://$localhost/configuration/url?$encurl
 
 -->
 <hr>
 <p align=center>
-WWWOFFLE - $date ($time $unitstr temu) - [<a href="$Delete">Usuñ</a>|<a href="$Refresh">Od¶wie¿</a>:<a href="$Options">Opcje</a>|<a href="$Monitor">Monitoruj</a>|<a href="$Index">Indeks</a>|<a href="$Config">Konfiguruj</a>] - WWWOFFLE
+WWWOFFLE - $date ($time $unitstr temu) - [ \
+<a href="$Delete">Usuñ</a>| \
+<a href="$Refresh">Od¶wie¿</a>:<a href="$Options">Opcje</a>| \
+<a href="$Monitor">Monitoruj</a>| \
+<a href="$Index">Indeks</a>| \
+<a href="$Info">Info</a>| \
+<a href="$Config">Konfiguruj</a> \
+] - WWWOFFLE
 </p>
 <hr>
 <!-- The previous section added by WWWOFFLE -->

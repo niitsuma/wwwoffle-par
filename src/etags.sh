@@ -27,6 +27,7 @@ html.l
 htmlmodify.l
 http.c
 index.c
+info.c
 io.c
 javaclass.c
 local.c

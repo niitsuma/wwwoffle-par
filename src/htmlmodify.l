@@ -11,9 +11,9 @@ K               [a-z0-9-]
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/htmlmodify.l 1.51 2002/06/23 15:05:22 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/htmlmodify.l 1.54 2002/10/28 19:00:35 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   Parse the HTML and modify the source.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -535,7 +535,7 @@ static void output_img_or_object_tag(Tag *tag,int src_att,
                                               int replace_dontget,char *dontget_replacement,
                                               int replace_webbug,char *webbug_replacement)
 {
- int i,j;
+ int i;
  int is_dontget=0,is_webbug=0;
 
  if(src_att>=0)
@@ -584,35 +584,46 @@ static void output_img_or_object_tag(Tag *tag,int src_att,
     tag->attr_val[src_att]=strdup(webbug_replacement);
    }
 
- /* Remove the alt attribute (if required) and shuffle the tag structure accordingly. */
+ /* Blank the alt attribute or add an empty one (if required). */
 
  if(is_dontget || is_webbug)
    {
-    for(i=0,j=0;i<tag->nattr;i++,j++)
-      {
+    int seen_alt=0;
+
+    for(i=0;i<tag->nattr;i++)
        if(!strcasecmp(tag->attr_key[i],"alt"))
          {
-          free(tag->attr_key[i]);
           if(tag->attr_val[i])
              free(tag->attr_val[i]);
 
-          tag->attr_key[i]=NULL;
-          tag->attr_val[i]=NULL;
+          tag->attr_val  [i]=(char *)calloc(1,1);
+          tag->attr_quote[i]="\"";
 
-          j--;
+          seen_alt=1;
          }
-       else if(i!=j)
+
+    if(!seen_alt)
+      {
+       if(tag->nattr==tag->nattr_malloc)
          {
-          tag->attr_type [j]=tag->attr_type [i];
-          tag->attr_key  [j]=tag->attr_key  [i];
-          tag->attr_val  [j]=tag->attr_val  [i];
-          tag->attr_quote[j]=tag->attr_quote[i];
+          tag->attr_type=(int*)realloc((void*)tag->attr_type,(tag->nattr_malloc+1)*sizeof(int));
+          tag->attr_key=(char**)realloc((void*)tag->attr_key,(tag->nattr_malloc+1)*sizeof(char*));
+          tag->attr_val=(char**)realloc((void*)tag->attr_val,(tag->nattr_malloc+1)*sizeof(char*));
+          tag->attr_quote=(char**)realloc((void*)tag->attr_quote,(tag->nattr_malloc+1)*sizeof(char*));
 
-          tag->attr_key[i]=NULL;
-          tag->attr_val[i]=NULL;
+          tag->attr_key[tag->nattr_malloc]=NULL;
+          tag->attr_val[tag->nattr_malloc]=NULL;
+
+          tag->nattr_malloc+=1;
          }
+
+       tag->attr_type [tag->nattr]=att_natts;
+       tag->attr_key  [tag->nattr]=(char *)malloc(4); strcpy(tag->attr_key[tag->nattr],"alt");
+       tag->attr_val  [tag->nattr]=(char *)calloc(1,1);
+       tag->attr_quote[tag->nattr]="\"";
+
+       tag->nattr++;
       }
-    tag->nattr=j;
    }
 
  /* Output the original or modified tag. */
@@ -690,7 +701,7 @@ static int handle_object_tag(Tag *tag,int replace_dontget,char *dontget_replacem
                !strcasecmp_litbeg(tag->attr_val[i],"clsid:D27CDB6E-AE6D-11cf-96B8-444553540000"))
           is_flash=1;
        else if(tag->attr_type[i]==att_src && tag->attr_val[i] &&
-               !strcasecmp_litbeg(tag->attr_val[i]+strlen(tag->attr_val[i])-4,".swf"))
+               !strcasecmp_litend(tag->attr_val[i],".swf"))
           is_flash=1;
    }
 
@@ -1282,8 +1293,7 @@ static void modify_html(URL *Url)
 
        if(key==att_href && tag==tag_a && htmlmodify_yylval)
          {
-          char *link=NULL,*p,oldp=0;
-          URL *Url=NULL;
+          char *p,oldp=0;
 
           for(p=htmlmodify_yylval;*p;p++)
              if(*p=='#')
@@ -1293,24 +1303,26 @@ static void modify_html(URL *Url)
                 break;
                }
 
-          link=LinkURL(baseUrl,htmlmodify_yylval);
-          Url=SplitURL(link);
+          if(*htmlmodify_yylval)
+            {
+             char *link=LinkURL(baseUrl,htmlmodify_yylval);
+             URL *Url=SplitURL(link);
 
-          if(!Url)
-             url_cached=1;
-          else if(!Url->Protocol)
-             url_cached=0;
-          else if(ExistsWebpageSpoolFile(Url) || IsLocalNetHost(Url->host))
-             url_cached=1;
-          else if(ExistsOutgoingSpoolFile(Url))
-             url_cached=2;
-          else
-             url_cached=-1;
+             if(!Url->Protocol)
+                url_cached=0;
+             else if(ExistsWebpageSpoolFile(Url) || IsLocalNetHost(Url->host))
+                url_cached=1;
+             else if(ExistsOutgoingSpoolFile(Url))
+                url_cached=2;
+             else
+                url_cached=-1;
 
-          if(link!=htmlmodify_yylval)
-             free(link);
-          if(Url)
+             if(link!=htmlmodify_yylval)
+                free(link);
              FreeURL(Url);
+            }
+          else
+             url_cached=1;
 
           if(oldp)
              *p=oldp;

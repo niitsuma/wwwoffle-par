@@ -141,10 +141,11 @@ char /*@only@*/ **SplitFormArgs(char *str);
 char /*@only@*/ *MakeHash(const char *args);
 
 #define MAXDATESIZE 32
+#define MAXDURATIONSIZE 64
 void RFC822Date_r(time_t t,int utc,char *buf);
 char /*@observer@*/ *RFC822Date(time_t t,int utc);
 time_t DateToTimeT(const char *date);
-char /*@observer@*/ *DurationToString(const long duration);
+void DurationToString_r(const long duration,char *buf);
 
 char /*@only@*/ *Base64Decode(const char *str,/*@out@*/ int *l);
 char /*@only@*/ *Base64Encode(const char *str,int l);
@@ -243,13 +244,22 @@ inline static void chomp_str(char *str)
 #define strcmp_litbeg(str,strlit) strncmp(str,strlit,strlitlen(strlit))
 #define strcasecmp_litbeg(str,strlit) strncasecmp(str,strlit,strlitlen(strlit))
 
+#define strcmp_litend(str,strlit) \
+ ({ char *_endpart=strchrnul(str,0)-strlitlen(strlit); (_endpart>=(str))?strcmp(_endpart,strlit):-1; })
+#define strcasecmp_litend(str,strlit) \
+ ({ char *_endpart=strchrnul(str,0)-strlitlen(strlit); (_endpart>=(str))?strcasecmp(_endpart,strlit):-1; })
+
 #define x_asprintf(...)  \
  ({ char *_result; (asprintf(&_result, __VA_ARGS__) >= 0) ? _result : NULL; })
   
 #define sprintf_strdupa(format,str)  \
  ({ char *_str=(str); char *_result= (char *)alloca((sizeof(format)-2)+strlen(_str)); sprintf(_result,(format),_str); _result; })
 
-#define STRDUP2(p,q)  strndup((p),(q)-(p))
+#define STRDUP2(p,q)  strndup(p, (q)-(p))
+#define STRDUPA2(p,q)  strndupa(p, (q)-(p))
+
+/* STRSLICE is similar to STRDUPA but doesn't necessarily make a fresh copy */
+#define STRSLICE(p,q)  (*(q)?STRDUPA2(p,q):(p))
 #define STRDUP3(p,q,f) ({size_t _templen=(q)-(p); char _temp[_templen+1]; *((char *)mempcpy(_temp, (p), _templen))=0; f(_temp); })
 
 #define local_strdup(str,copy) size_t _str_size=strlen(str)+1; char copy[_str_size]; memcpy(copy,str,_str_size);

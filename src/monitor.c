@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/monitor.c 1.42 2002/08/22 15:28:23 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/monitor.c 1.43 2002/10/20 10:08:20 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   The functions for monitoring URLs.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -68,7 +68,7 @@
 static void MonitorFormShow(int fd,char *request_args);
 static void MonitorFormParse(int fd,char *request_args,/*@null@*/ Body *request_body);
 
-/*+ The file descriptor of the sppol directory. +*/
+/*+ The file descriptor of the spool directory. +*/
 extern int fSpoolDir;
 
 

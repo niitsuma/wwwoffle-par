@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/control.c 2.54 2002/08/04 10:26:06 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/control.c 2.55 2002/10/12 20:26:22 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   The HTML interactive control pages.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -76,7 +76,7 @@ void ControlPage(int fd,URL *Url,Body *request_body)
  char *newpath=Url->path+strlitlen("/control/");  /* remove the '/control/' */
 
  /* remove trailing '/' */
- {char *p=strchrnul(newpath,0)-1; if(p>=newpath && *p=='/') newpath=strndupa(newpath,p-newpath); }
+ {char *p=strchrnul(newpath,0)-1; if(p>=newpath && *p=='/') newpath=STRDUPA2(newpath,p); }
 
  /* Determine the action. */
 
@@ -192,6 +192,8 @@ static void ActionControlPage(int fd,Action action,char *command)
    }
  else
    {
+    int error=0;
+
     HTMLMessage(fd,200,"WWWOFFLE Control Page",NULL,"ControlWWWOFFLE-Head",
                 "command",command,
                 NULL);
@@ -202,28 +204,31 @@ static void ActionControlPage(int fd,Action action,char *command)
        write_formatted(socket,"WWWOFFLE PASSWORD %s\r\n",ConfigString(PassWord));
 
     if(action==Online)
-       write_string(socket,"WWWOFFLE ONLINE\r\n");
+       error=write_string(socket,"WWWOFFLE ONLINE\r\n");
     else if(action==Autodial)
-       write_string(socket,"WWWOFFLE AUTODIAL\r\n");
+       error=write_string(socket,"WWWOFFLE AUTODIAL\r\n");
     else if(action==Offline)
-       write_string(socket,"WWWOFFLE OFFLINE\r\n");
+       error=write_string(socket,"WWWOFFLE OFFLINE\r\n");
     else if(action==Fetch)
-       write_string(socket,"WWWOFFLE FETCH\r\n");
+       error=write_string(socket,"WWWOFFLE FETCH\r\n");
     else if(action==Config)
-       write_string(socket,"WWWOFFLE CONFIG\r\n");
+       error=write_string(socket,"WWWOFFLE CONFIG\r\n");
     else if(action==Purge)
-       write_string(socket,"WWWOFFLE PURGE\r\n");
+       error=write_string(socket,"WWWOFFLE PURGE\r\n");
     else if(action==Status)
-       write_string(socket,"WWWOFFLE STATUS\r\n");
+       error=write_string(socket,"WWWOFFLE STATUS\r\n");
 
-    {
-      char buffer[READ_BUFFER_SIZE]; int n;
-      while((n=read_data(socket,buffer,READ_BUFFER_SIZE))>0)
-	if(write_data(fd,buffer,n)<0) {
-	  PrintMessage(Warning,"Cannot write to temporary file [%!s]; disk full?");
-	  goto free_return;
-	}
-    }
+    if(error==-1)
+      write_string(fd,"Error writing the command to the server.");
+    else
+      {
+	char buffer[READ_BUFFER_SIZE]; int n;
+	while((n=read_data(socket,buffer,READ_BUFFER_SIZE))>0)
+	  if(write_data(fd,buffer,n)<0) {
+	    PrintMessage(Warning,"Cannot write to temporary file [%!s]; disk full?");
+	    goto free_return;
+	  }
+      }
 
     HTMLMessageBody(fd,"ControlWWWOFFLE-Tail",
                     NULL);

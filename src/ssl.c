@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/ssl.c 1.16 2002/06/23 15:05:23 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/ssl.c 1.17 2002/10/12 19:49:22 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   SSL (Secure Socket Layer) Tunneling functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -125,6 +125,8 @@ char *SSL_Request(int client,URL *Url,Header *request_head)
  if(proxy)
    {
     char *head;
+
+    ModifyRequest(Url,request_head);
 
     MakeRequestProxyAuthorised(proxy,request_head);
 

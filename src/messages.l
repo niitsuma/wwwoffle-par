@@ -12,9 +12,9 @@ FUNC   \%[a-z_0-9]+\[[a-z_0-9]+\]
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/messages.l 1.45 2002/04/07 12:28:19 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/messages.l 1.46 2002/11/03 17:38:15 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   Parse the HTML to create the messages.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -70,7 +70,6 @@ FUNC   \%[a-z_0-9]+\[[a-z_0-9]+\]
 
 extern int msg_yylex(void);
 #define msg_yywrap() 1
-#define YY_NO_UNPUT
 
 
 static void html_message_body(char *template, va_list ap);
@@ -474,10 +473,10 @@ static char *call_function(char *func)
  char *funcname,*var,*val,*result=NULL,*bracket1,*bracket2;
 
  if(!(bracket1=strchr(func,'['))) return empty;
- funcname=strndupa(func,bracket1-func);
+ funcname=STRDUPA2(func,bracket1);
  ++bracket1;
  if(!(bracket2=strchr(bracket1,']'))) return empty;
- var=strndupa(bracket1,bracket2-bracket1);
+ var=STRDUPA2(bracket1,bracket2);
  val=get_variable(var);
 
  if(val) {
@@ -560,12 +559,14 @@ inline static char *skip_trailing_blanks(char *string, char *end)
  char *val=NULL;
  int any=0;
 
-[^$%?\\\n]+                                                         |
+[^$%?\\\n \t]+                                                      |
 <ALTERNATE_USE_FIRST,ALTERNATE_USE_SECOND>[^}$%?\\\n]+              { write_or_append_string(yytext); any++; }
 \n                                                                  { write_or_append_string(yytext); any=0; }
 <ALTERNATE_USE_FIRST,ALTERNATE_USE_SECOND>\n                        { if(any) write_or_append_string(yytext); any=0; }
 <INITIAL,ALTERNATE_USE_FIRST,ALTERNATE_USE_SECOND>\\[\"\'$%?\\{}]   { write_or_append_string(yytext+1); any++; }
-<INITIAL,ALTERNATE_USE_FIRST,ALTERNATE_USE_SECOND>[$%\\?]           { write_or_append_string(yytext); any++; }
+<INITIAL,ALTERNATE_USE_FIRST,ALTERNATE_USE_SECOND>[$%\\?]           |
+[ \t]+                                                              { write_or_append_string(yytext); any++; }
+[ \t]*\\\r*\n                                                       { }
 <INITIAL,ALTERNATE_USE_FIRST,ALTERNATE_USE_SECOND>{VAR}             { write_or_append_string(get_variable(yytext+1));any++; }
 <INITIAL,ALTERNATE_USE_FIRST,ALTERNATE_USE_SECOND>{VAR}[ \t]*=      { char *p=yytext+1,*r=yytext+yyleng;
 								      var=STRDUP2(p,skip_trailing_blanks(p,r-1));
@@ -592,7 +593,7 @@ inline static char *skip_trailing_blanks(char *string, char *end)
 <ALTERNATE_USE_FIRST>\}[ \t\r\n]*\{                                 { BEGIN(ALTERNATE_SKIP_SECOND); }
 <ALTERNATE_USE_FIRST>\}[ \t\r\n]*{VAR}[ \t]*\?(=[ \t]*{VAR}|=[^$\'\"\r\n{]*)?[ \t\r\n]*\{   { BEGIN(ALTERNATE_SKIP_REST); }
 <ALTERNATE_USE_SECOND>\}[ \t]*\r*\n                                 { yy_pop_state(); if(any) write_or_append_string("\n"); any=0; }
-<ALTERNATE_USE_SECOND>\}[ \t]+                                      { yy_pop_state(); write_or_append_string(" "); }
+<ALTERNATE_USE_SECOND>\}[ \t]+                                      { yy_pop_state(); unput(' '); }
 <ALTERNATE_USE_FIRST,ALTERNATE_USE_SECOND>\}                        { yy_pop_state(); }
 
 
@@ -645,7 +646,7 @@ inline static char *skip_trailing_blanks(char *string, char *end)
 <ALTERNATE_SKIP_REST>\}[ \t\r\n]*\{                                     { BEGIN(ALTERNATE_SKIP_SECOND); }
 <ALTERNATE_SKIP_REST>\}[ \t\r\n]*{VAR}[ \t]*\?(=[ \t]*{VAR}|=[^$\'\"\r\n{]*)?[ \t\r\n]*\{  { }
 <ALTERNATE_SKIP_SECOND,ALTERNATE_SKIP_REST>\}[ \t]*\r*\n                { yy_pop_state(); if(any) write_or_append_string("\n"); any=0; }
-<ALTERNATE_SKIP_SECOND,ALTERNATE_SKIP_REST>\}[ \t]+                     { yy_pop_state(); write_or_append_string(" "); }
+<ALTERNATE_SKIP_SECOND,ALTERNATE_SKIP_REST>\}[ \t]+                     { yy_pop_state(); unput(' '); }
 <ALTERNATE_SKIP_FIRST,ALTERNATE_SKIP_SECOND,ALTERNATE_SKIP_REST>\}      { yy_pop_state(); }
 
 %%

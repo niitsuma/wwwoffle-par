@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configdata.c 2.130 2002/08/21 19:47:52 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configdata.c 2.133 2002/11/03 09:35:56 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   Configuration data functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -281,8 +281,8 @@ static ConfigSection fetchoptions_section={"FetchOptions",
 
 /* IndexOptions section */
 
-/*+ The option to disable the lasttime/prevtime indexes. +*/
-ConfigItem NoLasttimeIndex;
+/*+ The option to enable/disable the lasttime/prevtime/lastout/prevout indexes. +*/
+ConfigItem CreateHistoryIndexes;
 
 /*+ The option to cycle the last time directories daily. +*/
 ConfigItem CycleIndexesDaily;
@@ -304,13 +304,13 @@ ConfigItem IndexListAny;
 
 /*+ The item definitions in the IndexOptions section. +*/
 static ConfigItemDef indexoptions_itemdefs[]={
- {"no-lasttime-index"  ,&NoLasttimeIndex  ,0,0,Fixed,Boolean,"no" },
- {"cycle-indexes-daily",&CycleIndexesDaily,0,0,Fixed,Boolean,"no" },
- {"list-outgoing"      ,&IndexListOutgoing,1,0,Fixed,Boolean,"yes"},
- {"list-latest"        ,&IndexListLatest  ,1,0,Fixed,Boolean,"yes"},
- {"list-monitor"       ,&IndexListMonitor ,1,0,Fixed,Boolean,"yes"},
- {"list-host"          ,&IndexListHost    ,1,0,Fixed,Boolean,"yes"},
- {"list-any"           ,&IndexListAny     ,1,0,Fixed,Boolean,"yes"}
+ {"create-history-indexes",&CreateHistoryIndexes,0,0,Fixed,Boolean,"yes"},
+ {"cycle-indexes-daily"   ,&CycleIndexesDaily   ,0,0,Fixed,Boolean,"no" },
+ {"list-outgoing"         ,&IndexListOutgoing   ,1,0,Fixed,Boolean,"yes"},
+ {"list-latest"           ,&IndexListLatest     ,1,0,Fixed,Boolean,"yes"},
+ {"list-monitor"          ,&IndexListMonitor    ,1,0,Fixed,Boolean,"yes"},
+ {"list-host"             ,&IndexListHost       ,1,0,Fixed,Boolean,"yes"},
+ {"list-any"              ,&IndexListAny        ,1,0,Fixed,Boolean,"yes"}
 };
 
 /*+ The IndexOptions section. +*/
@@ -676,10 +676,10 @@ static ConfigSection alias_section={"Alias",
 ConfigItem PurgeUseMTime;
 
 /*+ The maximum allowed size of the cache. +*/
-ConfigItem PurgeCacheSize;
+ConfigItem PurgeMaxSize;
 
 /*+ The minimum allowed free disk space. +*/
-ConfigItem PurgeDiskFree;
+ConfigItem PurgeMinFree;
 
 /*+ A flag to indicate if the whole URL is used to choose the purge age. +*/
 ConfigItem PurgeUseURL;
@@ -701,8 +701,8 @@ static ConfigItemDef purge_itemdefs[]={
  {"use-mtime"    ,&PurgeUseMTime      ,0,0,Fixed,Boolean  ,"no"},
  {"age"          ,&PurgeAges          ,1,0,Fixed,AgeDays  ,"2w"},
  {"compress-age" ,&PurgeCompressAges  ,1,0,Fixed,AgeDays  ,"-1"},
- {"max-size"     ,&PurgeCacheSize     ,0,0,Fixed,CacheSize,"0" },
- {"min-free"     ,&PurgeDiskFree      ,0,0,Fixed,CacheSize,"0" },
+ {"max-size"     ,&PurgeMaxSize       ,0,0,Fixed,CacheSize,"-1"},
+ {"min-free"     ,&PurgeMinFree       ,0,0,Fixed,CacheSize,"-1"},
  {"use-url"      ,&PurgeUseURL        ,0,0,Fixed,Boolean  ,"no"},
  {"del-dontget"  ,&PurgeDontGet       ,0,0,Fixed,Boolean  ,"no"},
  {"del-dontcache",&PurgeDontCache     ,0,0,Fixed,Boolean  ,"no"}

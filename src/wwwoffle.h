@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle.h 2.91 2002/08/04 10:24:43 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle.h 2.92 2002/10/27 13:33:51 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   A header file for all of the programs wwwoffle, wwwoffled.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -138,6 +138,10 @@ void LocalCGI(int fd,char *file,URL *Url,Header *request_head,/*@null@*/ Body *r
 /* In index.c */
 
 void IndexPage(int fd,URL *Url);
+
+/* In info.c */
+
+void InfoPage(int fd,URL *Url,Header *request_head,/*@null@*/ Body *request_body);
 
 /* In control.c */
 

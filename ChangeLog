@@ -1,3 +1,139 @@
+2002-11-30  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	Version 2.7g of WWWOFFLE released.
+
+2002-11-30  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/version.h, doc/NEWS: Updated to version 2.7g.
+
+2002-11-29  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* doc/README: Updated with info pages in list of features.
+
+2002-11-28  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/cgi.c, src/search.c:
+	Re-initialise the file buffers after rewinding the file descriptor before reading/writing again.
+
+	* src/wwwoffles.c: Write the unmodified server header to the cache.
+	Re-initialise the file buffers after rewinding the file descriptor before reading/writing again.
+
+2002-11-27  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/info.c: Handle files in the cache that are compressed.
+
+	* src/wwwoffle-tools.c:
+	Don't parse the '-c wwwoffle.conf' option as if it was a directory to list.
+	Make a more robust test that we are currently in the cache directory.
+
+2002-11-25  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/wwwoffles.c:
+	Delete zero length spool files if they are requested offline.
+
+2002-11-10  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/wwwoffles.c, src/info.c: Remove minor memory leaks.
+
+2002-11-03  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/messages.l: Remove whitespace + '\' + newline from HTML output.
+	Also update lots of message pages to use this and reduce the line lengths.
+
+	* src/purge.c, src/configrdwr.c, src/configdata.c, src/config.h,
+	doc/README.CONF, conf/wwwoffle.conf.template, conf/upgrade-config.pl:
+	Allow -1 to be used for max-size and min-free to ignore these options.
+	Rename the config variables that hold these options.
+
+2002-10-28  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/htmlmodify.l:
+	Insert an empty alt tag rather than deleting the existing one if replacing an image.
+
+2002-10-27  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/wwwoffles.c: Add the hooks for the info pages.
+	Use the generic redirection message.
+
+	* src/wwwoffle.h: Add the function for the info pages.
+
+	* src/index.c: Add the hooks for the info page options in the indexes.
+
+	* src/Makefile.in: Compile the info.c file.
+
+	* src/info.c: New file.
+
+2002-10-26  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/index.c:
+	Use a generic redirection message for all WWWOFFLE 302 responses.
+	Change the URL specific index from /index/url/?xxx to /index/url?xxx.
+	Remove unused variable.
+
+	* src/ftp.c, src/local.c:
+	Use a generic redirection message for all WWWOFFLE 302 responses.
+
+	* src/configedit.c:
+	Changed the URL for pages that have a URL argument from ...?url=xxx to ...?xxx.
+	Have a separate URL for URL editing form submission for consistency.
+	Only accept POST method for all form sumbmissions, GET with arguments for URL specification only.
+	Change the error page codes from 200 to 500.
+	Fix some seekpos problems, add some comments.
+
+2002-10-20  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/monitor.c, src/purge.c, src/wwwoffled.c, src/spool.c, src/index.c:
+	Fix trivial spelling mistake in comment.
+
+	* src/cgi.c: Bug fix for CGI header handling.
+
+2002-10-19  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/ftp.c: Fix for re-fetching of unmodified FTP files.
+
+2002-10-13  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/cgi.c:
+	Use the HTTP status header line that comes from the CGI if there is one.
+	Tidy up the function that sets the environment variables for neatness/consistency.
+
+	* src/headbody.c: Minor change to HTTP header status value parsing.
+
+	* src/local.c: Bug fix for searching for /local/ directory.
+
+	* conf/upgrade-config.pl:
+	Add the create-history-indexes option to config files if not present.
+
+	* src/spool.c, conf/upgrade-config.pl, conf/wwwoffle.conf.template,
+	doc/CHANGES.CONF, doc/README.CONF, src/config.h, src/configdata.c:
+	Renamed the no-lasttime-index option to create-history-indexes.
+	Reverse the meaning and the default value.
+	Apply it to the lastout/prevout indexes as well as lasttime/prevtime.
+
+	* conf/wwwoffle.conf.template, doc/CHANGES.CONF, doc/README.CONF, src/config.h,
+	src/configdata.c, src/configedit.c, src/wwwoffles.c, conf/upgrade-config.pl:
+	Added a cache-control-no-cache option which works like pragma-no-cache.
+
+2002-10-12  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/control.c:
+	Print an error message if the command cannot be written to the server control port.
+
+	* src/wwwoffles.c, src/ssl.c:
+	Modify the SSL headers only if using an SSL proxy.
+
+2002-10-05  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/htmlmodify.l: Bug fix for previous change.
+
+2002-10-04  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/miscurl.c:
+	Fix LinkURL so that an empty string points to current URL not directory.
+
+	* src/htmlmodify.l:
+	Add shortcut to testing if page is cached for <a href='#foo'>.
+
 2002-09-28  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
 
 	Version 2.7f of WWWOFFLE released.

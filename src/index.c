@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/index.c 2.83 2002/06/23 15:04:08 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/index.c 2.86 2002/10/27 13:33:31 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   Generate an index of the web pages that are cached in the system.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -99,15 +99,12 @@ typedef enum _SortMode
 SortMode;
 
 
-/*+ The file descriptor of the sppol directory. +*/
+/*+ The file descriptor of the spool directory. +*/
 extern int fSpoolDir;
 
 /*+ The list of files. +*/
 static /*@null@*/ /*@only@*/ FileIndex **files=NULL;
 static int nfiles=0;
-
-/*+ The earliest time that files can appear in the dated list. +*/
-static time_t earliest=0;
 
 /*+ The current time. +*/
 static time_t now;
@@ -149,10 +146,10 @@ void IndexPage(int fd,URL *Url)
  SortMode sort=NSortModes,s;
  Protocol *protocol=NULL;
  int outgoing=0,monitor=0,lasttime=0,prevtime=0,lastout=0,prevout=0,mainpage=0;
- int delopt=0,refopt=0,monopt=0,allopt=0,confopt=0;
+ int delopt=0,refopt=0,monopt=0,allopt=0,confopt=0,infoopt=0;
  int i;
 
- if(!strcmp(Url->path,"/index/url/"))
+ if(!strcmp(Url->path,"/index/url"))
    {
     if(Url->args)
       {
@@ -160,15 +157,14 @@ void IndexPage(int fd,URL *Url)
        URL *indexUrl=SplitURL(Url->args);
        char *localhost=GetLocalHost(1);
        char *relocate=x_asprintf("http://%s/index/%s/%s/?sort=%s",localhost,indexUrl->proto,indexUrl->hostport,sorttype[Alpha]);
-       HTMLMessage(fd,301,"WWWOFFLE Index URL Redirect",relocate,"IndexURLRedirect",
-                   "url",url,
-                   "link",relocate+7+strlen(localhost),
+       HTMLMessage(fd,302,"WWWOFFLE Index URL Redirect",relocate,"Redirect",
+                   "location",relocate,
                    NULL);
 
-       free(url);
-       FreeURL(indexUrl);
-       free(localhost);
        free(relocate);
+       free(localhost);
+       FreeURL(indexUrl);
+       free(url);
       }
     else
        HTMLMessage(fd,404,"WWWOFFLE Illegal Index Page",NULL,"IndexIllegal",
@@ -230,6 +226,8 @@ void IndexPage(int fd,URL *Url)
           allopt=1;
        else if(!strcmp(*a,"config"))
           confopt=1;
+       else if(!strcmp(*a,"info"))
+          infoopt=1;
       }
 
     free(args[0]);
@@ -240,7 +238,6 @@ void IndexPage(int fd,URL *Url)
  nfiles=0;
 
  now=time(NULL);
- earliest=0;
 
  if((*host && (strchr(host,'/') || !strcmp(host,"..") || !strcmp(host,"."))) ||
     (mainpage && Url->path[7]) ||
@@ -252,10 +249,11 @@ void IndexPage(int fd,URL *Url)
    {
     char *localhost=GetLocalHost(1);
     char *relocate=x_asprintf("http://%s%s?sort=%s",localhost,Url->path,sorttype[0]);
-    HTMLMessage(fd,301,"WWWOFFLE Index Redirect",relocate,"IndexRedirect",
-                "url",Url->pathp,
-                "link",relocate+7+strlen(localhost),
+
+    HTMLMessage(fd,302,"WWWOFFLE Unknown Sort Index Redirect",relocate,"Redirect",
+                "location",relocate,
                 NULL);
+
     free(relocate);
     free(localhost);
    }
@@ -273,6 +271,7 @@ void IndexPage(int fd,URL *Url)
                     "monitor",monopt?";monitor":"",
                     "all"    ,allopt?";all":"",
                     "config" ,confopt?";config":"",
+                    "info"   ,infoopt?";info":"",
                     NULL);
 
     if(out_err==-1) return;
@@ -1104,7 +1103,7 @@ static void add_file(char *name,SortMode mode)
 
  if(stat(name,&buf))
    {PrintMessage(Inform,"Cannot stat file '%s' [%!s]; race condition?",name);free(url);return;}
- else if(S_ISREG(buf.st_mode) && (mode!=Dated || buf.st_mtime>earliest))
+ else if(S_ISREG(buf.st_mode))
    {
     if(!(nfiles%16))
       {

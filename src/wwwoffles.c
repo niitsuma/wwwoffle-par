@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffles.c 2.216 2002/09/28 07:45:46 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffles.c 2.222 2002/11/28 18:53:19 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7f.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   A server to fetch the required pages.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -251,7 +251,7 @@ int wwwoffles(int online,int browser,int client)
        client_compression=AcceptWhichCompression(accept_encodings);
        FreeHeaderList(accept_encodings);
 
-       if(DebuggingLevel>=Debug)
+       if(DebuggingLevel!=-1 && DebuggingLevel<=Debug)
 	 {
 	   char *accept_encoding= GetHeaderCombined(request_head,"Accept-Encoding");
 	   PrintMessage(Debug,"Client can 'Accept-Encoding: %s', using %s.",accept_encoding,
@@ -296,7 +296,24 @@ int wwwoffles(int online,int browser,int client)
 
     if(mode==Real || mode==SpoolOrReal || (mode==Spool && IsLocalNetHost(Url->host)))
       {
-       if(IsSSLAllowedPort(Url->portnum) && !ConfigBooleanMatchURL(DontGet,Url))
+       if(!IsSSLAllowedPort(Url->portnum))
+         {
+          PrintMessage(Warning,"A SSL proxy connection for %s was received but the port number is not allowed.",Url->hostport);
+          HTMLMessage(tmpclient,500,"WWWOFFLE Host Not Got",NULL,"HostNotGot",
+		      "host",Url->hostport,
+                      "reason","because a SSL proxy connection to the specified port is not allowed.",
+                      NULL);
+          mode=SpoolInternal; goto spoolinternal;
+         }
+       else if(ConfigBooleanMatchURL(DontGet,Url))
+         {
+	  PrintMessage(Inform,"A SSL proxy connection for %s was received but the host matches one in the list not to get.",Url->hostport);
+          HTMLMessage(tmpclient,500,"WWWOFFLE Host Not Got",NULL,"HostNotGot",
+                      "host",Url->hostport,
+                      NULL);
+          mode=SpoolInternal; goto spoolinternal;
+         }
+       else
          {
           char *err=SSL_Open(Url);
 
@@ -317,8 +334,6 @@ int wwwoffles(int online,int browser,int client)
                          NULL);
              mode=SpoolInternal; goto spoolinternal;
             }
-
-          ModifyRequest(Url,request_head);
 
 	  out_err=0;
           err=SSL_Request(client,Url,request_head);
@@ -343,14 +358,6 @@ int wwwoffles(int online,int browser,int client)
 
           CloseTempSpoolFile(tmpclient);
           exit(0);
-         }
-       else
-         {
-          PrintMessage(Warning,"A SSL proxy connection for %s was received but is not allowed.",Url->hostport);
-          HTMLMessage(tmpclient,500,"WWWOFFLE Server Error",NULL,"ServerError",
-                      "error","SSL proxy connection to specified port is not allowed.",
-                      NULL);
-          mode=SpoolInternal; goto spoolinternal;
          }
       }
     else /* mode==Fetch || mode==Spool */
@@ -434,9 +441,8 @@ int wwwoffles(int online,int browser,int client)
       PrintMessage(Debug,"Aliased proto='%s'; host='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
 		   newUrl->proto,newUrl->hostport,newUrl->path,newUrl->args,newUrl->user,newUrl->pass);
 
-      HTMLMessage(tmpclient,302,"WWWOFFLE Alias",newUrl->file,"AliasRedirect",
-		  "realurl",Url->name,
-		  "aliasurl",newUrl->name,
+      HTMLMessage(tmpclient,302,"WWWOFFLE Alias Redirect",newUrl->file,"Redirect",
+		  "location",newUrl->file,
 		  NULL);
 
       free(newurl);
@@ -684,6 +690,14 @@ int wwwoffles(int online,int browser,int client)
        mode=SpoolInternal; goto spoolinternal;
       }
 
+    /* The info pages. */
+
+    else if(!strcmp_litbeg(Url->path,"/info/"))
+      {
+       InfoPage(tmpclient,Url,request_head,request_body);
+       mode=SpoolInternal; goto spoolinternal;
+      }
+
     /* The control pages, deleting and URL replacements for wwwoffle program. */
 
     else if(!strcmp_litbeg(Url->path,"/control/"))
@@ -835,9 +849,30 @@ int wwwoffles(int online,int browser,int client)
       }
    }
 
+ /* The special case info pages based on the Referer header. */
+
+ else
+   {
+    char *referer=GetHeader(request_head,"Referer");
+
+    if(referer && strstr(referer,"/info/request"))
+      {
+       URL *refUrl=SplitURL(referer);
+
+       if(refUrl->local && !strcmp_litbeg(refUrl->path,"/info/request"))
+         {
+          InfoPage(tmpclient,Url,request_head,request_body);
+          FreeURL(refUrl);
+          mode=SpoolInternal; goto spoolinternal;
+         }
+
+       FreeURL(refUrl);
+      }
+   }
+
  /* If not a local request then setup the default Fetch options. */
 
- else if(mode==Fetch)
+ if(mode==Fetch)
     DefaultRecurseOptions(Url);
 
 
@@ -1478,7 +1513,9 @@ passwordagain:
        if(mode==Real || mode==Fetch)
          {
           lseek(spool,0,SEEK_SET);
+          init_buffer(spool);
           ftruncate(spool,0);
+
           HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
                       "url",Url->name,
                       "reason",err,
@@ -1566,7 +1603,9 @@ passwordagain:
        if(mode==Real || mode==Fetch)
          {
           lseek(spool,0,SEEK_SET);
+          init_buffer(spool);
           ftruncate(spool,0);
+
           HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
                       "url",Url->name,
                       "reason",err,
@@ -1668,7 +1707,9 @@ passwordagain:
        if(mode==Real || mode==Fetch)
          {
           lseek(spool,0,SEEK_SET);
+          init_buffer(spool);
           ftruncate(spool,0);
+
           HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
                       "url",Url->name,
                       "reason",err,
@@ -1867,7 +1908,10 @@ passwordagain:
     reply_status=ParseReply(spool,&reply_head,&spool_head_size);
 
     if(!reply_head)
-       PrintMessage(Warning,"Spooled Reply Head (from cache) is empty.");
+      {
+       PrintMessage(Warning,"Spooled Reply Head (from cache) is empty; deleting it.");
+       DeleteWebpageSpoolFile(Url,0);
+      }
     else if(DebuggingLevel==ExtraDebug)
       {
        char *headerstring=HeaderString(reply_head,NULL);
@@ -2075,7 +2119,9 @@ passwordagain:
        if(err<0 && !ConfigBooleanURL(IntrDownloadKeep,Url))
          {
           lseek(spool,0,SEEK_SET);
+          init_buffer(spool);
           ftruncate(spool,0);
+
           HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
                       "url",Url->name,
                       "reason","ClientClose",
@@ -2089,7 +2135,9 @@ passwordagain:
        else if(n<0 && !ConfigBooleanURL(TimeoutDownloadKeep,Url))
          {
           lseek(spool,0,SEEK_SET);
+          init_buffer(spool);
           ftruncate(spool,0);
+
           HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
                       "url",Url->name,
                       "reason",errno==ERRNO_USE_Z_ERRNO?"CompressCorrupt":errno==ETIMEDOUT?"TimeoutTransfer":errmsg,
@@ -2107,6 +2155,7 @@ passwordagain:
           if(n<0 || err<0)
             {
              lseek(spool,offsetof_status(reply_head),SEEK_SET);
+             init_buffer(spool);
              write_all(spool,"503",3);
             }
 
@@ -2213,7 +2262,9 @@ passwordagain:
 	}
 	else {
 	  lseek(spool,0,SEEK_SET);
+	  init_buffer(spool);
 	  ftruncate(spool,0);
+
 	  HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
 		      "url",Url->name,
 		      "reason",errno==ERRNO_USE_Z_ERRNO?"CompressCorrupt":errno==ETIMEDOUT?"TimeoutTransfer":errmsg,
@@ -2529,20 +2580,28 @@ passwordagain:
                       "url",Url->name,
                       NULL);
        else if(fetch_again)
+	 {
+	  char *hash=HashOutgoingSpoolFile(Url);
           HTMLMessage(tmpclient,404,"WWWOFFLE Refresh Will Get",NULL,"RefreshWillGet",
                       "url",Url->name,
-                      "hash",HashOutgoingSpoolFile(Url),
+                      "hash",hash,
                       NULL);
+	  free(hash);
+	 }
        else if(outgoing_exists)
           HTMLMessage(tmpclient,404,"WWWOFFLE Will Get",NULL,"WillGet",
                       "url",Url->name,
                       "hash",NULL,
                       NULL);
        else
+	 {
+	  char *hash=HashOutgoingSpoolFile(Url);
           HTMLMessage(tmpclient,404,"WWWOFFLE Will Get",NULL,"WillGet",
                       "url",Url->name,
-                      "hash",HashOutgoingSpoolFile(Url),
+                      "hash",hash,
                       NULL);
+	  free(hash);
+	 }
       }
 
     /* Else refuse the request. */
@@ -2559,9 +2618,8 @@ passwordagain:
 
  else if(mode==RealRefresh || mode==SpoolRefresh)
    {
-    HTMLMessage(tmpclient,301,"WWWOFFLE Refresh Redirect",Url->link,"RefreshRedirect",
-                "url",Url->name,
-                "link",Url->link,
+    HTMLMessage(tmpclient,302,"WWWOFFLE Refresh Redirect",Url->link,"Redirect",
+                "location",Url->link,
                 NULL);
 
     mode=SpoolInternal;
@@ -2612,8 +2670,8 @@ passwordagain:
 	   if((val=GetHeader(reply_head,"Status")))
 	     {
 	       reply_head->status=atoi(val);
-	       while(*val && !isspace(*val)) ++val;  /* skip status code */
-	       while(*val && isspace(*val)) ++val;   /* skip whitespace */
+	       while(*val && isdigit(*val)) ++val;  /* skip status code */
+	       while(*val && isspace(*val)) ++val;  /* skip whitespace */
 	       reply_head->note=strdup(val);
 	       RemoveFromHeader(reply_head,"Status");
 	     }

@@ -1,8 +1,8 @@
 #!/bin/sh
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
 #
-# A Perl script to update the configuration file to version 2.7[abcde] standard (from version 2.6).
+# A Perl script to update the configuration file to version 2.7[abcdefg] standard (from version 2.6).
 #
 # Written by Andrew M. Bishop
 #
@@ -37,6 +37,14 @@ $urlspec1="([^ \t\r\n:<!]+)://([^ \t\r\n/=]+)(/?[^ \t\r\n=>]*)";
                    "only-same-host-images *=" , "only-same-host-images = no"
                   );
 
+%new_OfflineOptions=(
+                     "cache-control-no-cache *=" , "cache-control-no-cache = yes"
+                    );
+
+%new_IndexOptions=(
+                   "create-history-indexes *=", "create-history-indexes = yes\n"
+                  );
+
 %new_MIMETypes=(
                 ".exe *=" , ".exe = application/octet-stream"
                 );
@@ -53,11 +61,13 @@ $urlspec1="([^ \t\r\n:<!]+)://([^ \t\r\n/=]+)(/?[^ \t\r\n=>]*)";
                );
 
 %new_options=(
-              "Options"      , \%new_Options,
-              "FetchOptions" , \%new_FetchOptions,
-              "MIMETypes"    , \%new_MIMETypes,
-              "ModifyHTML"   , \%new_ModifyHTML,
-              "LocalHost"    , \%new_LocalHost
+              "Options"        , \%new_Options,
+              "FetchOptions"   , \%new_FetchOptions,
+              "OfflineOptions" , \%new_OfflineOptions,
+              "IndexOptions"   , \%new_IndexOptions,
+              "MIMETypes"      , \%new_MIMETypes,
+              "ModifyHTML"     , \%new_ModifyHTML,
+              "LocalHost"      , \%new_LocalHost
               );
 
 # The options that have changed (since version 2.6).
@@ -69,8 +79,20 @@ $urlspec1="([^ \t\r\n:<!]+)://([^ \t\r\n/=]+)(/?[^ \t\r\n=>]*)";
                        "^#? *User-Agent *= *WWWOFFLE/[0-9. ]+\$"               , " User-Agent = WWWOFFLE/$version\n"
                        );
 
+%changed_IndexOptions=(
+                       "^#? *no-lasttime-index *= (yes|true|1)", " create-history-indexes = no\n",
+                       "^#? *no-lasttime-index *= (no|false|0)", " create-history-indexes = yes\n"
+                       );
+
+%changed_Purge=(
+                "^#? *max-size *= 0", " max-size = -1\n",
+                "^#? *min-free *= 0", " min-free = -1\n"
+               );
+
 %changed_options=(
-                  "CensorHeader"   , \%changed_CensorHeader
+                  "CensorHeader"   , \%changed_CensorHeader,
+                  "IndexOptions"   , \%changed_IndexOptions,
+                  "Purge"          , \%changed_Purge
                   );
 
 # The options that have been moved (since version 2.6).

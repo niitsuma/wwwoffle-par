@@ -1,18 +1,18 @@
-	  Alternative WWWOFFLE implementation - version 2.7f-par-3
+	  Alternative WWWOFFLE implementation - version 2.7g-par
 	  ======================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
 am making available so other people can run it and/or study the source code.
-Present version is 2.7f-par (I've simply appended my initials to the version
+Present version is 2.7g-par (I've simply appended my initials to the version
 number). The first part of this file describes how to patch, compile, install
 and run wwwoffled. The second part lists in more detail the changes I've made to
 AMB's code.
 
 Before compiling and installing WWWOFFLE according to AMB's installation
 instructions described in the INSTALL file you must first apply my patch file
-wwwoffled-2.7f-par-3.diff.gz using the command:
+wwwoffled-2.7g-par.diff.gz using the command:
 
-gzip -cd <path_to_patch>/wwwoffle-2.7f-par-3.diff.gz | patch -p2 -N -E
+gzip -cd <path_to_patch>/wwwoffle-2.7g-par.diff.gz | patch -p2 -N -E
 
 Note: because I have used GNU extensions you will need to compile with gcc and
 link with glibc. This will not be a problem with most Linux distributions.
@@ -41,8 +41,6 @@ will not display correctly.
 
 I've introduced a few extensions to the way WWWOFFLE can be configured:
 
-  NEW in version 2.7f:
-
 - I've added a new option to the OnlineOptions section called
   keep-cache-if-not-found. When this option is enabled for a certain URL, then
   if WWWOFFLE online and the remote server returns a status code >=300, and
@@ -50,9 +48,6 @@ I've introduced a few extensions to the way WWWOFFLE can be configured:
   WWWOFFLE will write a warning message to the cache and keep the previously
   cached page as a backup. This is useful for preventing old cached versions of
   pages being overwritten by error messages from a web server.
-
-  The other configuration enhancements where also contained in
-  wwwoffle-2.7e-par.diff.gz.
 
 - I've added an option to the CensorIncomingHeader section called
   session-cookies-only. When enabled, WWWOFFLE strips the "expires" field from
@@ -71,7 +66,7 @@ I've introduced a few extensions to the way WWWOFFLE can be configured:
   cause a number of outgoing requests to be generated. My experience is that
   this often includes a large number of requests for small gif images that are
   really unnecessary. This option can be used to reduce the number these
-  requests. The syntax is [<URL-SPEC>] pragma-no-cache = yes | no.
+  requests. The syntax is [<URL-SPEC>] cache-control-no-cache = yes | no.
 
 - I've allowed URL-specifications to contain an equals-sign. This allows you to
   include something like "http://*.com/images/*?*sz=120x480*" in the DontGet
@@ -88,23 +83,25 @@ I've introduced a few extensions to the way WWWOFFLE can be configured:
   compression WWWOFFLE asks for in case there are problems with a particular
   method of compression. For the time being it is probably best to set this
   option to gzip (this emulates the present standard behavior of WWWOFFLE
-  versions 2.7d - 2.7f).
+  versions 2.7d - 2.7g).
 
 
 The rest of this file lists in some detail some other modifications I've made,
 but you don't have to read it if you simply want to run wwwoffled as you're used
 to.
 
-  NEW in version 2.7f:
+- New in version 2.7g: I've made a few changes to improve WWWOFFLE's ability to
+  block sites that (ab)use the SSL protocol (i.e. the URL starts with https) for
+  ads. If WWWOFFLE refuses a SSL-proxy connect because the host appears the the
+  DontGet list, WWWOFFLE will now give a more sensible error message instead of
+  the confusing 'SSL port not allowed' message. I've also changed the
+  wwwoffle.pac file so that the SSL connections that I want to block go through
+  WWWOFFLE (I normally don't use WWWOFFLE as a SSL-proxy).
 
 - I've optimized the way the hash values that are used to construct the spool
   file names are computed. In stead of re-computing the hash value every time it
   is needed, a copy is stored in the URL struct the first it is computed. This
   cached value is used whenever the hash is needed again for the same URL.
-
-
-  The rest of the modifications where also contained in
-  wwwoffle-2.7e-par.diff.gz:
 
 - I've changed the way HTTP headers are parsed and manipulated back to the way
   it was done in version 2.6 of WWWOFFLE. In version 2.7 header lines with the

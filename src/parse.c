@@ -278,7 +278,10 @@ int RequireChanges(int fd,Header *request_head,URL *Url)
 
            if((now-then)>maxage)
              {
-              PrintMessage(Debug,"Requesting URL (Cache-Control expiry time of %s from '%s').",DurationToString(maxage),date);
+	      char maxage_str[MAXDURATIONSIZE];
+
+	      DurationToString_r(maxage,maxage_str);
+              PrintMessage(Debug,"Requesting URL (Cache-Control expiry time of %s from '%s').",maxage_str,date);
               retval=1;
 	      goto cleanup_return;
              }
@@ -326,8 +329,11 @@ int RequireChanges(int fd,Header *request_head,URL *Url)
 
        if(requestchanged<0 || (now-buf.st_mtime)<requestchanged)
          {
-          PrintMessage(Debug,"Not requesting URL (Last changed %s ago, config is %s).",
-                       DurationToString(now-buf.st_mtime),DurationToString(requestchanged));
+	  char age[MAXDURATIONSIZE],config_age[MAXDURATIONSIZE];
+
+	  DurationToString_r(now-buf.st_mtime,age);
+	  DurationToString_r(requestchanged,config_age);
+          PrintMessage(Debug,"Not requesting URL (Last changed %s ago, config is %s).", age,config_age);
           retval=0;
          }
        else
@@ -605,7 +611,7 @@ void ModifyRequest(URL *Url,Header *request_head)
    if (ConfigBooleanURL(RefererSelfDir,Url)) {
      char *p=Url->pathendp;
      while(--p>=(Url->pathp) && *p!='/');
-     newval=strndupa(Url->name,p+1-(Url->name));
+     newval=STRDUPA2(Url->name,p+1);
      optionname="RefererSelfDir";
    }
    else if(ConfigBooleanURL(RefererSelf,Url)) {

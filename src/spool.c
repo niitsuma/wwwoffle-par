@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/spool.c 2.65 2002/07/27 14:17:48 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/spool.c 2.67 2002/10/20 10:05:22 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   Handle all of the spooling of files in the spool directory.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -978,7 +978,7 @@ int CreateLastTimeSpoolFile(URL *Url)
  struct stat buf;
  int exists=0;
 
- if(ConfigBoolean(NoLasttimeIndex))
+ if(!ConfigBoolean(CreateHistoryIndexes))
     return(1);
 
  /* Change to the last time directory */
@@ -1267,6 +1267,9 @@ void CycleLastOutSpoolFile(void)
  /* Link the files from the outgoing directory to the lastout directory. */
 
 link_outgoing:
+
+ if(!ConfigBoolean(CreateHistoryIndexes))
+    return;
 
  if(chdir("outgoing"))
     PrintMessage(Warning,"Cannot change to directory 'outgoing' [%!s].");

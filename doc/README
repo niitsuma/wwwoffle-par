@@ -70,6 +70,10 @@ Convenience
         - Replace webbug images (images of 1 pixel square).
         - Demoronise HTML character sets.
         - Stop animated GIFs.
+    - Provides information about cached pages
+        - Headers, raw and modified.
+        - Contents, images, links etc.
+        - Source code unmodified by WWWOFFLE.
     - Automatic proxy configuration for Netscape.
     - Searchable cache with the addition of the ht://Dig, mnoGoSearch
       (UdmSearch) or Namazu programs.

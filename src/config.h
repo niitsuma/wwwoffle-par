@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/config.h 2.85 2002/08/21 19:47:52 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/config.h 2.88 2002/11/03 09:35:53 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   Configuration file management functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -202,8 +202,8 @@ extern /*@null@*/ ConfigItem FetchObjects;
 
 /* IndexOptions section */
 
-/*+ The option to disable the lasttime/prevtime indexes. +*/
-extern /*@null@*/ ConfigItem NoLasttimeIndex;
+/*+ The option to enable/disable the lasttime/prevtime/lastout/prevout indexes. +*/
+extern /*@null@*/ ConfigItem CreateHistoryIndexes;
 
 /*+ The option to cycle the last time directories daily. +*/
 extern /*@null@*/ ConfigItem CycleIndexesDaily;
@@ -400,10 +400,10 @@ extern /*@null@*/ ConfigItem Aliases;
 extern /*@null@*/ ConfigItem PurgeUseMTime;
 
 /*+ The maximum allowed size of the cache. +*/
-extern /*@null@*/ ConfigItem PurgeCacheSize;
+extern /*@null@*/ ConfigItem PurgeMaxSize;
 
 /*+ The minimum allowed free disk space. +*/
-extern /*@null@*/ ConfigItem PurgeDiskFree;
+extern /*@null@*/ ConfigItem PurgeMinFree;
 
 /*+ A flag to indicate if the whole URL is used to choose the purge age. +*/
 extern /*@null@*/ ConfigItem PurgeUseURL;

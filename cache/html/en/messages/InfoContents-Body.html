@@ -1,0 +1,75 @@
+$last?{}{
+<p>
+For each of the URLs that are referenced by this web page there are options to
+go see the information for that URL, go to the configuration editing page or see
+the index of cached web pages from the same site.  Also shown is a '+' or a '-'
+that indicate if the URL is cached.
+<br>
+Any images are displayed inline and any pages that are blocked by the DontGet section
+of the configuration file are noted.
+}
+$last?=$type{$header="" $open="" $close=}{$header=$type $open=<ul> $close=</ul>}
+$last?{}{$close=}
+$last=$type
+
+$header?{$close}{}
+
+$header?=Refresh{
+<h2>Automatic Loading URL</h2>
+
+A specified URL that is to be loaded by the browser after this one has loaded.
+}{}
+
+$header?=StyleSheet{
+<h2>StyleSheets</h2>
+
+References to external stylesheets.
+}{}
+
+$header?=Image{
+<h2>Images</h2>
+
+Embedded images, these are shown full size but in the web page they may be scaled
+so that they appear larger or smaller.
+}{}
+
+$header?=Frame{
+<h2>Frames</h2>
+
+Frames contained within this page.
+}{}
+
+$header?=Script{
+<h2>Scripts</h2>
+
+Links to external scripts.
+}{}
+
+$header?=Object{
+<h2>Objects</h2>
+
+Links to external objects, for example Java.
+}{}
+
+$header?=Link{
+<h2>Links</h2>
+
+Links to other web pages.
+}{}
+
+$header?{
+<p>
+$open
+}{}
+
+$encurl=%encode[refurl]
+<li> \
+[<a href="http://$localhost/info/url?$encurl">Info</a>] \
+[<a href="http://$localhost/configuration/url?$encurl">Config</a>] \
+[<a href="http://$localhost/index/url?$encurl">Index</a>] \
+[<tt>$cached?{+}{-}</tt>] \
+&nbsp; \
+<a href="$refurl">$refurl</a>
+$dontget?{<br>&nbsp;&nbsp;&nbsp;&nbsp;Blocked by config file DontGet section $type=}{}
+$cached?{}{$type=}
+$type?=Image{<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="$refurl"><img src="$refurl"></a>}{}

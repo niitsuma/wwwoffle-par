@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configrdwr.c 1.50 2002/09/28 08:18:10 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configrdwr.c 1.51 2002/11/03 09:35:59 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7f.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   Configuration file reading and writing functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -49,6 +49,10 @@ static /*@null@*/ char *ParseEntry(ConfigItemDef *itemdef,/*@out@*/ ConfigItem *
 
 static int isanumber(const char *string);
 
+inline static int is_host_delimiter(char c)
+{
+  return(c==0 || c==':' || c=='/' || c==';' || c=='?');
+}
 
 /* The state of the parser */
 
@@ -607,7 +611,7 @@ static char *ParseLine(char **line)
          {
 	  char *parse_name_new; FILE *parse_file_new;
 
-	  if(*l=='/') parse_name_new=strndup(l,r-l);
+	  if(*l=='/') parse_name_new=STRDUP2(l,r);
 	  else {
 	    char *p=strchrnul(CurrentConfig.name,0); int pathlen;
 	    while(--p>=CurrentConfig.name && *p!='/');
@@ -1046,7 +1050,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
     else
       {
        pointer->integer=atoi(text);
-       if(pointer->integer<0)
+       if(pointer->integer<-1)
          {errmsg=x_asprintf("Invalid cache size %d.",pointer->integer);}
       }
     break;
@@ -1226,7 +1230,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
        if(*host=='[') {
 	 if(!(p=strchr(host+1,']'))) goto hosterr;		
-	 pointer->string=strndup(host+1,p-(host+1));
+	 pointer->string=STRDUP2(host+1,p);
        }
        else if(colons==1)
 	 {goto hosterr;}
@@ -1338,7 +1342,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
        else if(!strncmp(text,"://",3))
 	 p=text+3;
        else if((p=strstr(text,"://"))) {
-	 proto=strndupa(text,p-text);
+	 proto=STRDUPA2(text,p);
 	 p+=3;
 
 	 downcase(proto);
@@ -1351,18 +1355,17 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
        /* host */
 
        if(*text) {
-	 if(*text=='*' && (!*(text+1) || *(text+1)==':' || *(text+1)=='/'))
+	 if(*text=='*' && is_host_delimiter(*(text+1)))
 	   p=text+1;
-	 else if(*text!=':' && *text!='/') {
+	 else if(!is_host_delimiter(*text)) {
 	   if(*text=='[' && (p=strchr(text+1,']')))
 	     ++p;
 	   else {
-	     char *q;
-	     p=strchrnul(text,':'); q=strchrnul(text,'/');
-	     if(p>q) p=q;
+	     p=text;
+	     do {++p;} while(!is_host_delimiter(*p));
 	   }
 
-	   host=strndupa(text,p-text);	   
+	   host=STRDUPA2(text,p);	   
 
 	   downcase(host);
 	 }
@@ -1400,7 +1403,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 	       if(*(text+1)!='*' || (++text)+1!=p) {
 		 char *temp1,*temp2;
 
-		 temp1=(*p)?strndupa(text,p-text):text;
+		 temp1=STRSLICE(text,p);
 		 temp2=URLDecodeGeneric(temp1);
 		 path=URLEncodePath(temp2);
 		 free(temp2);
@@ -1417,7 +1420,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 	       ++text;
 	       p=ques;
 	       {
-		 char *temp=(*p)?strndupa(text,p-text):text;
+		 char *temp=STRSLICE(text,p);
 		 params=URLRecodeFormArgs(temp);
 	       }
 	     }

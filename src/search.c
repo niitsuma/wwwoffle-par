@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/search.c 1.23 2002/06/23 15:07:34 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/search.c 1.24 2002/11/28 18:53:49 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   Handle the interface to the ht://Dig, mnoGoSearch (UdmSearch) and Namazu search engines.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -99,25 +99,23 @@ static void Namazu(int fd,char *args);
 
 void SearchPage(int fd,URL *Url,Header *request_head,Body *request_body)
 {
- if(!strcmp_litbeg(Url->path+8,"index/"))
+ char *newpath=Url->path+strlitlen("/search/");
+
+ if(!strcmp_litbeg(newpath,"index/"))
     SearchIndex(fd,Url);
- else if(!strcmp(Url->path+8,"htdig/htsearch"))
+ else if(!strcmp(newpath,"htdig/htsearch"))
     HTSearch(fd,Url->args);
- else if(!strcmp(Url->path+8,"mnogosearch/mnogosearch"))
+ else if(!strcmp(newpath,"mnogosearch/mnogosearch"))
     mnoGoSearch(fd,Url->args);
- else if(!strcmp(Url->path+8,"udmsearch/udmsearch"))
+ else if(!strcmp(newpath,"udmsearch/udmsearch"))
     mnoGoSearch(fd,Url->args);
- else if(!strcmp(Url->path+8,"namazu/namazu"))
+ else if(!strcmp(newpath,"namazu/namazu"))
     Namazu(fd,Url->args);
- else if(!strcmp_litbeg(Url->path+8,"htdig/") && !strchr(Url->path+8+strlitlen("htdig/"),'/'))
-    LocalPage(-1,fd,Url,request_head,request_body);
- else if(!strcmp_litbeg(Url->path+8,"mnogosearch/") && !strchr(Url->path+8+strlitlen("mnogosearch/"),'/'))
-    LocalPage(-1,fd,Url,request_head,request_body);
- else if(!strcmp_litbeg(Url->path+8,"udmsearch/") && !strchr(Url->path+8+strlitlen("udmsearch/"),'/'))
-    LocalPage(-1,fd,Url,request_head,request_body);
- else if(!strcmp_litbeg(Url->path+8,"namazu/") && !strchr(Url->path+8+strlitlen("namazu/"),'/'))
-    LocalPage(-1,fd,Url,request_head,request_body);
- else if(!strchr(Url->path+8,'/'))
+ else if((!strcmp_litbeg(newpath,"htdig/") && !strchr(newpath+strlitlen("htdig/"),'/')) ||
+	 (!strcmp_litbeg(newpath,"mnogosearch/") && !strchr(newpath+strlitlen("mnogosearch/"),'/')) ||
+	 (!strcmp_litbeg(newpath,"udmsearch/") && !strchr(newpath+strlitlen("udmsearch/"),'/')) ||
+	 (!strcmp_litbeg(newpath,"namazu/") && !strchr(newpath+strlitlen("namazu/"),'/')) ||
+	 (!strchr(newpath,'/')))
     LocalPage(-1,fd,Url,request_head,request_body);
  else
     HTMLMessage(fd,404,"WWWOFFLE Illegal Search Page",NULL,"SearchIllegal",
@@ -416,6 +414,7 @@ static void HTSearch(int fd,char *args)
    }
 
  lseek(fd,0,SEEK_SET);
+ init_buffer(fd);
  ftruncate(fd,0);
 
  HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",
@@ -470,6 +469,7 @@ static void mnoGoSearch(int fd,char *args)
    }
 
  lseek(fd,0,SEEK_SET);
+ init_buffer(fd);
  ftruncate(fd,0);
 
  HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",
@@ -524,6 +524,7 @@ static void Namazu(int fd,char *args)
    }
 
  lseek(fd,0,SEEK_SET);
+ init_buffer(fd);
  ftruncate(fd,0);
 
  HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",

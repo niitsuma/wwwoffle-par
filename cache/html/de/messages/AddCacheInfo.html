@@ -16,8 +16,9 @@ $Delete  = http://$localhost/control/delete-url/?url=$encurl
 $Refresh = http://$localhost/refresh/?$encurl
 $Options = http://$localhost/refresh-options/?$encurl
 $Monitor = http://$localhost/monitor-options/?$encurl
-$Index   = http://$localhost/index/url/?$encurl
-$Config  = http://$localhost/configuration/url?url=$encurl
+$Index   = http://$localhost/index/url?$encurl
+$Info    = http://$localhost/info/url?$encurl
+$Config  = http://$localhost/configuration/url?$encurl
 
 -->
 <p align=center><font size=-2>
@@ -27,6 +28,7 @@ WWWOFFLE { Alter: $time $unitstr - [
   <a href="$Options">Optionen</a>|
   <a href="$Monitor">Abonnieren</a>|
   <a href="$Index">Index</a>|
+  <a href="$Info">Info</a>|
   <a href="$Config">Configure</a>] }
 </font></p>
 <!-- The previous section added by WWWOFFLE -->

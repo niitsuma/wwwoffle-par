@@ -1,5 +1,5 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle-tools.c 1.37 2002/07/19 16:30:01 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle-tools.c 1.38 2002/11/27 17:33:36 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.7d.
   Tools for use in the cache for version 2.x.
@@ -183,9 +183,10 @@ int main(int argc,char **argv)
          {fprintf(stderr,"%s: The '-c' argument requires a configuration file name.\n",argv0); exit(1);}
 
        config_file=argv[i];
-
-       argc-=2;
       }
+
+ if(config_file)
+    argc-=2;
 
  if(!config_file)
    {
@@ -236,12 +237,14 @@ int main(int argc,char **argv)
 
  umask(0);
 
- if(mode!=HASH && (stat("outgoing",&buf) || !S_ISDIR(buf.st_mode)))
+ if(mode!=HASH && ((stat("outgoing",&buf) || !S_ISDIR(buf.st_mode)) ||
+                   (stat("http",&buf) || !S_ISDIR(buf.st_mode))))
    {
     if(chdir(ConfigString(SpoolDir)))
       {fprintf(stderr,"The %s program must be started from the spool directory\n"
                       "Cannot change to the '%s' directory.\n",argv0,ConfigString(SpoolDir));exit(1);}
-    if(stat("outgoing",&buf) || !S_ISDIR(buf.st_mode))
+    if((stat("outgoing",&buf) || !S_ISDIR(buf.st_mode)) ||
+       (stat("http",&buf) || !S_ISDIR(buf.st_mode)))
       {fprintf(stderr,"The %s program must be started from the spool directory\n"
                       "There is no accessible 'outgoing' directory here so it can't be right.\n",argv0);exit(1);}
    }

@@ -10,19 +10,18 @@ $unit?=M{$unitstr=month}{}
 $time?=1{}{$s=s $unitstr=$unitstr$s}
 $encurl=%encode[url]
 
-Useful WWWOFFLE Buttons
-
-$Delete  = http://$localhost/control/delete-url/?url=$encurl
-$Refresh = http://$localhost/refresh/?$encurl
-$Options = http://$localhost/refresh-options/?$encurl
-$Monitor = http://$localhost/monitor-options/?$encurl
-$Index   = http://$localhost/index/url/?$encurl
-$Config  = http://$localhost/configuration/url?url=$encurl
-
 -->
 <hr>
 <p align=center>
-WWWOFFLE - $date ($time $unitstr ago) - [<a href="$Delete">Delete</a>|<a href="$Refresh">Refresh</a>:<a href="$Options">Options</a>|<a href="$Monitor">Monitor</a>|<a href="$Index">Index</a>|<a href="$Config">Configure</a>] - WWWOFFLE
+WWWOFFLE - $date ($time $unitstr ago) - [\
+<a href="http://$localhost/control/delete-url/?url=$encurl">Delete</a>| \
+<a href="http://$localhost/refresh/?$encurl">Refresh</a>: \
+<a href="http://$localhost/refresh-options/?$encurl">Options</a>| \
+<a href="http://$localhost/monitor-options/?$encurl">Monitor</a>| \
+<a href="http://$localhost/index/url?$encurl">Index</a>| \
+<a href="http://$localhost/info/url?$encurl">Info</a>| \
+<a href="http://$localhost/configuration/url?$encurl">Configure</a> \
+] - WWWOFFLE
 </p>
 <hr>
 <!-- The previous section added by WWWOFFLE -->

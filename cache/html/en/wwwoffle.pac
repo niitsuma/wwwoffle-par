@@ -10,10 +10,11 @@ function FindProxyForURL(url, host)
 {
  if(isPlainHostName(host) || dnsDomainIs(host, ".localdomain") || 
     shExpMatch(host, "192.168.1.*") || shExpMatch(host, "127.0.0.*"))
-    return "DIRECT";
+     return "DIRECT";
+ else if((url.substring(0, 5) == "http:") || (url.substring(0, 4) == "ftp:") ||
+	 ((url.substring(0, 6) == "https:") && 
+	  (shExpMatch(host, "*.speedera.net") || shExpMatch(host, "view.*.com"))))
+     return "PROXY LOCALHOST; DIRECT";
  else
-    if((url.substring(0, 5) == "http:") || (url.substring(0, 4) == "ftp:"))
-       return "PROXY LOCALHOST; DIRECT";
-    else
-       return "DIRECT";
+     return "DIRECT";
 }

@@ -6,9 +6,10 @@
 Available WWWOFFLE Variables (all with a '$' prefix).
 
 localhost = The hostname of the server running wwwoffled (='$localhost').
+reason    = Description of reason for failure (='$reason').
+host      = The requested host (='$host').
 url       = The URL that was asked for (='$url').
 
-$decurl=%decode[url]
 
 -->
 
@@ -31,11 +32,11 @@ $decurl=%decode[url]
 <H1 align=center>WWWOFFLE Host Not Got</H1>
 
 <p align=center>
-Your request for URL
+Your request for the $url?{URL}{host}
 <br>
-<b><tt>$decurl</tt></b>
+<b><tt>$url?{%decode[url]}{$host}</tt></b>
 <br>
-failed because it is on the list of hosts and/or paths that are not to be fetched.
+failed $reason?{$reason}{because it is on the list of hosts and/or paths that are not to be fetched.}
 </p>
 
 <h2>Help</h2>

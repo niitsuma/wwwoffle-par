@@ -480,7 +480,7 @@ static const char *months[12]={"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","
 /*++++++++++++++++++++++++++++++++++++++
   Convert the time into an RFC 822 compliant date.
 
-  RFC822Date_r Writes the date into a buffer pointed to by its third argument.
+  RFC822Date_r Writes the date into a buffer pointed to by its last argument.
 
   time_t t The time.
 
@@ -612,16 +612,15 @@ time_t DateToTimeT(const char *date)
 /*++++++++++++++++++++++++++++++++++++++
   Make up a string that contains a duration (in seconds) in human readable format.
 
-  char *DurationToString Returns a (static, one of two) string.
+  DurationToString_r writes the string into a buffer pointed to by its last argument.
 
   const long duration The duration in seconds.
+  char *buf  A pointer to the buffer to hold the result.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *DurationToString(const long duration)
+void DurationToString_r(const long duration,char *buf)
 {
- static int which=0;
- static char string[2][64];
- int n=0;
+ char *p=buf;
  long weeks,days,hours,minutes,seconds=duration;
 
  weeks=seconds/(3600*24*7);
@@ -636,31 +635,28 @@ char *DurationToString(const long duration)
  minutes=seconds/(60);
  seconds-=(60)*minutes;
 
- which^=1;
-
  if(weeks>4)
-    n+=sprintf(string[which]+n,"%ldw",weeks);
+    p+=sprintf(p,"%ldw",weeks);
  else
    {days+=7*weeks;weeks=0;}
 
  if(days)
-    n+=sprintf(string[which]+n,"%s%ldd",weeks?" ":"",days);
+    p+=sprintf(p,"%s%ldd",weeks?" ":"",days);
 
  if(hours || minutes || seconds)
    {
     if(days || weeks)
-       n+=sprintf(string[which]+n," ");
+       *p++=' ';
     if(hours && !minutes && !seconds)
-       n+=sprintf(string[which]+n,"%ldh",hours);
+       p+=sprintf(p,"%ldh",hours);
     else if(!seconds)
-       n+=sprintf(string[which]+n,"%02ld:%02ld",hours,minutes);
+       p+=sprintf(p,"%02ld:%02ld",hours,minutes);
     else
-       n+=sprintf(string[which]+n,"%02ld:%02ld:%02ld",hours,minutes,seconds);
+       p+=sprintf(p,"%02ld:%02ld:%02ld",hours,minutes,seconds);
    }
 
- sprintf(string[which]+n," (%lds)",duration);
+ sprintf(p," (%lds)",duration);
 
- return(string[which]);
 }
 
 

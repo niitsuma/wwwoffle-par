@@ -58,15 +58,15 @@ You can use the URL listed above or you can make a more general URL using
 wildcard options as shown in the form below.
 
 <p>
-<form action="$configuration/url" method="GET">
+<form action="$configuration/editurl" method="POST">
 
 <p>
 Protocol:
 <select name="proto">
+  <option value="*" $proto?=*{selected}{}>Any Protocol</option>
 $proto?=*{}{
   <option value="$htmlproto" selected>$htmlproto</option>
 }
-  <option value="*" $proto?=*{selected}{}>Any Protocol</option>
   <option value="OTHER">Other; specify --&gt;</option>
 </select>
 [other: <input type="text" value="$htmlproto" size="5" name="proto_other">]
@@ -74,10 +74,10 @@ $proto?=*{}{
 <p>
 Host:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <select name="host">
+  <option value="*" $host?=*{selected}{}>Any Host</option>
 $host?=*{}{
   <option value="$htmlhost" selected>$htmlhost</option>
 }
-  <option value="*" $host?=*{selected}{}>Any Host</option>
   <option value="OTHER">Other (e.g. *.com or www.*.com); specify --&gt;</option>
 </select>
 [other: <input type="text" value="$htmlhost" size="24" name="host_other">]
@@ -85,12 +85,11 @@ $host?=*{}{
 <p>
 Port:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <select name="port">
+  <option value="" $port?{}{selected}>Any port</option>
+  <option value=":" $port?=:{selected}{}>Default port for protocol</option>
 $port?=:{}$port?{
   <option value="$htmlport" selected>$htmlport</option>
 }{}
-  <option value=":" $port?=:{selected}{}>Default port for protocol</option>
-  <option value="" $port?{}{selected}>Any port</option>
-}
   <option value="OTHER">Other (e.g. port 8080); specify --&gt;</option>
 </select>
 [other: <input type="text" value="$htmlport" size="5" name="port_other">]
@@ -98,10 +97,10 @@ $port?=:{}$port?{
 <p>
 Path:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <select name="path">
+  <option value="/*" $path?=/*{selected}{}>Any Path</option>
 $path?=/*{}{
   <option value="$htmlpath" selected>$htmlpath</option>
 }
-  <option value="/*" $path?=/*{selected}{}>Any Path</option>
   <option value="OTHER">Other (e.g. /foo/* or /*.bar); specify --&gt;</option>
 </select>
 [other: <input type="text" value="$htmlpath" size="32" name="path_other">]
@@ -109,12 +108,12 @@ $path?=/*{}{
 <p>
 Parameters:
 <select name="params">
+  <option value=";*" $params?=;*{selected}{}>Any parameters</option>
+  <option value="" $params?{}{selected}>Any or none</option>
+  <option value=";" $params?=;{selected}{}>No parameters</option>
 $params?=;{}$params?=;*{}$params?{
   <option value="$htmlparams" selected>$htmlparams</option>
 }{}
-  <option value=";" $params?=;{selected}{}>No parameters</option>
-  <option value=";*" $params?=;*{selected}{}>Any parameters</option>
-  <option value="" $params?{}{selected}>Any or none</option>
   <option value="OTHER">Other (e.g. ;foo=bar); specify --&gt;</option>
 </select>
 [other: <input type="text" value="$htmlparams" size="32" name="params_other">]
@@ -122,12 +121,12 @@ $params?=;{}$params?=;*{}$params?{
 <p>
 Arguments:
 <select name="args">
+  <option value="?*" $args?=?*{selected}{}>Any arguments</option>
+  <option value="" $args?{}{selected}>Any or none</option>
+  <option value="?" $args?=?{selected}{}>No arguments</option>
 $args?=?{}$args?=?*{}$args?{
   <option value="$htmlargs" selected>$htmlargs</option>
 }{}
-  <option value="?" $args?=?{selected}{}>No arguments</option>
-  <option value="?*" $args?=?*{selected}{}>Any arguments</option>
-  <option value="" $args?{}{selected}>Any or none</option>
   <option value="OTHER">Other (e.g. ?foo=bar); specify --&gt;</option>
 </select>
 [other: <input type="text" value="$htmlargs" size="32" name="args_other">]

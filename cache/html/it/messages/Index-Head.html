@@ -18,6 +18,7 @@ refresh   = The choice of showing the refresh option or not (='$refresh').
 monitor   = The choice of showing the monitor option or not (='$monitor').
 all       = The choice to show all pages or exclude those in the DontIndex section (='$all').
 config    = The choice to display the configuration editing page link (='$config').
+info      = The choice to display the information page link (='$info').
 
 -->
 
@@ -60,38 +61,41 @@ $subtype?{$subtype=/$subtype}{}
 $type?{[<a
 href="/index/?sort=none">Indice&nbsp;Principale</a>]}{[Indice&nbsp;Principale]}
 <br>
-$type?=outgoing{[In uscita]}         {[<a href="/index/outgoing/?sort=$sort$delete$refresh$monitor$all$config">In uscita</a>]}
-$type?=monitor {[Controllate]}       {[<a href="/index/monitor/?sort=$sort$delete$refresh$monitor$all$config">Controllate</a>]}
-$type?=lasttime{[Ultima&nbsp;volta]} {[<a href="/index/lasttime/?sort=$sort$delete$refresh$monitor$all$config">Ultima&nbsp;volta</a>]}
-$type?=lastout {[Last&nbsp;Outgoing]}{[<a href="/index/lastout/?sort=$sort$delete$refresh$monitor$all$config">Last&nbsp;Outgoing</a>]}
-$type?=http/   {[http]}              {[<a href="/index/http/?sort=$sort$delete$refresh$monitor$all$config">http</a>]}
-$type?=ftp/    {[ftp]}               {[<a href="/index/ftp/?sort=$sort$delete$refresh$monitor$all$config">ftp</a>]}
-$type?=finger/ {[finger]}            {[<a href="/index/finger/?sort=$sort$delete$refresh$monitor$all$config">finger</a>]}
+$type?=outgoing{[In uscita]}         {[<a href="/index/outgoing/?sort=$sort$delete$refresh$monitor$all$config$info">In uscita</a>]}
+$type?=monitor {[Controllate]}       {[<a href="/index/monitor/?sort=$sort$delete$refresh$monitor$all$config$info">Controllate</a>]}
+$type?=lasttime{[Ultima&nbsp;volta]} {[<a href="/index/lasttime/?sort=$sort$delete$refresh$monitor$all$config$info">Ultima&nbsp;volta</a>]}
+$type?=lastout {[Last&nbsp;Outgoing]}{[<a href="/index/lastout/?sort=$sort$delete$refresh$monitor$all$config$info">Last&nbsp;Outgoing</a>]}
+$type?=http/   {[http]}              {[<a href="/index/http/?sort=$sort$delete$refresh$monitor$all$config$info">http</a>]}
+$type?=ftp/    {[ftp]}               {[<a href="/index/ftp/?sort=$sort$delete$refresh$monitor$all$config$info">ftp</a>]}
+$type?=finger/ {[finger]}            {[<a href="/index/finger/?sort=$sort$delete$refresh$monitor$all$config$info">finger</a>]}
 <br>
-$sort?=none  {[Non&nbsp;ordinate]} {[<a href="/index/$type$subtype?sort=none$delete$refresh$monitor$all$config">Non&nbsp;ordinate</a>]}
-$sort?=mtime {[Ora&nbsp;modifica]} {[<a href="/index/$type$subtype?sort=mtime$delete$refresh$monitor$all$config">Ora&nbsp;modifica</a>]}
-$sort?=atime {[Ora&nbsp;accesso]}  {[<a href="/index/$type$subtype?sort=atime$delete$refresh$monitor$all$config">Ora&nbsp;accesso</a>]}
-$sort?=dated {[Data&nbsp;modifica]}{[<a href="/index/$type$subtype?sort=dated$delete$refresh$monitor$all$config">Data&nbsp;modifica</a>]}
-$sort?=alpha {[Alfabetico]}        {[<a href="/index/$type$subtype?sort=alpha$delete$refresh$monitor$all$config">Alfabetico</a>]}
-$sort?=domain{[Nome&nbsp;dominio]} {[<a href="/index/$type$subtype?sort=domain$delete$refresh$monitor$all$config">Nome&nbsp;dominio</a>]}
-$sort?=type  {[ipo&nbsp;file]}     {[<a href="/index/$type$subtype?sort=type$delete$refresh$monitor$all$config">Tipo&nbsp;file</a>]}
-$sort?=random{[Random]}            {[<a href="/index/$type$subtype?sort=random$delete$refresh$monitor$all$config">Random</a>]}
+$sort?=none  {[Non&nbsp;ordinate]} {[<a href="/index/$type$subtype?sort=none$delete$refresh$monitor$all$config$info">Non&nbsp;ordinate</a>]}
+$sort?=mtime {[Ora&nbsp;modifica]} {[<a href="/index/$type$subtype?sort=mtime$delete$refresh$monitor$all$config$info">Ora&nbsp;modifica</a>]}
+$sort?=atime {[Ora&nbsp;accesso]}  {[<a href="/index/$type$subtype?sort=atime$delete$refresh$monitor$all$config$info">Ora&nbsp;accesso</a>]}
+$sort?=dated {[Data&nbsp;modifica]}{[<a href="/index/$type$subtype?sort=dated$delete$refresh$monitor$all$config$info">Data&nbsp;modifica</a>]}
+$sort?=alpha {[Alfabetico]}        {[<a href="/index/$type$subtype?sort=alpha$delete$refresh$monitor$all$config$info">Alfabetico</a>]}
+$sort?=domain{[Nome&nbsp;dominio]} {[<a href="/index/$type$subtype?sort=domain$delete$refresh$monitor$all$config$info">Nome&nbsp;dominio</a>]}
+$sort?=type  {[ipo&nbsp;file]}     {[<a href="/index/$type$subtype?sort=type$delete$refresh$monitor$all$config$info">Tipo&nbsp;file</a>]}
+$sort?=random{[Random]}            {[<a href="/index/$type$subtype?sort=random$delete$refresh$monitor$all$config$info">Random</a>]}
 <br>
 $delete?
-{(<a href="/index/$type$subtype?sort=$sort$refresh$monitor$all$config">Non&nbsp;eliminare</a>)}
-{(<a href="/index/$type$subtype?sort=$sort;delete$refresh$monitor$all$config">Elimina</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$refresh$monitor$all$config$info">Non&nbsp;eliminare</a>)}
+{(<a href="/index/$type$subtype?sort=$sort;delete$refresh$monitor$all$config$info">Elimina</a>)}
 $refresh?
-{(<a href="/index/$type$subtype?sort=$sort$delete$monitor$all$config">Non&nbsp;aggiornare</a>)}
-{(<a href="/index/$type$subtype?sort=$sort$delete;refresh$monitor$all$config">Aggiorna</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$delete$monitor$all$config$info">Non&nbsp;aggiornare</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$delete;refresh$monitor$all$config$info">Aggiorna</a>)}
 $monitor?
-{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$all$config">Non&nbsp;controllare</a>)}
-{(<a href="/index/$type$subtype?sort=$sort$delete$refresh;monitor$all$config">Controlla</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$all$config$info">Non&nbsp;controllare</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh;monitor$all$config$info">Controlla</a>)}
 $all?
-{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$config">Nascondi&nbsp;pagine&nbsp;non&nbsp;indicizzate</a>)}
-{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor;all$config">Tutte&nbsp;le&nbsp;pagine</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$config$info">Nascondi&nbsp;pagine&nbsp;non&nbsp;indicizzate</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor;all$config$info">Tutte&nbsp;le&nbsp;pagine</a>)}
 $config?
-{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$all">No&nbsp;Config&nbsp;Options</a>)}
-{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$all;config">Config&nbsp;Options</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$all$info">No&nbsp;Config&nbsp;Options</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$all;config$info">Config&nbsp;Options</a>)}
+$info?
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$all$config">No&nbsp;Info&nbsp;Options</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$all$config;info">Info&nbsp;Options</a>)}
 </p>
 
 <hr width="50%">

@@ -6,13 +6,12 @@
 Available WWWOFFLE Variables (all with a '$' prefix).
 
 localhost = The hostname of the server running wwwoffled (='$localhost').
-realurl   = The URL that was asked for (='$realurl').
-aliasurl  = The URL that it is aliased to (='$aliasurl').
+location  = The URL that the browser is to be redirected to (='$location').
 
 -->
 
 <HEAD>
-<TITLE>WWWOFFLE - Ridirezione Directory Locale</TITLE>
+<TITLE>WWWOFFLE - Web Page Redirect</TITLE>
 </HEAD>
 
 <BODY>
@@ -27,17 +26,16 @@ aliasurl  = The URL that it is aliased to (='$aliasurl').
 
 <!-- Standard WWWOFFLE Message Page Top Banner -->
 
-<H1 align=center>WWWOFFLE URL con alias</H1>
+<H1 align=center>WWWOFFLE Web Page Redirect</H1>
 
 <p align=center>
-La tua richiesta per l'URL
+WWWOFFLE is trying to redirect your browser to the URL below, you should not see
+this in your browser unless something has gone wrong.
 <br>
-<b><tt>%decode[realurl]</tt></b>
+<b><tt><a href="$location">$location</a></tt></b>
 <br>
-&egrave; un alias per l'URL
-<br>
-<b><tt><a href="%encode[aliasurl]">%decode[aliasurl]</a></tt></b>
-<br>
+Select the link above to continue, but you might like to report this as an error
+with WWWOFFLE.
 </p>
 
 <!-- Standard WWWOFFLE Message Page Bottom Buttons -->
@@ -45,7 +43,7 @@ La tua richiesta per l'URL
 <hr>
 
 <p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Pagina di Benvenuto</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Welcome Page</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
 </p>
 
 <!-- Standard WWWOFFLE Message Page Bottom Buttons -->

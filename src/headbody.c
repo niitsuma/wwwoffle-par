@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/headbody.c 1.18 2002/09/27 18:00:19 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/headbody.c 1.19 2002/10/13 14:42:04 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7f.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   Header and Body handling functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -73,17 +73,17 @@ int CreateHeader(const char *line,int type,Header **head)
    {
                                         /* GET http://www/xxx HTTP/1.0 */
     while(*++p && !isspace(*p));
-    new->method=strndup(text,p-text);   /*    ^                        */
+    new->method=STRDUP2(text,p);        /*    ^                        */
     if(!*p) return -1;
     do {if(!*++p) return -1;} while(isspace(*p));
 
     text=p;                             /*     ^                       */
     while(*++p && !isspace(*p));
-    new->url=strndup(text,p-text);      /*                   ^         */
+    new->url=STRDUP2(text,p);           /*                   ^         */
     if(!*p) goto defaultversion;
     do {if(!*++p) goto defaultversion;} while(isspace(*p));
                                         /*                    ^        */
-    new->version=strndup(p,end-p);
+    new->version=STRDUP2(p,end);
     goto finish_req;
 
    defaultversion:
@@ -98,17 +98,17 @@ int CreateHeader(const char *line,int type,Header **head)
     while(*++p && !isspace(*p));
     if(*(p-1)==':')
       return AddToHeaderRaw(new,line);
-    new->version=strndup(text,p-text);  /*         ^                    */
+    new->version=STRDUP2(text,p);       /*         ^                    */
     if(!*p) return -1;
     do {if(!*++p) return -1;} while(isspace(*p));
                                         /*          ^                   */
     new->status=atoi(p);
 
-    do {if(!*++p) goto finish_rep;} while(!isspace(*p));
+    while(isdigit(*p)) {if(!*++p) goto finish_rep;}
                                         /*             ^                */
-    do {if(!*++p) goto finish_rep;} while(isspace(*p));
+    while(isspace(*p)) {if(!*++p) goto finish_rep;}
                                         /*              ^               */
-    new->note=strndup(p,end-p);
+    new->note=STRDUP2(p,end);
 
    finish_rep:
    }
@@ -191,7 +191,7 @@ int AddToHeaderRaw(Header *head,const char *line)
 	   head->line=(KeyValuePair *)realloc((void*)head->line,sizeof(KeyValuePair)*(k+8));
 	 }
 
-       head->line[k].key=strndup(key,keyend-key);
+       head->line[k].key=STRDUP2(key,keyend);
        head->line[k].val=strndup(val,strlen_val);
      }
    else
@@ -655,7 +655,7 @@ HeaderList *GetHeaderList(Header *head,const char* key)
 		  while(*p && *p!=',') ++p;
 		}
 
-	      list->item[nitems].val=strndup(q,r-q);
+	      list->item[nitems].val=STRDUP2(q,r);
 	      list->item[nitems].qval=qval;
 
 	      ++nitems;
