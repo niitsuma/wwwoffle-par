@@ -1,0 +1,70 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+body      = The body of the request (='$body').
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Błąd interaktywnego formularza odświeżania</TITLE>
+<META http-equiv="Content-Type" content="text/html; charset=ISO-8859-2">
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>E</b>ksplorator <b>Offl</b>ine <b>W</b>orld <b>W</b>ide<b>W</b>eb
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE: Błąd interaktywnego formularza odświeżania</H1>
+
+<p align=center>
+$body?
+{
+Odpowiedź na formularz, którą przesłała przeglądarka
+<br>
+<b><tt>$body</tt></b>
+<br>
+ma błąd i nie może być przetworzona.
+}
+{
+Odpowiedź na formularz, którą przesłała przeglądarka nie zawiera żadnej informacji.
+}
+</p>
+
+<h2>Pomoc</h2>
+
+Przeglądarka przesłała nieważną odpowiedź na formularz ze strony Prośby
+Odświeżenia.  Albo przeglądarka przesłała pustą odpowiedź zamiast danych
+formularza, albo wystąpił błąd sieci przy przesyłaniu danych formularza, lub też
+dane, które zostały wysłane były nieprawidłowe. Powinieneś spróbować wypełnić i
+przesłać formularz ponownie.
+
+<p align=center>
+[<a href="http://$localhost/refresh-options/">Wróć do strony odświeżania</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Strona Powitalna</a>|<a href="http://$localhost/FAQ.html">Pytania i Odpowiedzi</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

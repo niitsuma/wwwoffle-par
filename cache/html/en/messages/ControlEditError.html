@@ -1,0 +1,113 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+section   = The name of the section that has been updated (='$section').
+reason    = The reason that the update failed (='$reason')
+              ReadError  - The config file could not be read.
+              BadSection - The specified section does not exist.
+              BadBody    - The body of the request from the browser was invalid.
+              WriteError - The config file could not be written.
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Configuration Update Error</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Configuration Update Error</H1>
+
+<p align=center>
+$reason?=ReadError{
+
+Could not open the configuration file <b><tt>wwwoffle.conf</tt></b> for reading
+or there was a parse error in reading the configuration file.
+
+}{}
+$reason?=BadSection{
+
+There is no section called <b><tt>$section</tt></b> in the configuration file
+<b><tt>wwwoffle.conf</tt></b> to update.
+
+}{}
+$reason?=BadBody{
+
+The body of the request was empty or invalid.
+
+}{}
+$reason?=WriteError{
+
+Could not open the configuration file <b><tt>wwwoffle.conf</tt></b> for writing.
+
+}{}
+</p>
+
+<h2>Help</h2>
+
+$reason?=ReadError{
+
+The configuration file could not be opened or could be opened but the contents
+could not be understood.  Check that the file <tt>wwwoffle.conf</tt> that was
+used to start the <tt>wwwoffled</tt> program exists.  It must also be readable
+by the user that the program is running as.
+
+}{}
+$reason?=BadSection{
+
+The forms on the Configuration File Edit page are the only ones that can be used
+to update the configuration file.  All of the forms on that page will allow
+modification of one of the sections of the configuration file.  The request that
+your browser sent does not match one of these sections.  Check that you are
+using the correct forms to update the information.
+
+}{}
+$reason?=BadBody{
+
+The browser has sent an invalid response to the form on the Configuration File
+Edit page.  Either the browser sent an empty reply instead of the form data,
+there was a network error sending the form data or the data that was sent was
+invalid.  You should try to fill in the information in the form again and send
+it again.
+
+}{}
+$reason?=WriteError{
+
+The configuration file could not be opened for writing.  Check that the file
+<tt>wwwoffle.conf</tt> that was used to start the <tt>wwwoffled</tt> program
+exists.  It must also be writable by the user that the program is running as.
+
+}{}
+
+<p align=center>
+[<a href="/control/edit/">Configuration Edit page</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Welcome Page</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

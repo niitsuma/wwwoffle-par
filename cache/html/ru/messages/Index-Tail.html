@@ -1,0 +1,41 @@
+<!-- This is just the tail of this file since the body is different for each index -->
+
+<hr width="50%">
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+type      = The type of index that was asked for (='$type').
+            One of: '' outgoing, monitor, lasttime, prevtime, lastout, prevout,
+                    http, ftp, finger.
+subtype   = The hostname for the indexes of each protocol (='$subtype').
+            or the previous time number.
+sort      = The sort mode that was asked for (='$sort').
+            One of: none, mtime, atime, dated, alpha, type
+delete    = The choice of showing the delete option or not (='$delete').
+refresh   = The choice of showing the refresh option or not (='$refresh').
+monitor   = The choice of showing the monitor option or not (='$monitor').
+all       = The choice to show all pages or exclude those in the DontIndex section (='$all').
+config    = The choice to display the configuration editing page link (='$config').
+
+-->
+
+<p align=center>
+[<a href="/index/?sort=$sort$delete$refresh$monitor$all$config">Назад к главному указателю</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Добро пожаловать</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

@@ -1,0 +1,34 @@
+<!-- Ceci n'est que l'en-tete de l'index, le contenu est different dens chaque index -->
+
+<!--
+
+WWWOFFLE : Variables disponibles (mettre le pr&eacute;fixe '$').
+
+proto      = Le protocole (='$proto').
+host       = Le serveur (='$host').
+total      = Le nombre total de pages sur ce serveur (='$total').
+sort       = La m&eacute;thode de tri utilis&eacute;e (='$sort').
+delete     = Indique si les boutons de suppression doivent etre affiches (='$delete').
+refresh    = Indique si les boutons d'actualisation doivent etre affiches (='$refresh').
+monitor    = Indique si les boutons de suivi doivent etre affiches (='$monitor').
+all        = Indique si les fichiers specifies dans la section DontIndex doivent aussi
+             etre affiches (='$all').
+config     = Indique si on affiche le lien vers la page de configuration (='$config').
+
+-->
+
+<h2>$proto://$host</h2>
+
+$total?=0{<b>Aucune page</b>}{<b>$total pages</b>}
+
+<p>
+
+$delete?{$totaldelete=$total}{$totaldelete=0}
+$totaldelete?=0{}
+{
+<form action="/control/delete-multiple-url" method=post>
+}
+
+<ul>
+
+<!-- Ceci n'est que l'en-tete de l'index, le contenu est different dens chaque index -->

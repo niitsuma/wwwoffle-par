@@ -1,0 +1,67 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - CGI-Programm-Ausf&uuml;hrung fehlgeschlagen</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE CGI-Programm-Ausf&uuml;hrung fehlgeschlagen</H1>
+
+<p align=center>
+Ihre Anfrage nach der URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+konnte nicht durch den WWWOFFLE-Server erf&uuml;llt werden.
+</p>
+
+<h2>Hilfe</h2>
+
+Die URL, die Sie angegeben haben, ist f&uuml;r ein lokales CGI-Programm auf dem
+WWWOFFLE-Server. Daf&uuml;r kann es verschiedene Gr&uuml;nde geben - darunter:
+
+<ul>
+  <li>Die Datei, die das CGI-Programm enth&auml;lt, hat nicht die n&ouml;tigen Ausf&uuml;hrungs-Rechte 
+  <li>Das CGI-Programm ist auf einen Fehler gesto&szlig;en und wurde abnormal beendet.
+  <li>Der Server l&auml;uft mit root-Privilegien und wurde so konfiguriert, in diesem Fall keine CGI-Programme zu starten.
+  <li>Dem Server standen w&auml;hrend der Ausf&uuml;hrung des CGI-Programms nicht gen&uuml;gend System-Resourcen zur Verf&uuml;gung.
+</ul>
+
+Pr&uuml;fen sie die System-Log-Dateien um weiter Informationen zu erhalten.
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Willkommensseite</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

@@ -1,0 +1,69 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+body      = The body of the request (='$body').
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Fehler bei der Aktualisierung</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>Fehler bei der Aktualisierung</H1>
+
+<p align=center>
+$body?
+{
+Die Formulardaten von Ihrem Browser f&uuml;r das Formular
+<br>
+<b><tt>$body</tt></b>
+<br>
+enthielten einen Fehler und konnten nicht verarbeitet werden.
+}
+{
+Die Formulardaten von Ihrem Browser f&uuml;r das Formular
+enthielten keine Daten.
+}
+</p>
+
+<h2>Hilfe</h2>
+
+Ihr Browser hat eine ung&uuml;ltige Antwort auf das Aktualisierungs-Formular
+gesendet. Entweder hat der Browser eine leere Antwort gesendet (das kann
+an Netzwerkproblemen oder &Uuml;bertragungsfehlern liegen) oder die Daten waren
+ung&uuml;ltig. Versuchen Sie es bitte noch einmal.
+
+<p align=center>
+[<a href="http://$localhost/refresh-options/">Zur&uuml;ck zur Aktualisierungs-Seite</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+[<a href="http://$localhost/Welcome.html">Willkommensseite</a>|<a href="http://$localhost/FAQ.html">FAQ</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

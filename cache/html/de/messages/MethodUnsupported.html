@@ -1,0 +1,68 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+method    = The method specified in the HTTP request (='$method').
+protocol  = The protocol specified in the HTTP request or 'all' (='$protocol').
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Nicht unterst&uuml;tzte Methode</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>Nicht unterst&uuml;tzte Methode</H1>
+
+<p align=center>
+Ihre Anfrage an den <b>WWWOFFLE</b> Proxy Server benutzte die
+<br>
+<b><tt>$method</tt></b>
+<br>
+Methode
+$protocol?=all{
+, die von keinem Protocol unterst&uuml;tzt wird.
+}
+{
+mit dem
+<br>
+<b><tt>$protocol</tt></b>
+<br>
+Protokoll, diese Kombination ist nicht m&ouml;glich.
+}
+</p>
+
+<h2>Hilfe</h2>
+
+Das WWWOFFLE Programm kann nur Anfragen f&uuml;r die Protokolle und
+HTTP-Methoden beantworten, die es versteht. WWWOFFLE versteht die meisten
+&uuml;blichen Protokolle (HTTP, FTP, etc.) und die meisten &uuml;blichen Methoden wie
+GET und POST.
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+<p align=center>
+[<a href="http://$localhost/Welcome.html">Willkommensseite</a>|<a href="http://$localhost/FAQ.html">FAQ</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

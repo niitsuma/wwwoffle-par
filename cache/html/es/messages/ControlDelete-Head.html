@@ -1,0 +1,68 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = Set if we requested to delete URLs. (='$url').
+mon       = Set if we requested to delete monitored URLs (='$mon').
+req       = Set if we requested to delete outgoing URLs (='$req').
+path      = Set to the path that this request form is. (='$path').
+hash      = Set to the hash that this request included. (='$hash').
+
+-->
+
+<HEAD>
+$url?{<TITLE>WWWOFFLE - Control de Borrado de URLs</TITLE>}{}
+$mon?{<TITLE>WWWOFFLE - Control de Borrado de URLs Monitorizadas</TITLE>}{}
+$req?{<TITLE>WWWOFFLE - Control de Borrado URLs salientes</TITLE>}{}
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+$url?{<H1 align=center>WWWOFFLE Control de Borrado de URLs</H1>}{}
+$mon?{<H1 align=center>WWWOFFLE Control de Borrado de URLs Monitorizadas</H1>}{}
+$req?{<H1 align=center>WWWOFFLE Control de Borrado URLs salientes</H1>}{}
+
+<p align=center>
+$url?{
+
+Su petición para borrar las URLs en la caché produjo la siguiente
+salida
+
+}{}
+$mon?{
+
+Su petición para borrar las URLs monitorizadas produjo la siguiente
+salida
+
+}{}
+$req?{
+
+Su petición para borrar las peticiones de URLs salientes produjo
+la siguiente salida
+
+}{}
+
+</p>
+
+<p>
+<form action="$path" method="post">
+$hash?{<input type="hidden" name="hash" value="$hash">}{}
+
+<dl>
+
+<!-- This is just the head of this page since the body is generated separately -->
+

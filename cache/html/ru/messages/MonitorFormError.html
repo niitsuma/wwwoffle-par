@@ -1,0 +1,69 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+body      = The body of the request (='$body').
+
+-->
+
+<HEAD>
+<meta http-equiv="Content-Type" content="text/html; charset=koi8-r">
+<TITLE>WWWOFFLE - Ошибка интерактивной формы наблюдения</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Ошибка интерактивной формы наблюдения</H1>
+
+<p align=center>
+$body?
+{
+Ответ из формы, который ваш броузер передал
+<br>
+<b><tt>$body</tt></b>
+<br>
+Содержит ошибку и не может быть обработан.
+}
+{
+Ответ из формы, который ваш броузер передал не содержит никакой информации.
+}
+</p>
+
+<h2>Помощь</h2>
+
+Бронзе передал неправильный ответ в форму на странице запросов наблюдения.
+Либо броузер передал пустой ответ вместо данных из формы, либо произошла
+сетевая ошибка передачи данных, либо переданные дынные содержат ошибку
+Попробуйте заново заполнить форму и снова ее передать.
+
+<p align=center>
+[<a href="http://$localhost/monitor-options/">Назад к странице наблюдения</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Добро пожаловать</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

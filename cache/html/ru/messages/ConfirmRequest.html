@@ -1,0 +1,77 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+
+$decurl=%decode[url]
+$encurl=%encode[url]
+
+-->
+
+<HEAD>
+<meta http-equiv="Content-Type" content="text/html; charset=koi8-r">
+<TITLE>WWWOFFLE - Подтверждение запроса $url</TITLE>
+<META HTTP-EQUIV="Expires" CONTENT="0">
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Подтверждение запроса</H1>
+
+<p align=center>
+Ваш запрос URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+нужно <a href="http://$localhost/refresh/?$encurl">подтвердить</a>.
+</p>
+
+<h2>Help</h2>
+
+
+WWWOFFLE настроен так, что для этой страницы требуется подтверждение запроса когда нет связи.
+Выбор ссылки выше подтвердит запрос, иначе страница не будет загружена.
+
+<!--
+
+Useful WWWOFFLE Buttons
+
+$Options = http://$localhost/refresh-options/?$encurl
+$Monitor = http://$localhost/monitor-options/?$encurl
+$Index   = http://$localhost/index/url/?$encurl
+$Config  = http://$localhost/configuration/url?url=$encurl
+
+-->
+
+<p align=center>
+[Cancel|Refresh:<a href="$Options">Параметры</a>|<a href="$Monitor">Наблюдение</a>|<a href="$Index">Указатель</a>|<a href="$Config">Configure</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Добро пожаловать</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

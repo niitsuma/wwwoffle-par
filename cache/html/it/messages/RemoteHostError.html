@@ -1,0 +1,100 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+cache     = A flag to indicate if the page is being written to the cache or browser (='$cache').
+backup    = A flag to indicate if there is a backup page in the cache (='$backup').
+reason    = A flag to indicate the reason (='$reason').
+            TimeoutReply    - The server timed out reading the reply.
+            TimeoutTransfer - The server timed out during the transfer.
+            ClientClose     - The connection was closed by the client.
+            ...             - Another reason.
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Errore Host Remoto</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Errore Host Remoto</H1>
+
+<p align=center>
+La tua richiesta per l'URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+&egrave; fallita perch&eacute;
+
+<br>
+$reason?=TimeoutReply
+{L'host remoto ha fallito nel mandare la risposta nel tempo stabilito.
+$done="yes"}{}
+$reason?=TimeoutTransfer
+{L'host remoto ha fallito nel mandare alcuni dei dati nel tempo stabilito.
+$done="yes"}{}
+$reason?=CompressCorrupt
+{The remote host sent compressed data that could not be uncompressed.
+$done="yes"}{}
+$reason?=ClientClose
+{Il client (browser) ha chiuso il collegamento durante la richiesta.
+$done="yes"}{}
+$done?{}{<b>$reason</b>}
+<br>
+</p>
+
+<p>
+$cache?
+{Questo messaggio d'errore &egrave; stato ora eliminato dalla cache.}
+{}
+
+<p>
+$backup?
+{Ricaricare questa pagina porter&agrave; alla versione precedente.}
+{Ricaricare questa pagina porter&agrave; a richiederla nuovamente.}
+
+<h2>Aiuto</h2>
+
+Il server WWWOFFLE non &egrave; stato in grado di completare la richiesta di questa URL a causa
+di un problema con lo scaricamento di qusta pagina.  Questo pu&ograve; succedere perch&eacute;
+il server remoto non invia alcuna risposta nel tempo stabilito oppure una richiesta &egrave;
+stata interrotta per via dell'assenza di dati nel tempo stabilito. Un'altra possibile causa per
+questo messaggio &egrave; che il browser ha chiuso la connessione prima che l'intera pagina fosse
+scaricata. L'esatta ragione in questo caso &egrave; indicata nel messaggio d'errore riportato sopra.
+<br>
+Quando esiste una versione di riserva di questa pagina nella cache, allora il ricaricamento di
+questa pagina porter&agrave; alla visualizzazzione di quella versione. Quando non c'&egrave;
+una versione di riserva nella cache, allora il ricaricamento causer&agrave; una nuova richesta.
+
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Pagina di Benvenuto</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

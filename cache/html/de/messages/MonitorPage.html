@@ -1,0 +1,116 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL to be monitored by default (if any) (='$url').
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Abonnements</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>Abonnements</H1>
+
+Sie k&ouml;nnen dieses Formular benutzen, um Webseiten zu abonnieren (regelm&auml;&szlig;ig
+automagisch herunterladen zu lassen)
+
+<p>
+
+<form action="/monitor-request/" method=post>
+Abonniere <input type="text" name="url" value="$url" size=60>
+<p>
+zu jedem Zeitpunkt, zu dem folgendes gilt (logisch mit UND verkn&uuml;pft):
+<dl>
+<dt>Monat gleich:
+<dd>
+<ul>
+<li><input name="mofy1"  type="checkbox" $mofy1?{checked}{}  value="Y"> Januar
+<li><input name="mofy2"  type="checkbox" $mofy2?{checked}{}  value="Y"> Februar
+<li><input name="mofy3"  type="checkbox" $mofy3?{checked}{}  value="Y"> M&auml;rz
+<li><input name="mofy4"  type="checkbox" $mofy4?{checked}{}  value="Y"> April
+<li><input name="mofy5"  type="checkbox" $mofy5?{checked}{}  value="Y"> Mai
+<li><input name="mofy6"  type="checkbox" $mofy6?{checked}{}  value="Y"> Juni
+<li><input name="mofy7"  type="checkbox" $mofy7?{checked}{}  value="Y"> Juli
+<li><input name="mofy8"  type="checkbox" $mofy8?{checked}{}  value="Y"> August
+<li><input name="mofy9"  type="checkbox" $mofy9?{checked}{}  value="Y"> September
+<li><input name="mofy10" type="checkbox" $mofy10?{checked}{} value="Y"> Oktober
+<li><input name="mofy11" type="checkbox" $mofy11?{checked}{} value="Y"> November
+<li><input name="mofy12" type="checkbox" $mofy12?{checked}{} value="Y"> Dezember
+</ul>
+
+<br><br>
+
+<dt>Monatstag gleich (nichts gew&auml;hlt = jeder Tag):
+<dd>
+<input type="text" name="dofm" value="$dofm" size=60>
+
+<br><br>
+
+<dt>Wochentag gleich (nichts gew&auml;hlt = jeder Tag):
+<dd>
+<ul>
+<li><input name="dofw1" type="checkbox" $dofw1?{checked}{} value="Y"> Montag
+<li><input name="dofw2" type="checkbox" $dofw2?{checked}{} value="Y"> Dienstag
+<li><input name="dofw3" type="checkbox" $dofw3?{checked}{} value="Y"> Mittwoch
+<li><input name="dofw4" type="checkbox" $dofw4?{checked}{} value="Y"> Donnerstag
+<li><input name="dofw5" type="checkbox" $dofw5?{checked}{} value="Y"> Freitag
+<li><input name="dofw6" type="checkbox" $dofw6?{checked}{} value="Y"> Samstag
+<li><input name="dofw0" type="checkbox" $dofw0?{checked}{} value="Y"> Sonntag
+</ul>
+
+<br><br>
+
+<dt>Tageszeit (Stunde) gleich (nichts gew&auml;hlt = einmal am Tag, Zeit beliebig):
+<dd>
+<input type="text" name="hofd" value="$hofd" size=60>
+</dl>
+<input type="submit" value="Abonnieren">
+</form>
+
+$url?{
+<p>
+<hr width="50%">
+<p>
+Sie k&ouml;nnen dieses Formular verwenden um das Abonnement einer URL zu beenden.
+<p>
+<form action="/control/delete-mon/" method="get">
+Abo beenden<input type="text" name="url" value="$url" size="60">
+<p>
+<input type="submit" value="Stop Monitoring">
+</form>
+}{}
+
+<p align=center>
+[<a href="/index/monitor/?sort=alpha">Liste der Abonnements</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+[<a href="http://$localhost/Welcome.html">Willkommensseite</a>|<a href="http://$localhost/FAQ.html">FAQ</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

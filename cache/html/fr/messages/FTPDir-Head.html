@@ -1,0 +1,32 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+WWWOFFLE : Variables disponibles (mettre le prefixe '$').
+
+localhost = Le serveur sur lequel wwwoffled tourne (='$localhost').
+url       = L'URL demande (='$url').
+message   = Le message envoye par le serveur FTP.
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<TITLE>Index de $decurl</TITLE>
+<BASE HREF="$url">
+</HEAD>
+
+<BODY>
+
+<H1 align=center>Index de $decurl</H1>
+
+$message?{
+<pre>
+$message
+</pre>
+}{}
+
+<!-- Ceci n'est que l'en-tete du fichier, le corps est genere par le programme -->
+<pre>

@@ -1,0 +1,74 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+WWWOFFLE : Variables disponibles (mettre le prefixe '$').
+
+localhost = Le serveur sur lequel wwwoffled tourne (='$localhost').
+url       = L'URL demande (='$url').
+hash      = A hash value used as a one time password to allow cancellation of the page (='$hash').
+
+$decurl=%decode[url]
+$encurl=%encode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Requ&ecirc;te R&eacute;cursive enregistr&eacute;e : $decurl</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE - Requ&ecirc;te R&eacute;cursive Enregistr&eacute;e</H1>
+
+<p align=center>
+Votre requ&ecirc;te pour le t&eacute;l&eacute;chargement r&eacute;cursif de l'URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+et de ses liens a &eacute;t&eacute; enregistr&eacute;e.
+</p>
+
+<!--
+
+Useful WWWOFFLE Buttons
+
+$hash?
+{$Cancel = http://$localhost/control/delete-req/?url=$encurl;hash=%encode[hash]}
+{$Cancel = http://$localhost/control/delete-req/?url=$encurl}
+$Refresh = http://$localhost/refresh/?$encurl
+$Options = http://$localhost/refresh-options/?$encurl
+$Monitor = http://$localhost/monitor-options/?$encurl
+$Index   = http://$localhost/index/url/?$encurl
+$Config  = http://$localhost/configuration/url?url=$encurl
+
+-->
+
+<p align=center>
+[<a href="$Cancel">Annuler</a>|Actualiser:<a href="$Options">Options</a>|<a href="$Monitor">Contr&ocirc;ler</a>|<a href="$Index">Index</a>|<a href="$Config">Configure</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Page d'accueil</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

@@ -1,0 +1,68 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+body      = The body of the request (='$body').
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Interactive Refresh Form Error</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Interactive Refresh Form Error</H1>
+
+<p align=center>
+$body?
+{
+The reply from the form that your browser sent
+<br>
+<b><tt>$body</tt></b>
+<br>
+had an error and could not be parsed
+}
+{
+The reply from the form that your browser sent did not contain any information.
+}
+</p>
+
+<h2>Help</h2>
+
+The browser has sent an invalid response to the form on the Refresh Request page.
+Either the browser sent an empty reply instead of the form data, there was a
+network error sending the form data or the data that was sent was invalid.  You
+should try to fill in the information in the form again and send it again.
+
+<p align=center>
+[<a href="http://$localhost/refresh-options/">Back to the Refresh page</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Welcome Page</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

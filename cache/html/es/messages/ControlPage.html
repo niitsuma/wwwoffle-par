@@ -1,0 +1,109 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+
+
+WWWOFFLE Control page Prefix
+
+$control=http://$localhost/control
+$configuration=http://$localhost/configuration
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Página Interactiva de Control</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Página Interactiva de Control</H1>
+
+Puede controlar el demonio <tt> wwwoffled</tt> desde aquí
+
+<h2>Reemplazos a la Línea de Comandos</h2>
+
+Todas las acciones disponibles en el programa <tt>wwwoffle</tt> se
+encuentran disponibles aqui.
+
+<p>
+<form action="$control/online" method=post>
+<input type="hidden" name=action value="online">
+<input type="submit" value="Conectado"> Pone al programa <tt>wwwoffled</tt> en modo Conectado.
+</form>
+
+<p>
+<form action="$control/autodial" method=post>
+<input type="hidden" name=action value="autodial">
+<input type="submit" value="Autollamada">  Pone al programa <tt>wwwoffled</tt> en modo Autollamada
+</form>
+
+<p>
+<form action="$control/offline" method=post>
+<input type="hidden" name=action value="offline">
+<input type="submit" value="Desconectado">  Pone al programa <tt>wwwoffled</tt> en modo Desconectado
+</form>
+
+<p>
+<form action="$control/fetch" method=post>
+<input type="hidden" name=action value="fetch">
+<input type="submit" value="Recogida"> Recoge las páginas que <tt>wwwoffled</tt> tiene pendientes.
+</form>
+
+<p>
+<form action="$control/purge" method=post>
+<input type="hidden" name=action value="purge">
+<input type="submit" value="Purga"> Fuerza la purga de la caché de <tt>wwwoffled</tt>.
+</form>
+
+<p>
+<form action="$control/status" method=post>
+<input type="hidden" name=action value="status">
+<input type="submit" value="Status"> Get the status of the <tt>wwwoffled</tt> server.
+</form>
+
+<h2>El Fichero de Configuración</h2>
+
+Puede editar el fichero de configuración <tt>wwwoffle.conf</tt> desde esta
+página.
+
+<p>
+<a href="$control/edit/">Traditional</a>: One web page with all sections
+individually editable.
+<br>
+<a href="$configuration/">Modern</a>: Easy to use with lists of sections, items
+in each section and editing of individual entries for each item.
+<p>
+
+<form action="$control/config" method=post>
+<input type="hidden" name=action value="config">
+<input type="submit" value="Configurar"> Fuerza a <tt>wwwoffled</tt> a releer el fichero de configuración.
+</form>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Página de Bienvenida</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

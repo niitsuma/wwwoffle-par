@@ -1,0 +1,13 @@
+                        WWWOFFLE 2.5e - test programs
+                        =============================
+
+These are just some test programs that I use to test wwwoffle with.
+
+test-doc.c    - Tests the Document parsers, lists the images etc in a file.
+test-msg.c    - Tests the messages generation.
+test-modify.c - Tests the HTML modification code.
+
+For instructions read the source.
+
+
+Andrew M. Bishop 02-Apr-2000

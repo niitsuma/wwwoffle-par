@@ -1,0 +1,101 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+WWWOFFLE : Variables disponibles (mettre le prefixe '$').
+
+localhost = Le serveur sur lequel wwwoffled tourne (='$localhost').
+type      = L'index demande (='$type').
+            Possibilites: outgoing, monitor, lasttime, prevtime, lastout, prevout,
+                    http, ftp, finger.
+subtype   = Le nom de l'hote pour les indexs de chaque protocole (='$subtype').
+            or the previous time number.
+sort      = La methode de tri demandee (='$sort').
+            Possibilites: none, mtime, atime, dated, alpha, type, random
+delete    = Indique si les boutons de suppression doivent etre affiches (='$delete').
+refresh   = Indique si les boutons d'actualisation doivent etre affiches (='$refresh').
+monitor   = Indique si les boutons de suivi doivent etre affiches (='$monitor').
+all       = Indique si les fichiers specifies dans la section DontIndex doivent aussi
+            etre affiches (='$all').
+config    = Indique si on affiche le lien vers la page de configuration (='$config').
+
+-->
+
+<HEAD>
+$type?       {}{<TITLE>WWWOFFLE Index - Index Principal</TITLE>}
+$type?=outgoing{<TITLE>WWWOFFLE Index - Requ&ecirc;tes en Attente</TITLE>}{}
+$type?=monitor {<TITLE>WWWOFFLE Index - Pages Suivies</TITLE>}{}
+$type?=lasttime{<TITLE>WWWOFFLE Index - Pages Captur&eacute;es pendant la Derni&egrave;re Connexion </TITLE>}{}
+$type?=prevtime{<TITLE>WWWOFFLE Index - Pages Captur&eacute;es pendant l'Avant-Derni&egrave;re Connexion ($subtype)</TITLE>}{}
+$type?=lastout {<TITLE>WWWOFFLE Index - Derni&egrave;res Pages Demand&eacute;es</TITLE>}{}
+$type?=prevout {<TITLE>WWWOFFLE Index - Pages Demand&eacute;es Pr&eacute;c&eacute;dentes ($subtype)</TITLE>}{}
+$type?=http    {<TITLE>WWWOFFLE Index - $type://$subtype</TITLE>}{}
+$type?=ftp     {<TITLE>WWWOFFLE Index - $type://$subtype</TITLE>}{}
+$type?=finger  {<TITLE>WWWOFFLE Index - $type://$subtype</TITLE>}{}
+</HEAD>
+
+<BODY>
+
+$typesubtype=$type$subtype
+$type?=prevtime{$type=$type$subtype $subtype=}{}
+$type?=prevout{$type=$type$subtype $subtype=}{}
+$typesubtype?=http{$type=$type/}{}
+$typesubtype?=ftp{$type=$type/}{}
+$typesubtype?=finger{$type=$type/}{}
+$subtype?{$subtype=/$subtype}{}
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE - Index du Cache</H1>
+
+<p align=center>
+$type?{[<a href="/index/?sort=none">Index&nbsp;Principal</a>]}{[Index&nbsp;Principal]}
+<br>
+$type?=outgoing{[En&nbsp;Attente]}               {[<a href="/index/outgoing/?sort=$sort$delete$refresh$monitor$all$config">En&nbsp;Attente</a>]}
+$type?=monitor {[Suivies]}                       {[<a href="/index/monitor/?sort=$sort$delete$refresh$monitor$all$config">Suivies</a>]}
+$type?=lasttime{[Derni&egrave;re&nbsp;Connexion]}{[<a href="/index/lasttime/?sort=$sort$delete$refresh$monitor$all$config">Derni&egrave;re&nbsp;Connexion</a>]}
+$type?=lastout {[Derni&egrave;re Demande]}            {[<a href="/index/lastout/?sort=$sort$delete$refresh$monitor$all$config">Derni&egrave;re Demande</a>]}
+$type?=http/   {[http]}                          {[<a href="/index/http/?sort=$sort$delete$refresh$monitor$all$config">http</a>]}
+$type?=ftp/    {[ftp]}                           {[<a href="/index/ftp/?sort=$sort$delete$refresh$monitor$all$config">ftp</a>]}
+$type?=finger/ {[finger]}                        {[<a href="/index/finger/?sort=$sort$delete$refresh$monitor$all$config">finger</a>]}
+<br>
+$sort?=none  {[Non&nbsp;tri&eacute;]}          {[<a href="/index/$type$subtype?sort=none$delete$refresh$monitor$all$config">Non&nbsp;tri&eacute;</a>]}
+$sort?=mtime {[Date&nbsp;de&nbsp;Modification]}{[<a href="/index/$type$subtype?sort=mtime$delete$refresh$monitor$all$config">Date&nbsp;de&nbsp;Modification</a>]}
+$sort?=atime {[Dernier&nbsp;Acc&egrave;s]}     {[<a href="/index/$type$subtype?sort=atime$delete$refresh$monitor$all$config">Dernier&nbsp;Acc&egrave;s</a>]}
+$sort?=dated {[Jour&nbsp;de&nbsp;Modification]}{[<a href="/index/$type$subtype?sort=dated$delete$refresh$monitor$all$config">Jour&nbsp;de&nbsp;Modification</a>]}
+$sort?=alpha {[Alphab&eacute;tique]}           {[<a href="/index/$type$subtype?sort=alpha$delete$refresh$monitor$all$config">Alphab&eacute;tique</a>]}
+$sort?=domain{[Nom&nbsp;de&nbsp;Domaine]}      {[<a href="/index/$type$subtype?sort=domain$delete$refresh$monitor$all$config">Nom&nbsp;de&nbsp;Domaine</a>]}
+$sort?=type  {[Type&nbsp;de&nbsp;Fichier]}     {[<a href="/index/$type$subtype?sort=type$delete$refresh$monitor$all$config">Type&nbsp;de&nbsp;Fichier</a>]}
+$sort?=random{[Random]}                        {[<a href="/index/$type$subtype?sort=random$delete$refresh$monitor$all$config">Hasard</a>]}
+<br>
+$delete?
+{(<a href="/index/$type$subtype?sort=$sort$refresh$monitor$all$config">Pas&nbsp;de&nbsp;Suppression</a>)}
+{(<a href="/index/$type$subtype?sort=$sort;delete$refresh$monitor$all$config">Suppression</a>)}
+$refresh?
+{(<a href="/index/$type$subtype?sort=$sort$delete$monitor$all$config">Pas&nbsp;d'Actualisation</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$delete;refresh$monitor$all$config">Actualisation</a>)}
+$monitor?
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$all$config">Pas&nbsp;de&nbsp;Suivi</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh;monitor$all$config">Suivi</a>)}
+$all?
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$config">Cacher&nbsp;les&nbsp;pages&nbsp;non-index&eacute;es</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor;all$config">Toutes&nbsp;les&nbsp;Pages</a>)}
+$config?
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$all">Pas&nbsp;d'options&nbsp;de config.</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$all;config">Options&nbsp;de&nbsp;config.</a>)}
+</p>
+
+<hr width="50%">
+
+<!-- Ceci n'est que l'en-tete du fichier, le corps est different dans chaque index -->
+
+

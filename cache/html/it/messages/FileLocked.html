@@ -1,0 +1,73 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - File Bloccato</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE File Bloccato</H1>
+
+<p align=center>
+La tua richiesta per l'URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+&egrave; gi&agrave; stata modificata da un altro server WWWOFFLE.
+</p>
+
+<h2>Aiuto</h2>
+
+La pagina che hai richiesto &egrave; stata modificata da un altro server e non puoi
+attualmente accedervi. L'aggiornamento di questa pagina aspetter&agrave; fino a quando
+l'altro server non avr&agrave; finito le sue modifiche.
+<p>
+Per assicurare che solo un server WWWOFFLE modifichi un file per volta nella cache,
+viene usato un file di blocco. Mentre un server sta modificando un file nella cache,
+viene creato un file di blocco, per mettere gli altri server a conoscenza del fatto.
+Fino a che il primo server non ha finito, il file nella cache non &egrave; valido e
+non vi si pu&ograve; da un altro server.
+<p>
+Se vedi questa pagina ogni volta, anche quando sei offline, allora &egrave; possibile
+che il file di blocco esista ma non ci sia un server che sta modificando la pagina.
+Questo pu&ograve; succedere solo quando il server WWWOFFLE che stava modificando
+la pagina non &egrave; stato chiuso regolarmente. &Egrave; importante che ti assicuri
+che i server WWWOFFLE finiscano e che non li uccida o spegni la macchina mentre stanno
+modificando una pagina. Per rimuovere il file di blocco &egrave; necessario svuotare
+la cache di WWWOFFLE perch&eacute; questo elimina tutti i vecchi file di blocco corrotti.
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Pagina di Benvenuto</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

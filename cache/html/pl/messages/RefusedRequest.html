@@ -1,0 +1,62 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Prośba pobrania odmówina</TITLE>
+<META http-equiv="Content-Type" content="text/html; charset=ISO-8859-2">
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>E</b>ksplorator <b>Offl</b>ine <b>W</b>orld <b>W</b>ide<b>W</b>eb
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE: Prośba pobrania odmówiona</H1>
+
+<p align=center>
+Twoja prośba pobrania URL'a
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+została odmówiona.
+</p>
+
+<h2>Pomoc</h2>
+
+Serwer proxy WWWOFFLE został tak skonfigurowany, aby nie pozwalać na prośby
+pobrania tego URL'a podczas braku połączenia.  Jest to kontrolowane przez sekcję
+<tt>DontRequestOffline</tt> pliku konfiguracyjnego <tt>wwwoffle.conf</tt>.  Plik
+konfiguracyjny zawiera informacje o tym jak określić witryny o które nie można
+prosić podczas braku połączenia.
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Strona Powitalna</a>|<a href="http://$localhost/FAQ.html">Pytania i Odpowiedzi</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

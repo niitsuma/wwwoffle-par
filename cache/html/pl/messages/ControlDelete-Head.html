@@ -1,0 +1,66 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = Set if we requested to delete URLs. (='$url').
+mon       = Set if we requested to delete monitored URLs (='$mon').
+req       = Set if we requested to delete outgoing URLs (='$req').
+path      = Set to the path that this request form is. (='$path').
+hash      = Set to the hash that this request included. (='$hash').
+
+-->
+
+<HEAD>
+$url?{<TITLE>WWWOFFLE - Strona obsługi usuwania URL'i</TITLE>}{}
+$mon?{<TITLE>WWWOFFLE - Strona obsługi usuwania monitorowanych URL'i</TITLE>}{}
+$req?{<TITLE>WWWOFFLE - Strona obsługi usuwania wychodzących URL'i</TITLE>}{}
+<META http-equiv="Content-Type" content="text/html; charset=ISO-8859-2">
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>E</b>ksplorator <b>Offl</b>ine <b>W</b>orld <b>W</b>ide <b>W</b>eb
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+$url?{<H1 align=center>WWWOFFLE: Strona obsługi usuwania URL'i</H1>}{}
+$mon?{<H1 align=center>WWWOFFLE: Strona obsługi usuwania monitorowanych URL'i</H1>}{}
+$req?{<H1 align=center>WWWOFFLE: Strona obsługi usuwania wychodzących URL'i</H1>}{}
+
+<p align=center>
+$url?{
+
+Twoja prośba usunięcia buforowanych URL'i wyprodukowała następujący komunikat
+
+}{}
+$mon?{
+
+Twoja prośba usunięcia monitorowanych URL'i wyprodukowała następujący komunikat
+
+}{}
+$req?{
+
+Twoja prośba usunięcia URL'i do pobrania wyprodukowała następujący komunikat
+
+}{}
+
+</p>
+
+<p>
+<form action="$path" method="post">
+$hash?{<input type="hidden" name="hash" value="$hash">}{}
+
+<dl>
+
+<!-- This is just the head of this page since the body is generated separately -->
+

@@ -1,0 +1,64 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+WWWOFFLE : Variables disponibles (mettre le prefixe '$').
+
+localhost = Le serveur sur lequel wwwoffled tourne (='$localhost').
+section   = Le nom de la section qui a ete mise a jour (='$section').
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Configuration Mise &agrave; Jour</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE - Configuration Mise &agrave; Jour</H1>
+
+<p align=center>
+La section <b><tt>$section</tt></b> du fichier de configuration <b><tt>wwwoffle.conf</tt></b> a &eacute;t&eacute; mise &agrave; jour.
+
+</p>
+
+<p>
+NB : M&ecirc;me si une section du fichier a &eacute;t&eacute; modifi&eacute;e, elle ne sera pas
+appliqu&eacute;e imm&eacute;diatement par le programme <tt>wwwoffled</tt>. Vous
+devez le red&eacute;marrer, ou bien le forcer &agrave; relire le fichier de
+configuration avec la commande <tt>wwwoffle</tt> ou avec le bouton
+ci-dessous.
+
+<p align=center>
+<form action="/control/config" method=post>
+<input type="hidden" name=action value="config">
+<input type="submit" value="Config">
+Forcer <tt>wwwoffled</tt> &agrave; relire le fichier de configuration.
+</form>
+[<a href="/control/edit/">Page de Configuration</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Page d'Accueil</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

@@ -1,0 +1,73 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<meta http-equiv="Content-Type" content="text/html; charset=koi8-r">
+<TITLE>WWWOFFLE - Файл блокирован</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Файл блокирован</H1>
+
+<p align=center>
+Ваш запрос  URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+сейчас уже обрабатывается другим WWWOFFLE сервером.
+</p>
+
+<h2>Помощь</h2>
+
+Страница, которую вы запросили, сейчас модифицируется другим сервером и пока
+не доступна для вас. Подождите, пока другой сервер сделает все изменения, и перезагрузите
+эту страницу.
+<p>
+Для того, чтобы только один WWWOFFLE сервер изменял кешированные файл в одно и тоже
+время, используется блокировка файлов. Пока один сервер изменяет кешированный файл
+существует блокирующий файл, информирующий другие серверы. Пока первый сервер не завершит
+изменение кешированного файла, другой сервер не имеет доступа к этому файлу.
+<p>
+Если вы видите это сообщение об ошибке постоянно, даже когда не связи, то
+возможно, что существует блокирующий файл, но ни один из серверов не изменяет эту страницу.
+Это возможно если WWWOFFLE сервер, который модифицировал страницу, не нормально завершил
+работу. Убедитесь, что вы позволяете WWWOFFLE серверу завершить работу и что вы не
+убиваете его или останавливаете компьютер в то время, как модифицируются страницы.
+Для удаления файлов блокировки нужно выполнить очистку кеша, что приведет к удалению
+не правильных файлов блокировки.
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Добро пожаловать</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

@@ -1,0 +1,81 @@
+          WWWOFFLE - World Wide Web Offline Explorer - Version 2.6
+          ========================================================
+
+
+WHAT?
+-----
+
+The format of the cache that WWWOFFLE uses to store the web pages has changed
+very slightly in version 2.6 compared to the previous versions.  This is the
+result of a total clean-up of the URL parsing and decoding/encoding functions.
+
+
+
+WHY?
+----
+
+The wwwoffled program uses the URL to calculate the filename that should be used
+to store the file in the cache.  It is possible for different string
+representations of the same URL to exist.  This will mean that two different
+filenames can be calculated for the same web-page.
+
+For example the following two URLs refer to the same object:
+
+http://www.localhost/~user
+http://www.localhost/%7Euser
+
+The '~' character can be represented by '%7E' in a URL and it means exactly the
+same thing.
+
+The wwwoffled program tried in previous versions to map all equivalent URLs to
+the same result.  There were some cases where this was not applied and it was
+possible for the same object to be stored in the cache under two different
+names.  The new version of the program takes a lot more care to ensure that all
+possible versions of the same URL map to the same file.
+
+If you do not run the conversion program as detailed below WWWOFFLE will still
+work.  The only problem is that some cached files will become inaccessible.  I
+estimate that about 1% of files or fewer will change.
+
+
+
+HOW?
+----
+
+         *** READ ALL THIS SECTION BEFORE DOING ANYTHING ELSE ***
+
+
+When you compile WWWOFFLE there is another program called 'convert-cache' that
+is also compiled.  You need to run this program to convert the cache from the
+'older' format to the 'newer' one.
+
+
+There are a number of options that you can take for this conversion route, the
+following applies to all of them.
+
+In each of the options the basics are that you must run convert-cache and it
+takes an argument of the name of the cache directory that is used (usually
+/var/spool/wwwoffle).  When the program runs it prints out informational and
+warning messages, these may be useful.
+
+
+Option 1 - Be reckless
+
+Run 'convert-cache /var/spool/wwwoffle', watch the messages go flashing by and
+hope that it works.
+
+Option 2 - Be brave
+
+With sh/bash run 'convert-cache /var/spool/wwwoffle > convert.log 2>&1'
+or with csh/tcsh run 'convert-cache /var/spool/wwwoffle >& convert.log'
+read the messages and check the warnings.
+
+Option 3 - Be safe
+
+Backup the cache first then follow option 2.
+With GNU tar I suggest that you use the --atime-preserve option so that the
+access times of the files in the cache are not modified by performing the
+backup.  The index and purge options in WWWOFFLE use these so it is important.
+
+
+If the convert-cache program crashes then that is a bug - tell me.

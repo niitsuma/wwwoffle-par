@@ -1,0 +1,69 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+method    = The method specified in the HTTP request (='$method').
+protocol  = The protocol specified in the HTTP request or 'all' (='$protocol').
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Niet Ondersteunde Methode</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE - Niet Ondersteunde Methode</H1>
+
+<p align=center>
+Uw aanvraag aan de <b>WWWOFFLE</b> server maakte gebruik van de
+<br>
+<b><tt>$method</tt></b>
+<br>
+methode
+$protocol?=all{
+welke door geen enkele protocol ondersteund wordt.
+}
+{
+met de
+<br>
+<b><tt>$protocol</tt></b>
+<br>
+protocol wat een niet toegestane combinatie is.
+}
+</p>
+
+<h2>Help</h2>
+
+WWWOFFLE kan alleen maar aanvragen verwerken voor protocollen en HTTP
+methodes die door WWWOFFLE gesnapt worden. WWWOFFLE accepteert alleen
+de meest gangbare protocollen voor het ophalen van data zoals HTTP en FTP
+en gebruikelijke methoden zoals GET en POST.
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Welkomst Pagina</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

@@ -1,0 +1,66 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<TITLE>Kann Ihre POST oder PUT Anfrage nicht aktualisieren</TITLE>
+</HEAD>
+
+<BODY align=center>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1>Kann Ihre POST oder PUT Anfrage nicht aktualisieren</H1>
+
+<p>
+Ihre erneute Anfrage nach der URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+ist fehlgeschlagen, da es generell nicht m&ouml;glich ist, Antworten von POST
+oder PUT Anfragen zu aktualisieren.
+</p>
+
+
+<h3>Hilfe</h3>
+
+Die Information, die f&uuml;r die Anfrage der Seite ben&ouml;tigt wird, ist nicht
+mehr verf&uuml;gbar. Ihr Browser hat z.B. Eingaben eines Formulars mit der
+Anfrage mitgesendet, und diese Informationen wurden von WWWOFFLE nicht
+gespeichert.<p>
+
+Die einzige M&ouml;glichkeit zum erneuten Abrufen ist zur&uuml;ck zu dem Formular zu
+gehen und es noch einmal abzuschicken, oder (falls es kein Formular war) die
+hochgeladene Seite noch einmal hochzuladen.
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p>
+[<a href="http://$localhost/Welcome.html">Willkommensseite</a>|<a href="http://$localhost/FAQ.html">FAQ</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

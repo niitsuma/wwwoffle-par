@@ -1,0 +1,115 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost   = The hostname of the server running wwwoffled (='$localhost').
+wildcard    = A flag to indicate if there is a wildcard set (='$wildcard').
+url         = The URL that this applies to (= '$url').
+proto       = The URL protocol (= '$proto').
+host        = The URL host (= '$host').
+port        = The URL host port (= '$port').
+path        = The URL path (= '$path').
+args        = The URL args (= '$args').
+
+WWWOFFLE Configuration page Prefix
+
+$control=http://$localhost/control
+$configuration=http://$localhost/configuration
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Interactieve Configuratie Pagina - URL $url</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Interactieve Configuratie</H1>
+
+$wildcard?{
+<H2>URL: $url</H2>
+}{
+<H2>URL: <a href="$url">$url</a></H2>
+}
+
+Een aantal configuratie items voor een bepaalde URL kan m.b.v. deze pagina gezet worden.
+
+U kunt de URL zoals hierboven vermeld gebruiken; of u kunt een meer
+algemene URL maken met wildcards (jokers), zoals in het formulier hieronder
+getoond.
+
+<p>
+<form action="$configuration/url" method="GET">
+
+<p>
+Protocol:
+<select name="proto">
+$proto?=*{}{
+  <option value="$proto"              selected>$proto</option>
+}
+  <option value="*"      $proto?=*{selected}{}>protocol maakt niet uit</option>
+  <option value="OTHER"                       >specifiek; aangeven --&gt;</option>
+</select>
+[other: <input type="text" value="$proto" size="5" name="proto_other">]
+
+<p>
+Host:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<select name="host">
+$host?=*{}{
+  <option value="$host"             selected>$host</option>
+}
+  <option value="*"     $host?=*{selected}{}>host maakt niet uit</option>
+  <option value="OTHER"                     >anders (b.v. *.nl of www.*.nl); aangeven --&gt;</option>
+</select>
+[other: <input type="text" value="$host" size="24" name="host_other">]
+
+<p>
+Port:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<select name="port">
+$port?{
+  <option value=":$port" selected          >$port</option>
+}{}
+  <option value=":"                        >Default port voor protocol</option>
+  <option value=""       $port?{}{selected}>port maakt niet uit</option>
+  <option value="OTHER"                    >anders (b.v. port 8080); aangeven --&gt;</option>
+</select>
+[other: <input type="text" value="$port" size="5" name="port_other">]
+
+<p>
+Path:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<select name="path">
+  <option value="$path" $path?=/*{}{selected}>$path</option>
+  <option value="/*"    $path?=/*{selected}{}>path maakt niet uit</option>
+  <option value="OTHER"                      >anders (b.v. /foo/* of /*.bar); aangeven --&gt;</option>
+</select>
+[other: <input type="text" value="$path" size="16" name="path_other">]
+
+<p>
+Parameters:
+<select name="args">
+$args?{
+  <option value="?$args"           selected>$args</option>
+}{}
+  <option value="?"                        >geen parameters</option>
+  <option value="?*"                       >een of meer parameters</option>
+  <option value=""       $args?{}{selected}>maakt niet uit</option>
+  <option value="OTHER"                    >anders (specifieke parameters, b.v. ?foo=bar); aangeven --&gt;</option>
+</select>
+[other: <input type="text" value="$args" size="16" name="args_other">]
+
+<p>
+<input type="submit" value="Change URL-SPECIFICATION">
+</form>

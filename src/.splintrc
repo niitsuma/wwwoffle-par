@@ -1,0 +1,20 @@
+-warnunixlib
++unix-lib
+-warnflags
+-warnposixheaders
+-retvalother
+-retvalint
+-fixedformalarray
+-immediatetrans
+-predboolint
+-predboolptr
+-predboolothers
++ptrnegate
+-boolops
++matchanyintegral
+-ifempty
++charindex
+-linelen 120
+-exitarg
+-type
+-D__STDC__

@@ -1,0 +1,888 @@
+.\" $Header: /home/amb/wwwoffle/doc/RCS/wwwoffle.conf.man.template 2.79 2001/09/04 19:13:21 amb Exp $
+.\"
+.\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7.
+.\"
+.\"  Manual page for wwwoffle.conf
+.\"
+.\"  Written by Andrew M. Bishop
+.\"
+.\"  This file Copyright 1997,98,99,2000,01 Andrew M. Bishop
+.\"  It may be distributed under the GNU Public License, version 2, or
+.\"  any higher version.  See section COPYING of the GNU Public license
+.\"  for conditions under which this file may be redistributed.
+.\"
+.TH wwwoffle.conf 5 "May 23, 2001"
+
+.SH NAME
+
+wwwoffle.conf \- The configuration file for the proxy server for the World Wide Web Offline Explorer.
+
+
+.SH Introduction
+
+The configuration file (
+.I wwwoffle\.conf
+) specifies all of the parameters that
+control the operation of the proxy server\.  The file is split into sections
+each containing a series of parameters as described below\.  The file
+.I CHANGES\.CONF
+explains the changes in the configuration file between this
+version of the program and previous ones\.
+.LP
+The file is split into sections, each of which can be empty or contain one or
+more lines of configuration information\.  The sections are named and the order
+that they appear in the file is not important\.
+.LP
+The general format of each of the sections is the same\.  The name of the
+section is on a line by itself to mark the start\.  The contents of the section
+are enclosed between a pair of lines containing only the '{' and '}'
+characters or the '[' and ']' characters\.  When the '{' and '}' characters are
+used the lines between contain configuration information\.  When the '[' and
+']' characters are used then there must only be a single non\-empty line
+between them that contains the name of a file (in the same directory)
+containing the configuration information for the section\.
+.LP
+Comments are marked by a '#' character at the start of the line and they are
+ignored\.  Blank lines are also allowed and ignored\.
+.LP
+The phrases 
+.I URL\-SPECIFICATION
+(or 
+.I URL\-SPEC
+for short) and 
+.I WILDCARD
+have
+specific meanings in the configuration file and are described at the end\.  Any
+item enclosed in '(' and ')' in the descriptions means that it is a parameter
+supplied by the user, anything enclosed in '[' and ']' is optional, the '|'
+symbol is used to denote alternate choices\.  Some options apply to specific
+URLs only, this is indicated by having a 
+.I URL\-SPECIFICATION
+enclosed between
+'<' & '>' in the option, the first 
+.I URL\-SPECIFICATION
+to match is used\.  If no
+.I URL\-SPECIFICATION
+is given then it matches all URLs\.
+
+.SH StartUp
+
+This contains the parameters that are used when the program starts, changes to
+these are ignored if the configuration file is re\-read while the program is
+running\.
+.TP
+.B bind\-ipv4 = (hostname) | (ip\-address) | none
+Specify the hostname or IP address to bind the HTTP proxy and WWWOFFLE
+control port sockets to using IPv4 (default='0\.0\.0\.0')\.  If 'none' is
+specified then no IPv4 socket is bound\.  If this is changed from the
+default value then the first entry in the LocalHost section may need to
+be changed to match\.
+.TP
+.B bind\-ipv6 = (hostname) | (ip\-address) | none
+Specify the hostname or IP address to bind the HTTP proxy and WWWOFFLE
+control port sockets to using IPv6 (default='::')\.  If 'none' is
+specified then no IPv6 socket is bound\.  This requires the IPv6
+compilation option\.  If this is changed from the default value then the
+first entry in the LocalHost section may need to be changed to match\.
+.TP
+.B http\-port = (port)
+An integer specifying the port number for the HTTP proxy to use
+(default=8080)\.  This is the port number that must be specified in the
+browser to connect to the WWWOFFLE proxy\.
+.TP
+.B wwwoffle\-port = (port)
+An integer specifying the port number for the WWWOFFLE control
+connections to use (default=8081)\.
+.TP
+.B spool\-dir = (dir)
+The full pathname of the top level cache directory (spool directory)
+(default=/var/spool/wwwoffle or whatever was used when the program was
+compiled)\.
+.TP
+.B run\-uid = (user) | (uid)
+The username or numeric uid to change to when the WWWOFFLE server is
+started (default=none)\.  This option is not applicable to win32
+and only works if the server is started by root on UNIX\.
+.TP
+.B run\-gid = (group) | (gid)
+The groupname or numeric gid to change to when the WWWOFFLE server is
+started (default=none)\.  This option is not applicable to win32
+and only works if the server is started by root on UNIX\.
+.TP
+.B use\-syslog = yes | no
+Whether to use the syslog facility for messages or not (default=yes)\.
+.TP
+.B password = (word)
+The password used for authentication of the control pages, for
+deleting cached pages etc (default=none)\.  For the password to be
+secure the configuration file must be set so that only authorised
+users can read it\.
+.TP
+.B max\-servers = (integer)
+The maximum number of server processes that are started for online and
+automatic fetching (default=8)\.
+.TP
+.B max\-fetch\-servers = (integer)
+The maximum number of server processes that are started to fetch pages
+that were marked in offline mode (default=4)\.  This value must be less
+than max\-servers or you will not be able to use WWWOFFLE interactively
+online while fetching\.
+
+.SH Options
+
+Options that control how the program works\.
+.TP
+.B log\-level = debug | info | important | warning | fatal
+The minimum log level for messages in syslog or stderr
+(default=important)\.
+.TP
+.B socket\-timeout = (time)
+The time in seconds that WWWOFFLE will wait for data on a socket
+connection before giving up (default=120)\.
+.TP
+.B dns\-timeout = (time)
+The time in seconds that WWWOFFLE will wait for a DNS (Domain Name
+Service) lookup before giving up (default=60)\.
+.TP
+.B connect\-timeout = (time)
+The time in seconds that WWWOFFLE will wait for the socket connection
+to be made before giving up (default=30)\.
+.TP
+.B connect\-retry = yes | no
+If a connection cannot be made to a remote server then WWWOFFLE should
+try again after a short delay (default=no)\.
+.TP
+.B ssl\-allow\-port = (integer)
+A port number that is allowed to be proxied for Secure Socket Layer
+(SSL) connections, e\.g\. https\.  This option should be set to 443 to
+allow https, there can be more than one ssl\-port entry for other ports
+as required\.
+.TP
+.B dir\-perm = (octal int)
+The directory permissions to use when creating spool directories
+(default=0755)\.  This option overrides the umask of the user and must
+be in octal starting with a '0'\.
+.TP
+.B file\-perm = (octal int)
+The file permissions to use when creating spool files (default=0644)\.
+This option overrides the umask of the user and must be in octal
+starting with a '0'\.
+.TP
+.B run\-online = (filename)
+The name of a program to run when WWWOFFLE is switched to online mode
+(default=none)\.  The program is started with a single parameter set to
+the current mode name "online"\.
+.TP
+.B run\-offline = (filename)
+The name of a program to run when WWWOFFLE is switched to offline mode
+(default=none)\.  The program is started with a single parameter set to
+the current mode name "offline"\.
+.TP
+.B run\-autodial = (filename)
+The name of a program to run when WWWOFFLE is switched to autodial
+mode (default=none)\.  The program is started with a single parameter
+set to the current mode name "autodial"\.
+.TP
+.B run\-fetch = (filename)
+The name of a program to run when a WWWOFFLE fetch starts or stops
+(default=none)\.  The program is started with two parameters, the first
+is the word "fetch" and the second is "start" or "stop"\.
+.TP
+.B lock\-files = yes | no
+Enable the use of lock files to stop more than one WWWOFFLE process
+from downloading the same URL at the same time (default=no)\.
+.TP
+.B reply\-compressed\-data = yes | no
+If the replies that are made to the browser are to contain compressed
+data when requested (default=no)\.  Requires zlib compilation option\.
+.TP
+.B exec\-cgi = (pathname)
+Enable the use of CGI scripts for the local pages on the WWWOFFLE server
+that match the wildcard pathname (default=none)\.
+
+.SH OnlineOptions
+
+Options that control how WWWOFFLE behaves when it is online\.
+.TP
+.B [<URL\-SPEC>] request\-changed = (time)
+While online pages will only be fetched if the cached version is older
+than this specified time in seconds (default=600)\.  Setting this value
+negative will indicate that cached pages are always used while online\.
+Longer times can be specified with a 'm', 'h', 'd' or 'w' suffix for
+minutes, hours, days or weeks (e\.g\. 10m=600)\.
+.TP
+.B [<URL\-SPEC>] request\-changed\-once = yes | no
+While online pages will only be fetched if the cached version has not
+already been fetched once this session online (default=yes)\.  This
+option takes precedence over the request\-changed option\.
+.TP
+.B [<URL\-SPEC>] request\-expired = yes | no
+While online pages that have expired will always be requested again
+(default=no)\.  This option takes precedence over the request\-changed
+and request\-changed\-once options\.
+.TP
+.B [<URL\-SPEC>] request\-no\-cache = yes | no
+While online pages that ask not to be cached will always be requested
+again (default=no)\.  This option takes precedence over the
+request\-changed and request\-changed\-once options\.
+.TP
+.B [<URL\-SPEC>] request\-redirection = yes | no
+While online pages that redirect the browser to another URL temporarily
+will be requested again\. (default=no)\.  This option takes precedence
+over the request\-changed and request\-changed\-once options\.
+.TP
+.B [<URL\-SPEC>] try\-without\-password = yes | no
+If a request is made for a page that contains a username and password
+then a request is made for the same page without a username and
+password specified (default=yes)\.  This allows for requests for the
+page without a password to re\-direct the browser to the passworded
+version\.
+.TP
+.B [<URL\-SPEC>] intr\-download\-keep = yes | no
+If the browser closes the connection while online the currently
+downloaded incomplete page should be kept (default=no)\.
+.TP
+.B [<URL\-SPEC>] intr\-download\-size = (integer)
+If the browser closes the connection while online the page should
+continue to download if it is smaller than this size in kB
+(default=1)\.
+.TP
+.B [<URL\-SPEC>] intr\-download\-percent = (integer)
+If the browser closes the connection while online the page should
+continue to download if it is more than this percentage complete
+(default=80)\.
+.TP
+.B [<URL\-SPEC>] timeout\-download\-keep = yes | no
+If the server connection times out while reading then the currently
+downloaded incomplete page should be kept (default=no)\.
+.TP
+.B [<URL\-SPEC>] request\-compressed\-data = yes | no
+If the requests that are made to the server are to request compressed
+data (default=yes)\.  Requires zlib compilation option\.
+
+.SH OfflineOptions
+
+Options that control how WWWOFFLE behaves when it is offline\.
+.TP
+.B [<URL\-SPEC>] pragma\-no\-cache = yes | no
+Whether to request a new copy of a page if the request from the
+browser has 'Pragma: no\-cache' (default=yes)\.  This option option
+should be set to 'no' if when browsing offline all pages are
+re\-requested by a 'broken' browser\.
+.TP
+.B [<URL\-SPEC>] confirm\-requests = yes | no
+Whether to return a page requiring user confirmation instead of
+automatically recording requests made while offline (default=no)\.
+.TP
+.B [<URL\-SPEC>] dont\-request = yes | no
+Do not request any URLs that match this when offline (default=no)\.
+
+.SH FetchOptions
+
+Options that control what is downloaded when fetching pages that were
+requested while offline\.
+.TP
+.B [<URL\-SPEC>] stylesheets = yes | no
+If style sheets are to be fetched (default=no)\.
+.TP
+.B [<URL\-SPEC>] images = yes | no
+If images are to be fetched (default=no)\.
+.TP
+.B [<URL\-SPEC>] webbug\-images = yes | no
+If images that are 1 pixel square are also to be fetched, requires
+the images option to also be selected\. (default=yes)\.
+This option is intended to be used in conjunction with the
+replace\-webbug\-images option in the ModifyHTML section\.
+.TP
+.B [<URL\-SPEC>] only\-same\-host\-images = yes | no
+If the only images that are fetched are the ones that are on the same
+host as the page that references them (default=no)\.
+.TP
+.B [<URL\-SPEC>] frames = yes | no
+If frames are to be fetched (default=no)\.
+.TP
+.B [<URL\-SPEC>] scripts = yes | no
+If scripts (e\.g\. Javascript) are to be fetched (default=no)\.
+.TP
+.B [<URL\-SPEC>] objects = yes | no
+If objects (e\.g\. Java class files) are to be fetched (default=no)\.
+
+.SH IndexOptions
+
+Options that control what is displayed in the indexes\.
+.TP
+.B no\-lasttime\-index = yes | no
+Disables creation of the lasttime/prevtime indexes (default=no)\.
+.TP
+.B cycle\-indexes\-daily = yes | no
+Cycles the lasttime/prevtime and lastout/prevout indexes daily instead
+of each time online or fetching (default = no)\.
+.TP
+.B <URL\-SPEC> list\-outgoing = yes | no
+Choose if the URL is to be listed in the outgoing index (default=yes)\.
+.TP
+.B <URL\-SPEC> list\-latest = yes | no
+Choose if the URL is to be listed in the lasttime/prevtime and
+lastout/prevout indexes (default=yes)\.
+.TP
+.B <URL\-SPEC> list\-monitor = yes | no
+Choose if the URL is to be listed in the monitor index (default=yes)\.
+.TP
+.B <URL\-SPEC> list\-host = yes | no
+Choose if the URL is to be listed in the host indexes (default=yes)\.
+.TP
+.B <URL\-SPEC> list\-any = yes | no
+Choose if the URL is to be listed in any of the indexes (default=yes)\.
+
+.SH ModifyHTML
+
+Options that control how the HTML that is provided from the cache is modified\.
+.TP
+.B [<URL\-SPEC>] enable\-modify\-html = yes | no
+Enable the HTML modifications in this section (default=no)\.  With this
+option disabled the following HTML options will not have any effect\.
+With this option enabled there is a small speed penalty\.
+.TP
+.B [<URL\-SPEC>] enable\-modify\-online = yes | no
+Enable the modifications in this section to take place when online as
+well as when offline (default=no)\.  This will cause the HTML or GIF
+to not appear in the browser until WWWOFFLE has processed it all\.
+This still does not apply to pages that are not cached\.
+.TP
+.B [<URL\-SPEC>] add\-cache\-info = yes | no
+At the bottom of all of the spooled pages the date that the page was
+cached and some navigation buttons are to be added (default=no)\.
+.TP
+.B [<URL\-SPEC>] anchor\-cached\-begin = (HTML code) | 
+Anchors (links) in the spooled page that are in the cache are to have
+the specified HTML inserted at the beginning (default="")\.
+.TP
+.B [<URL\-SPEC>] anchor\-cached\-end = (HTML code) | 
+Anchors (links) in the spooled page that are in the cache are to have
+the specified HTML inserted at the end (default="")\.
+.TP
+.B [<URL\-SPEC>] anchor\-requested\-begin = (HTML code) | 
+Anchors (links) in the spooled page that have been requested for
+download are to have the specified HTML inserted at the beginning
+(default="")\.
+.TP
+.B [<URL\-SPEC>] anchor\-requested\-end = (HTML code) | 
+Anchors (links) in the spooled page that have been requested for
+download are to have the specified HTML inserted at the end
+(default="")\.
+.TP
+.B [<URL\-SPEC>] anchor\-not\-cached\-begin = (HTML code) | 
+Anchors (links) in the spooled page that are not in the cache or
+requested are to have the specified HTML inserted at the beginning
+(default="")\.
+.TP
+.B [<URL\-SPEC>] anchor\-not\-cached\-end = (HTML code) | 
+Anchors (links) in the spooled page that are not in the cache or
+requested are to have the specified HTML inserted at the end
+(default="")\.
+.TP
+.B [<URL\-SPEC>] disable\-script = yes | no
+Removes all scripts and scripted events (default=no)\.
+.TP
+.B [<URL\-SPEC>] disable\-applet = yes | no
+Removes all Java applets (default=no)\.
+.TP
+.B [<URL\-SPEC>] disable\-style = yes | no
+Removes all stylesheets and style references (default=no)\.
+.TP
+.B [<URL\-SPEC>] disable\-blink = yes | no
+Removes the <blink> tag (default=no)\.
+.TP
+.B [<URL\-SPEC>] disable\-flash = yes | no
+Removes any Shockwave Flash animations (default=no)\.
+.TP
+.B [<URL\-SPEC>] disable\-meta\-refresh = yes | no
+Removes any meta tags in the HTML header that re\-direct the browser to
+change to another page after an optional delay (default=no)\.
+.TP
+.B [<URL\-SPEC>] disable\-meta\-refresh\-self = yes | no
+Removes any meta tags in the HTML header that re\-direct the browser to
+reload the same page after a delay (default=no)\.
+.TP
+.B [<URL\-SPEC>] disable\-dontget\-links = yes | no
+Disables any links to URLs that are in the DontGet section of the
+configuration file (default=no)\.
+.TP
+.B [<URL\-SPEC>] disable\-dontget\-iframes = yes | no
+Disables inline frame (iframe) URLs that are in the DontGet section of
+the configuration file (default=no)\.
+.TP
+.B [<URL\-SPEC>] replace\-dontget\-images = yes | no
+Replaces image URLs that are in the DontGet section of the
+configuration file with a static URL (default=no)\.
+.TP
+.B [<URL\-SPEC>] replacement\-dontget\-image = (URL)
+The replacement image to use for URLs that are in the DontGet section
+of the configuration file (default=/local/dontget/replacement\.gif)\.
+.TP
+.B [<URL\-SPEC>] replace\-webbug\-images = yes | no
+Replaces image URLs that are 1 pixel square with a static URL
+(default=no)\.
+This option is intended to be used in conjunction with the
+webbug\-images option in the FetchOptions section\.
+.TP
+.B [<URL\-SPEC>] replacement\-webbug\-image = (URL)
+The replacement image to use for images that are 1 pixel square
+(default=/local/dontget/replacement\.gif)\.
+.TP
+.B [<URL\-SPEC>] disable\-animated\-gif = yes | no
+Disables the animation in animated GIF files (default=no)\.
+.TP
+.B [<URL\-SPEC>] demoronise\-ms\-chars = yes | no
+Replaces strange characters that some Microsoft Applications put into
+HTML with character equivalents that most browsers can display
+(default=no)\.  The idea for this comes from the public domain
+Demoroniser perl script\.
+
+.SH LocalHost
+
+A list of hostnames that the host running the WWWOFFLE server may be known by\.
+This is so that the proxy does not need to contact itself if the request has a
+different name for the same server\.
+.TP
+.B (host)
+A hostname or IP address that in connection with the port number (in
+the StartUp section) specifies the WWWOFFLE proxy HTTP server\.  The
+hostnames must match exactly, it is not a 
+.I WILDCARD
+match\.  The first
+named host is used as the server name for several features so must be
+a name that will work from any client host on the network\.  None of
+the hosts named here are cached or fetched via a proxy\.
+
+.SH LocalNet
+
+A list of hostnames whose web servers are always accessible even when offline
+and are not to be cached by WWWOFFLE because they are on a local network\.
+.TP
+.B (host)
+A hostname or IP address that is always available and is not to be
+cached by WWWOFFLE\.  The host name matching uses 
+.I WILDCARD
+s\.  A host
+can be excluded by appending a '!' to the start of the name, all
+possible aliases and IP addresses for the host are also required\.  All
+entries here are assumed to be reachable even when offline\.  None of
+the hosts named here are cached or fetched via a proxy\.
+
+.SH AllowedConnectHosts
+
+A list of client hostnames that are allowed to connect to the server\.
+.TP
+.B (host)
+A hostname or IP address that is allowed to connect to the server\.
+The host name matching uses 
+.I WILDCARD
+s\.  A host can be excluded by
+appending a '!' to the start of the name, all possible aliases and IP
+addresses for the host are also required\.  All of the hosts named in
+LocalHost are also allowed to connect\.
+
+.SH AllowedConnectUsers
+
+A list of the users that are allowed to connect to the server and their
+passwords\.
+.TP
+.B (username):(password)
+The username and password of the users that are allowed to connect to
+the server\.  If this section is left empty then no user authentication
+is done\.  The username and password are both stored in plaintext
+format\.  This requires the use of browsers that handle the HTTP/1\.1
+proxy authentication standard\.
+
+.SH DontCache
+
+A list of URLs that are not to be cached by WWWOFFLE\.
+.TP
+.B [!]URL\-SPECIFICATION
+Do not cache any URLs that match this\.  The 
+.I URL\-SPECIFICATION
+can be
+negated to allow matches to be cached\.  The URLs that are not cached
+will not be requested if offline\.
+
+.SH DontGet
+
+A list of URLs that are not to be got by WWWOFFLE (because they contain only
+junk adverts for example)\.
+.TP
+.B [!]URL\-SPECIFICATION
+Do not get any URLs that match this\.  The 
+.I URL\-SPECIFICATION
+can be
+negated to allow matches to be got\.
+.TP
+.B [<URL\-SPEC>] replacement = (URL)
+The URL to use to replace any URLs that match the 
+.I URL\-SPECIFICATION
+s
+instead of using the standard error message (default=none)\.  The URLs
+in /local/dontget/ are suggested replacements (e\.g\. replacement\.gif or
+replacement\.png which are 1x1 pixel transparent images or
+replacement\.js which is an empty javascript file)\.
+.TP
+.B <URL\-SPEC> get\-recursive = yes | no
+Choose whether to get URLs that match this when doing a recursive
+fetch (default=yes)\.
+.TP
+.B <URL\-SPEC> location\-error = yes | no
+When a URL reply contains a 'Location' header that redirects to a URL
+that is not got (specified in this section) then the reply is modified
+to be an error message instead (default=no)\.  This will stop ISP
+proxies from redirecting users to adverts if the advert URLs are
+in this section\.
+
+.SH DontCompress
+
+A list of MIME types and file extensions that are not to be compressed by
+WWWOFFLE (because they are already compressed or not not worth compressing)\.
+Requires zlib compilation option\.
+.TP
+.B mime\-type = (mime\-type)/(subtype)
+The MIME type of a URL that is not to be compressed in the cache or when
+providing compressed pages to browsers\.
+.TP
+.B file\-ext = \.(file\-ext)
+The file extension of a URL that is not to be requested compressed from
+a server\.
+
+.SH CensorHeader
+
+A list of HTTP header lines that are to be removed from the requests sent to
+web servers and the replies that come back from them\.
+.TP
+.B [<URL\-SPEC>] (header) = yes | no | (string)
+A header field name (e\.g\. From, Cookie, Set\-Cookie, User\-Agent) and
+the string to replace the header value with (default=no)\.  The header
+is case sensitive, and does not have a ':' at the end\.  The value of
+"no" means that the header is unmodified, "yes" or no string can be
+used to remove the header or a string can be used to replace the
+header\.  This only replaces headers it finds, it does not add any new
+ones\.  An option for Referer here will take precedence over the
+referer\-self and referer\-self\-dir options\.
+.TP
+.B [<URL\-SPEC>] referer\-self = yes | no
+Sets the Referer header to the same as the URL being requested
+(default=no)\.  This will add the Referer header if none is contained
+in the original request\.
+.TP
+.B [<URL\-SPEC>] referer\-self\-dir = yes | no
+Sets the Referer header to the directory name of the URL being
+requested (default=no)\.  This will add the Referer header if none is
+contained in the original request\.  This option takes precedence over
+referer\-self\.
+
+.SH FTPOptions
+
+Options to use when fetching files using the ftp protocol\.
+.TP
+.B anon\-username = (string)
+The username to use for anonymous ftp (default=anonymous)\.
+.TP
+.B anon\-password = (string)
+The password to use for anonymous ftp (default determined at run
+time)\.  If using a firewall then this may contain a value that is not
+valid to the FTP server and may need to be set to a different value\.
+.TP
+.B <URL\-SPEC> auth\-username = (string)
+The username to use on a host instead of the default anonymous
+username\.
+.TP
+.B <URL\-SPEC> auth\-password = (string)
+The password to use on a host instead of the default anonymous
+password\.
+
+.SH MIMETypes
+
+MIME Types to use when serving files that were not fetched using HTTP or for
+files on the built\-in web\-server\.
+.TP
+.B default = (mime\-type)/(subtype)
+The default MIME type (default=text/plain)\.
+.TP
+.B \.(file\-ext) = (mime\-type)/(subtype)
+The MIME type to associate with a file extension\.  The '\.' must be
+included in the file extension\.  If more than one extension matches
+then the longest one is used\.
+
+.SH Proxy
+
+This contains the names of the HTTP (or other) proxies to use external to the
+WWWOFFLE server machine\.
+.TP
+.B [<URL\-SPEC>] proxy = (host[:port])
+The hostname and port on it to use as the proxy\.
+.TP
+.B <URL\-SPEC> auth\-username = (string)
+The username to use on a proxy host to authenticate WWWOFFLE to it\.
+The 
+.I URL\-SPEC
+in this case refers to the proxy and not the URL being
+retrieved\.
+.TP
+.B <URL\-SPEC> auth\-password = (string)
+The password to use on a proxy host to authenticate WWWOFFLE to it\.
+The 
+.I URL\-SPEC
+in this case refers to the proxy and not the URL being
+retrieved\.
+.TP
+.B [<URL\-SPEC>] ssl = (host[:port])
+A proxy server that should be used for Secure Socket Layer (SSL)
+connections e\.g\. https\.  Note that for the <
+.I URL\-SPEC
+> that only the host
+is checked and that the other parts must be '*' 
+.I WILDCARD
+s\.
+
+.SH Alias
+
+A list of aliases that are used to replace the server name and path with
+another server name and path\.
+.TP
+.B URL\-SPECIFICATION = URL\-SPECIFICATION
+Any requests that match the first 
+.I URL\-SPECIFICATION
+are replaced by
+the second 
+.I URL\-SPECIFICATION
+\.  The first 
+.I URL\-SPECIFICATION
+is a
+wildcard match for the protocol and host/port, the path must match the
+start of the requested URL exactly and includes all subdirectories\.
+
+.SH Purge
+
+The method to determine which pages to purge, the default age the host
+specific maximum age of the pages in days, and the maximum cache size\.
+.TP
+.B use\-mtime = yes | no
+The method to use to decide which files to purge, last access time
+(atime) or last modification time (mtime) (default=no)\.
+.TP
+.B max\-size = (size)
+The maximum size for the cache in MB after purging (default=0)\.  A
+maximum cache size of 0 means there is no limit to the size\.  If this
+and the min\-free options are both used the smaller cache size is
+chosen\.  This option take into account the URLs that are never purged
+when measuring the cache size but will not purge them\.
+.TP
+.B min\-free = (size)
+The minimum amount of free disk space in MB after purging (default=0)\.
+A minimum disk free of 0 means there is no limit to the free space\.
+If this and the max\-size options are both used the smaller cache size
+is chosen\.  This option take into account the URLs that are never
+purged when measuring the cache size but will not purge them\.
+.TP
+.B use\-url = yes | no
+If true then use the URL to decide on the purge age, otherwise use the
+protocol and host only (default=no)\.
+.TP
+.B del\-dontget = yes | no
+If true then delete the URLs that match the entries in the DontGet
+section (default=no)\.
+.TP
+.B del\-dontcache = yes | no
+If true then delete the URLs that match the entries in the DontCache
+section (default=no)\.
+.TP
+.B [<URL\-SPEC>] age = (age)
+The maximum age in the cache for URLs that match this (default=14)\.
+An age of zero means not to keep, negative not to delete\.  The
+.I URL\-SPECIFICATION
+matches only the protocol and host unless use\-url is
+set to true\. Longer times can be specified with a 'w', 'm' or 'y'
+suffix for weeks, months or years (e\.g\. 2w=14)\.
+.TP
+.B [<URL\-SPEC>] compress\-age = (age)
+The maximum age in the cache for URLs that match this to be stored
+uncompressed (default=\-1)\.  Requires zlib compilation option\.  The age
+that is specified has the same meaning as for the age option\.
+
+.SH WILDCARD
+
+A 
+.I WILDCARD
+match is one that uses the '*' character to represent any group of
+characters\.
+.LP
+This is basically the same as the command line file matching expressions in
+DOS or the UNIX shell, except that the '*' can match the '/' character\.
+.LP
+For example
+.TP
+.B *.gif
+matches  foo.gif and bar.gif
+.TP
+.B *.foo.com
+matches  www.foo.com and ftp.foo.com
+.TP
+.B /foo/*
+matches  /foo/bar.html and /foo/bar/foobar.html
+
+.SH URL-SPECIFICATION
+
+When specifying a host and protocol and pathname in many of the sections a
+.I URL\-SPECIFICATION
+can be used, this is a way of recognising a URL\.
+.LP
+For the purposes of this explanation a URL is considered to be made up of five
+parts\.
+.TP
+.B proto
+The protocol that is used (e.g. 'http', 'ftp')
+.TP
+.B host
+The server hostname (e.g. 'www.gedanken.demon.co.uk').
+.TP
+.B port
+The port number on the host (e.g. default of 80 for HTTP).
+.TP
+.B path
+The pathname on the host (e.g. '/bar.html') or a directory name
+(e\.g\. '/foo/')\.
+.TP
+.B args
+Optional arguments with the URL used for CGI scripts etc.
+(e\.g\. 'search=foo')\.
+.LP
+For example the WWWOFFLE homepage: http://www\.gedanken\.demon\.co\.uk/wwwoffle/
+The protocol is 'http', the host is 'www\.gedanken\.demon\.co\.uk', the port is
+the default (in this case 80), and the pathname is '/wwwoffle/'\.
+.LP
+In general this is written as (proto)://(host)[:(port)]/[(path)][?(args)]
+.LP
+Where [] indicates an optional feature, and () indicate a user supplied name
+or number\.
+.LP
+Some example 
+.I URL\-SPECIFICATION
+options are the following:
+.TP
+.B *://*/*
+Any protocol, Any host, Any port, Any path, Any args
+(This is that same as saying 'default')\.
+.TP
+.B *://*/(path)
+Any protocol, Any host, Any port, Named path, Any args
+.TP
+.B *://*/*?
+Any protocol, Any host, Any port, Any path, No args
+.TP
+.B *://*/(path)?*
+Any protocol, Any host, Any port, Named path, Any args
+.TP
+.B *://(host)
+Any protocol, Named host, Any port, Any path, Any args
+.TP
+.B (proto)://*/*
+Named protocol, Any host, Any port, Any path, Any args
+.LP
+(proto)://(host)/*  Named protocol, Named host, Any port, Any path, Any args
+.LP
+(proto)://(host):/* Named protocol, Named host, Default port, Any path Any args
+.LP
+*://(host):(port)/* Any protocol, Named host, Named port, Any path, Any args
+.LP
+The matching of the host, the path and the args use the 
+.I WILDCARD
+matching that
+is described above\.
+.LP
+In some sections that accept 
+.I URL\-SPECIFICATION
+s they can be negated by
+inserting the '!' character before it\.  This will mean that the comparison
+of a URL with the 
+.I URL\-SPECIFICATION
+will return the logically opposite value
+to what would be returned without the '!'\.  If all of the 
+.I URL\-SPECIFICATION
+s
+in a section are negated and '*://*/*' is added to the end then the sense of
+the whole section is negated\.
+.LP
+In all sections that accept 
+.I URL\-SPECIFICATION
+s the comparison can be made case
+insensitive for the path and arguments part by inserting the '~' character
+before it\.  (The host and the protocol comparisons are always case insensitive)\.
+
+
+.SH EXAMPLE
+
+ StartUp
+ {
+  http-port     = 8080
+  wwwoffle-port = 8081
+  spool-dir     = /var/spool/wwwoffle
+  use-syslog    = yes
+  password      =
+ }
+
+ Options
+ {
+  add-info-refresh  = no
+  request-changed   = 3600
+ }
+
+ FetchOptions
+ {
+  images = yes
+  frames = yes
+ }
+
+ LocalHost
+ {
+  wwwoffle.foo.com
+  localhost
+  127.0.0.1
+ }
+
+ DontGet
+ [
+  wwwoffle.DontGet.conf
+ ]
+
+ LocalNet
+ {
+  *.foo.com
+ }
+
+ AllowedConnectHosts
+ {
+  *.foo.com
+ }
+
+ Proxy
+ {
+  <http://foo.com/*> proxy = www-cache.foo.com:8080
+ }
+
+ Purge
+ {
+  max-size = 10
+  age = 28
+  <http://*.bar.com/*> age  = 7
+ }
+
+.SH FILES
+
+CONFDIR/wwwoffle.conf The wwwoffled(8) configuration file.
+.LP
+SPOOLDIR The WWWOFFLE spool directory.
+
+.SH SEE ALSO
+
+wwwoffle(1), wwwoffled(8).
+
+.SH AUTHOR
+
+Andrew M. Bishop 1996,97,98,99,2000,01 (amb@gedanken.demon.co.uk)

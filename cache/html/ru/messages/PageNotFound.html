@@ -1,0 +1,71 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<meta http-equiv="Content-Type" content="text/html; charset=koi8-r">
+<TITLE>WWWOFFLE - Страница не найдена</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Страница не найдена</H1>
+
+<p align=center>
+Запрошенный URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+не найден на WWWOFFLE сервере.
+</p>
+
+<h2>Помощь</h2>
+
+URL, который вы указали, соответствует локальной странице на WWWOFFLE сервере.
+По той или иной причине страницы для этого URL не может быть предоставлена. Возможные 
+причины ошибки:
+
+<ul>
+  <li>URL ссылается на файл на встроенном веб-сервере. Этот файл не существует или не
+      может быть прочитан.
+  <li>URL ссылается на файл на встроенном веб-сервере, но имеет аргументы
+      после '?', которые не допустимы.
+  <li>Запрошенный URL находится вне встроенного веб-сервера и 
+      не соответствует ни одной правильной странице.
+</ul>
+
+Проверьте, что запрашиваемый URL правильный, и попытайтесь еще раз.
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Добро пожаловать</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

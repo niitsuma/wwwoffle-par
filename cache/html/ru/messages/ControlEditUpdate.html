@@ -1,0 +1,66 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+section   = The name of the section that has been updated (='$section').
+
+-->
+
+<HEAD>
+<meta http-equiv="Content-Type" content="text/html; charset=koi8-r">
+<TITLE>WWWOFFLE - Страница обновления конфигурации</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Страница обновления конфигурации</H1>
+
+<p align=center>
+Секция <b><tt>$section</tt></b> конфигурационного файла
+<b><tt>wwwoffle.conf</tt></b> может быть изменена.
+
+</p>
+
+<h2>Help</h2>
+
+Даже если секция конфигурационного файла была изменена, то изменения не будут
+использоваться программой <tt>wwwoffled</tt> сразу.Программа должна быть перезапущена или
+конфигурационный перечитан с помощью запуска <tt>wwwoffle</tt> или
+нажатия кнопки ниже.
+
+<p align=center>
+<form action="/control/config" method=post>
+<input type="hidden" name=action value="config">
+<input type="submit" value="Конфигурация">
+Указать <tt>wwwoffled</tt> перечитать конфигурационный файл.
+</form>
+[<a href="/control/edit/">Страница редактирования конфигурации</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Добро пожаловать</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

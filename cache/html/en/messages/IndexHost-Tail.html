@@ -1,0 +1,38 @@
+<!-- This is just the tail of the index body since the contents are different for each index -->
+
+</ul>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+proto      = The protocol (='$proto').
+host       = The hostname (='$host').
+total      = The total number of pages for this index (='$total').
+indexed    = The number of pages that are indexed (='$indexed').
+notindexed = The number of pages that are not indexed (='$notindexed').
+sort       = The sort mode to use (='$sort').
+delete     = The choice of showing the delete option or not (='$delete').
+refresh    = The choice of showing the refresh option or not (='$refresh').
+monitor    = The choice of showing the monitor option or not (='$monitor').
+all        = The choice to show all pages or exclude those in the DontIndex section (='$all').
+config     = The choice to display the configuration editing page link (='$config').
+
+-->
+
+$notindexed?=0{$anynotindexed=0}{$anynotindexed=$total}
+$anynotindexed?=0{}{<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor;all$config"><i>$notindexed pages not indexed</i></a>}
+
+$delete?{$totaldelete=$total}{$totaldelete=0}
+$totaldelete?=0{}
+{
+<p>
+<input type="submit" value="Delete Selected">
+</form>
+<form action="/control/delete-url-all" method=post>
+<input type="hidden" name="url" value="$proto://$host/">
+<input type="submit" value="Delete This Host and All Pages">
+</form>
+}
+
+<!-- This is just the tail of the index body since the contents are different for each index -->

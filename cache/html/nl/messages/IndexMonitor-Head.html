@@ -1,0 +1,33 @@
+<!-- This is just the head of the index body since the contents are different for each index -->
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+total      = The total number of pages for this index (='$total').
+sort       = The sort mode to use (='$sort').
+delete     = The choice of showing the delete option or not (='$delete').
+refresh    = The choice of showing the refresh option or not (='$refresh').
+monitor    = The choice of showing the monitor option or not (='$monitor').
+all        = The choice to show all pages or exclude those in the DontIndex section (='$all').
+config     = The choice to display the configuration editing page link (='$config').
+
+-->
+
+<h2>Monitored Paginas</h2>
+
+$total?=0{<b>Geen Paginas</b>}{<b>$total Paginas</b>}
+
+$total?=0{}{<br><i>L=Laatste Keer, N=Volgende Keer; beide in dagen:uren</i>}
+
+<p>
+
+$delete?{$totaldelete=$total}{$totaldelete=0}
+$totaldelete?=0{}
+{
+<form action="/control/delete-multiple-mon" method=post>
+}
+
+<ul>
+
+<!-- This is just the head of the index body since the contents are different for each index -->

@@ -1,0 +1,42 @@
+<!-- Ceci n'est que le pied de page, le corps est different pour chaque index -->
+
+<hr width="50%">
+
+<!--
+
+WWWOFFLE : Variables disponibles (mettre le prefixe '$').
+
+localhost = Le serveur sur lequel wwwoffled tourne (='$localhost').
+type      = L'index demande (='$type').
+            Possibilites: '' outgoing, monitor, lasttime, prevtime, lastout, prevout,
+                    http, ftp, finger.
+subtype   = Le nom de l'hote pour les indexs de chaque protocole (='$subtype').
+            or the previous time number.
+sort      = La methode de tri demandee (='$sort').
+            Possibilites: none, mtime, atime, dated, alpha, type, random
+delete    = Indique si les boutons de suppression doivent etre affiches (='$delete').
+refresh   = Indique si les boutons d'actualisation doivent etre affiches (='$refresh').
+monitor   = Indique si les boutons de suivi doivent etre affiches (='$monitor').
+all       = Indique si les fichiers specifies dans la section DontIndex doivent aussi
+            etre affiches (='$all').
+config     = Indique si on affiche le lien vers la page de configuration (='$config').
+
+-->
+
+<p align=center>
+[<a href="/index/?sort=$sort$delete$refresh$monitor$all$config">Retour &agrave; l'index principal</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Page d'accueil</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

@@ -1,0 +1,75 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Plik zablokowany</TITLE>
+<META http-equiv="Content-Type" content="text/html; charset=ISO-8859-2">
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>E</b>ksplorator <b>Offl</b>ine <b>W</b>orld <b>W</b>ide <b>W</b>eb
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE: Plik zablokowany</H1>
+
+<p align=center>
+Prosisz o pobranie URL'a
+<br>
+<b><tt>$decurl</tt></b>,
+<br>
+który jest właśnie modyfikowany przez inny serwer WWWOFFLE.
+</p>
+
+<h2>Pomoc</h2>
+
+Strona o którą poprosiłeś jest właśnie modyfikowana przez inny serwer i
+aktualnie nie masz do niej dostępu. Przeładowanie tej strony spowoduje
+odczekanie do momentu kiedy drugi serwer zakończy przeprowadzanie modyfikacji.
+<p>
+Aby mieć pewność, że tylko jeden serwer WWWOFFLE modyfikuje każdy buforowany
+plik w tym samym czasie, używany jest plik blokujący. Plik blokujący istnieje w
+czasie, gdy jeden serwer modyfikuje buforowany plik, tak aby pozostałe serwery
+wiedziały o tym. Dopóki pierwszy serwer nie skończy, buforowany plik nie jest
+ważny i nie ma do niego dostępu przez inne serwery.
+<p>
+Jeśli widzisz ten komunikat błędu przez cały czas, nawet w trybie offline, wtedy
+możliwe jest że plik blokujący istnieje, chociaż żaden serwer nie modyfikuje już
+strony. Sytuacja tak może wystąpić tylko wtedy, gdy serwer WWWOFFLE, który
+modyfikował stronę, zakończył swoje działanie nieprawidłowo. Ważne jest abyś
+upewnił się, czy pozwoliłeś serwerom WWWOFFLE na zakończenie pracy i nie zabiłeś
+ich lub nie wyłączyłeś komputera w czasie gdy one wciąż modyfikowały stronę. Aby
+usunąć plik blokujący potrzebne jest oczyszczenie bufora WWWOFFLE, ponieważ
+usunie to wszystkie złe pliki blokujące.
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Strona Powitalna</a>|<a href="http://$localhost/FAQ.html">Pytania i Odpowiedzi</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

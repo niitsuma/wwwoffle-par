@@ -1,0 +1,66 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+WWWOFFLE : Variables disponibles (mettre le prefixe '$').
+
+localhost = Le serveur sur lequel wwwoffled tourne (='$localhost').
+body      = Le corps de la requete (='$body').
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Erreur du Formulaire de Suivi</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE - Erreur du Formulaire de Suivi</H1>
+
+<p align=center>
+$body?
+{
+
+La r&eacute;ponse au formulaire envoy&eacute;e par votre navigateur :
+<br>
+<b><tt>$body</tt></b>
+<br>
+est erron&eacute;e et n'a pas pu &ecirc;tre trait&eacute;e.
+
+}
+{
+
+La r&eacute;ponse au formulaire envoy&eacute;e par votre navigateur ne poss&egrave;de pas de contenu.
+
+}
+
+</p>
+
+<p align=center>
+[<a href="http://$localhost/monitor-options/">Retour &agrave; la Page de Suivi</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Page d'accueil</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

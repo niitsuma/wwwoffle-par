@@ -1,0 +1,51 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost   = The hostname of the server running wwwoffled (='$localhost').
+section     = The section of the configuration file (= '$section').
+nextsection = The next section of the configuration file (= '$nextsection').
+prevsection = The previous section of the configuration file (= '$prevsection').
+description = The description of the section.
+
+url         = Set to the URL-SPECIFICATION (= '$url').
+
+WWWOFFLE Configuration page Prefix
+
+$control=http://$localhost/control
+$configuration=http://$localhost/configuration
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Interactieve Configuratie Pagina - $section</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<a href="$prevsection$url?{?url=%encode[url]}{}">&lt;&lt;&lt; $prevsection &lt;&lt;&lt;</a>
+&nbsp;&nbsp;&nbsp; $section &nbsp;&nbsp;&nbsp;
+<a href="$nextsection$url?{?url=%encode[url]}{}">&gt;&gt;&gt; $nextsection &gt;&gt;&gt;</a>
+</p>
+
+<hr width="50%">
+
+<H1 align=center>WWWOFFLE Interactieve Configuratie Pagina</H1>
+
+<H2>Section: $section</H2>
+
+$description?{$description}{<i>No description</i>}

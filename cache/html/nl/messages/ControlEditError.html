@@ -1,0 +1,119 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+section   = The name of the section that has been updated (='$section').
+reason    = The reason that the update failed (='$reason')
+              ReadError  - The config file could not be read.
+              BadSection - The specified section does not exist.
+              BadBody    - The body of the request from the browser was invalid.
+              WriteError - The config file could not be written.
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Configuratie Update Fout</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Configuratie Update Fout</H1>
+
+<p align=center>
+$reason?=ReadError{
+
+Het configuratie bestand <b><tt>wwwoffle.conf</tt></b> kon niet gelezen
+worden of er was een parseer fout tijdens het lezen.
+
+}{}
+$reason?=BadSection{
+
+Er is geen <b><tt>$section</tt></b> section in het configuratie
+bestand <b><tt>wwwoffle.conf</tt></b> om te bij te werken.
+
+}{}
+$reason?=BadBody{
+
+De request (HTTP aanvraag) was leeg of ongeldig.
+
+}{}
+$reason?=WriteError{
+
+Het configuratie bestand <b><tt>wwwoffle.conf</tt></b> kon niet
+geschreven worden.
+
+}{}
+</p>
+
+<h2>Help</h2>
+
+$reason?=ReadError{
+
+Het configuratie bestand kon niet geopend worden, of kon wel geopend
+worden maar de inhoud kon niet verwerkt worden. Controleer dat het
+bestand <tt>wwwoffle.conf</tt> waarmee het <tt>wwwoffled</tt>
+programma opgestart is wel bestaat. Het moet ook leesbaar zijn voor de
+gebruiker waaronder het programma draait.
+
+}{}
+$reason?=BadSection{
+
+De forms op het Configuratie Bestand Bewerken pagina zijn de enige die
+gebruikt kunnen worden on de configuratie bestand bij te werken. Alle
+forms op dat pagina dienen om &eacute;&eacute;n van de sections van
+het configuratie bestand bij te werken. De request afkomstig van uw
+browser komt niet overeen met een van deze sections. Controleer dat u
+de juiste forms gebruikt om de informatie bij te werken.
+
+}{}
+$reason?=BadBody{
+
+De browser heeft een ongeldige respons gestuurd op het form op het
+Configuratie Bestand Bijwerken pagina. Of de browser stuurde een lege
+respons in plaats van de form data, of er was een netwerk fout tijdens
+het verzenden van de data of de data die verstuurd was is ongeldig. U
+kunt proberen de informatie opnieuw in te vullen en opnieuw in te
+dienen.
+
+}{}
+$reason?=WriteError{
+
+Het configuratie bestand kon niet geopend worden voor schrijven.
+Controleer dat het bestand <tt>wwwoffle.conf</tt> waarmee het
+<tt>wwwoffled</tt> programma opgestart is wel bestaat. Het moet ook
+schrijfbaar zijn voor de gebruiker waaronder het programma draait.
+
+
+}{}
+
+<p align=center>
+[<a href="/control/edit/">Configuratie Bestand Bijwerken page</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Welkomst Pagina</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

@@ -1,0 +1,62 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Host Niet Gecached</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Host Niet Gecached</H1>
+
+<p align=center>
+Uw aanvraag voor URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+is mislukt omdat het een host en/of pad betreft die niet gecached mag worden
+en kan dus niet gevraagd worden in offline mode.
+</p>
+
+<h2>Help</h2>
+
+De WWWOFFLE server is dusdanig geconfigureerd dat aanvragen voor deze URL
+niet gecached worden, en dus is deze URL alleen beschikbaar wanneer WWWOFFLE
+online is. Dit wordt door de <tt>DontCache</tt> section van de
+<tt>wwwoffle.conf</tt> configuratie file bestuurd. Daar staat ook informatie
+hoe e.e.a. te regelen.
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Welkomst Pagina</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

@@ -1,0 +1,68 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+body      = The body of the request (='$body').
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Interactief Verversingsformulier Fout</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Interactief Verversingsformulier Fout</H1>
+
+<p align=center>
+$body?
+{
+Het antwoord op het formulier
+<br>
+<b><tt>$body</tt></b>
+<br>
+bevat een fout en kon niet verwerkt worden.
+}
+{
+Het antwoord op het formulier bevat een fout en kon niet verwerkt worden.
+}
+</p>
+
+<h2>Help</h2>
+
+De browser heeft een ongeldig antwoord gegeven op het formulier op de
+Verversings Aanvraag pagina. De browser heeft of een leeg antwoord gestuurd,
+of er was een netwerkfout, of het antwoord bevat ongeldige data.
+U kunt proberen het formulier opnieuw in te vullen en te verzenden.
+
+<p align=center>
+[<a href="http://$localhost/refresh-options/">Terug naar de Verversingspagina</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Welkomst Pagina</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

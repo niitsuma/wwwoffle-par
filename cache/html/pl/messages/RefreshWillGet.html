@@ -1,0 +1,78 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+hash      = A hash value used as a one time password to allow cancellation of the page (='$hash').
+
+$decurl=%decode[url]
+$encurl=%encode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - $decurl zostanie pobrany rekursywnie</TITLE>
+<META http-equiv="Content-Type" content="text/html; charset=ISO-8859-2">
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>E</b>ksplorator <b>Offl</b>ine <b>W</b>orld <b>W</b>ide<b>W</b>eb
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE: Prośba odświeżenia zarejestrowana</H1>
+
+<p align=center>
+Twoja prośba pobrania URL'a
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+i określone odnośniki zostaną pobrane rekursywnie, jak to jest wymagane.
+<br>
+Jeśli masz teraz aktywne połączenie, a polecenie 'wwwoffle -fetch' nie jest
+uruchomione, będziesz musiał je teraz uruchomić.
+</p>
+
+<!--
+
+Useful WWWOFFLE Buttons
+
+$hash?
+{$Cancel = http://$localhost/control/delete-req/?url=$encurl;hash=%encode[hash]}
+{$Cancel = http://$localhost/control/delete-req/?url=$encurl}
+$Refresh = http://$localhost/refresh/?$encurl
+$Options = http://$localhost/refresh-options/?$encurl
+$Monitor = http://$localhost/monitor-options/?$encurl
+$Index   = http://$localhost/index/url/?$encurl
+$Config  = http://$localhost/configuration/url?url=$encurl
+
+-->
+
+<p align=center>
+[<a href="$Cancel">Anuluj</a>|Odśwież:<a href="$Options">Opcje</a>|<a href="$Monitor">Monitoruj</a>|<a href="$Index">Indeks</a>|<a href="$Config">Configure</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Strona Powitalna</a>|<a href="http://$localhost/FAQ.html">Pytania i Odpowiedzi</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

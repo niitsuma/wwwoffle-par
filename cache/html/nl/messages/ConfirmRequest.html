@@ -1,0 +1,76 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+
+$decurl=%decode[url]
+$encurl=%encode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Aanvraag $url bevestigen</TITLE>
+<META HTTP-EQUIV="Expires" CONTENT="0">
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Aanvraag Bevestigen</H1>
+
+<p align=center>
+Uw aanvraag voor URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+moet <a href="http://$localhost/refresh/?$encurl">bevestigd</a> worden.
+</p>
+
+<h2>Help</h2>
+
+Aanvragen voor deze pagina moeten volgens de WWWOFFLE configuratie
+bevestigd worden. Door de link hierboven te kiezen zal de pagina
+daadwerkelijke aangevraagd worden, anders wordt er niets mee gedaan.
+
+<!--
+
+Useful WWWOFFLE Buttons
+
+$Options = http://$localhost/refresh-options/?$encurl
+$Monitor = http://$localhost/monitor-options/?$encurl
+$Index   = http://$localhost/index/url/?$encurl
+$Config  = http://$localhost/configuration/url?url=$encurl
+
+-->
+
+<p align=center>
+[Annuleer|Verversen:<a href="$Options">Opties</a>|<a href="$Monitor">Monitor</a>|<a href="$Index">Index</a>|<a href="$Config">Configure</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Welkomst Pagina</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

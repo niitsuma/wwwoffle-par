@@ -1,0 +1,87 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+hash      = A hash value used as a one time password to allow cancellation of the page (='$hash').
+
+$decurl=%decode[url]
+$encurl=%encode[url]
+
+-->
+
+<HEAD>
+<meta http-equiv="Content-Type" content="text/html; charset=koi8-r">
+<TITLE>WWWOFFLE - Будет загружен $decurl</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+$hash?
+{<H1 align=center>WWWOFFLE Запрос записан</H1>}
+{<H1 align=center>WWWOFFLE Запрос уже записан</H1>}
+
+<p align=center>
+Ваш запрос URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+$hash?
+{был записан для загрузки.}
+{уже был записан для загрузки.}
+</p>
+
+<!--
+
+Useful WWWOFFLE Buttons
+
+$hash?
+{$Cancel = http://$localhost/control/delete-req/?url=$encurl;hash=%encode[hash]}
+{$Cancel = http://$localhost/control/delete-req/?url=$encurl}
+$Refresh = http://$localhost/refresh/?$encurl
+$Options = http://$localhost/refresh-options/?$encurl
+$Monitor = http://$localhost/monitor-options/?$encurl
+$Index   = http://$localhost/index/url/?$encurl
+$Config  = http://$localhost/configuration/url?url=$encurl
+
+-->
+
+<p align=center>
+[<a href="$Cancel">Отменить</a>|Обновить|<a href="$Options">Параметры</a>|<a href="$Monitor">Наблюдение</a>|<a href="$Index">Указатель</a>|<a href="$Config">Configure</a>]
+</p>
+
+<script language="JAVASCRIPT">
+<!--//
+document.write("<p align=center>");
+document.write("[<a href='javascript:history.go(-1)'>Назад на одну страницу<\/a>]");
+document.write("<\/p>");
+//-->
+</script>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Добро пожаловать</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

@@ -1,0 +1,46 @@
+<!-- This is just the tail of the index body since the contents are different for each index -->
+
+</ul>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+number     = Which version of the page it is, lasttime='', prevtime='0'-'5' (='$number').
+total      = The total number of pages for this index (='$total').
+indexed    = The number of pages that are indexed (='$indexed').
+notindexed = The number of pages that are not indexed (='$notindexed').
+sort       = The sort mode to use (='$sort').
+delete     = The choice of showing the delete option or not (='$delete').
+refresh    = The choice of showing the refresh option or not (='$refresh').
+monitor    = The choice of showing the monitor option or not (='$monitor').
+all        = The choice to show all pages or exclude those in the DontIndex section (='$all').
+config     = The choice to display the configuration editing page link (='$config').
+
+-->
+
+$notindexed?=0{$anynotindexed=0}{$anynotindexed=$total}
+$anynotindexed?=0{}{<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor;all$config"><i>$notindexed páginas no indexadas</i></a>}
+
+$delete?{$totaldelete=$total}{$totaldelete=0}
+$totaldelete?=0{}
+{
+<p>
+<input type="submit" value="Borrar seleccionadas">
+</form>
+}
+
+<p align=center>
+[$number?{<a href="/index/lasttime/?sort=$sort$delete$refresh$monitor$all$config">Última Vez</a>}{Última Vez}]
+[Vez Anterior
+$number?=1{(1)}{<a href="/index/prevtime1/?sort=$sort$delete$refresh$monitor$all$config">(1)</a>}
+$number?=2{(2)}{<a href="/index/prevtime2/?sort=$sort$delete$refresh$monitor$all$config">(2)</a>}
+$number?=3{(3)}{<a href="/index/prevtime3/?sort=$sort$delete$refresh$monitor$all$config">(3)</a>}
+$number?=4{(4)}{<a href="/index/prevtime4/?sort=$sort$delete$refresh$monitor$all$config">(4)</a>}
+$number?=5{(5)}{<a href="/index/prevtime5/?sort=$sort$delete$refresh$monitor$all$config">(5)</a>}
+$number?=6{(6)}{<a href="/index/prevtime6/?sort=$sort$delete$refresh$monitor$all$config">(6)</a>}
+$number?=7{(7)}{<a href="/index/prevtime7/?sort=$sort$delete$refresh$monitor$all$config">(7)</a>}
+]
+</p>
+
+<!-- This is just the tail of the index body since the contents are different for each index -->

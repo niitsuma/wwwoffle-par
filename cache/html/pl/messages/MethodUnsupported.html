@@ -1,0 +1,69 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+method    = The method specified in the HTTP request (='$method').
+protocol  = The protocol specified in the HTTP request or 'all' (='$protocol').
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Nieobsługiwana metoda</TITLE>
+<META http-equiv="Content-Type" content="text/html; charset=ISO-8859-2">
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>E</b>ksplorator <b>Offl</b>ine <b>W</b>orld <b>W</b>ide<b>W</b>eb
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE: Nieobsługiwana metoda</H1>
+
+<p align=center>
+Prośba do serwera <b>WWWOFFLE</b> używa metody
+<br>
+<b><tt>$method</tt></b>
+<br>
+$protocol?=all{
+która nie jest obsługiwana z żadnym protokołem.
+}
+{
+z protokołem
+<br>
+<b><tt>$protocol</tt></b>
+<br>
+która nie jest obsługiwaną kombinacją.
+}
+</p>
+
+<h2>Pomoc</h2>
+
+Program WWWOFFLE może przetworzyć tylko prośby dla protokołów i metod HTTP,
+które rozumie. WWWOFFLE obsługuje większość powszechnych protokołów do
+pobierania danych, takich jak protokoły HTTP i FTP oraz pospolitych metod takich
+jak GET i POST.
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Strona Powitalna</a>|<a href="http://$localhost/FAQ.html">Pytania i Odpowiedzi</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

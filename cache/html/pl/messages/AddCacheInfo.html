@@ -1,0 +1,41 @@
+
+<!-- The following section added by WWWOFFLE -->
+$unit?=m{$unitstr1=minutê  $unitstr2=minuty   $unitstr=minut   }{}
+$unit?=h{$unitstr1=godzinê $unitstr2=godziny  $unitstr=godzin  }{}
+$unit?=d{$unitstr1=dzieñ   $unitstr2=dni      $unitstr=dni     }{}
+$unit?=w{$unitstr1=tydzieñ $unitstr2=tygodnie $unitstr=tygodni }{}
+$unit?=M{$unitstr1=miesi±c $unitstr2=miesi±ce $unitstr=miesiêcy}{}
+$time?=1{$unitstr=$unitstr1}{}
+$time?=2{$unitstr=$unitstr2}{}
+$time?=3{$unitstr=$unitstr2}{}
+$time?=4{$unitstr=$unitstr2}{}
+$time?=22{$unitstr=$unitstr2}{}
+$time?=23{$unitstr=$unitstr2}{}
+$time?=24{$unitstr=$unitstr2}{}
+$time?=32{$unitstr=$unitstr2}{}
+$time?=33{$unitstr=$unitstr2}{}
+$time?=34{$unitstr=$unitstr2}{}
+$time?=42{$unitstr=$unitstr2}{}
+$time?=43{$unitstr=$unitstr2}{}
+$time?=44{$unitstr=$unitstr2}{}
+$time?=52{$unitstr=$unitstr2}{}
+$time?=53{$unitstr=$unitstr2}{}
+$time?=54{$unitstr=$unitstr2}{}
+$encurl=%encode[url]
+
+Useful WWWOFFLE Buttons
+
+$Delete  = http://$localhost/control/delete-url/?url=$encurl
+$Refresh = http://$localhost/refresh/?$encurl
+$Options = http://$localhost/refresh-options/?$encurl
+$Monitor = http://$localhost/monitor-options/?$encurl
+$Index   = http://$localhost/index/url/?$encurl
+$Config  = http://$localhost/configuration/url?url=$encurl
+
+-->
+<hr>
+<p align=center>
+WWWOFFLE - $date ($time $unitstr temu) - [<a href="$Delete">Usuñ</a>|<a href="$Refresh">Od¶wie¿</a>:<a href="$Options">Opcje</a>|<a href="$Monitor">Monitoruj</a>|<a href="$Index">Indeks</a>|<a href="$Config">Konfiguruj</a>] - WWWOFFLE
+</p>
+<hr>
+<!-- The previous section added by WWWOFFLE -->

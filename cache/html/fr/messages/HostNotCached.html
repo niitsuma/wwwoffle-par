@@ -1,0 +1,61 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+WWWOFFLE : Variables disponibles (mettre le prefixe '$').
+
+localhost = Le serveur sur lequel wwwoffled tourne (='$localhost').
+url       = L'URL qui etait demande (='$url').
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - H&ocirc;te non stock&eacute;</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE - H&ocirc;te non stock&eacute;</H1>
+
+<p align=center>
+Votre demande de l'URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+a &eacute;chou&eacute; car celle-ci fait partie de la liste des h&ocirc;tes et/ou chemins qui ne doivent
+pas &ecirc;tre stock&eacute;s et ne peuvent &ecirc;tre demand&eacute;s hors-ligne.
+</p>
+
+<h2>Aide</h2>
+
+Le serveur mandataire WWWOFFLE a &eacute;t&eacute; configur&eacute; pour que cet URL ne soit pas
+stock&eacute;e, et est seulement accessible en ligne. Ceci est contr&ocirc;l&eacute; dans la section
+<tt>DontCache</tt> du fichier de configuration <tt>wwwoffle.conf</tt>.
+Ce dernier contient des indications pour pr&eacute;ciser les sites ou pages non stock&eacute;s.
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Page d'accueil</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

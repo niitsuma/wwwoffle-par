@@ -1,0 +1,72 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - File Locked</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE File Locked</H1>
+
+<p align=center>
+Uw aanvraag voor URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+wordt al bewerkt door een andere WWWOFFLE server.
+</p>
+
+<h2>Help</h2>
+
+De pagina waar u om gevraagd heeft wordt al bewerkt door een andere server,
+en dus kunt u het momenteel niet benaderen. Door deze pagina opnieuw te laden
+zal gewacht worden totdat de andere server klaar is met de aanpassingen.
+<p>
+Om ervoor te zorgen dat maar &eacute;&eacute;n WWWOFFLE server tegelijk een
+bepaald bestand kan wijzigen, wordt een lock file gebruikt. Terwijl de ene
+server bezig is laat de aanwezigheid van een lock file dit weten aan alle
+andere servers. Totdat de eerste server klaar is met de aanpassing, is de
+inhoud van de cache niet correct en mag dus niet gebruikt worden door andere
+servers.
+<p>
+Als u deze melding steeds ziet, zelfs wanneer offline, dan is het mogelijk
+dat de lock file onterecht bestaat. Dit kan alleen gebeuren wanneer de
+WWWOFFLE server die ermee bezig was op een abnormale wijze gestopt is.
+Om deze situatie op te lossen is het nodig om de WWWOFFLE cache op te ruimen,
+onterechte lock files worden dan ook opgeruimd.
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Welkomst Pagina</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

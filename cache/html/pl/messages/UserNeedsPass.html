@@ -1,0 +1,59 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+user      = The username that was given (='$user').
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Nazwa użytkownika została określona bez hasła</TITLE>
+<META http-equiv="Content-Type" content="text/html; charset=ISO-8859-2">
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>E</b>ksplorator <b>Offl</b>ine <b>W</b>orld <b>W</b>ide <b>W</b>eb
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE - Nazwa użytkownika została określona bez hasła</H1>
+
+<p align=center>
+Prośba pobrania URL'a
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+wymaga podania nazwy użytkownika <tt>$user</tt>, ale bez hasła.
+</p>
+
+<h2>Pomoc</h2>
+
+Serwer WWWOFFLE może pobierać strony Web, które wymagają nazwy użytkownika i hasła, jeśli nazwa użytkownika i hasło zostaną dostarczone do WWWOFFLE. To żądanie określa nazwę użytkownika bez hasła, więc WWWOFFLE nie może kontynuować.
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Strona Powitalna</a>|<a href="http://$localhost/FAQ.html">Pytania i Odpowiedzi</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

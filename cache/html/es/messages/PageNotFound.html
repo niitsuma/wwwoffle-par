@@ -1,0 +1,70 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Página No Encontrada</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Página No Encontrada</H1>
+
+<p align=center>
+Su petición de la URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+no pudo ser encontrada en el servidor WWWOFFLE.
+</p>
+
+<h2>Ayuda</h2>
+
+La URL que especificó es una página local del servidor WWWOFFLE.  Por
+cualquier razón la página no se puede mostrar.  Es posible que pueda ser
+uno de los siguientes errores:
+
+<ul>
+  <li>La URL se refiere a un fichero del servidor web incorporado que no
+      existe o que no puede ser leída.
+  <li>La URL se refiere a un fichero del servidor web incorporado que tiene
+      argumentos seguidos de una '?', lo cual no está  permitido.
+  <li>La URL a la que está intentando acceder está fuera del servidor web 
+      incorporado y no se corresponde con ninguna de las páginas válidas.
+</ul>
+
+Compruebe que la URL que está buscando es correcta y pruebe de nuevo.
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Página de Bienvenida</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

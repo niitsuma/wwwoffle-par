@@ -1,0 +1,36 @@
+<!-- This is just the head of the index body since the contents are different for each index -->
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+number     = Which version of the page it is, lasttime='', prevtime='0'-'3' (='$number').
+total      = The total number of pages for this index (='$total').
+sort       = The sort mode to use (='$sort').
+delete     = The choice of showing the delete option or not (='$delete').
+refresh    = The choice of showing the refresh option or not (='$refresh').
+monitor    = The choice of showing the monitor option or not (='$monitor').
+all        = The choice to show all pages or exclude those in the DontIndex section (='$all').
+date       = The date when last fetched (='$date').
+config     = The choice to display the configuration editing page link (='$config').
+
+-->
+
+$number?{<h2>Pagine In Uscita Precedentemente ($number)</h2>}{<h2>Ultime Pagine In Uscita</h2>}
+
+Fetch started: $date
+<p>
+
+$total?=0{<b>Nessuna Pagina</b>}{<b>$total Pages</b>}
+
+<p>
+
+$delete?{$totaldelete=$total}{$totaldelete=0}
+$totaldelete?=0{}
+{
+<form action="/control/delete-multiple-url" method=post>
+}
+
+<ul>
+
+<!-- This is just the head of the index body since the contents are different for each index -->

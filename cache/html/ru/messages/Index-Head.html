@@ -1,0 +1,99 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+type      = The type of index that was asked for (='$type').
+            One of: '' outgoing, monitor, lasttime, prevtime, lastout, prevout,
+                    http, ftp, finger.
+subtype   = The hostname for the indexes of each protocol (='$subtype').
+            or the previous time number.
+sort      = The sort mode that was asked for (='$sort').
+            One of: none, mtime, atime, dated, alpha, type, random
+delete    = The choice of showing the delete option or not (='$delete').
+refresh   = The choice of showing the refresh option or not (='$refresh').
+monitor   = The choice of showing the monitor option or not (='$monitor').
+all       = The choice to show all pages or exclude those in the DontIndex section (='$all').
+config    = The choice to display the configuration editing page link (='$config').
+
+-->
+
+<HEAD>
+<meta http-equiv="Content-Type" content="text/html; charset=koi8-r">
+$type?       {}{<TITLE>WWWOFFLE Указатель - Главный указатель</TITLE>}
+$type?=outgoing{<TITLE>WWWOFFLE Указатель - Исходящие запросы</TITLE>}{}
+$type?=monitor {<TITLE>WWWOFFLE Указатель - Наблюдаемые страницы</TITLE>}{}
+$type?=lasttime{<TITLE>WWWOFFLE Указатель - Страницы, взятые в последний раз</TITLE>}{}
+$type?=prevtime{<TITLE>WWWOFFLE Указатель - Страницы предыдущих сеансов ($subtype)</TITLE>}{}
+$type?=lastout {<TITLE>WWWOFFLE Указатель - Исходящие запросы последнего раза</TITLE>}{}
+$type?=prevout {<TITLE>WWWOFFLE Указатель - Исходящие запросы предыдущих сеансов ($subtype)</TITLE>}{}
+$type?=http    {<TITLE>WWWOFFLE Указатель - $type://$subtype</TITLE>}{}
+$type?=ftp     {<TITLE>WWWOFFLE Указатель - $type://$subtype</TITLE>}{}
+$type?=finger  {<TITLE>WWWOFFLE Указатель - $type://$subtype</TITLE>}{}
+</HEAD>
+
+<BODY>
+
+$typesubtype=$type$subtype
+$type?=prevtime{$type=$type$subtype $subtype=}{}
+$type?=prevout{$type=$type$subtype $subtype=}{}
+$typesubtype?=http{$type=$type/}{}
+$typesubtype?=ftp{$type=$type/}{}
+$typesubtype?=finger{$type=$type/}{}
+$subtype?{$subtype=/$subtype}{}
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Указатель кеша</H1>
+
+<p align=center>
+$type?{[<a href="/index/?sort=none">Главный&nbsp;указатель</a>]}{[Главный&nbsp;указатель]}
+<br>
+$type?=outgoing{[Исходящее]}               {[<a href="/index/outgoing/?sort=$sort$delete$refresh$monitor$all$config">Исходящее</a>]}
+$type?=monitor {[Наблюдаемое]}             {[<a href="/index/monitor/?sort=$sort$delete$refresh$monitor$all$config">Наблюдаемое</a>]}
+$type?=lasttime{[Последний&nbsp;раз]}      {[<a href="/index/lasttime/?sort=$sort$delete$refresh$monitor$all$config">Последний&nbsp;раз</a>]}
+$type?=lastout {[Последнее&nbsp;исходящее]}{[<a href="/index/lastout/?sort=$sort$delete$refresh$monitor$all$config">Последнее&nbsp;исходящее</a>]}
+$type?=http/   {[http]}                    {[<a href="/index/http/?sort=$sort$delete$refresh$monitor$all$config">http</a>]}
+$type?=ftp/    {[ftp]}                     {[<a href="/index/ftp/?sort=$sort$delete$refresh$monitor$all$config">ftp</a>]}
+$type?=finger/ {[finger]}                  {[<a href="/index/finger/?sort=$sort$delete$refresh$monitor$all$config">finger</a>]}
+<br>
+$sort?=none  {[Не упорядочено]}        {[<a href="/index/$type$subtype?sort=none$delete$refresh$monitor$all$config">Не упорядочено</a>]}
+$sort?=mtime {[Время&nbsp;модификации]}{[<a href="/index/$type$subtype?sort=mtime$delete$refresh$monitor$all$config">Время&nbsp;модификации</a>]}
+$sort?=atime {[Время&nbsp;доступа]}    {[<a href="/index/$type$subtype?sort=atime$delete$refresh$monitor$all$config">Время&nbsp;доступа</a>]}
+$sort?=dated {[Дата&nbsp;изменения]}   {[<a href="/index/$type$subtype?sort=dated$delete$refresh$monitor$all$config">Дата&nbsp;изменения</a>]}
+$sort?=alpha {[По алфавиту]}           {[<a href="/index/$type$subtype?sort=alpha$delete$refresh$monitor$all$config">По алфавиту</a>]}
+$sort?=domain{[Доменное&nbsp;имя]}     {[<a href="/index/$type$subtype?sort=domain$delete$refresh$monitor$all$config">Доменное&nbsp;имя</a>]}
+$sort?=type  {[Тип&nbsp;файла]}        {[<a href="/index/$type$subtype?sort=type$delete$refresh$monitor$all$config">Тип&nbsp;файла</a>]}
+$sort?=random{[Random]}                {[<a href="/index/$type$subtype?sort=random$delete$refresh$monitor$all$config">Random</a>]}
+<br>
+$delete?
+{(<a href="/index/$type$subtype?sort=$sort$refresh$monitor$all$config">Без&nbsp;возможности&nbsp;удаления</a>)}
+{(<a href="/index/$type$subtype?sort=$sort;delete$refresh$monitor$all$config">Возможность&nbsp;удаления</a>)}
+$refresh?
+{(<a href="/index/$type$subtype?sort=$sort$delete$monitor$all$config">Без&nbsp;возможности&nbsp;обновления</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$delete;refresh$monitor$all$config">Возможность&nbsp;обновления</a>)}
+$monitor?
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$all$config">Без&nbsp;возможности&nbsp;наблюдения</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh;monitor$all$config">Возможность&nbsp;наблюдения</a>)}
+$all?
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$config">Скрыть&nbsp;Не_Индексируемые&nbsp;страницы</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor;all$config">Все&nbsp;страницы</a>)}
+$config?
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$all">No&nbsp;Config&nbsp;Options</a>)}
+{(<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$all;config">Config&nbsp;Options</a>)}
+</p>
+
+<hr width="50%">
+
+<!-- This is just the head of this file since the body is different for each index -->

@@ -1,0 +1,87 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+WWWOFFLE : Variables disponibles (mettre le prefixe '$').
+
+localhost = Le serveur sur lequel wwwoffled tourne (='$localhost').
+url       = L'URL demande; (='$url').
+cache     = Etiquette indiquant si la page est presente en cache ou sur le 
+            navigateur (='$cache').
+backup    = Etiquette indiquant s'il y a une copie de la page en cache (='$backup').
+reason    = Etiquette indiquant la cause (='$reason').
+            TimeoutReply    - Le serveur n'a pas lu la requete dans les temps.
+            TimeoutTransfer - Le serveur s'est bloque pendant le transfert.
+            ClientClose     - La connection a ete interrompue par le client.
+            ...             - Another reason.
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Erreur du Serveur Distant</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Erreur du serveur distant</H1>
+
+<p align=center>
+Votre requ&ecirc;te pour l'URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+a &eacute;chou&eacute; car
+
+<br>
+$reason?=TimeoutReply
+{le serveur distant n'a pas r&eacute;pondu dans les temps.
+$done="yes"}{}
+$reason?=TimeoutTransfer
+{le serveur distant n'a pas pu envoyer une partie des donn&eacute;es dans les temps
+$done="yes"}{}
+$reason?=CompressCorrupt
+{le serveur distant a enoy&eacute; des donn&eacute;es commpress&eacute;es, et la d&eacute;compression a &eacute;chou&eacute;.
+$done="yes"}{}
+$reason?=ClientClose
+{Le client (navigateur) a ferm&eacute; la connexion pendant le transfert
+$done="yes"}{}
+$done?{}{<b>$reason</b>}
+<br>
+</p>
+
+<p>
+$cache?
+{Ce message d'erreur a maintenant &eacute;t&eacute; retir&eacute; du cache.}
+{}
+
+<p>
+$backup?
+{Le rafra&icirc;chissement de cette page renverra la version pr&eacute;c&eacute;dente.}
+{Le rafra&icirc;chissement de cette page provoquera une nouvelle requ&ecirc;te.}
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Page d'accueil</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

@@ -1,0 +1,32 @@
+############################## -*- Mode: Sh -*- #############################
+## wwwoffle-find-rerequest-candidates -- Find all the URLs that had a
+## 503 WWWOFFLE Remote Host Error [Levis'503 blues] lasttime, etc. that we
+## might want to rerequest.
+## Copyright       : http://www.fsf.org/copyleft/gpl.html
+## Author          : Dan Jacobson -- http://jidanni.org/
+## Created On      : Fri Mar  8 05:42:23 2002
+## Last Modified By: root
+## Last Modified On: Thu Jun 13 09:27:12 2002
+## Update Count    : 12
+## Status          : look mom what I whipped up in 10 minutes
+###############################################################################
+: ${wwwoffle_cache=/var/spool/wwwoffle} #if not otherwise set by the user
+test -d $wwwoffle_cache||{
+    echo $0: $wwwoffle_cache: invalid wwwoffle_cache directory 1>&2
+    exit 24;}
+dir=${1-lasttime}
+cd $wwwoffle_cache/$dir||exit #at least root can go there, eh?
+wwwoffle-ls $dir|awk '
+{i++; dfile[i]=$1; durl[i]=$NF}
+END{for (i in dfile){
+	getline < dfile[i]; close (dfile[i])
+	if ($2 == 503) {print durl[i]} #503 probably not the only one...
+	}
+}'|sort|more
+#probably most of them you won't want to rerequest anyway, but for the
+#ones you do you do wwwoffle -F ...
+#Hmm, better yet: do these commands:
+# wwwoffle-find-rerequest-candidates|tee rereqlist
+# edit rereqlist #so only the ones you really want to reget remain
+# wget -i rereqlist; wget -i rereqlist; wget -i rereqlist
+#until they all become "404 will get"

@@ -1,0 +1,65 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+section   = The name of the section that has been updated (='$section').
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Configuration Update Page</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Configuration Update Page</H1>
+
+<p align=center>
+The <b><tt>$section</tt></b> section of the configuration file
+<b><tt>wwwoffle.conf</tt></b> has been updated.
+
+</p>
+
+<h2>Help</h2>
+
+Even though the section in the configuration file has been changed it will not
+be used by the <tt>wwwoffled</tt> program immediately.  The program must be
+restarted or the configuration file re-read by running <tt>wwwoffle</tt> or
+selecting the button below.
+
+<p align=center>
+<form action="/control/config" method=post>
+<input type="hidden" name=action value="config">
+<input type="submit" value="Config">
+Force <tt>wwwoffled</tt> to re-read the configuration file.
+</form>
+[<a href="/control/edit/">Configuration Edit page</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Welcome Page</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

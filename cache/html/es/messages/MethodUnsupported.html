@@ -1,0 +1,68 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+method    = The method specified in the HTTP request (='$method').
+protocol  = The protocol specified in the HTTP request or 'all' (='$protocol').
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Método No Soportado</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE - Método No soportado</H1>
+
+<p align=center>
+La petición al servidor <b>WWWOFFLE</b> usó
+el método
+<br>
+<b><tt>$method</tt></b>
+<br>
+$protocol?=all{
+que no está soportado por ningún protocolo.
+}
+{
+con el protocolo
+<br>
+<b><tt>$protocol</tt></b>
+<br>
+que no está soportado
+}
+</p>
+
+<h2>Help</h2>
+
+WWWOFFLE sólo puede procesar peticiones de protocolos y métodos HTTP que
+entienda.  WWWOFFLE maneja los protocolos de recogida de datos más comunes
+como HTTP y FTP así como los métodos GET y POST.
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Página de Bienvenida</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

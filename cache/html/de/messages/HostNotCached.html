@@ -1,0 +1,62 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Host wird nicht im Cache gespeichert</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Host wird nicht im Cache gespeichert</H1>
+
+<p align=center>
+Ihr Anfrage nach der URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+ist fehlgeschlagen, da die URL in der Liste der Hosts und Pfade ist, die
+nicht im Cache gespeichert werden und nicht offline angefragt werden k&ouml;nnen.
+</p>
+
+<h2>Hilfe</h2>
+
+Der WWWOFFLE-Proxy-Server wurde so konfiguriert, dass Anfragen nach dieser URL nicht im 
+Cache gespeichert werden und nur im Online-Betrieb zul&auml;ssig sind. Dies wird gesteuert
+durch den <tt>DontCache</tt>-Abschnitt der Konfigurationsdatei <tt>wwwoffle.conf</tt>
+Die Konfigurationsdatei enth&auml;lt Informationen dar&uuml;ber, wie Hosts, die nicht im Cache 
+gespeichert werden, angegeben werden k&ouml;nnen.
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Willkommensseite</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

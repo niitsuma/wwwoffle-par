@@ -1,0 +1,63 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+WWWOFFLE : Variables disponibles (mettre le prefixe '$').
+
+localhost = Le serveur sur lequel wwwoffled tourne (='$localhost').
+url       = Defini si on doit supprimer une page (='$url').
+mon       = Defini si on doit supprimer une page surveillee (='$mon').
+req       = Defini si on doit supprimer une requete en attente (='$req').
+path      = Set to the path that this request form is. (='$path').
+hash      = Set to the hash that this request included. (='$hash').
+
+-->
+
+<HEAD>
+$url?{<TITLE>WWWOFFLE - Suppression de Pages</TITLE>}{}
+$mon?{<TITLE>WWWOFFLE - Suppression de Pages Suivies</TITLE>}{}
+$req?{<TITLE>WWWOFFLE - Suppression de Requ&ecirc;tes en Attente</TITLE>}{}
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+$url?{<H1 align=center>WWWOFFLE - Suppression de Pages</H1>}{}
+$mon?{<H1 align=center>WWWOFFLE - Suppression de Pages Suivies</H1>}{}
+$req?{<H1 align=center>WWWOFFLE - Suppression de Requ&ecirc;tes en Attente</H1>}{}
+
+<p align=center>
+$url?{
+
+Votre requ&ecirc;te pour effacer des URL du cache a retourn&eacute; :
+
+}{}
+$mon?{
+Votre requ&ecirc;te pour effacer des URL &agrave; surveiller a retourn&eacute; :
+
+}{}
+$req?{
+
+Votre requ&ecirc;te pour effacer des requ&ecirc;tes mises en attente a retourn&eacute; :
+
+}{}
+
+</p>
+
+<p>
+<form action="$path" method="post">
+$hash?{<input type="hidden" name="hash" value="%encode[hash]">}{}
+
+<dl>
+
+<!-- This is just the head of this page since the body is generated separately -->

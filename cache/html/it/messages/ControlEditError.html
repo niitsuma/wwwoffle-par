@@ -1,0 +1,100 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+section   = The name of the section that has been updated (='$section').
+reason    = The reason that the update failed (='$reason')
+              ReadError  - The config file could not be read.
+              BadSection - The specified section does not exist.
+              BadBody    - The body of the request from the browser was invalid.
+              WriteError - The config file could not be written.
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Errore di Aggiornamento della Configurazione</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE Errore di Aggiornamento della Configurazione</H1>
+
+<p align=center>
+$reason?=ReadError{
+
+Impossibile aprire il file di configurazione <b><tt>wwwoffle.conf</tt></b> in lettura oppure errore di interpretazione in fase di lettura.
+
+}{}
+$reason?=BadSection{
+
+Non esiste una sezione chiamata <b><tt>$section</tt></b> nel file di configurazione 
+<b><tt>wwwoffle.conf</tt></b> da aggiornare.
+
+}{}
+$reason?=BadBody{
+
+Il corpo della richiesta &egrave; vuoto o non valido.
+
+}{}
+$reason?=WriteError{
+
+Impossibile aprire il file di configurazione <b><tt>wwwoffle.conf</tt></b> in scrittura.
+
+}{}
+</p>
+
+<h2>Aiuto</h2>
+
+$reason?=ReadError{
+
+Impossibile aprire il file di configurazione oppure pu&ograve; essere aperto ma il contenuto non pu&ograve; essere interpretato. Controlla che il file <tt>wwwoffle.conf</tt> che &egrave; stato usato per avviare il programma <tt>wwwoffled</tt> esista. Deve inoltre essere leggibile dall'utente per il quale &egrave; in esecuzione.
+
+}{}
+$reason?=BadSection{
+
+I moduli nella Pagina di Modifica del File di Configurazione sono gli unici che possono essere usati per aggiornare il file di configurazione. Ogni modulo in quella pagina permette di modificare una delle sezioni del file di configurazione. La richiesta inviata dal tuo browser non coincide con nessuna di queste sezioni. Assicurati di stare usando il modulo corretto per aggiornare l'informazione.
+
+}{}
+$reason?=BadBody{
+
+Il browser ha inviato una risposta non valida al modulo della Pagina di Modifica del File di Configurazione. Il browser ha inviato una risposta vuota invece dei dati richiesti, c'&egrave; stato un errore di rete nell'invio dei dati, oppure i dati inviati non erano validi. Prova a reinserire i dati nel modulo e a inviarli di nuovo.
+
+}{}
+$reason?=WriteError{
+
+Impossibile aprire il file di configurazione in scrittura. 
+Controlla che il file <tt>wwwoffle.conf</tt> che &egrave; stato usato per avviare il programma <tt>wwwoffled</tt> esista. Deve inoltre essere scrivibile dall'utente per il quale &egrave; in esecuzione.
+
+}{}
+
+<p align=center>
+[<a href="/control/edit/">Pagina di Modifica della Configurazione</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Pagina di Benvenuto</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

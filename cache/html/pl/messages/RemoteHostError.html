@@ -1,0 +1,103 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+cache     = A flag to indicate if the page is being written to the cache or browser (='$cache').
+backup    = A flag to indicate if there is a backup page in the cache (='$backup').
+reason    = A flag to indicate the reason (='$reason').
+            TimeoutReply    - The server timed out reading the reply.
+            TimeoutTransfer - The server timed out during the transfer.
+            ClientClose     - The connection was closed by the client.
+            ...             - Another reason.
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Błąd odległego serwera</TITLE>
+<META http-equiv="Content-Type" content="text/html; charset=ISO-8859-2">
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>E</b>ksplorator <b>Offl</b>ine <b>W</b>orld <b>W</b>ide<b>W</b>eb
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>WWWOFFLE: Bład odległego serwera</H1>
+
+<p align=center>
+Twoja prośba pobrania URL'a
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+nie powiodła się, ponieważ
+
+<br>
+$reason?=TimeoutReply
+{Odległemu serwerowi nie udało się przesłać odpowiedzi w okresie krótszym niż limit czasu odpowiedzi.
+$done="yes"}{}
+$reason?=TimeoutTransfer
+{Odległemu serwerowi nie udało się przesłać pewnych danych w okresie krótszym niż limit czasu transferu.
+$done="yes"}{}
+$reason?=CompressCorrupt
+{Odległy serwer przesłał dane skompresowane, które nie mogą być zdekompresowane.
+$done="yes"}{}
+$reason?=ClientClose
+{Klient (przeglądarka) zamknął połączenie podczas transferu.
+$done="yes"}{}
+$done?{}{<b>$reason</b>}
+<br>
+</p>
+
+<p>
+$cache?
+{Ten komunikat błędu został teraz usunięty z bufora.}
+{}
+
+<p>
+$backup?  
+{Przeładowanie tej strony przywróci poprzednią wersję jeśli nie jesteś połączony
+lub spróbuje pobrać stronę ponownie jeśli jesteś połączony.}
+{Przeładowanie tej strony spowoduje ponowne oznaczenie jej do pobrania.}
+
+<h2>Pomoc</h2>
+
+Serwer WWWOFFLE nie był zdolny zrealizować prośby pobrania tego URL'a ze względu
+na problem z pobraniem tej strony.  Przyczyną może być odległy serwer, który nie
+mógł przesłać odpowiedzi w ciągu określonego limitu czasu gniazdka lub odpowiedź
+została przerwana przez przekroczenie limitu czasu gniazdka na transfer
+danych. Inną prawdopodobną przyczyną tego komunikatu błędu może być zamknięcie
+połączenie przez przeglądarkę zamin cała strona została pobrana. Właściwa
+przyczyna w tym przypadku pokazana jest w powyższym komunikacie błędu.
+<br>
+Jeśli w buforze istnieje kopia zapasowa strony, to przeładowanie jej wyświetli
+tą kopię. Jeśli takiej kopii nie ma, to przeładowanie ponownie oznaczy tą stronę
+do pobrania.
+
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Strona Powitalna</a>|<a href="http://$localhost/FAQ.html">Pytania i Odpowiedzi</a>] - WWWOFFLE
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>

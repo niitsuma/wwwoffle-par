@@ -1,0 +1,28 @@
+
+<!-- The following section added by WWWOFFLE -->
+<!--
+
+$unit?=m{$unitstr=min}{}
+$unit?=h{$unitstr=hour}{}
+$unit?=d{$unitstr=day}{}
+$unit?=w{$unitstr=week}{}
+$unit?=M{$unitstr=month}{}
+$time?=1{}{$s=s $unitstr=$unitstr$s}
+$encurl=%encode[url]
+
+Useful WWWOFFLE Buttons
+
+$Delete  = http://$localhost/control/delete-url/?url=$encurl
+$Refresh = http://$localhost/refresh/?$encurl
+$Options = http://$localhost/refresh-options/?$encurl
+$Monitor = http://$localhost/monitor-options/?$encurl
+$Index   = http://$localhost/index/url/?$encurl
+$Config  = http://$localhost/configuration/url?url=$encurl
+
+-->
+<hr>
+<p align=center>
+WWWOFFLE - $date ($time $unitstr ago) - [<a href="$Delete">Elimina</a>|<a href="$Refresh">Aggiorna</a>|<a href="$Options">Opzioni</a>|<a href="$Monitor">Controlla</a>|<a href="$Index">Indice</a>|<a href="$Config">Configure</a>] - WWWOFFLE
+</p>
+<hr>
+<!-- The previous section added by WWWOFFLE -->

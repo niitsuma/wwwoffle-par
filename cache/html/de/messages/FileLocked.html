@@ -1,0 +1,79 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+
+<!--
+
+Available WWWOFFLE Variables (all with a '$' prefix).
+
+localhost = The hostname of the server running wwwoffled (='$localhost').
+url       = The URL that was asked for (='$url').
+
+$decurl=%decode[url]
+
+-->
+
+<HEAD>
+<TITLE>WWWOFFLE - Datei gesperrt</TITLE>
+</HEAD>
+
+<BODY>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<p align=center>
+<b>WWWOFFLE</b> - <b>W</b>orld <b>W</b>ide <b>W</b>eb <b>Offl</b>ine <b>E</b>xplorer
+</p>
+
+<hr>
+
+<!-- Standard WWWOFFLE Message Page Top Banner -->
+
+<H1 align=center>Datei gesperrt</H1>
+
+<p align=center>
+Die URL
+<br>
+<b><tt>$decurl</tt></b>
+<br>
+wird gerade von einem anderen WWWOFFLE-Prozess abgerufen/bearbeitet.
+</p>
+
+<h2>Hilfe</h2>
+
+Ihre Anfrage wird von einem anderen Prozess bearbeitet und daher kann darauf
+momentan nicht zugegriffen werden. Wenn Sie diese Seite neu laden, wird
+WWWOFFLE auf die Beendigung des anderen Prozesses warten und Ihnen die
+fertige Seite pr&auml;sentieren.<p>
+
+<b>Details:</b>
+Um sicherzustellen, da&szlig; immer nur ein Prozess eine Datei bearbeitet,
+benutzt WWWOFFLE 'Lock-Dateien'. Diese Dateien existieren, solange eine
+Bearbeitung stattfindet, und werden danach gel&ouml;scht. W&auml;hrend dieser
+Bearbeitung ist die bearbeitete URL noch nicht g&uuml;ltig und kann noch nicht
+abgerufen werden.<p>
+
+<b>Falls Sie diese Fehlermeldung st&auml;ndig sehen</b> (und sich sicher sind,
+da&szlig; Sie nicht einfach sehr langsame Webserver besucht haben), ist es
+m&ouml;glich da&szlig; ein WWWOFFLE Prozess sich nicht korrekt beendet hat und die
+Lock-Datei nicht gel&ouml;scht wurde, obwohl die Bearbeitung l&auml;ngst beendet
+wurde. Daher ist es sehr wichtig, da&szlig; Sie die WWWOFFLE-Prozese niemals
+manuell 't&ouml;ten' oder den Rechner ausschalten, ohne WWWOFFLE
+herunterzufahren (ein normales Herunterfahren sollte dem allerdings
+gen&uuml;gen).<p>
+
+Um eventuell &uuml;berfl&uuml;ssig gewordene Lock-Dateien zu entfernen, ist es n&ouml;tig
+den Cache aufzur&auml;umen (purge).
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+<hr>
+
+<p align=center>
+[<a href="http://$localhost/Welcome.html">Willkommensseite</a>|<a href="http://$localhost/FAQ.html">FAQ</a>]
+</p>
+
+<!-- Standard WWWOFFLE Message Page Bottom Buttons -->
+
+</BODY>
+
+</HTML>
