@@ -1,10 +1,10 @@
-	  Alternative WWWOFFLE implementation - version 2.8d-par
+	  Alternative WWWOFFLE implementation - version 2.8d-par-3
                              by Paul Rombouts
-	  ======================================================
+	  ========================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
 am making available so other people can run it and/or study the source code.
-Present version is 2.8d-par (I've simply appended my initials to the version
+Present version is 2.8d-par-3 (I've simply appended my initials to the version
 number). The first part of this file describes how to patch, compile, install
 and run wwwoffled. The second part lists in more detail the changes I've made to
 AMB's code.
@@ -15,7 +15,7 @@ wwwoffled-2.8d-par.diff.gz. Use a freshly untarred copy of Andrew Bishop's
 original version 2.8d source, cd into the source directory wwwoffle-2.8d and
 apply the command:
 
-gzip -cd <path_to_patch>/wwwoffle-2.8d-par.diff.gz | patch -p2 -N -E
+gzip -cd <path_to_patch>/wwwoffle-2.8d-par-3.diff.gz | patch -p2 -N -E
 
 Note: because I have used GNU extensions you will need to compile with gcc and
 link with glibc. This will not be a problem with most Linux distributions.
@@ -48,6 +48,17 @@ will not display correctly.
 
 
 I've introduced a few extensions to the way WWWOFFLE can be configured:
+
+- New in version 2.8d-3: I've added a new option to the ModifyHTML section
+  called replacement-meta-refresh-time. If this is set to a non-negative value,
+  the delay time in the meta refresh tag will replaced with this value.
+  The default is -1, which means the meta tag will be removed as in the standard
+  version of WWWOFFLE.
+  I find this option useful to avoid certain interstitial ads, which use a meta
+  refresh tag to automatically direct the browser to the page with the actual
+  content after a certain delay. I use this option to set the delay time to 0,
+  which means I get to see the page I am actually interested in without any
+  delay.
 
 - New in version 2.8d: I've added support for connecting via SOCKS v4 proxies.
   I personally use this feature with OpenSSH as the SOCKS server.
@@ -125,9 +136,7 @@ I've introduced a few extensions to the way WWWOFFLE can be configured:
 - I've expanded the set of values the option request-compression is allowed to
   take to include "gzip" and "deflate". This allows you to fine-tune the type of
   compression WWWOFFLE asks for in case there are problems with a particular
-  method of compression. For the time being it is probably best to set this
-  option to gzip (this emulates the present standard behavior of WWWOFFLE
-  versions 2.7d - 2.7h).
+  method of compression.
 
 
 The rest of this file lists in some detail some other modifications I've made,

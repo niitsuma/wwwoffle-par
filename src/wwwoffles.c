@@ -2170,7 +2170,7 @@ passwordagain:
     if(mode==Real && !head_only &&
        !is_client_wwwoffle &&
        !is_client_searcher &&
-       ConfigBooleanURL(EnableHTMLModifications,Url) &&
+       /* ConfigBooleanURL(EnableHTMLModifications,Url) && */
        !GetHeader2(request_head,"Cache-Control","no-transform"))
       {
        char *content_encoding;
@@ -2292,6 +2292,7 @@ passwordagain:
 
 	  n=modify_n;
 	  err=modify_err;
+	  if(modify_copy_fd==-1) spool_err=-1;
 	}
       else
 	for(;;)
@@ -2673,7 +2674,7 @@ passwordagain:
        if(!head_only &&
 	  !is_client_wwwoffle &&
           !is_client_searcher &&
-          ConfigBooleanURL(EnableHTMLModifications,Url) &&
+          /* ConfigBooleanURL(EnableHTMLModifications,Url) && */
           !GetHeader2(request_head,"Cache-Control","no-transform"))
          {
           char *content_encoding;

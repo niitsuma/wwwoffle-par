@@ -278,11 +278,14 @@ extern /*@null@*/ ConfigItem DisableHTMLMarquee;
 /*+ The option to disable Shockwave Flash animations. +*/
 extern /*@null@*/ ConfigItem DisableHTMLFlash;
 
-/*+ The option to disable any <meta http-equiv=Refresh content=""> tags. +*/
+/*+ The option to disable (or modify) any <meta http-equiv=Refresh content=""> tags. +*/
 extern /*@null@*/ ConfigItem DisableHTMLMetaRefresh;
 
 /*+ The option to disable any <meta http-equiv=Refresh content=""> tags that refer to the same URL. +*/
 extern /*@null@*/ ConfigItem DisableHTMLMetaRefreshSelf;
+
+/*+ The time to use as a replacement for the refresh time. +*/
+extern ConfigItem ReplacementHTMLMetaRefreshTime;
 
 /*+ The option to disable any <meta http-equiv=Set-Cookie content=""> tags. +*/
 extern /*@null@*/ ConfigItem DisableHTMLMetaSetCookie;

@@ -381,11 +381,14 @@ ConfigItem DisableHTMLMarquee;
 /*+ The option to disable Shockwave Flash animations. +*/
 ConfigItem DisableHTMLFlash;
 
-/*+ The option to disable any <meta http-equiv=Refresh content=""> tags. +*/
+/*+ The option to disable (or modify) any <meta http-equiv=Refresh content=""> tags. +*/
 ConfigItem DisableHTMLMetaRefresh;
 
 /*+ The option to disable any <meta http-equiv=Refresh content=""> tags that refer to the same URL. +*/
 ConfigItem DisableHTMLMetaRefreshSelf;
+
+/*+ The time to use as a replacement for the refresh time. +*/
+ConfigItem ReplacementHTMLMetaRefreshTime;
 
 /*+ The option to disable any <meta http-equiv=Set-Cookie content=""> tags. +*/
 ConfigItem DisableHTMLMetaSetCookie;
@@ -435,6 +438,7 @@ static ConfigItemDef modifyhtml_itemdefs[]={
  {"disable-flash"            ,&DisableHTMLFlash           ,1,0,Fixed,Boolean,"no"},
  {"disable-meta-refresh"     ,&DisableHTMLMetaRefresh     ,1,0,Fixed,Boolean,"no"},
  {"disable-meta-refresh-self",&DisableHTMLMetaRefreshSelf ,1,0,Fixed,Boolean,"no"},
+ {"replacement-meta-refresh-time",&ReplacementHTMLMetaRefreshTime,1,0,Fixed,TimeSecs,"-1"},
  {"disable-meta-set-cookie"  ,&DisableHTMLMetaSetCookie   ,1,0,Fixed,Boolean,"no"},
  {"disable-dontget-links"    ,&DisableHTMLDontGetAnchors  ,1,0,Fixed,Boolean,"no"},
  {"disable-dontget-iframes"  ,&DisableHTMLDontGetIFrames  ,1,0,Fixed,Boolean,"no"},

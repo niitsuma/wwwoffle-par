@@ -552,59 +552,56 @@ static void handle_link_tag(Tag *tag,int fetch_icon_images)
 static void handle_meta_tag(Tag *tag)
 {
  int i;
- int is_meta_http_equiv_refresh=0;
 
  for(i=0;i<tag->nattr;i++)
     if(tag->attr_type[i]==att_http_equiv && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"Refresh"))
-       is_meta_http_equiv_refresh=1;
+       goto found_refresh;
 
- if(is_meta_http_equiv_refresh)
-    for(i=0;i<tag->nattr;i++)
-       if(tag->attr_type[i]==att_content && tag->attr_val[i] && tag->attr_val[i][0])
-         {
-          char *p;
+ return;
 
-          /* ' *[0-9].?[0-9]* *[;,] *(URL *= *|)http://...' */
+found_refresh:
+ for(i=0;i<tag->nattr;i++)
+   if(tag->attr_type[i]==att_content && tag->attr_val[i] && tag->attr_val[i][0])
+     goto found_content;
 
-          p=tag->attr_val[i];
-          while(isspace(*p)) p++;
-          if(!isdigit(*p))
-             ; /* unparseable */
-          else
-            {
-             while(isdigit(*p)) p++;
-             if(*p=='.')
-               {p++; while(isdigit(*p)) p++;}
-             while(isspace(*p)) p++;
-             if(!*p)
-                ; /* refers to self */
-             else if(*p!=';' && *p!=',')
-                ; /* unparseable */
-             else
-               {
-                p++;
-                while(isspace(*p)) p++;
-                if(!strcasecmp_litbeg(p,"URL"))
-                  {
-                   p+=3;
-                   while(isspace(*p)) p++;
-                   if(*p!='=')
-                      ; /* unparseable */
-                   else
-                     {
-                      p++;
-                      while(isspace(*p)) p++;
-                     }
-                   if(!*p)
-                      ; /* unparseable */
-                   else
-                     {
-                      meta_refresh=strdup(p);
-                     }
-                  }
-               }
-            }
-         }
+ return;
+
+found_content:
+ {
+   char *p=tag->attr_val[i];
+
+   /* ' *[0-9].?[0-9]* *[;,] *(URL *= *|)http://...' */
+
+   while(isspace(*p)) p++;
+   if(isdigit(*p))
+     {
+       while(isdigit(*++p));
+       if(*p=='.')
+	 {while(isdigit(*++p));}
+       while(isspace(*p)) p++;
+       if(*p==';' || *p==',')
+	 {
+	   while(isspace(*++p));
+	   if(!strcasecmp_litbeg(p,"URL"))
+	     {
+	       char *q=p;
+	       p+=3;
+	       while(isspace(*p)) p++;
+	       if(*p=='=')
+		 {
+		   while(isspace(*++p));
+		 }
+	       else
+		 p=q;
+	     }
+	   if(*p)
+	     {
+	       if(meta_refresh) free(meta_refresh);
+	       meta_refresh=strdup(p);
+	     }
+	 }
+     }
+ }
 }
 
 

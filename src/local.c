@@ -215,7 +215,7 @@ int LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
 
  if(!found)
    {
-    PrintMessage(Warning,"Cannot find a local URL '%s'.",Url->path);
+    PrintMessage(Inform,"Cannot find a local URL '%s'.",Url->path);
     HTMLMessage(fd,404,"WWWOFFLE Page Not Found",NULL,"PageNotFound",
                 "url",Url->path,
                 NULL);
