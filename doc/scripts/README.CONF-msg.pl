@@ -4,7 +4,7 @@
 #
 # Copyright Andrew M. Bishop 1996.97,98,2001.
 #
-# $Header: /home/amb/wwwoffle/doc/scripts/RCS/README.CONF-msg.pl 1.3 2001/09/08 15:44:09 amb Exp $
+# $Header: /home/amb/wwwoffle/doc/scripts/RCS/README.CONF-msg.pl 1.4 2002/09/19 18:14:51 amb Exp $
 #
 # Usage: README.CONF-msg.pl < README.CONF > messages/README.CONF.txt
 #
@@ -31,6 +31,13 @@ while(<STDIN>)
    s/&/&amp;/g;
    s/</&lt;/g;
    s/>/&gt;/g;
+   s/ä/&auml;/g;
+   s/ö/&ouml;/g;
+   s/ü/&uuml;/g;
+   s/Ä/&Auml;/g;
+   s/Ö/&Ouml;/g;
+   s/Ü/&Uuml;/g;
+   s/ß/&szlig;/g;
 
 # Separator
 

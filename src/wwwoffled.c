@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffled.c 2.56 2002/08/11 09:38:19 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffled.c 2.57 2002/09/12 18:10:03 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7f.
   A demon program to maintain the database and spawn the servers.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -440,27 +440,32 @@ int main(int argc, char** argv)
              client=AcceptConnect(wwwoffle_fd[nfd]);
              init_buffer(client);
 
-             if(client>=0 && !SocketRemoteName(client,&host,&ip,&port))
+             if(client>=0)
                {
-                char *canonical_ip=CanonicaliseHost(ip);
-
-                if(IsAllowedConnectHost(host) || IsAllowedConnectHost(canonical_ip))
-                  {
-                   PrintMessage(Important,"WWWOFFLE Connection from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
-
-                   CommandConnect(client);
-
-                   if(fetch_fd!=client)
-                      CloseSocket(client);
-                  }
+                if(SocketRemoteName(client,&host,&ip,&port))
+                   CloseSocket(client);
                 else
                   {
-                   PrintMessage(Warning,"WWWOFFLE Connection rejected from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
-                   CloseSocket(client);
-                  }
+                   char *canonical_ip=CanonicaliseHost(ip);
 
-                if(canonical_ip!=ip)
-                   free(canonical_ip);
+                   if(IsAllowedConnectHost(host) || IsAllowedConnectHost(canonical_ip))
+                     {
+                      PrintMessage(Important,"WWWOFFLE Connection from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
+
+                      CommandConnect(client);
+
+                      if(fetch_fd!=client)
+                         CloseSocket(client);
+                     }
+                   else
+                     {
+                      PrintMessage(Warning,"WWWOFFLE Connection rejected from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
+                      CloseSocket(client);
+                     }
+
+                   if(canonical_ip!=ip)
+                      free(canonical_ip);
+                  }
                }
             }
 
@@ -472,30 +477,33 @@ int main(int argc, char** argv)
              client=AcceptConnect(http_fd[nfd]);
              init_buffer(client);
 
-             if(client>=0 && !SocketRemoteName(client,&host,&ip,&port))
+             if(client>=0)
                {
-                char *canonical_ip=CanonicaliseHost(ip);
-
-                if(IsAllowedConnectHost(host) || IsAllowedConnectHost(canonical_ip))
+                if(!SocketRemoteName(client,&host,&ip,&port))
                   {
-                   PrintMessage(Inform,"HTTP Proxy connection from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
+                   char *canonical_ip=CanonicaliseHost(ip);
 
-                   client_hostname=host;
-                   client_ip=canonical_ip;
+                   if(IsAllowedConnectHost(host) || IsAllowedConnectHost(canonical_ip))
+                     {
+                      PrintMessage(Inform,"HTTP Proxy connection from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
 
-                   ForkServer(client,1);
+                      client_hostname=host;
+                      client_ip=canonical_ip;
+
+                      ForkServer(client,1);
+                     }
+                   else
+                      PrintMessage(Warning,"HTTP Proxy connection rejected from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
+
+                   if(canonical_ip!=ip)
+                      free(canonical_ip);
                   }
-                else
-                   PrintMessage(Warning,"HTTP Proxy connection rejected from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
 
                 if(nofork)
                    closedown=1;
 
                 if(!nofork)
                    CloseSocket(client);
-
-                if(canonical_ip!=ip)
-                   free(canonical_ip);
                }
             }
 #if USE_IPV6

@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/io.c 2.28 2002/08/03 16:34:14 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/io.c 2.29 2002/09/12 18:16:24 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7f.
   Functions for file input and output.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -80,6 +80,8 @@ typedef struct _zdata
  int doing_head;                /*+ A flag to indicate that we are doing a gzip head. +*/
  int head_extra_len;            /*+ A gzip header extra field length. +*/
  int head_flag;                 /*+ A flag to store the gzip header flag. +*/
+
+ int doing_body;                /*+ A flag to indicate that we are doing a gzip body. +*/
 
  int doing_tail;                /*+ A flag to indicate that we are doing a gzip tail. +*/
  unsigned long tail_crc;        /*+ The crc value stored in the gzip tail. +*/
@@ -292,7 +294,7 @@ repeat:
  if(fdzlib[fd])
    {
     nr=read_uncompressing(fd,buffer,n);
-    if(nr==0 && (fdzlib[fd]->doing_head || fdzlib[fd]->doing_tail))
+    if(nr==0 && (fdzlib[fd]->doing_head || fdzlib[fd]->doing_body || fdzlib[fd]->doing_tail))
        goto repeat;
    }
  else
@@ -342,7 +344,7 @@ repeat:
     if(fdzlib[fd])
       {
        nr=read_uncompressing(fd,buffer,n);
-       if(nr==0 && (fdzlib[fd]->doing_head || fdzlib[fd]->doing_tail))
+       if(nr==0 && (fdzlib[fd]->doing_head || fdzlib[fd]->doing_body || fdzlib[fd]->doing_tail))
           goto repeat;
       }
     else
@@ -379,7 +381,7 @@ repeat:
     if(fdzlib[fd])
       {
        nr=read_uncompressing(fd,buffer,n);
-       if(nr==0 && (fdzlib[fd]->doing_head || fdzlib[fd]->doing_tail))
+       if(nr==0 && (fdzlib[fd]->doing_head || fdzlib[fd]->doing_body || fdzlib[fd]->doing_tail))
           goto repeat;
       }
     else
@@ -815,7 +817,15 @@ int init_zlib_buffer(int fd,int direction)
        fdzlib[fd]->crc=crc32(0L,Z_NULL,0);
 
        fdzlib[fd]->doing_head=1;
+       fdzlib[fd]->doing_body=0;
       }
+    else
+      {
+       fdzlib[fd]->doing_head=0;
+       fdzlib[fd]->doing_body=1;
+      }
+
+    fdzlib[fd]->doing_tail=0;
    }
  else if(direction<0)
    {
@@ -990,7 +1000,10 @@ static int read_uncompressing_from_buffer(int fd,char *buffer,int n)
     fdzlib[fd]->crc=crc32(fdzlib[fd]->crc,buffer,n-fdzlib[fd]->stream.avail_out);
 
     if(z_errno==Z_STREAM_END)
+      {
+       fdzlib[fd]->doing_body=0;
        fdzlib[fd]->doing_tail=1;
+      }
    }
 
  n-=fdzlib[fd]->stream.avail_out;
@@ -1023,6 +1036,9 @@ static int read_uncompressing(int fd,char *buffer,int n)
  if(fdzlib[fd]->doing_head && nr==0)
     fdzlib[fd]->doing_head=0;
 
+ if(fdzlib[fd]->doing_body && nr==0)
+    fdzlib[fd]->doing_body=0;
+
  if(nr<=0)
     return(nr);
 
@@ -1041,6 +1057,7 @@ static int read_uncompressing(int fd,char *buffer,int n)
       }
 
     fdzlib[fd]->doing_head=0;
+    fdzlib[fd]->doing_body=1;
    }
  else if(fdzlib[fd]->doing_tail)
    {
@@ -1071,7 +1088,10 @@ static int read_uncompressing(int fd,char *buffer,int n)
     fdzlib[fd]->crc=crc32(fdzlib[fd]->crc,buffer,n-fdzlib[fd]->stream.avail_out);
 
     if(z_errno==Z_STREAM_END)
+      {
+       fdzlib[fd]->doing_body=0;
        fdzlib[fd]->doing_tail=1;
+      }
    }
 
  /* Put the remaining bytes into fdbuf for later. */
@@ -1221,6 +1241,7 @@ static int parse_gzip_head(int fd,char *buffer,int n)
       case 0:                   /* never happens */
        n=0;
        fdzlib[fd]->doing_head=0;
+       fdzlib[fd]->doing_body=1;
        break;
       }
    }

@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffles.c 2.215 2002/08/31 10:26:44 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffles.c 2.216 2002/09/28 07:45:46 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7f.
   A server to fetch the required pages.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -1584,7 +1584,7 @@ passwordagain:
  /*----------------------------------------
    mode = Spool, SpoolGet, SpoolPragma, SpoolRefresh, Real, RealRefresh, RealNoCache or Fetch
 
-   Check the reply from the server or from teh cache.
+   Check the reply from the server or from the cache.
    ----------------------------------------*/
 
  /* Read the reply from the server. */
@@ -1836,18 +1836,26 @@ passwordagain:
     /* Check if the HTML modifications are to be performed. */
 
     if(mode==Real &&
+       !is_client_wwwoffle &&
+       !is_client_searcher &&
        ConfigBooleanURL(EnableHTMLModifications,Url) &&
        ConfigBooleanURL(EnableModificationsOnline,Url) &&
-       !GetHeader2(request_head,"Cache-Control","no-transform") &&
-       !is_client_wwwoffle &&
-       !is_client_searcher)
+       !GetHeader2(request_head,"Cache-Control","no-transform"))
       {
+       char *content_encoding;
+
        if(ConfigBooleanURL(EnableHTMLModifications,Url) &&
           GetHeader2(reply_head,"Content-Type","text/html"))
           modify=1;
        else if(ConfigBooleanURL(DisableAnimatedGIF,Url) &&
                GetHeader2(reply_head,"Content-Type","image/gif"))
           modify=2;
+
+       /* If the reply uses compression and we are modifying the content then don't (shouldn't happen). */
+
+       if(modify && (content_encoding=GetHeader(reply_head,"Content-Encoding")))
+          if(WhichCompression(content_encoding))
+             modify=0;
       }
 
     /* Generate the header. */
@@ -2211,17 +2219,25 @@ passwordagain:
 
        /* Decide if we need to modify the content. */
 
-       if(ConfigBooleanURL(EnableHTMLModifications,Url) &&
-          !GetHeader2(request_head,"Cache-Control","no-transform") &&
-          !is_client_wwwoffle &&
-          !is_client_searcher)
+       if(!is_client_wwwoffle &&
+          !is_client_searcher &&
+          ConfigBooleanURL(EnableHTMLModifications,Url) &&
+          !GetHeader2(request_head,"Cache-Control","no-transform"))
          {
+          char *content_encoding;
+
           if(ConfigBooleanURL(EnableHTMLModifications,Url) &&
              GetHeader2(reply_head,"Content-Type","text/html"))
              modify=1;
           else if(ConfigBooleanURL(DisableAnimatedGIF,Url) &&
                   GetHeader2(reply_head,"Content-Type","image/gif"))
              modify=2;
+
+          /* If the spooled page uses compression and we are modifying the content then don't (e.g. very old WWWOFFLE cache). */
+
+          if(modify && (content_encoding=GetHeader(reply_head,"Content-Encoding")))
+             if(WhichCompression(content_encoding))
+                modify=0;
          }
       }
     else

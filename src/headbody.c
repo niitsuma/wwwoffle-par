@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/headbody.c 1.16 2002/08/10 13:48:25 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/headbody.c 1.18 2002/09/27 18:00:19 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7f.
   Header and Body handling functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -167,10 +167,10 @@ void AddToHeader(Header *head,char *key,char *val)
     int i,match=-1;
 
     for(i=0;i<head->n;i++)
-       if(!strcmp(head->key[i],key))
+       if(!strcasecmp(head->key[i],key))
           match=i;
 
-    if(match!=-1)
+    if(match!=-1 && strcasecmp(key,"Set-Cookie") && strcasecmp(key,"Content-Type"))
       {
        /* Concatenate this value with an existing key. */
 
@@ -550,60 +550,7 @@ char *HeaderString(Header *head)
    {
     strcpy(p,head->key[i]); p+=strlen(head->key[i]);
     strcpy(p,": ");         p+=2;
-
-    /*
-       Cookies are a big problem here since none of the browsers handle them
-       like the RFCs say they should.  In particular browsers don't handle
-       servers that set more then one cookie on the same line.
-
-       See RFC 2109 "HTTP State Management Mechanism" section 4.2.1
-       and RFC 2616 "Hypertext Transfer Protocol -- HTTP/1.1" section 4.2
-
-       Even worse is that multiple headers on a line are separated by a ','
-       and cookies can contain an expires value that has a fixed format like
-       'expires=Wdy, DD-Mon-YY HH:MM:SS GMT' and contains an embedded ','!
-     */
-
-    if(!strcasecmp(head->key[i],"Set-Cookie"))
-      {
-       char **list=split_header_list(head->val[i]),**l;
-       int nlist=0;
-
-       for(l=list;**l;l++)
-         {
-          char *lp=*l;
-
-          if(nlist++)
-            {
-             int offset=p-str;
-             str=(char*)realloc((void*)str,head->size+16+nlist*(strlen(head->key[i])+4));
-             p=str+offset;
-            }
-
-          while(*lp && *lp!=',')
-             *p++=*lp++;
-          *p=0;
-          if(**(l+1) && lp>(*l+10) && strstr(p-16,"expires="))
-            {
-             *p++=',';
-             *p++=' ';
-             l++;
-             lp=*l;
-             while(*lp && *lp!=',')
-                *p++=*lp++;
-            }
-
-          while(isspace(*(p-1)))
-             *--p=0;
-         }
-
-       free(list);
-      }
-    else
-      {
-       strcpy(p,head->val[i]); p+=strlen(head->val[i]);
-      }
-
+    strcpy(p,head->val[i]); p+=strlen(head->val[i]);
     strcpy(p,"\r\n");       p+=2;
    }
 
