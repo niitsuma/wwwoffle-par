@@ -212,7 +212,7 @@ int AcceptConnect(int socket)
 
   int socket Specifies the socket to check.
 
-  char **name Returns the hostname.
+  char **name Returns the hostname or NULL if failed to get hostname.
 
   char **ipname Returns the hostname as an IP address.
 
@@ -224,29 +224,36 @@ int SocketRemoteName(int socket,char **name,char **ipname,int *port)
  struct sockaddr_in server;
  int length=sizeof(server),retval;
  static char host[MAXHOSTNAMELEN],ip[16];
- struct hostent* hp=NULL;
 
  retval=getpeername(socket,(struct sockaddr*)&server,&length);
  if(retval==-1)
     PrintMessage(Warning,"Failed to get socket peer name [%!s].");
  else
    {
-    hp=gethostbyaddr_or_timeout((char*)&server.sin_addr,sizeof(server.sin_addr),AF_INET);
-    if(hp)
-       strcpy(host,hp->h_name);
-    else
-       strcpy(host,inet_ntoa(server.sin_addr));
-
     strcpy(ip,inet_ntoa(server.sin_addr));
 
     if(name)
-       *name=host;
+      {
 #ifdef __CYGWIN__
-    if(!strcmp(ip,"127.0.0.1"))
-       *name="localhost";
+      if(!strcmp(ip,"127.0.0.1"))
+	*name="localhost";
+      else
 #endif
+	{
+	  struct hostent* hp=gethostbyaddr_or_timeout((char*)&server.sin_addr,sizeof(server.sin_addr),AF_INET);
+	  if(hp)
+	    {
+	      strcpy(host,hp->h_name);
+	      *name=host;
+	    }
+	  else
+	    *name=NULL;
+	}
+      }
+
     if(ipname)
        *ipname=ip;
+
     if(port)
        *port=ntohs(server.sin_port);
    }

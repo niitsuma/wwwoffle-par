@@ -24,6 +24,7 @@
 #include "errors.h"
 #include "proto.h"
 #include "misc.h"
+#include "headbody.h"
 #include "config.h"
 
 
@@ -146,21 +147,18 @@ static char *GetMIMEType(int fd)
 
  /* Get the header and examine it. */
 
- ParseReply(fd,&doc_header);
+ ParseReply(fd,&doc_header,NULL);
 
  contenttype=GetHeader(doc_header,"Content-Type");
 
  if(contenttype)
    {
-    char *p;
+    char *p=contenttype;
 
-    mimetype=(char*)malloc(strlen(contenttype)+1);
-    strcpy(mimetype,contenttype);
-
-    p=mimetype;
     while(*p && !isspace(*p) && *p!=';')
        p++;
-    *p=0;
+
+    mimetype=strndup(contenttype,p-contenttype);
    }
 
  FreeHeader(doc_header);
@@ -228,8 +226,7 @@ void AddReference(char* name,RefType type)
 
     if(name)
       {
-       references[type][nreferences[type]]=(char*)malloc(strlen(name)+1);
-       strcpy(references[type][nreferences[type]],name);
+       references[type][nreferences[type]]=strdup(name);
       }
     else
        references[type][nreferences[type]]=NULL;

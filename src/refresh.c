@@ -24,6 +24,7 @@
 #include "wwwoffle.h"
 #include "document.h"
 #include "misc.h"
+#include "headbody.h"
 #include "config.h"
 #include "sockets.h"
 #include "errors.h"
@@ -81,15 +82,13 @@ char *RefreshPage(int fd,URL *Url,Body *request_body,int *recurse)
    }
  else if(!strcmp("/refresh/",Url->path) && url)
    {
-    newurl=(char*)malloc(strlen(url)+1);
-    strcpy(newurl,url);
+    newurl=strdup(url);
    }
  else if(!strcmp("/refresh-recurse/",Url->path) && Url->args)
    {
     *recurse=1;
     ParseRecurseOptions(Url->args);
-    newurl=(char*)malloc(strlen(recurse_url)+1);
-    strcpy(newurl,recurse_url);
+    newurl=strdup(recurse_url);
    }
  else
     HTMLMessage(fd,404,"WWWOFFLE Illegal Refresh Page",NULL,"RefreshIllegal",
@@ -118,7 +117,7 @@ char *RefreshPage(int fd,URL *Url,Body *request_body,int *recurse)
 static char *RefreshFormParse(int fd,char *request_args,Body *request_body)
 {
  int i;
- char **args,*url=NULL,*limit="",*depth="0",*method=NULL,*force="";
+ char **args,*url=NULL,*limit=NULL,*depth="0",*method=NULL,*force="";
  char *stylesheets="",*images="",*frames="",*scripts="",*objects="";
  URL *Url;
  char *new_url;
@@ -142,24 +141,24 @@ static char *RefreshFormParse(int fd,char *request_args,Body *request_body)
 
  for(i=0;args[i];i++)
    {
-    if(!strncmp("url=",args[i],4))
-       url=args[i]+4;
-    if(!strncmp("depth=",args[i],6))
-       depth=args[i]+6;
-    if(!strncmp("method=",args[i],7))
-       method=args[i]+7;
-    if(!strncmp("force=",args[i],6))
-       force=args[i]+6;
-    if(!strncmp("stylesheets=",args[i],12))
-       stylesheets=args[i]+12;
-    if(!strncmp("images=",args[i],7))
-       images=args[i]+7;
-    if(!strncmp("frames=",args[i],7))
-       frames=args[i]+7;
-    if(!strncmp("scripts=",args[i],8))
-       scripts=args[i]+8;
-    if(!strncmp("objects=",args[i],8))
-       objects=args[i]+8;
+    if(!strcmp_litbeg(args[i],"url="))
+       url=args[i]+strlitlen("url=");
+    else if(!strcmp_litbeg(args[i],"depth="))
+       depth=args[i]+strlitlen("depth=");
+    else if(!strcmp_litbeg(args[i],"method="))
+       method=args[i]+strlitlen("method=");
+    else if(!strcmp_litbeg(args[i],"force="))
+       force=args[i]+strlitlen("force=");
+    else if(!strcmp_litbeg(args[i],"stylesheets="))
+       stylesheets=args[i]+strlitlen("stylesheets=");
+    else if(!strcmp_litbeg(args[i],"images="))
+       images=args[i]+strlitlen("images=");
+    else if(!strcmp_litbeg(args[i],"frames="))
+       frames=args[i]+strlitlen("frames=");
+    else if(!strcmp_litbeg(args[i],"scripts="))
+       scripts=args[i]+strlitlen("scripts=");
+    else if(!strcmp_litbeg(args[i],"objects="))
+       objects=args[i]+strlitlen("objects=");
    }
 
  if(url==NULL || *url==0 || method==NULL || *method==0)
@@ -177,25 +176,21 @@ static char *RefreshFormParse(int fd,char *request_args,Body *request_body)
  free(url);
 
  if(!strcmp(method,"any"))
-    limit="";
+   limit=strdup("");
  else if(!strcmp(method,"proto"))
    {
-    limit=(char*)malloc(strlen(Url->proto)+4);
-    sprintf(limit,"%s://",Url->proto);
+    limit=strndup(Url->name,Url->hostp-Url->name);
    }
  else if(!strcmp(method,"host"))
    {
-    limit=(char*)malloc(strlen(Url->proto)+strlen(Url->host)+5);
-    sprintf(limit,"%s://%s/",Url->proto,Url->host);
+    limit=(char*)malloc((Url->pathp-Url->name)+2);
+    {char *p=mempcpy(limit,Url->name,Url->pathp-Url->name); *p++='/'; *p=0; }
    }
  else if(!strcmp(method,"dir"))
    {
-    char *p;
-    limit=(char*)malloc(strlen(Url->proto)+strlen(Url->host)+strlen(Url->path)+5);
-    sprintf(limit,"%s://%s%s",Url->proto,Url->host,Url->path);
-    p=limit+strlen(limit)-1;
-    while(p>limit && *p!='/')
-       *p--=0;
+    char *p=Url->pathendp;
+    while(--p>=Url->pathp && *p!='/');
+    limit=strndup(Url->name,p+1-Url->name);
    }
  else
     depth="0";
@@ -204,7 +199,7 @@ static char *RefreshFormParse(int fd,char *request_args,Body *request_body)
                            (int)*force,
                            (int)*stylesheets,(int)*images,(int)*frames,(int)*scripts,(int)*objects);
 
- if(*limit)
+ if(limit)
     free(limit);
 
  FreeURL(Url);
@@ -245,24 +240,24 @@ static void ParseRecurseOptions(char *options)
 
     for(i=0;args[i];i++)
       {
-       if(!strncmp("url=",args[i],4))
-          recurse_url=URLDecodeFormArgs(args[i]+4);
-       if(!strncmp("depth=",args[i],6))
-         {recurse_depth=atoi(args[i]+6); if(recurse_depth<0) recurse_depth=0;}
-       if(!strncmp("limit=",args[i],6))
-          recurse_limit=URLDecodeFormArgs(args[i]+6);
-       if(!strncmp("force=",args[i],6))
-          recurse_force=(args[i][6]=='Y')?1:0;
-       if(!strncmp("stylesheets=",args[i],12))
-          recurse_stylesheets=(args[i][12]=='Y')?1:0;
-       if(!strncmp("images=",args[i],7))
-          recurse_images=(args[i][7]=='Y')?1:0;
-       if(!strncmp("frames=",args[i],7))
-          recurse_frames=(args[i][7]=='Y')?1:0;
-       if(!strncmp("scripts=",args[i],8))
-          recurse_scripts=(args[i][8]=='Y')?1:0;
-       if(!strncmp("objects=",args[i],8))
-          recurse_objects=(args[i][8]=='Y')?1:0;
+       if(!strcmp_litbeg(args[i],"url="))
+          recurse_url=URLDecodeFormArgs(args[i]+strlitlen("url="));
+       else if(!strcmp_litbeg(args[i],"depth="))
+         {recurse_depth=atoi(args[i]+strlitlen("depth=")); if(recurse_depth<0) recurse_depth=0;}
+       else if(!strcmp_litbeg(args[i],"limit="))
+          recurse_limit=URLDecodeFormArgs(args[i]+strlitlen("limit="));
+       else if(!strcmp_litbeg(args[i],"force="))
+          recurse_force=(args[i][strlitlen("force=")]=='Y')?1:0;
+       else if(!strcmp_litbeg(args[i],"stylesheets="))
+          recurse_stylesheets=(args[i][strlitlen("stylesheets=")]=='Y')?1:0;
+       else if(!strcmp_litbeg(args[i],"images="))
+          recurse_images=(args[i][strlitlen("images=")]=='Y')?1:0;
+       else if(!strcmp_litbeg(args[i],"frames="))
+          recurse_frames=(args[i][strlitlen("frames=")]=='Y')?1:0;
+       else if(!strcmp_litbeg(args[i],"scripts="))
+          recurse_scripts=(args[i][strlitlen("scripts=")]=='Y')?1:0;
+       else if(!strcmp_litbeg(args[i],"objects="))
+          recurse_objects=(args[i][strlitlen("objects=")]=='Y')?1:0;
       }
 
     free(args[0]);
@@ -326,7 +321,7 @@ int RecurseFetch(URL *Url,int new)
        char *refresh=NULL;
 
        if(recurse_depth>=0)
-          if(!*recurse_limit || !strncmp(recurse_limit,metarefreshUrl->name,strlen(recurse_limit)))
+          if(!*recurse_limit || !strcmp_beg(metarefreshUrl->name,recurse_limit))
              refresh=CreateRefreshPath(metarefreshUrl,recurse_limit,recurse_depth,
                                        recurse_force,
                                        recurse_stylesheets,recurse_images,recurse_frames,recurse_scripts,recurse_objects);
@@ -388,7 +383,7 @@ int RecurseFetch(URL *Url,int new)
           char *refresh=NULL;
 
           if(recurse_depth>=0)
-             if(!*recurse_limit || !strncmp(recurse_limit,frameUrl->name,strlen(recurse_limit)))
+             if(!*recurse_limit || !strcmp_beg(frameUrl->name,recurse_limit))
                 refresh=CreateRefreshPath(frameUrl,recurse_limit,recurse_depth,
                                           recurse_force,
                                           recurse_stylesheets,recurse_images,recurse_frames,recurse_scripts,recurse_objects);
@@ -442,7 +437,7 @@ int RecurseFetch(URL *Url,int new)
           char *refresh=NULL;
 
           if(recurse_depth>=0)
-             if(!*recurse_limit || !strncmp(recurse_limit,objectUrl->name,strlen(recurse_limit)))
+             if(!*recurse_limit || !strcmp_beg(objectUrl->name,recurse_limit))
                 refresh=CreateRefreshPath(objectUrl,recurse_limit,recurse_depth,
                                           recurse_force,
                                           recurse_stylesheets,recurse_images,recurse_frames,recurse_scripts,recurse_objects);
@@ -462,7 +457,7 @@ int RecurseFetch(URL *Url,int new)
        URL *linkUrl=SplitURL(list[j]);
 
        if(!linkUrl->local && linkUrl->Protocol)
-          if(!*recurse_limit || !strncmp(recurse_limit,linkUrl->name,strlen(recurse_limit)))
+          if(!*recurse_limit || !strcmp_beg(linkUrl->name,recurse_limit))
             {
              char *refresh=NULL;
 
@@ -501,7 +496,7 @@ int RecurseFetchRelocation(URL *Url,char *location)
     char *refresh=NULL;
 
     if(recurse_depth>0)
-       if(!*recurse_limit || !strncmp(recurse_limit,locationUrl->name,strlen(recurse_limit)))
+       if(!*recurse_limit || !strcmp_beg(locationUrl->name,recurse_limit))
           refresh=CreateRefreshPath(locationUrl,recurse_limit,recurse_depth,
                                     recurse_force,
                                     recurse_stylesheets,recurse_images,recurse_frames,recurse_scripts,recurse_objects);
@@ -547,7 +542,7 @@ static int request_url(URL *Url,char *refresh,URL *refUrl)
        Header *new_request_head;
        char *head;
 
-       if(refUrl->pass && !strcmp(refUrl->host,Url->host))
+       if(refUrl->pass && !strcmp(refUrl->hostport,Url->hostport))
           AddURLPassword(Url,refUrl->user,refUrl->pass);
 
        if(refresh)
@@ -560,7 +555,7 @@ static int request_url(URL *Url,char *refresh,URL *refUrl)
        if(recurse_force)
           AddToHeader(new_request_head,"Pragma","no-cache");
 
-       head=HeaderString(new_request_head);
+       head=HeaderString(new_request_head,NULL);
        if(write_string(new_outgoing,head)==-1)
           PrintMessage(Warning,"Cannot write to outgoing file; disk full?");
        CloseOutgoingSpoolFile(new_outgoing,reqUrl);
@@ -608,41 +603,46 @@ char *CreateRefreshPath(URL *Url,char *limit,int depth,
 {
  char *args;
  char *encurl,*enclimit=NULL;
+ char depthstr[12];
+ int len;
 
  encurl=URLEncodeFormArgs(Url->name);
- if(limit)
-    enclimit=URLEncodeFormArgs(limit);
 
- args=(char*)malloc(strlen(encurl)+(limit?strlen(enclimit):0)+128);
+ sprintf(depthstr,"%d",depth>0?depth:0);
 
- strcpy(args,"/refresh-recurse/?");
+ len=strlitlen("/refresh-recurse/?url=;depth=")+strlen(encurl)+strlen(depthstr);
 
- sprintf(&args[strlen(args)],"url=%s",encurl);
+ if(limit && depth>0) {
+   enclimit=URLEncodeFormArgs(limit);
+   len+=strlitlen(";limit=")+strlen(enclimit);
+ }
+ 
+ if(force)       len+=strlitlen(";force=Y");
+ if(stylesheets) len+=strlitlen(";stylesheets=Y");
+ if(images)      len+=strlitlen(";images=Y");
+ if(frames)      len+=strlitlen(";frames=Y");
+ if(scripts)     len+=strlitlen(";scripts=Y");
+ if(objects)     len+=strlitlen(";objects=Y");
+ 
+ args=(char*)malloc(len+1);
 
- if(depth>0)
-    sprintf(&args[strlen(args)],";depth=%d",depth);
- else
-    strcat(args,";depth=0");
+ {
+   char *p;
+   p=stpcpy(stpcpy(stpcpy(stpcpy(args,"/refresh-recurse/?url="),encurl),";depth="),depthstr);
 
- if(limit && depth>0)
-    sprintf(&args[strlen(args)],";limit=%s",enclimit);
+   if(limit && depth>0)
+     p=stpcpy(stpcpy(p,";limit="),enclimit);
 
- if(force)
-    strcat(args,";force=Y");
-
- if(stylesheets)
-    strcat(args,";stylesheets=Y");
- if(images)
-    strcat(args,";images=Y");
- if(frames)
-    strcat(args,";frames=Y");
- if(scripts)
-    strcat(args,";scripts=Y");
- if(objects)
-    strcat(args,";objects=Y");
+   if(force)       p=stpcpy(p,";force=Y");
+   if(stylesheets) p=stpcpy(p,";stylesheets=Y");
+   if(images)      p=stpcpy(p,";images=Y");
+   if(frames)      p=stpcpy(p,";frames=Y");
+   if(scripts)     p=stpcpy(p,";scripts=Y");
+   if(objects)     p=stpcpy(p,";objects=Y");
+ }
 
  free(encurl);
- if(limit)
+ if(enclimit)
     free(enclimit);
 
  return(args);

@@ -287,14 +287,21 @@ DontCompress
 }
 
 
-CensorHeader
+CensorIncomingHeader
+{
+
+### Example ###
+# Don't accept Cookies
+# Set-Cookie = yes
+}
+
+
+CensorOutgoingHeader
 {
 
 ### Example ###
 # Don't send the username.
 # From = yes
-# Don't accept Cookies
-# Set-Cookie = yes
 # Don't send Cookies back
 # Cookie = yes
 # Lie about the Browser type.

@@ -26,21 +26,22 @@
 #include <pwd.h>
 #include <grp.h>
 
+#include "misc.h"
 #include "configpriv.h"
 #include "errors.h"
 #include "wwwoffle.h"
-#include "misc.h"
 
 
 /* Local functions */
 
 static /*@null@*/ char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val);
 static /*@null@*/ char* sprintf_url_spec(UrlSpec *urlspec);
-static /*@null@*/ char *strstrn(const char *phaystack, const char *pneedle, size_t n, int nocase);
+static /*@null@*/ char *strstrn(const char *phaystack, const char *pneedle, size_t n);
+static /*@null@*/ char *strcasestrn(const char *phaystack, const char *pneedle, size_t n);
 
 
 /*+ The backup version of the config file. +*/
-static ConfigFile BackupConfig;
+static ConfigItem **BackupConfig;
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -50,32 +51,36 @@ static ConfigFile BackupConfig;
 void DefaultConfigFile(void)
 {
  int s,i;
- char *errmsg;
 
  for(s=0;s<CurrentConfig.nsections;s++)
-    for(i=0;i<CurrentConfig.sections[s]->nitemdefs;i++)
-       if(CurrentConfig.sections[s]->itemdefs[i].def_val)
-         {
-          ConfigItem *item=CurrentConfig.sections[s]->itemdefs[i].item;
+   for(i=0;i<CurrentConfig.sections[s]->nitemdefs;i++) {
+     ConfigItem *item_p=CurrentConfig.sections[s]->itemdefs[i].item;
+     if(CurrentConfig.sections[s]->itemdefs[i].def_val) {
 
-          *item=(ConfigItem)malloc(sizeof(struct _ConfigItem));
-          (*item)->itemdef=&CurrentConfig.sections[s]->itemdefs[i];
-          (*item)->nentries=0;
-          (*item)->url=NULL;
-          (*item)->key=NULL;
-          (*item)->val=NULL;
-          (*item)->def_val=(KeyOrValue*)malloc(sizeof(KeyOrValue));
+       ConfigItem item=*item_p=(ConfigItem)malloc(sizeof(struct _ConfigItem));
+
+       item->itemdef=&CurrentConfig.sections[s]->itemdefs[i];
+       item->nentries=0;
+       item->url=NULL;
+       item->key=NULL;
+       item->val=NULL;
 
 #if CONFIG_VERIFY_ABORT
-          if(CurrentConfig.sections[s]->itemdefs[i].key_type!=Fixed)
-             PrintMessage(Fatal,"Configuration file error at %s:%d",__FILE__,__LINE__);
+       {
+	 char *errmsg;
+	 if(CurrentConfig.sections[s]->itemdefs[i].key_type!=Fixed)
+	   PrintMessage(Fatal,"Configuration file error at %s:%d",__FILE__,__LINE__);
 
-          if((errmsg=ParseKeyOrValue(CurrentConfig.sections[s]->itemdefs[i].def_val,CurrentConfig.sections[s]->itemdefs[i].val_type,(*item)->def_val)))
-             PrintMessage(Fatal,"Configuration file error at %s:%d; %s",__FILE__,__LINE__,errmsg);
+	 if((errmsg=ParseKeyOrValue(CurrentConfig.sections[s]->itemdefs[i].def_val,CurrentConfig.sections[s]->itemdefs[i].val_type,&(item->def_val))))
+	   PrintMessage(Fatal,"Configuration file error at %s:%d; %s",__FILE__,__LINE__,errmsg);
+       }
 #else
-          ParseKeyOrValue(CurrentConfig.sections[s]->itemdefs[i].def_val,CurrentConfig.sections[s]->itemdefs[i].val_type,(*item)->def_val);
+       ParseKeyOrValue(CurrentConfig.sections[s]->itemdefs[i].def_val,CurrentConfig.sections[s]->itemdefs[i].val_type,&(item->def_val));
 #endif
-         }
+     }
+     else
+       *item_p=NULL;
+   }
 
 #if CONFIG_DEBUG_DUMP
  DumpConfigFile();
@@ -93,22 +98,15 @@ void CreateBackupConfigFile(void)
 
  /* Create a backup of all of the sections. */
 
- BackupConfig=CurrentConfig;
- BackupConfig.sections=(ConfigSection**)malloc(CurrentConfig.nsections*sizeof(ConfigSection*));
+ BackupConfig=(ConfigItem**)malloc(CurrentConfig.nsections*sizeof(ConfigItem*));
 
- for(s=0;s<CurrentConfig.nsections;s++)
+ for(s=0;s<CurrentConfig.nsections;++s)
    {
-    BackupConfig.sections[s]=(ConfigSection*)malloc(sizeof(ConfigSection));
-    *BackupConfig.sections[s]=*CurrentConfig.sections[s];
-    BackupConfig.sections[s]->itemdefs=(ConfigItemDef*)malloc(CurrentConfig.sections[s]->nitemdefs*sizeof(ConfigItemDef));
+    BackupConfig[s]=(ConfigItem*)malloc(CurrentConfig.sections[s]->nitemdefs*sizeof(ConfigItem));
 
-    for(i=0;i<CurrentConfig.sections[s]->nitemdefs;i++)
+    for(i=0;i<CurrentConfig.sections[s]->nitemdefs;++i)
       {
-       BackupConfig.sections[s]->itemdefs[i]=CurrentConfig.sections[s]->itemdefs[i];
-       BackupConfig.sections[s]->itemdefs[i].item=(ConfigItem*)malloc(sizeof(ConfigItem));
-
-       *BackupConfig.sections[s]->itemdefs[i].item=*CurrentConfig.sections[s]->itemdefs[i].item;
-       *CurrentConfig.sections[s]->itemdefs[i].item=NULL;
+       BackupConfig[s][i]=*CurrentConfig.sections[s]->itemdefs[i].item;
       }
    }
 
@@ -128,22 +126,19 @@ void RestoreBackupConfigFile(void)
 
  /* Restore all of the sections. */
 
- for(s=0;s<CurrentConfig.nsections;s++)
+ for(s=0;s<CurrentConfig.nsections;++s)
    {
-    for(i=0;i<CurrentConfig.sections[s]->nitemdefs;i++)
+    for(i=0;i<CurrentConfig.sections[s]->nitemdefs;++i)
       {
        FreeConfigItem(*CurrentConfig.sections[s]->itemdefs[i].item);
 
-       *CurrentConfig.sections[s]->itemdefs[i].item=*BackupConfig.sections[s]->itemdefs[i].item;
-
-       free(BackupConfig.sections[s]->itemdefs[i].item);
+       *CurrentConfig.sections[s]->itemdefs[i].item=BackupConfig[s][i];
       }
 
-    free(BackupConfig.sections[s]->itemdefs);
-    free(BackupConfig.sections[s]);
+    free(BackupConfig[s]);
    }
 
- free(BackupConfig.sections);
+ free(BackupConfig);
 }
 
 
@@ -159,27 +154,23 @@ void PurgeBackupConfigFile(int restore_startup)
 
  /* Purge all of the sections and restore StartUp if needed. */
 
- for(s=0;s<BackupConfig.nsections;s++)
+ for(s=0;s<CurrentConfig.nsections;++s)
    {
-    for(i=0;i<BackupConfig.sections[s]->nitemdefs;i++)
+    for(i=0;i<CurrentConfig.sections[s]->nitemdefs;++i)
       {
        if(s==0 && restore_startup)
          {
-          FreeConfigItem(*CurrentConfig.sections[s]->itemdefs[i].item);
+	   FreeConfigItem(*CurrentConfig.sections[s]->itemdefs[i].item);
 
-          *CurrentConfig.sections[s]->itemdefs[i].item=*BackupConfig.sections[s]->itemdefs[i].item;
-         }
+	   *CurrentConfig.sections[s]->itemdefs[i].item=BackupConfig[s][i];
+	 }
        else
-          FreeConfigItem(*BackupConfig.sections[s]->itemdefs[i].item);
-
-       free(BackupConfig.sections[s]->itemdefs[i].item);
+	 FreeConfigItem(BackupConfig[s][i]);
       }
-
-    free(BackupConfig.sections[s]->itemdefs);
-    free(BackupConfig.sections[s]);
+    free(BackupConfig[s]);
    }
 
- free(BackupConfig.sections);
+ free(BackupConfig);
 }
 
 
@@ -193,9 +184,9 @@ void PurgeConfigFile(void)
 
  /* Purge all of the sections. */
 
- for(s=0;s<CurrentConfig.nsections;s++)
+ for(s=0;s<CurrentConfig.nsections;++s)
    {
-    for(i=0;i<CurrentConfig.sections[s]->nitemdefs;i++)
+    for(i=0;i<CurrentConfig.sections[s]->nitemdefs;++i)
       {
        FreeConfigItem(*CurrentConfig.sections[s]->itemdefs[i].item);
       }
@@ -211,36 +202,30 @@ void PurgeConfigFile(void)
 
 void FreeConfigItem(ConfigItem item)
 {
- int i;
 
  if(!item)
     return;
 
- for(i=0;i<item->nentries;i++)
-   {
-    if(item->url)
-       FreeKeyOrValue((KeyOrValue*)&item->url[i],UrlSpecification);
+ if(item->url) {
+   int i;
 
-    FreeKeyOrValue(&item->key[i],item->itemdef->key_type);
+   for(i=0;i<item->nentries;++i)
+     FreeUrlSpecification(item->url[i]);
 
-    if(item->val)
-       FreeKeyOrValue(&item->val[i],item->itemdef->val_type);
-   }
+   free(item->url);
+ }
 
- if(item->nentries)
-   {
-    if(item->url)
-       free(item->url);
-    free(item->key);
-    if(item->val)
-       free(item->val);
-   }
+ if(item->key) {
+   FreeKeysOrValues(item->key,item->itemdef->key_type,item->nentries);
+   free(item->key);
+ }
 
- if(item->def_val)
-   {
-    FreeKeyOrValue(item->def_val,item->itemdef->val_type);
-    free(item->def_val);
-   }
+ if(item->val) {
+   FreeKeysOrValues(item->val,item->itemdef->val_type,item->nentries);
+   free(item->val);
+ }
+
+ FreeKeysOrValues(&(item->def_val),item->itemdef->val_type,1);
 
  free(item);
 }
@@ -254,15 +239,16 @@ void FreeConfigItem(ConfigItem item)
   ConfigType type The type of key or value.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void FreeKeyOrValue(KeyOrValue *keyval,ConfigType type)
+void FreeKeysOrValues(KeyOrValue *keyval,ConfigType type, int n)
 {
+ int i;
+
  switch(type)
    {
     /* None or Fixed */
 
    case Fixed:
    case None:
-    break;
 
     /* Integer */
 
@@ -279,6 +265,7 @@ void FreeKeyOrValue(KeyOrValue *keyval,ConfigType type)
    case UserId:
    case GroupId:
    case FileMode:
+   case CompressSpec:
     break;
 
     /* String */
@@ -293,57 +280,64 @@ void FreeKeyOrValue(KeyOrValue *keyval,ConfigType type)
    case HostAndPort:
    case UserPass:
    case Url:
-    if(keyval->string)
-       free(keyval->string);
+   for(i=0;i<n;++i)
+     if(keyval[i].string)
+       free(keyval[i].string);
     break;
 
    case UrlSpecification:
-    if(keyval->urlspec)
-       free(keyval->urlspec);
+   for(i=0;i<n;++i)
+     FreeUrlSpecification(keyval[i].urlspec);
    }
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Check if a protocol, host, path and args match a URL-SPECIFICATION in the config file.
+  Check if a URL matches a URL-SPECIFICATION in the config file.
 
-  int MatchUrlSpecification Return the matching length if true else 0.
+  int MatchUrlSpecification returns 1 if true else 0.
+
+  UrlSpec *spec The URL-SPECIFICATION.
+
+  URL *Url  The URL to match.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+int MatchUrlSpecification(UrlSpec *spec,URL *Url)
+{
+  return((!spec->proto || !strcmp(UrlSpecProto(spec),Url->proto)) &&
+	 (!spec->host || WildcardMatch(Url->host,UrlSpecHost(spec))) &&
+	 (spec->port==-1 || (Url->port? Url->portnum==spec->port : spec->port==0)) &&
+	 (!spec->path || (spec->nocase? WildcardCaseMatch(Url->path,UrlSpecPath(spec)):WildcardMatch(Url->path,UrlSpecPath(spec)))) &&
+	 (!spec->params || (Url->params? (spec->nocase? WildcardCaseMatch(Url->params,UrlSpecParams(spec)):WildcardMatch(Url->params,UrlSpecParams(spec))) : !*UrlSpecParams(spec))) &&
+	 (!spec->args || (Url->args? (spec->nocase? WildcardCaseMatch(Url->args,UrlSpecArgs(spec)):WildcardMatch(Url->args,UrlSpecArgs(spec))) : !*UrlSpecArgs(spec))));
+}
+
+/*++++++++++++++++++++++++++++++++++++++
+  Check if a protocol, host and port match a URL-SPECIFICATION in the config file.
+
+  int MatchUrlSpecificationProtoHostPort returns 1 if true else 0.
 
   UrlSpec *spec The URL-SPECIFICATION.
 
   char *proto The protocol.
 
-  char *host The host.
+  char *hostport The host (and port).
 
-  char *path The path.
-
-  char *args The arguments.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int MatchUrlSpecification(UrlSpec *spec,char *proto,char *host,char *path,char *args)
+int MatchUrlSpecificationProtoHostPort(UrlSpec *spec,char *proto,char *hostport)
 {
- char *hoststr,*portstr;
- int match=0;
+  char *hoststr,*portstr; int hostlen;
 
- SplitHostPort(host,&hoststr,&portstr);
+  if((spec->proto && strcmp(UrlSpecProto(spec),proto)) ||
+     (spec->path) || (spec->params) || (spec->args))
+    return 0;
 
- if((!spec->proto || !strcmp(UrlSpecProto(spec),proto)) &&
-    (!spec->host || WildcardMatch(hoststr,UrlSpecHost(spec),0)) &&
-    (spec->port==-1 || (!portstr && spec->port==0) || (portstr && atoi(portstr)==spec->port)) &&
-    (!spec->path || WildcardMatch(path,UrlSpecPath(spec),spec->nocase)) &&
-    (!spec->args || (args && WildcardMatch(args,UrlSpecArgs(spec),spec->nocase)) || (!args && *UrlSpecArgs(spec)==0)))
-   {
-    match=(spec->proto?strlen(UrlSpecProto(spec)):0)+
-          (spec->host ?strlen(UrlSpecHost(spec) ):0)+
-          (spec->path ?strlen(UrlSpecPath(spec) ):0)+
-          (spec->args ?strlen(UrlSpecArgs(spec) ):0)+1;
-   }
+  SplitHostPort(hostport,&hoststr,&hostlen,&portstr);
 
- RejoinHostPort(host,hoststr,portstr);
-
- return(match);
+  return((!spec->host || WildcardMatchN(hoststr,hostlen,UrlSpecHost(spec))) &&
+	 (spec->port==-1 || (portstr? atoi(portstr)==spec->port : spec->port==0)));
 }
-
 
 /*++++++++++++++++++++++++++++++++++++++
   Do a match using a wildcard specified with '*' in it.
@@ -353,49 +347,105 @@ int MatchUrlSpecification(UrlSpec *spec,char *proto,char *host,char *path,char *
   char *string The fixed string that is being matched.
 
   char *pattern The pattern to match against.
-
-  int nocase A flag that if set to 1 ignores the case of the string.
-
-  By Paul A. Rombouts <p.a.rombouts@home.nl>, handles more than two '*' using simpler algorithm than previously.
-
-  See also the strstrn() function at the bottom of this file.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int WildcardMatch(char *string,char *pattern,int nocase)
+int WildcardMatch(const char *string,const char *pattern)
 {
- int len_beg;
- char *midstr, *endstr;
- char *pattstr, *starp=strchr(pattern,'*');
+  int len_patt;
+  const char *midstr, *endstr;
+  const char *pattstr, *starp=strchr(pattern,'*');
 
- if(!starp)
-    return(( nocase && !strcasecmp(string,pattern)) ||
-           (!nocase && !strcmp(string,pattern)));
+  if(!starp) return(!strcmp(string,pattern));
 
- len_beg=starp-pattern;
- if(( nocase && strncasecmp(string,pattern,len_beg)) ||
-    (!nocase && strncmp(string,pattern,len_beg)))
-    return(0);
+  len_patt=starp-pattern;
+  if(strncmp(string,pattern,len_patt)) return 0;
+  midstr=string+len_patt;
 
- midstr=string+len_beg;
+  while(pattstr=starp+1,starp=strchr(pattstr,'*'))
+    {
+      const char *match;
+      len_patt = starp-pattstr;
+      if(!(match = strstrn(midstr,pattstr,len_patt))) return 0;
+      midstr=match+len_patt;
+    }
 
- while(pattstr=starp+1,starp=strchr(pattstr,'*'))
-   {
-    int len_patt=starp-pattstr;
-    char *match=strstrn(midstr,pattstr,len_patt,nocase);
+  endstr= strchrnul(midstr,0)-strlen(pattstr);
+  if(midstr>endstr) return 0;
+  return(!strcmp(endstr,pattstr));
+}
 
-    if(!match)
-       return(0);
+/*++++++++++++++++++++++++++++++++++++++
+  Do a case-insensitive match using a wildcard specified with '*' in it.
 
-    midstr=match+len_patt;
-   }
+  int WildcardCaseMatch returns 1 if there is a match.
 
- endstr=midstr+strlen(midstr)-strlen(pattstr);
+  char *string The fixed string that is being matched.
 
- if(midstr>endstr)
-    return(0);
+  char *pattern The pattern to match against.
+  ++++++++++++++++++++++++++++++++++++++*/
 
- return(( nocase && !strcasecmp(endstr,pattstr)) ||
-        (!nocase && !strcmp(endstr,pattstr)));
+int WildcardCaseMatch(const char *string,const char *pattern)
+{
+  int len_patt;
+  const char *midstr, *endstr;
+  const char *pattstr, *starp=strchr(pattern,'*');
+
+  if(!starp) return(!strcasecmp(string,pattern));
+
+  len_patt=starp-pattern;
+  if(strncasecmp(string,pattern,len_patt)) return 0;
+  midstr=string+len_patt;
+
+  while(pattstr=starp+1,starp=strchr(pattstr,'*'))
+    {
+      const char *match;
+      len_patt = starp-pattstr;
+      if(!(match = strcasestrn(midstr,pattstr,len_patt))) return 0;
+      midstr=match+len_patt;
+    }
+
+  endstr= strchrnul(midstr,0)-strlen(pattstr);
+  if(midstr>endstr) return 0;
+  return(!strcasecmp(endstr,pattstr));
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Match part of a string against a pattern with '*'s in it.
+
+  int WildcardMatchN returns 1 if there is a match.
+
+  char *string The fixed string that is being matched.
+  int stringlen The length of the part of string to match. (This part must not contain a null char)
+
+  char *pattern The pattern to match against.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+int WildcardMatchN(const char *string,int stringlen,const char *pattern)
+{
+  int len_patt;
+  const char *midstr, *endstr;
+  const char *pattstr, *starp=strchr(pattern,'*');
+
+  if(!starp) return(!strncmp(string,pattern,stringlen) && !pattern[stringlen]);
+
+  len_patt=starp-pattern;
+  if(len_patt>stringlen) return 0;
+  if(strncmp(string,pattern,len_patt)) return 0;
+  midstr=string+len_patt;
+
+  while(pattstr=starp+1,starp=strchr(pattstr,'*'))
+    {
+      const char *match;
+      len_patt = starp-pattstr;
+      if(!(match = strstrn(midstr,pattstr,len_patt))) return 0;
+      midstr=match+len_patt;
+    }
+
+  len_patt=strlen(pattstr);
+  endstr= string+stringlen-len_patt;
+  if(midstr>endstr) return 0;
+  return(!strncmp(endstr,pattstr,len_patt));
 }
 
 
@@ -476,6 +526,8 @@ char *ConfigTypeString(ConfigType type)
     return "UserId";                       /* val */
    case GroupId:
     return "GroupId";                      /* val */
+   case CompressSpec:
+     return "CompressionSpecification";    /* var */
    case String:
     return "String";             /* key */ /* val */
    case PathName:
@@ -531,11 +583,11 @@ char *ConfigEntryString(ConfigItem item,int which)
 
  string=MakeConfigEntryString(item->itemdef,url,key,val);
 
- /* Send the results back */
-
  if(url) free(url);
  if(key) free(key);
  if(val) free(val);
+
+ /* Send the results back */
 
  return(string);
 }
@@ -565,8 +617,10 @@ void ConfigEntryStrings(ConfigItem item,int which,char **url,char **key,char **v
     *url=NULL;
 
  /* Handle the key */
-
- *key=sprintf_key_or_value(item->itemdef->key_type,item->key[which]);
+ {
+   ConfigType key_type=item->itemdef->key_type;
+   *key=sprintf_key_or_value(key_type,(key_type==Fixed)?(KeyOrValue)item->itemdef->name:item->key[which]);
+ }
 
  /* Handle the value */
 
@@ -590,48 +644,52 @@ void ConfigEntryStrings(ConfigItem item,int which,char **url,char **key,char **v
 
   char *val Specifies the val string.
   ++++++++++++++++++++++++++++++++++++++*/
-
+/* Rewritten by Paul Rombouts */
 char *MakeConfigEntryString(ConfigItemDef *itemdef,char *url,char *key,char *val)
 {
- int strpos=0;
- char *string=(char*)malloc(8);
+ int length=0;
+ char *string,*p;
+
+ /* compute the length */
+
+ if(url) length+=strlitlen("<> ")+strlen(url);
+
+ if(key) length+=strlen(key);
+
+ if(itemdef->val_type!=None) {
+   length+=strlitlen(" = ");
+
+   if(val)
+     length+=strlen(val);
+ }
+
+ string=p=(char*)malloc(length+1);
 
  /* Handle the URL */
 
- if(url)
-   {
-    string=(char*)realloc((void*)string,strpos+1+3+strlen(url));
-    sprintf(string+strpos,"<%s> ",url);
-    strpos+=3+strlen(url);
-   }
+ if(url) {
+   *p++='<';
+   p=stpcpy(p,url);
+   *p++='>';
+   *p++=' ';
+ }
 
  /* Handle the key */
 
- if(key)
-   {
-    string=(char*)realloc((void*)string,strpos+1+strlen(key));
-    sprintf(string+strpos,"%s",key);
-    strpos+=strlen(key);
-   }
+ if(key) p=stpcpy(p,key);
 
  /* Handle the value */
 
- if(itemdef->val_type!=None)
-   {
-    string=(char*)realloc((void*)string,strpos+1+3);
-    sprintf(string+strpos," = ");
-    strpos+=3;
+ if(itemdef->val_type!=None) {
+   p=stpcpy(p," = ");
 
-    if(val)
-      {
-       string=(char*)realloc((void*)string,strpos+1+strlen(val));
-       sprintf(string+strpos,"%s",val);
-       strpos+=strlen(val);
-      }
-   }
+   if(val)
+     p=stpcpy(p,val);
+ }
+
+ *p=0;
 
  /* Send the result back */
-
  return(string);
 }
 
@@ -648,26 +706,20 @@ char *MakeConfigEntryString(ConfigItemDef *itemdef,char *url,char *key,char *val
 
 static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
 {
- char *string=NULL;
-
  switch(type)
    {
     /* None or Fixed */
 
    case Fixed:
-    string=(char*)malloc(1+strlen(key_or_val.string));
-    strcpy(string,key_or_val.string);
-    break;
+     return strdup(key_or_val.string);
 
    case None:
-    break;
+     return NULL;
 
     /* Integer */
 
    case Boolean:
-    string=(char*)malloc(1+3);
-    strcpy(string,key_or_val.integer?"yes":"no");
-    break;
+     return strdup(key_or_val.integer?"yes":"no");
 
    case CfgMaxServers:
    case CfgMaxFetchServers:
@@ -675,118 +727,59 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
    case CacheSize:
    case FileSize:
    case Percentage:
-    string=(char*)malloc(1+16);
-    sprintf(string,"%d",key_or_val.integer);
-    break;
+     return x_asprintf("%d",key_or_val.integer);
 
    case CfgLogLevel:
-    string=(char*)malloc(1+16);
-    if(key_or_val.integer==Debug)
-       strcpy(string,"debug");
-    if(key_or_val.integer==Inform)
-       strcpy(string,"info");
-    if(key_or_val.integer==Important)
-       strcpy(string,"important");
-    if(key_or_val.integer==Warning)
-       strcpy(string,"debug");
-    if(key_or_val.integer==Fatal)
-       strcpy(string,"fatal");
-    break;
+     return strdup((key_or_val.integer==Debug)?     "debug":
+		   (key_or_val.integer==Inform)?    "info":
+		   (key_or_val.integer==Important)? "important":
+		   (key_or_val.integer==Warning)?   "warning":
+		   (key_or_val.integer==Fatal)?     "fatal":
+		                                    "unknown");
 
    case UserId:
     {
      struct passwd *pwd=getpwuid(key_or_val.integer);
-     if(pwd)
-       {
-        string=(char*)malloc(1+strlen(pwd->pw_name));
-        strcpy(string,pwd->pw_name);
-       }
-     else
-       {
-        string=(char*)malloc(1+16);
-        sprintf(string,"%d",key_or_val.integer);
-       }
+     return pwd? strdup(pwd->pw_name) : x_asprintf("%d",key_or_val.integer);
     }
-   break;
 
    case GroupId:
     {
      struct group *grp=getgrgid(key_or_val.integer);
-     if(grp)
-       {
-        string=(char*)malloc(1+strlen(grp->gr_name));
-        strcpy(string,grp->gr_name);
-       }
-     else
-       {
-        string=(char*)malloc(1+16);
-        sprintf(string,"%d",key_or_val.integer);
-       }
+     return grp? strdup(grp->gr_name) : x_asprintf("%d",key_or_val.integer);
     }
-   break;
 
    case FileMode:
-    string=(char*)malloc(1+16);
-    sprintf(string,"0%o",key_or_val.integer);
-    break;
+     return x_asprintf("0%o",key_or_val.integer);
 
    case AgeDays:
     {
-     int weeks,months,years,days=key_or_val.integer;
+     int days=key_or_val.integer;
 
-     string=(char*)malloc(1+16);
-
-     years=days/365;
-     if(years*365==days)
-        sprintf(string,"%dy",years);
-     else
-       {
-        months=days/30;
-        if(months*30==days)
-           sprintf(string,"%dm",months);
-        else
-          {
-           weeks=days/7;
-           if(weeks*7==days)
-              sprintf(string,"%dw",weeks);
-           else
-              sprintf(string,"%d",days);
-          }
-       }
+     return (days==0)?     strdup("0"):
+            (days%365==0)? x_asprintf("%dy",days/365):
+            (days%30==0)?  x_asprintf("%dm",days/30):
+            (days%7==0)?   x_asprintf("%dw",days/7):
+                           x_asprintf("%d",days);
     }
-   break;
 
    case TimeSecs:
     {
-     int weeks,days,hours,minutes,seconds=key_or_val.integer;
+     int seconds=key_or_val.integer;
 
-     string=(char*)malloc(1+16);
-
-     weeks=seconds/(3600*24*7);
-     if(weeks*(3600*24*7)==seconds)
-        sprintf(string,"%dw",weeks);
-     else
-       {
-        days=seconds/(3600*24);
-        if(days*(3600*24)==seconds)
-           sprintf(string,"%dd",days);
-        else
-          {
-           hours=seconds/(3600);
-           if(hours*(3600)==seconds)
-              sprintf(string,"%dh",hours);
-           else
-             {
-              minutes=seconds/(60);
-              if(minutes*(60)==seconds)
-                 sprintf(string,"%dm",minutes);
-              else
-                 sprintf(string,"%d",seconds);
-             }
-          }
-       }
+     return (seconds==0)?             strdup("0"):
+            (seconds%(3600*24*7)==0)? x_asprintf("%dw",seconds/(3600*24*7)):
+            (seconds%(3600*24)==0)?   x_asprintf("%dd",seconds/(3600*24)):
+            (seconds%(3600)==0)?      x_asprintf("%dh",seconds/(3600)):
+            (seconds%(60)==0)?        x_asprintf("%dm",seconds/(60)):
+                                      x_asprintf("%d",seconds);
     }
-    break;
+
+   case CompressSpec:
+     return strdup((key_or_val.integer==0 ) ? "no":
+		   (key_or_val.integer==1 ) ? "deflate":
+		   (key_or_val.integer==2 ) ? "gzip":
+		                              "yes");
 
     /* String */
 
@@ -800,25 +793,15 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
    case HostAndPort:
    case UserPass:
    case Url:
-    if(key_or_val.string)
-      {
-       string=(char*)malloc(1+strlen(key_or_val.string));
-       strcpy(string,key_or_val.string);
-      }
-    else
-      {
-       string=(char*)malloc(1);
-       *string=0;
-      }
-    break;
+     return strdup(key_or_val.string? key_or_val.string : "");
 
     /* Url Specification */
 
    case UrlSpecification:
-    string=sprintf_url_spec(key_or_val.urlspec);
+     return sprintf_url_spec(key_or_val.urlspec);
    }
 
- return(string);
+ return NULL;
 }
 
 
@@ -832,58 +815,68 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
 
 static char* sprintf_url_spec(UrlSpec *urlspec)
 {
- char *string=NULL;
- int strpos=0;
- int newlen;
+ int length=0;
+ char *string,*p;
+ char portstr[12];
 
- if(!urlspec)
-    return(NULL);
+ if(!urlspec) return(NULL);
 
- newlen=1+16;
- if(urlspec->proto) newlen+=strlen(UrlSpecProto(urlspec));
- if(urlspec->host ) newlen+=strlen(UrlSpecHost (urlspec));
- if(urlspec->path ) newlen+=strlen(UrlSpecPath (urlspec));
- if(urlspec->args ) newlen+=strlen(UrlSpecArgs (urlspec));
+ /* First compute the length */
 
- string=(char*)malloc(newlen);
- *string=0;
+ if(urlspec->negated) length+=strlitlen("!");
+ if(urlspec->nocase) length+=strlitlen("~");
 
- if(urlspec->negated)
-   {
-    sprintf(string+strpos,"%s","!");
-    strpos+=strlen(string+strpos);
-   }
+ length+= (urlspec->proto ? strlen(UrlSpecProto(urlspec)) : strlitlen("*")) + strlitlen("://");
 
- if(urlspec->nocase)
-   {
-    sprintf(string+strpos,"%s","~");
-    strpos+=strlen(string+strpos);
-   }
+ length+= (urlspec->host ? strlen(UrlSpecHost(urlspec)) : strlitlen("*"));;
 
- sprintf(string+strpos,"%s://",urlspec->proto?UrlSpecProto(urlspec):"*");
- strpos+=strlen(string+strpos);
+ if(urlspec->port!=-1) {
+   length+=strlitlen(":");
+   if(urlspec->port!=0)
+     length+= sprintf(portstr,"%d",urlspec->port);
+ }
 
- sprintf(string+strpos,"%s",urlspec->host?UrlSpecHost(urlspec):"*");
- strpos+=strlen(string+strpos);
-
- if(urlspec->port==0)
-    sprintf(string+strpos,":");
- else if(urlspec->port!=-1)
-    sprintf(string+strpos,":%d",urlspec->port);
- strpos+=strlen(string+strpos);
-
- sprintf(string+strpos,"%s",urlspec->path?UrlSpecPath(urlspec):"/*");
- strpos+=strlen(string+strpos);
+ if(urlspec->path) {
+   if(*UrlSpecPath(urlspec)=='*') length+=strlitlen("/");
+   length+= strlen(UrlSpecPath(urlspec));
+ }
+ else
+   length+=strlitlen("/*");
 
  if(urlspec->args)
-   {
-    sprintf(string+strpos,"?%s",*UrlSpecArgs(urlspec)?UrlSpecArgs(urlspec):"*");
-    strpos+=strlen(string+strpos);
-   }
+   length+= strlitlen("?") + strlen(UrlSpecArgs(urlspec));
+
+ /* Now construct the actual string */
+
+ string=p=(char*)malloc(length+1);
+
+ if(urlspec->negated) *p++='!';
+ if(urlspec->nocase) *p++='~';
+
+ p=stpcpy(stpcpy(p,urlspec->proto?UrlSpecProto(urlspec):"*"),"://");
+
+ p=stpcpy(p,urlspec->host?UrlSpecHost(urlspec):"*");
+
+ if(urlspec->port!=-1) {
+   *p++=':';
+   if(urlspec->port!=0)
+     p=stpcpy(p,portstr);
+ }
+
+ if(urlspec->path) {
+   if(*UrlSpecPath(urlspec)=='*') *p++='/';
+   p=stpcpy(p,UrlSpecPath(urlspec));
+ }
+ else
+   p=stpcpy(p,"/*");
+
+ if(urlspec->args) {
+   *p++='?';
+   p=stpcpy(p,UrlSpecArgs(urlspec));
+ }
 
  return(string);
 }
-
 
 
 /* Return the offset of one string within another.
@@ -920,35 +913,13 @@ static char* sprintf_url_spec(UrlSpec *urlspec)
    Modifications made by Paul Rombouts <p.a.rombouts@home.nl>.
 */
 
-/* Added a parameter "nocase" to select case insensitive test (value 1)
-   or case sensitive (0).
-   Modification by Marc Boucher.
-*/
-
 typedef unsigned chartype;
 
-static char *strstrn(const char *phaystack, const char *pneedle, size_t n, int nocase)
+static char *strstrn(const char *phaystack, const char *pneedle, size_t n)
 {
   register const unsigned char *haystack, *needle;
   register chartype b, c;
   const unsigned char *needle_end;
-
-  char *lowhaystack=NULL;
-  char *lowneedle=NULL;
-
-  if (nocase) {
-     int i;
-     lowhaystack=malloc(strlen(phaystack)+1);
-     lowneedle=malloc(strlen(phaystack)+1);
-
-     for(i=0;phaystack[i];i++) { lowhaystack[i]=tolower(phaystack[i]); }
-     lowhaystack[i]=0;
-     for(i=0;pneedle[i];i++) { lowneedle[i]=tolower(pneedle[i]); }
-     lowneedle[i]=0;
-     
-     phaystack=lowhaystack;
-     pneedle=lowneedle;
-     }
 
   haystack = (const unsigned char *) phaystack;
   needle = (const unsigned char *) pneedle;
@@ -956,86 +927,167 @@ static char *strstrn(const char *phaystack, const char *pneedle, size_t n, int n
 
   if (needle != needle_end && (b = *needle) != '\0' )
     {
-      haystack--;                               /* possible ANSI violation */
+      haystack--;				/* possible ANSI violation */
       do
-        {
-          c = *++haystack;
-          if (c == '\0')
-            goto ret0;
-        }
+	{
+	  c = *++haystack;
+	  if (c == '\0')
+	    goto ret0;
+	}
       while (c != b);
 
       if (++needle == needle_end || (c = *needle) == '\0')
-        goto foundneedle;
+	goto foundneedle;
       ++needle;
       goto jin;
 
       for (;;)
         {
           register chartype a;
-          register const unsigned char *rhaystack, *rneedle;
+	  register const unsigned char *rhaystack, *rneedle;
 
-          do
-            {
-              a = *++haystack;
-              if (a == '\0')
-                goto ret0;
-              if (a == b)
-                break;
-              a = *++haystack;
-              if (a == '\0')
-                goto ret0;
+	  do
+	    {
+	      a = *++haystack;
+	      if (a == '\0')
+		goto ret0;
+	      if (a == b)
+		break;
+	      a = *++haystack;
+	      if (a == '\0')
+		goto ret0;
 shloop:
-              ;
-            }
+	      ;
+	    }
           while (a != b);
 
-jin:      a = *++haystack;
-          if (a == '\0')
-            goto ret0;
+jin:	  a = *++haystack;
+	  if (a == '\0')
+	    goto ret0;
 
-          if (a != c)
-            goto shloop;
+	  if (a != c)
+	    goto shloop;
 
-          rhaystack = haystack-- + 1;
-          if(needle == needle_end) goto foundneedle;
-          rneedle = needle;
-          a = *rneedle;
+	  rhaystack = haystack-- + 1;
+	  if(needle == needle_end) goto foundneedle;
+	  rneedle = needle;
+	  a = *rneedle;
 
-          if (*rhaystack == a)
-            do
-              {
-                if (a == '\0')
-                  goto foundneedle;
-                ++rhaystack;
-                if(++needle == needle_end) goto foundneedle;
-                a = *needle;
-                if (*rhaystack != a)
-                  break;
-                if (a == '\0')
-                  goto foundneedle;
-                ++rhaystack;
-                if(++needle == needle_end) goto foundneedle;
-                a = *needle;
-              }
-            while (*rhaystack == a);
+	  if (*rhaystack == a)
+	    do
+	      {
+		if (a == '\0')
+		  goto foundneedle;
+		++rhaystack;
+		if(++needle == needle_end) goto foundneedle;
+		a = *needle;
+		if (*rhaystack != a)
+		  break;
+		if (a == '\0')
+		  goto foundneedle;
+		++rhaystack;
+		if(++needle == needle_end) goto foundneedle;
+		a = *needle;
+	      }
+	    while (*rhaystack == a);
 
-          needle = rneedle;             /* took the register-poor approach */
+	  needle = rneedle;		/* took the register-poor approach */
 
-          if (a == '\0')
-            break;
+	  if (a == '\0')
+	    break;
         }
     }
 foundneedle:
-  if (nocase) {
-     if (lowhaystack) free(lowhaystack);
-     if (lowneedle) free(lowneedle);
-     }
   return (char*) haystack;
 ret0:
-  if (nocase) {
-     if (lowhaystack) free(lowhaystack);
-     if (lowneedle) free(lowneedle);
-     }
+  return 0;
+}
+
+
+static char *strcasestrn(const char *phaystack, const char *pneedle, size_t n)
+{
+  register const unsigned char *haystack, *needle;
+  register chartype b, c;
+  const unsigned char *needle_end;
+
+  haystack = (const unsigned char *) phaystack;
+  needle = (const unsigned char *) pneedle;
+  needle_end = needle+n;
+
+  if (needle != needle_end && (b = tolower(*needle)) != '\0' )
+    {
+      haystack--;				/* possible ANSI violation */
+      do
+	{
+	  c = *++haystack;
+	  if (c == '\0')
+	    goto ret0;
+	}
+      while (tolower(c) != (int) b);
+
+      if (++needle == needle_end || (c = tolower(*needle)) == '\0')
+	goto foundneedle;
+      ++needle;
+      goto jin;
+
+      for (;;)
+        {
+          register chartype a;
+	  register const unsigned char *rhaystack, *rneedle;
+
+	  do
+	    {
+	      a = *++haystack;
+	      if (a == '\0')
+		goto ret0;
+	      if (tolower(a) == (int) b)
+		break;
+	      a = *++haystack;
+	      if (a == '\0')
+		goto ret0;
+shloop:
+	      ;
+	    }
+          while (tolower(a) != (int) b);
+
+jin:	  a = *++haystack;
+	  if (a == '\0')
+	    goto ret0;
+
+	  if (tolower(a) != (int) c)
+	    goto shloop;
+
+	  rhaystack = haystack-- + 1;
+	  if(needle == needle_end) goto foundneedle;
+	  rneedle = needle;
+	  a = tolower(*rneedle);
+
+	  if (tolower(*rhaystack) == (int) a)
+	    do
+	      {
+		if (a == '\0')
+		  goto foundneedle;
+		++rhaystack;
+		if(++needle == needle_end) goto foundneedle;
+		a = tolower(*needle);
+		if (tolower(*rhaystack) != (int) a)
+		  break;
+		if (a == '\0')
+		  goto foundneedle;
+		++rhaystack;
+		if(++needle == needle_end) goto foundneedle;
+		a = tolower(*needle);
+	      }
+	    while (tolower(*rhaystack) == (int) a);
+
+	  needle = rneedle;		/* took the register-poor approach */
+
+	  if (a == '\0')
+	    break;
+        }
+    }
+foundneedle:
+  return (char*) haystack;
+ret0:
   return 0;
 }

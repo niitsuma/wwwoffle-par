@@ -1,0 +1,216 @@
+	  Alternative WWWOFFLE implementation - version 2.7e-par
+	  ======================================================
+
+This file describes the customized version of WWWOFFLE that I use personally and
+am making available so other people can run it and/or study the source code.
+Present version is 2.7e-par (I've simply appended my initials to the version
+number). The first part of this file describes how to patch, compile, install
+and run wwwoffled. The second part lists in more detail the changes I've made to
+AMB's code.
+
+Before compiling and installing WWWOFFLE according to AMB's installation
+instructions described in the INSTALL file you must first apply my patch file
+wwwoffled-2.7e-par.diff.gz using the command:
+
+gzip -cd <path_to_patch>/wwwoffle-2.7e-par.diff.gz | patch -p2 -N -E
+
+Note: because I have used GNU extensions you will need to compile with gcc and
+link with glibc. This will not be a problem with most Linux distributions.
+
+If you want to use an existing WWWOFFLE configuration file then you must make
+the following change to the configuration file before you can actually run
+wwwoffled: split section CensorHeader into two sections called
+CensorIncomingHeader and CensorOutgoingHeader. These sections should contain
+only options that apply to the censoring of reply headers coming back from
+servers and request headers sent to servers, respectively. The
+referer-self(-dir) options go into the CensorOutgoingHeader section.
+Alternatively, if you're not using the CensorHeader section at all it's easier
+to simply delete it in its entirety.
+
+That's it! You should now be able to run wwwoffled.
+
+Note to users of languages besides English and Dutch: I've modified some of the
+WWWOFFLE message templates for the English and Dutch languages. If you want to
+use a different language you will have to look at the modifications in the
+templates that have been patched and apply these changes to the template files
+of your own language. Alternatively you could simply delete the non-English
+template files so that the English language versions are used instead. wwwoffled
+will still run without these changes, but then some of the configuration pages
+will not display correctly.
+
+
+I've introduced a few extensions to the way WWWOFFLE can be configured:
+
+- I've added an option to the CensorIncomingHeader section called
+  session-cookies-only. When enabled, WWWOFFLE strips the "expires" field from
+  "Set-Cookie:" server headers. Most browsers will not store such cookies
+  permanently and forget them in between sessions. I find this significantly
+  reduces the number of permanently stored cookies, while preserving most of the
+  functionality of sites that require you to accept cookies. You can use a
+  URL-specification to make exceptions for sites whose cookies you want to keep.
+  The syntax for this option is [<URL-SPEC>] session-cookies-only = yes | no.
+
+- I've added an option to the OfflineOptions section called
+  "cache-control-no-cache" that is very similar to "pragma-no-cache", except
+  that it effects the way WWWOFFLE treats "Cache-Control: no-cache" and
+  "Cache-Control: max-age=0" instead of "Pragma: no-cache" header lines. When
+  you hit the reload button on your browser while WWWOFFLE is offline this can
+  cause a number of outgoing requests to be generated. My experience is that
+  this often includes a large number of requests for small gif images that are
+  really unnecessary. This option can be used to reduce the number these
+  requests. The syntax is [<URL-SPEC>] pragma-no-cache = yes | no.
+
+- I've allowed URL-specifications to contain an equals-sign. This allows you to
+  include something like "http://*.com/images/*?*sz=120x480*" in the DontGet
+  section of the configuration file. Originally it was impossible to use a
+  URL-specification like that (replacing '=' by '%3D' won't work).
+
+- URL specifications are allowed to have a so-called parameters part. This
+  allows you to use something like "http://*.com/images*;*sz=120x480*". In the
+  original version of WWWOFFLE a URL specification containing a ';' in the path
+  part will never match.
+
+- I've expanded the set of values the option request-compression is allowed to
+  take to include "gzip" and "deflate". This allows you to fine-tune the type of
+  compression WWWOFFLE asks for in case there are problems with a particular
+  method of compression. For the time being it is probably best to set this
+  option to gzip (this emulates the present standard behavior of WWWOFFLE
+  versions 2.7d and 2.7e).
+
+
+The rest of this file lists in some detail some other modifications I've made,
+but you don't have to read it if you simply want to run wwwoffled as you're used
+to.
+
+- I've changed the way HTTP headers are parsed and manipulated back to the way
+  it was done in version 2.6 of WWWOFFLE. In version 2.7 header lines with the
+  same "key" are combined using a ',' as separator. While AMB correctly argues
+  that the RFCs explicitly allow this, I see it as unnecessary and undesirable.
+  I prefer a proxy to be as conservative as possible with headers, and I think
+  the problems that have occurred with "Set-Cookie:" header-lines prove my
+  point. I didn't simply reintroduce the version 2.6d code, but made sure as
+  much of the semantics as possible of version 2.7 was preserved.
+
+- I've eliminated the size field of the Header struct. Header sizes are now
+  computed using ParseReply() and HeaderString(). This method is much less
+  error-prone bacause it eliminates the need for re-adjusting the size field
+  each time something is changed in a header. It also makes it possible to get
+  the correct size of headers that use a different syntax than usual,
+  e.g. header lines returned from CGI-scripts may end in LF instead of CR-LF.
+
+- My handling of CGI-scripts more closely adheres to the CGI-specification
+  described at http://hoohoo.ncsa.uiuc.edu/cgi/interface.html. If the argument
+  of a "Location:" directive is not a URL but a virtual path, the server will
+  retrieve the document specified as if the client had requested that document
+  originally. (Infinite recursion within the wwwoffle server is prevented by
+  using a counter.) If the output of a local CGI-script begins with a valid HTTP
+  status-line it is passed on unmodified to the client instead of being ignored
+  as in AMB's code. Furthermore, my handling of CGI-scripts is more efficient
+  because it minimizes the use of temporary files and pipes.
+
+- I've eliminated most calls of strcat() in favor of stpcpy() and memcpy(),
+  which are more efficient. (I'm talking quadratic versus linear time-complexity
+  here.) Why the use of strcat() is usually a bad idea is also explained in the
+  glibc info pages.
+
+- In some functions in src/miscencdec.c I've introduced some code to compute the
+  exact size of the result that has to be dynamically allocated. This avoids
+  wasting space on the heap and/or eliminates the need for calling realloc().
+
+- I've changed the buffered I/O routines in src/io.c to make reading from a
+  buffer independent of the (fdbuf) buffer size. In AMB's code, every time a small
+  amount of data is read from a buffer, memmove() is used to shift the remaining
+  data in the buffer. This makes the use of a larger buffer less instead of more
+  efficient. Furthermore I've fixed a bug that sometimes causes compressed pages
+  to be incompletely decompressed.
+
+- I found the use of the functions SplitHostPort() and RejoinHostPort() ugly and
+  inefficient. By introducing three extra fields to the URL struct (called
+  hostport, port and portnum) I could eliminate most the most frequently used
+  invocations of SplitHostPort() and RejoinHostPort(). For the remaining places
+  where SplitHostPort() is used, I wrote a version of SplitHostPort() without
+  side effects, thus eliminating the need for RejoinHostPort().
+
+- Every time a string needs to be created on the heap AMB uses an explicit
+  malloc() followed by strcpy(), sprintf() or related routines. I many places
+  I've replaced this by strdup() or asprintf() (the latter is a GNU extension).
+  This removes some irritating clutter in the code, improving readability and
+  maintainability and reducing the risk of allocation-size errors.
+
+- I fixed a problem in the function wwwoffles() which sometimes caused a server
+  to exit without removing the temporary file it created.
+
+- I created a separate header file for the declarations of the functions defined
+  in src/header.c. Originally these declarations were contained in src/misc.h.
+
+- I put some more code in to check the return values of read() or write()
+  functions. This is to prevent further reading from or writing to a file
+  descriptor once an error has been indicated.
+
+- I fixed an allocation bug in src/ftp.c by making sure that the buffer that
+  HTMLMessageBody() and htmlise_dir_entry() allocate is at least BUFSIZE+1 bytes
+  large, which is what read_line_or_timeout() expects it to be.
+
+- I my version headers from servers are not censored before being written to the
+  cache, only before being sent to the browser. This ensures the headers in the
+  cache more faithfully represent the original headers sent by the remote
+  servers. Thus the way headers are censored is only determined by the
+  configuration of WWWOFFLE at the time they are sent to browser, allowing you
+  to change your mind without having to re-fetch any pages if you decide the
+  censoring was too strict.
+
+- I've introduced some optimizations that reduce the use of temporary files in
+  some very common special cases, namely when serving the (unmodified) contents
+  from a cached file or other local file. I've introduced code that copies the
+  contents of the local file directly to the browser, instead of first copying
+  it to a temporary file and then reading the temporary file back again.
+
+- I've expanded the micro-language used in message templates to allow "if ...
+  then ... elsif ... then ... else ... fi" -like constructs, e.g.
+  $x?=a{...}$x?=b{...}$x?=c{...}{...}. Furthermore these conditional constructs
+  can now be nested.
+
+- I have debugged and enhanced the URL Configuration webpages. Very useful if
+  you want to see how WWWOFFLE is configured for a particular URL. For instance
+  if you want to see exactly which entry in the DontGet section causes a
+  particular URL to be not got. I've also added a bookmarklet in
+  contrib/bookmarklets/bookmarks.html that can be used to display the
+  configuration for the current URL in a browser.
+
+- I tried to make WWWOFFLE give more sensible error messages in some cases. For
+  instance it was my experience that WWWOFFLE sometimes generated a message
+  telling me that the connection to the remote server timed out before receiving
+  a reply, even though there had been no noticeable delay. This of course made
+  no sense to me. WWWOFFLE will now give a more sensible message in such a case
+  (e.g. "Connection reset by peer").
+
+- If the path part of a URL-specification begins with '/*' the internally used
+  pattern object for the path will not contain the leading slash. Thus e.g.
+  'http://foo.com/*/stuff/*' will use '*/stuff/*' for the path part and match
+  both 'http://foo.com/stuff/' and 'http://foo.com/preamble/stuff/'. I find this
+  more efficient, because in the past I had to use two entries with
+  'http://foo.com/stuff/*' and 'http://foo.com/*/stuff/*' to get the same
+  behavior. If you really don't want 'http://foo.com/stuff/' to match, it is
+  always possible to list '!http://foo.com/stuff/*' before
+  'http://foo.com/*/stuff/*'
+
+- Path names of files that are to be included in the configuration file are
+  treated as absolute when they begin with a '/'. In the the original version
+  all such file names are treated as relative to the directory the main
+  configuration file is in.
+
+- I've introduced a function strcasestrn() that does a case-insensitive string
+  search and is based on the glibc function strcasestr(), just as strstrn() is
+  base on strstr(). This eliminates the need for temporarily allocating strings
+  on the heap during a case-insensitive search and should thus allow for more
+  efficient pattern matching.
+
+In addition to the things I've listed above, I've made various little changes to
+fix minor bugs, improve efficiency or elegance, or simply to suit my my own
+coding style. These changes are too numerous to list here, but you can always
+find out about them by comparing the source of my modified version with AMB's
+original code.
+
+If you have any questions about the modifications I've made, you can send these
+to <p.a.rombouts@home.nl>. Questions about the original WWWOFFLE version should
+be sent to <wwwoffle-users@gedanken.demon.co.uk> or <amb@gedanken.demon.co.uk>.

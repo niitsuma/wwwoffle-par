@@ -1,7 +1,7 @@
 /***************************************
   $Header: /home/amb/wwwoffle/src/RCS/control.c 2.54 2002/08/04 10:26:06 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
   The HTML interactive control pages.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -72,13 +72,11 @@ static void delete_url(int fd,char *url,int all,/*@null@*/ char *username,/*@nul
 void ControlPage(int fd,URL *Url,Body *request_body)
 {
  Action action=None;
- char *newpath=(char*)malloc(strlen(Url->path)-8);
  char *command="";
+ char *newpath=Url->path+strlitlen("/control/");  /* remove the '/control/' */
 
- strcpy(newpath,Url->path+9);        /* remove the '/control/' */
-
- if(*newpath && newpath[strlen(newpath)-1]=='/')
-    newpath[strlen(newpath)-1]=0;
+ /* remove trailing '/' */
+ {char *p=strchrnul(newpath,0)-1; if(p>=newpath && *p=='/') newpath=strndupa(newpath,p-newpath); }
 
  /* Determine the action. */
 
@@ -96,9 +94,9 @@ void ControlPage(int fd,URL *Url,Body *request_body)
    {action=Purge;command="-purge";}
  else if(!strcmp(newpath,"status"))
    {action=Status;command="-status";}
- else if(!strncmp(newpath,"delete-multiple",15))
+ else if(!strcmp_litbeg(newpath,"delete-multiple"))
     action=DeleteMultiple;
- else if(!strncmp(newpath,"delete",6))
+ else if(!strcmp_litbeg(newpath,"delete"))
     action=Delete;
  else if(!strcmp(newpath,"edit"))
     action=Edit;
@@ -125,7 +123,7 @@ void ControlPage(int fd,URL *Url,Body *request_body)
          {
           for(argsp=args;*argsp;argsp++)
             {
-             if(!strncmp(*argsp,"hash=",5) && (*argsp)[5])
+             if(!strcmp_litbeg(*argsp,"hash=") && (*argsp)[strlitlen("hash=")])
                 hashash=1;
             }
 
@@ -136,33 +134,27 @@ void ControlPage(int fd,URL *Url,Body *request_body)
        if(!hashash)
          {
           ControlAuthFail(fd,Url->pathp);
-          free(newpath);
           return;
          }
       }
-    else if(!Url->pass)
+    else if(!Url->pass || strcmp(Url->pass,ConfigString(PassWord)))
       {
        ControlAuthFail(fd,Url->pathp);
-       free(newpath);
-       return;
-      }
-    else if(strcmp(Url->pass,ConfigString(PassWord)))
-      {
-       ControlAuthFail(fd,Url->pathp);
-       free(newpath);
        return;
       }
    }
 
  /* Perform the action. */
 
- if(action==None && Url->path[9])
-    HTMLMessage(fd,404,"WWWOFFLE Illegal Control Page",NULL,"ControlIllegal",
-                "url",Url->pathp,
-                NULL);
- else if(action==None)
-    HTMLMessage(fd,200,"WWWOFFLE Control Page",NULL,"ControlPage",
-                NULL);
+ if(action==None) {
+   if(*newpath)
+     HTMLMessage(fd,404,"WWWOFFLE Illegal Control Page",NULL,"ControlIllegal",
+		 "url",Url->pathp,
+		 NULL);
+   else
+     HTMLMessage(fd,200,"WWWOFFLE Control Page",NULL,"ControlPage",
+		 NULL);
+ }
  else if(action==Delete)
     DeleteControlPage(fd,Url,request_body);
  else if(action==DeleteMultiple)
@@ -172,7 +164,6 @@ void ControlPage(int fd,URL *Url,Body *request_body)
  else
     ActionControlPage(fd,action,command);
 
- free(newpath);
 }
 
 
@@ -201,8 +192,6 @@ static void ActionControlPage(int fd,Action action,char *command)
    }
  else
    {
-    char *buffer=NULL;
-
     HTMLMessage(fd,200,"WWWOFFLE Control Page",NULL,"ControlWWWOFFLE-Head",
                 "command",command,
                 NULL);
@@ -227,13 +216,20 @@ static void ActionControlPage(int fd,Action action,char *command)
     else if(action==Status)
        write_string(socket,"WWWOFFLE STATUS\r\n");
 
-    while((buffer=read_line(socket,buffer)))
-       write_string(fd,buffer);
+    {
+      char buffer[READ_BUFFER_SIZE]; int n;
+      while((n=read_data(socket,buffer,READ_BUFFER_SIZE))>0)
+	if(write_data(fd,buffer,n)<0) {
+	  PrintMessage(Warning,"Cannot write to temporary file [%!s]; disk full?");
+	  goto free_return;
+	}
+    }
 
     HTMLMessageBody(fd,"ControlWWWOFFLE-Tail",
                     NULL);
    }
 
+free_return:
  free(localhost);
 }
 
@@ -256,7 +252,7 @@ static void DeleteControlPage(int fd,URL *Url,Body *request_body)
 
  /* Decide what sort of deletion is required. */
 
- if(strlen(Url->path+9)>=10 && !strncmp(Url->path+9+10,"-all",4))
+ if(strlen(Url->path+9)>=10 && !strcmp_litbeg(Url->path+9+10,"-all"))
     all=1;
 
  if(Url->args && *Url->args!='!')
@@ -272,27 +268,27 @@ static void DeleteControlPage(int fd,URL *Url,Body *request_body)
    {
     for(argsp=args;*argsp;argsp++)
       {
-       if(!strncmp(*argsp,"hash=",5))
-          hash=URLDecodeFormArgs(&(*argsp)[5]);
-       if(!strncmp(*argsp,"username=",9))
-          username=&(*argsp)[9];
-       if(!strncmp(*argsp,"password=",9))
-          password=&(*argsp)[9];
-       if(!strncmp(*argsp,"url=",4))
-          page=URLDecodeFormArgs(&(*argsp)[4]);
+       if(!strcmp_litbeg(*argsp,"hash="))
+          hash=URLDecodeFormArgs(&(*argsp)[strlitlen("hash=")]);
+       if(!strcmp_litbeg(*argsp,"username="))
+          username=&(*argsp)[strlitlen("username=")];
+       if(!strcmp_litbeg(*argsp,"password="))
+          password=&(*argsp)[strlitlen("password=")];
+       if(!strcmp_litbeg(*argsp,"url="))
+          page=URLDecodeFormArgs(&(*argsp)[strlitlen("url=")]);
       }
    }
 
- if(!strncmp(Url->path+9,"delete-url",10))
+ if(!strcmp_litbeg(Url->path+9,"delete-url"))
     url=page;
- else if(!strncmp(Url->path+9,"delete-mon",10))
+ else if(!strcmp_litbeg(Url->path+9,"delete-mon"))
    {
     mon=page;
 
     if(all)
        mon="all";
    }
- else if(!strncmp(Url->path+9,"delete-req",10))
+ else if(!strcmp_litbeg(Url->path+9,"delete-req"))
    {
     req=page;
 
@@ -387,11 +383,11 @@ static void DeleteMultipleControlPages(int fd,URL *Url,Body *request_body)
 
  /* Decide what sort of deletion is required. */
 
- if(!strncmp(Url->path+9,"delete-multiple-url",19))
+ if(!strcmp_litbeg(Url->path+9,"delete-multiple-url"))
     url="yes";
- else if(!strncmp(Url->path+9,"delete-multiple-mon",19))
+ else if(!strcmp_litbeg(Url->path+9,"delete-multiple-mon"))
     mon="yes";
- else if(!strncmp(Url->path+9,"delete-multiple-req",19))
+ else if(!strcmp_litbeg(Url->path+9,"delete-multiple-req"))
     req="yes";
 
  /* Do the required deletion. */
@@ -423,17 +419,17 @@ static void DeleteMultipleControlPages(int fd,URL *Url,Body *request_body)
 
     for(argsp=args;*argsp;argsp++)
       {
-       if(!strncmp(*argsp,"username=",9))
-          username=&(*argsp)[9];
-       if(!strncmp(*argsp,"password=",9))
-          password=&(*argsp)[9];
+       if(!strcmp_litbeg(*argsp,"username="))
+          username=&(*argsp)[strlitlen("username=")];
+       if(!strcmp_litbeg(*argsp,"password="))
+          password=&(*argsp)[strlitlen("password=")];
       }
 
     for(argsp=args;*argsp;argsp++)
       {
        char *equal=strchr(*argsp,'=');
 
-       if(!strncmp(*argsp,"url",3) && equal)
+       if(!strcmp_litbeg(*argsp,"url") && equal)
          {
           char *page=URLDecodeFormArgs(equal+1);
 

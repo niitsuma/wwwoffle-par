@@ -12,6 +12,9 @@
   for conditions under which this file may be redistributed.
   ***************************************/
 
+/* Note: large portions of this file have been rewritten by Paul Rombouts.
+   See README.par for more information.
+*/
 
 #include "autoconfig.h"
 
@@ -21,132 +24,98 @@
 #include <ctype.h>
 
 #include "misc.h"
+#include "headbody.h"
 
 
-static /*@only@*/ char **split_header_list(char *val);
 static int sort_qval(HeaderListItem *a,HeaderListItem *b);
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Create a new Header structure.
 
-  Header *CreateHeader Returns the new header structure.
+  int CreateHeader Returns 1 if OK, -1 if malformed, 0 if line is empty.
 
   char *line The top line in the original header.
 
   int type The type of header, request=1, reply=0;
+
+  Head **head Returns the new header structure.
   ++++++++++++++++++++++++++++++++++++++*/
 
-Header *CreateHeader(char *line,int type)
+int CreateHeader(const char *line,int type,Header **head)
 {
- Header *new=(Header*)malloc(sizeof(*new));
- char *p=(char*)malloc(strlen(line)+1),*oldp=p;
- char *method="",*url="",*note="",*version="";
- int status=0;
+ const char *text,*p,*end;
+ Header *new=(Header*)malloc(sizeof(Header));
+
+ *head=new;
+
+ new->type=type;
+ new->method=NULL;
+ new->url=NULL;
+ new->status=0;
+ new->note=NULL;
+ new->version=NULL;
+
+ new->n=0;
+ new->line=NULL;
+
+ /*trim the line*/
+ end=strchrnul(line,0);
+ do {if(--end<line) return 0;} while(isspace(*end));
+ ++end;
+
+ if(isspace(*line)) return -1;
 
  /* Parse the original header. */
 
- strcpy(p,line);
-
- new->type=type;
-
+ text=p=line;
  if(type==1)
    {
-                                /* GET http://www/xxx HTTP/1.0\r\n */
-    method=p;
-    while(*p && !isspace(*p))   /*    ^                            */
-       p++;
-    if(!*p) goto eol_req;
-    *p++=0;
-    while(*p && isspace(*p))    /*     ^                           */
-       p++;
-    if(!*p) goto eol_req;
-    url=p;
-    while(*p && !isspace(*p))   /*                   ^             */
-       p++;
-    if(!*p) goto eol_req;
-    *p++=0;
-    while(*p && isspace(*p))    /*                    ^            */
-       p++;
-    if(!*p) goto eol_req;
-    version=p;
-    while(*p && !isspace(*p))   /*                            ^    */
-       p++;
-    *p=0;
+                                        /* GET http://www/xxx HTTP/1.0 */
+    while(*++p && !isspace(*p));
+    new->method=strndup(text,p-text);   /*    ^                        */
+    if(!*p) return -1;
+    do {if(!*++p) return -1;} while(isspace(*p));
 
-   eol_req:
+    text=p;                             /*     ^                       */
+    while(*++p && !isspace(*p));
+    new->url=strndup(text,p-text);      /*                   ^         */
+    if(!*p) goto defaultversion;
+    do {if(!*++p) goto defaultversion;} while(isspace(*p));
+                                        /*                    ^        */
+    new->version=strndup(p,end-p);
+    goto finish_req;
 
-    if(!*version)
-       version="HTTP/1.0";
+   defaultversion:
+    new->version=strdup("HTTP/1.0");
 
-    new->method=(char*)malloc(strlen(method)+1);
-    strcpy(new->method,method);
-
-    new->url=(char*)malloc(strlen(url)+1);
-    strcpy(new->url,url);
-
-    for(p=new->method;*p;p++)
-       *p=toupper(*p);
-
-    new->status=0;
-    new->note=NULL;
-
-    new->size=strlen(new->method)+strlen(new->url);
+   finish_req:
+    upcase(new->method);
    }
  else
    {
-                                /* HTTP/1.1 200 OK or something\r\n */
-    version=p;
-    while(*p && !isspace(*p))   /*         ^                        */
-       p++;
-    if(!*p) goto eol_rep;
-    *p++=0;
-    while(*p && isspace(*p))    /*          ^                       */
-       p++;
-    if(!*p) goto eol_rep;
-    status=atoi(p);
-    while(*p && !isspace(*p))   /*             ^                    */
-       p++;
-    if(!*p) goto eol_rep;
-    *p++=0;
-    while(*p && isspace(*p))    /*              ^                   */
-       p++;
-    if(!*p) goto eol_rep;
-    note=p;
-    while(*p && !iscntrl(*p))   /*                             ^    */
-       p++;
-    *p=0;
+                                        /* HTTP/1.1 200 OK or something */
+    while(*++p && !isspace(*p));
+    if(*(p-1)==':')
+      return AddToHeaderRaw(new,line);
+    new->version=strndup(text,p-text);  /*         ^                    */
+    if(!*p) return -1;
+    do {if(!*++p) return -1;} while(isspace(*p));
+                                        /*          ^                   */
+    new->status=atoi(p);
 
-   eol_rep:
+    do {if(!*++p) goto finish_rep;} while(!isspace(*p));
+                                        /*             ^                */
+    do {if(!*++p) goto finish_rep;} while(isspace(*p));
+                                        /*              ^               */
+    new->note=strndup(p,end-p);
 
-    new->method=NULL;
-    new->url=NULL;
-
-    new->status=status%1000;
-
-    new->note=(char*)malloc(strlen(note)+1);
-    strcpy(new->note,note);
-
-    new->size=strlen(new->note)+3; /* 3 = strlen(status) */
+   finish_rep:
    }
 
- new->version=(char*)malloc(strlen(version)+1);
- strcpy(new->version,version);
+ upcase(new->version);
 
- for(p=new->version;*p;p++)
-    *p=toupper(*p);
-
- new->size+=strlen(new->version)+4; /* 4 = 2*' ' + '\r\n' */
-
- new->size+=2; /* 2 = '\r\n' */
-
- new->n=0;
- new->key=(char**)malloc(sizeof(char*)*8);
- new->val=(char**)malloc(sizeof(char*)*8);
-
- free(oldp);
-
- return(new);
+ return 1;
 }
 
 
@@ -155,191 +124,96 @@ Header *CreateHeader(char *line,int type)
 
   Header *head The header structure to add to.
 
-  char *key The key to add or NULL.
+  char *key The key to addL.
 
   char *val The value to add.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void AddToHeader(Header *head,char *key,char *val)
+void AddToHeader(Header *head,const char *key,const char *val)
 {
- if(key)
-   {
-    int i,match=-1;
+  int k = head->n++;
 
-    for(i=0;i<head->n;i++)
-       if(!strcmp(head->key[i],key))
-          match=i;
+  /* To reduce the number of realloc calls, expand key and val arrays in steps of 8 */
+  if((k&7) == 0)  /* k&7 == k mod 8 */
+    {
+      head->line=(KeyValuePair *)realloc((void*)head->line,sizeof(KeyValuePair)*(k+8));
+    }
 
-    if(match!=-1)
-      {
-       /* Concatenate this value with an existing key. */
-
-       head->val[match]=(char*)realloc((void*)head->val[match],strlen(head->val[match])+strlen(val)+3);
-       strcat(head->val[match],",");
-       strcat(head->val[match],val);
-
-       head->size+=strlen(val)+1;
-      }
-    else
-      {
-       /* Add a new header line */
-
-       if(head->n>=8)
-         {
-          head->key=(char**)realloc((void*)head->key,sizeof(char*)*(head->n+1));
-          head->val=(char**)realloc((void*)head->val,sizeof(char*)*(head->n+1));
-         }
-
-       head->key[head->n]=(char*)malloc(strlen(key)+1);
-       strcpy(head->key[head->n],key);
-
-       head->val[head->n]=(char*)malloc(strlen(val)+1);
-       strcpy(head->val[head->n],val);
-
-       head->n++;
-
-       head->size+=strlen(key)+strlen(val)+4;
-      }
-   }
- else
-   {
-    /* Append text to the last header line */
-
-    if(head->n==0 || !head->key[head->n-1])
-       return; /* weird: there must be a last header... */
-    
-    head->size+=strlen(val);
-    head->val[head->n-1]=(char*)realloc((void*)head->val[head->n-1],strlen(head->val[head->n-1])+strlen(val)+1);
-    if(*head->val[head->n-1])
-       strcat(head->val[head->n-1],val);
-    else
-       strcat(head->val[head->n-1],val+1);
-   }
+  head->line[k].key=strdup(key);
+  head->line[k].val=strdup(val);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Add a raw line to a header.
 
-  int AddToHeaderRaw Returns 1 if OK, -1 if malformed, else 0.
+  int AddToHeaderRaw Returns 1 if OK, 0 if line is empty, -1 if malformed.
 
   Header *head The header to add the line to.
 
   char *line The raw line of data.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int AddToHeaderRaw(Header *head,char *line)
+int AddToHeaderRaw(Header *head,const char *line)
 {
- char *key,*val,*r=line+strlen(line)-1;
+ const char *key=NULL,*keyend=line,*val,*end=strchrnul(line,0);
 
  /* trim line */
 
- while(r>line && isspace(*r))
-    r--;
+ do {if(--end<line) return 0;} while(isspace(*end));
+ ++end;
 
- /* last line */
-
- if(r==line)
-    return(0);
-
- if(isspace(*line))
-   {
-    /* continuation of previous line - Wilmer van der Gaast <lintux@lintux.cx> */
-
-    key=NULL;
-    val=line;
-    
-    *++r=0;
-    while(*val && isspace(*val))
-       val++;
-    *--val=' ';
-   }
- else
+ if(!isspace(*line))
    {
     /* split line */
    
     key=line;
-    val=line;
    
-    while(*val && *val!=':')
-       val++;
+    while(*keyend!=':') {if(!*++keyend) return -1;}
    
-    if(!*val)
-       return(-1);				/* malformed header */
-    
-    *++r=0;
-    *val++=0;
-    while(*val && isspace(*val))
-       val++;
  }
+
+ val=keyend+1;
+ while(val<end && isspace(*val)) ++val;   /* trim value */
 
  /* Add to the header */
 
- AddToHeader(head,key,val);
+ {
+   int strlen_val=end-val;
+
+   if(key)
+     {
+       int k = head->n++;
+
+       /* To reduce the number of realloc calls, expand key and val arrays in steps of 8 */
+       if((k&7) == 0)  /* k&7 == k mod 8 */
+	 {
+	   head->line=(KeyValuePair *)realloc((void*)head->line,sizeof(KeyValuePair)*(k+8));
+	 }
+
+       head->line[k].key=strndup(key,keyend-key);
+       head->line[k].val=strndup(val,strlen_val);
+     }
+   else
+     {
+       /* Append text to the last header line */
+
+       if(head->n==0 || !head->line[head->n-1].key)
+	 return -1; /* weird: there must be a last header... */
+
+       {
+	 int strlen_last=strlen(head->line[head->n-1].val);
+	 char *p;
+	 head->line[head->n-1].val=(char*)realloc((void*)head->line[head->n-1].val,strlen_last+strlen_val+2);
+	 p= head->line[head->n-1].val + strlen_last;
+	 if(strlen_last) *p++=' ';
+	 p=mempcpy(p,val,strlen_val);
+	 *p=0;
+       }
+     }
+ }
 
  return(1);
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Change the URL in the header.
-
-  Header *head The header to change.
-
-  char *url The new URL.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-void ChangeURLInHeader(Header *head,char *url)
-{
- head->size-=strlen(head->url);
-
- head->url=(char*)realloc((void*)head->url,strlen(url)+1);
-
- strcpy(head->url,url);
-
- head->size+=strlen(url);
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Remove the internal WWWOFFLE POST/PUT URL extensions.
-
-  Header *head The header to remove the information from.
-
-  char *url A pointer to a string in the header.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-void RemovePlingFromHeader(Header *head,char *url)
-{
- char *pling=strstr(url,"?!")+1;
- char *pling2=strchr(pling+1,'!');
-
- if(pling2)
-    for(;pling<pling2;pling++)
-       *pling=*(pling+1);
-
- head->size-=strlen(pling-1);
- *(pling-1)=0;
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Change the note string in the header.
-
-  Header *head The header to change.
-
-  char *note The new note.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-void ChangeNoteInHeader(Header *head,char *note)
-{
- head->size-=strlen(head->note);
-
- head->note=(char*)realloc((void*)head->note,strlen(note)+1);
-
- strcpy(head->note,note);
-
- head->size+=strlen(note);
 }
 
 
@@ -351,33 +225,13 @@ void ChangeNoteInHeader(Header *head,char *note)
   char* key The key to look for and remove.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void RemoveFromHeader(Header *head,char* key)
+void RemoveFromHeader(Header *head,const char* key)
 {
- int i,j;
+ int i;
 
- for(i=0,j=0;i<head->n;i++,j++)
-    if(!strcasecmp(head->key[i],key))
-      {
-       head->size-=strlen(head->key[i])+strlen(head->val[i])+4;
-
-       free(head->key[i]);
-       free(head->val[i]);
-
-       head->key[i]=NULL;
-       head->val[i]=NULL;
-
-       j--;
-      }
-    else if(i!=j)
-      {
-       head->key[j]=head->key[i];
-       head->val[j]=head->val[i];
-
-       head->key[i]=NULL;
-       head->val[i]=NULL;
-      }
-
- head->n=j;
+ for(i=0;i<head->n;++i)
+   if(head->line[i].key && !strcasecmp(head->line[i].key,key))
+     RemoveFromHeaderIndexed(head,i);
 }
 
 
@@ -391,74 +245,96 @@ void RemoveFromHeader(Header *head,char* key)
   char *val The value to look for and remove.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void RemoveFromHeader2(Header *head,char* key,char *val)
+void RemoveFromHeader2(Header *head,const char* key,const char *val)
+{
+  int i;
+
+  for(i=0;i<head->n;++i) {
+    if(head->line[i].key && !strcasecmp(head->line[i].key,key)) {
+      char *str=head->line[i].val,*p=str,*q,*r=str;
+      int strlen_val=strlen(val);
+
+      for(;;) {
+	for(;;) {
+	  if(!*p) goto nexti;
+	  if(!isspace(*p)) break;
+	  ++p;
+	}
+
+	q=p;
+	while(!strncasecmp(q,val,strlen_val)) {
+	  while(*q!=',') {if(!*++q) goto chop_line;}
+	  do {if(!*++q) goto chop_line;} while(isspace(*q));
+	}
+
+	if(q!=p)
+	  {char *t=p; while((*t++=*q++));}
+	  
+	while(*p!=',') {if(!*++p) goto nexti;}
+
+	r=p++;  /* remember ending of previous item */
+      }
+
+    chop_line:
+      do {
+	if(--r<str) {
+	  RemoveFromHeaderIndexed(head,i);
+	  goto nexti;
+	}
+      } while(isspace(*r));
+      *++r=0;
+    }
+  nexti:
+  }
+}
+
+
+/* Added by Paul Rombouts */
+/*++++++++++++++++++++++++++++++++++++++
+  Repace the value of an existing key with a new one, or add a new key and value combination.
+  Header *head The header structure to modify.
+  char *key The key.
+  char *val The replacement value.
+  ++++++++++++++++++++++++++++++++++++++*/
+void ReplaceInHeader(Header *head,const char *key,const char *val)
 {
  int i;
 
- for(i=0;i<head->n;i++)
-    if(!strcasecmp(head->key[i],key))
-      {
-       char **list=split_header_list(head->val[i]);
+ for(i=0;i<head->n;++i)
+   if(head->line[i].key && !strcasecmp(head->line[i].key,key))
+     goto found;
 
-       if(!**(list+1) && !strncasecmp(*list,val,strlen(val)))
-          RemoveFromHeader(head,key);
-       else
-         {
-          char *old=head->val[i],**l;
+ AddToHeader(head,key,val);
+ return;
 
-          head->val[i]=(char*)malloc(strlen(old)+1);
-          strcpy(head->val[i],old);
-          
-          for(l=list;**l;l++)
-             if(!strncasecmp(*l,val,strlen(val)))
-               {
-                char *p=head->val[i]+(*l-old),*q=head->val[i]+(*(l+1)-old),oldq=*q;
-
-                head->size-=q-p;
-
-                while(*q)
-                   *p++=*q++;
-
-                *p=0;
-
-                if(!oldq)
-                  {
-                   p--;
-                   while(p>head->val[i] && (*p==',' || isspace(*p)))
-                     {
-                      *p--=0;
-                      head->size--;
-                     }
-                  }
-               }
-
-          free(old);
-         }
-
-       free(list);
-
-       break;
-      }
+found:
+ free(head->line[i].val);
+ head->line[i].val=strdup(val);
+ /* remove any remaining values with the same key */
+ ++i;
+ for(;i<head->n;++i)
+   if(head->line[i].key && !strcasecmp(head->line[i].key,key))
+     RemoveFromHeaderIndexed(head,i);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Search through a HTTP header for a specified key.
 
-  char *GetHeader Returns the value for the header key or NULL if none.
+  char *GetHeader Returns the (first) value for the header key or NULL if none.
 
   Header *head The header to search through.
 
   char* key The key to look for.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *GetHeader(Header *head,char* key)
+char *GetHeader(Header *head,const char* key)
 {
  int i;
 
- for(i=0;i<head->n;i++)
-    if(!strcasecmp(head->key[i],key))
-       return(head->val[i]);
+ for(i=0;i<head->n;++i)
+    if(head->line[i].key && !strcasecmp(head->line[i].key,key))
+       return(head->line[i].val);
 
  return(NULL);
 }
@@ -476,29 +352,70 @@ char *GetHeader(Header *head,char* key)
   char *val The value to look for (which may be in a list).
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *GetHeader2(Header *head,char* key,char *val)
+char *GetHeader2(Header *head,const char* key,const char *val)
 {
- char *retval=NULL;
+ int strlen_val=strlen(val);
  int i;
 
- for(i=0;i<head->n;i++)
-    if(!strcasecmp(head->key[i],key))
-      {
-       char **list=split_header_list(head->val[i]),**l;
+ for(i=0;i<head->n;++i) {
+   if(head->line[i].key && !strcasecmp(head->line[i].key,key)) {
+     char *p=head->line[i].val;
 
-       for(l=list;**l;l++)
-          if(!strncasecmp(*l,val,strlen(val)))
-            {
-             retval=*l;
-             break;
-            }
+     for(;;) {
+       for(;;) {
+	 if(!*p) goto nexti;
+	 if(!isspace(*p)) break;
+	 ++p;
+       }
 
-       free(list);
+       if(!strncasecmp(p,val,strlen_val)) return p;
 
-       break;
-      }
+       while(*p!=',') {if(!*++p) goto nexti;}
+       ++p;
+     }
+   }
+ nexti:
+ }
 
- return(retval);
+ return NULL;
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Search through a HTTP header for a specified key.
+
+  char *GetHeader Returns the all the values combined for the header key or NULL if empty or none.
+
+  Header *head The header to search through.
+
+  char* key The key to look for.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+char *GetHeaderCombined(Header *head,const char* key)
+{
+  int i,length=-1;
+  char *p,*val;
+
+  for(i=0;i<head->n;++i)
+    if(head->line[i].key && !strcasecmp(head->line[i].key,key)) {
+      length+=1+strlen(head->line[i].val);
+    }
+
+  if(length==-1) return NULL;
+
+  val=(char *)malloc(length+1);
+
+  p=val-1;
+  for(i=0;i<head->n;++i)
+    if(head->line[i].key && !strcasecmp(head->line[i].key,key)) {
+      if(p<val)
+	p=val;
+      else
+	*p++=',';
+      p=stpcpy(p,head->line[i].val);
+    }
+
+  return val;
 }
 
 
@@ -508,108 +425,70 @@ char *GetHeader2(Header *head,char* key,char *val)
   char *HeaderString Returns the header as a string.
 
   Header *head The header structure to convert.
+  int *size    Returns the size of the header.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *HeaderString(Header *head)
+char *HeaderString(Header *head, int *size)
 {
- char *str,*p;
- int i;
+  char *str,*p;
+  int str_len,i;
 
- p=str=(char*)malloc(head->size+16);
-
- if(head->type==1)
-   {
-    strcpy(p,head->method);  p+=strlen(head->method);
-    strcpy(p," ");           p++;
-    strcpy(p,head->url);     p+=strlen(head->url);
-    strcpy(p," ");           p++;
-    strcpy(p,head->version); p+=strlen(head->version);
-   }
- else
-   {
-    if(*head->version)
-      {
-       strcpy(p,head->version);       p+=strlen(head->version);
-       strcpy(p," ");                 p++;
-       if(head->status>=100 && head->status<1000)
-          sprintf(p,"%3d",head->status);
-       else
-          strcpy(p,"200");
-       p+=3;
-       strcpy(p," ");                 p++;
-       strcpy(p,head->note);          p+=strlen(head->note);
+  if(head->type==1) {  /* request head */
+    str_len=4;   /* "\r\n\r\n" */
+    if(head->method) {
+      str_len+=strlen(head->method)+1;  /* +" " */
+      if(head->url) {
+	str_len+=strlen(head->url)+1;  /* +" " */
+	if(head->version) str_len+=strlen(head->version);
       }
-    else
-      {
-       strcpy(p,"HTTP/1.0 200 OK"); p+=15;
+    }
+  }
+  else {  /* reply head */
+    str_len= ((head->version)?strlen(head->version):8) + 9;  /* "HTTP/1.0" + " 200 \r\n\r\n" */
+    if(head->note) str_len+=strlen(head->note);
+  }
+
+  for(i=0;i<head->n;++i)
+    if(head->line[i].key)
+      str_len += strlen(head->line[i].key) + strlen(head->line[i].val) + 4;
+
+  if(size) *size= str_len;
+  str=p=(char*)malloc(str_len+1);
+
+  if(head->type==1) {  /* request head */
+    if(head->method) {
+      p= stpcpy(p,head->method);
+      *p++ = ' ';
+      if(head->url) {
+	p= stpcpy(p,head->url);
+	*p++ = ' ';
+	if(head->version) p= stpcpy(p,head->version);
       }
-   }
- strcpy(p,"\r\n"); p+=2;
+    }
+  }
+  else {  /* reply head */
+    p= stpcpy(p,(head->version)?head->version:"HTTP/1.0");
+    *p++ = ' ';
+    {
+      char status[12];
+      if(head->status>=100 && sprintf(status,"%3d",head->status)==3)
+	p=stpcpy(p,status);
+      else
+	p=stpcpy(p,"502");
+    }
+    *p++ = ' ';
+    if(head->note) p= stpcpy(p,head->note);
+  }
 
- for(i=0;i<head->n;i++)
-   {
-    strcpy(p,head->key[i]); p+=strlen(head->key[i]);
-    strcpy(p,": ");         p+=2;
+  p= stpcpy(p,"\r\n");
 
-    /*
-       Cookies are a big problem here since none of the browsers handle them
-       like the RFCs say they should.  In particular browsers don't handle
-       servers that set more then one cookie on the same line.
+  for(i=0;i<head->n;++i)
+    if(head->line[i].key)
+      p= stpcpy(stpcpy(stpcpy(stpcpy(p,head->line[i].key),": "),head->line[i].val),"\r\n");
 
-       See RFC 2109 "HTTP State Management Mechanism" section 4.2.1
-       and RFC 2616 "Hypertext Transfer Protocol -- HTTP/1.1" section 4.2
+  stpcpy(p,"\r\n");
 
-       Even worse is that multiple headers on a line are separated by a ','
-       and cookies can contain an expires value that has a fixed format like
-       'expires=Wdy, DD-Mon-YY HH:MM:SS GMT' and contains an embedded ','!
-     */
-
-    if(!strcasecmp(head->key[i],"Set-Cookie"))
-      {
-       char **list=split_header_list(head->val[i]),**l;
-       int nlist=0;
-
-       for(l=list;**l;l++)
-         {
-          char *lp=*l;
-
-          if(nlist++)
-            {
-             int offset=p-str;
-             str=(char*)realloc((void*)str,head->size+16+nlist*(strlen(head->key[i])+4));
-             p=str+offset;
-            }
-
-          while(*lp && *lp!=',')
-             *p++=*lp++;
-          *p=0;
-          if(**(l+1) && lp>(*l+10) && strstr(p-16,"expires="))
-            {
-             *p++=',';
-             *p++=' ';
-             l++;
-             lp=*l;
-             while(*lp && *lp!=',')
-                *p++=*lp++;
-            }
-
-          while(isspace(*(p-1)))
-             *--p=0;
-         }
-
-       free(list);
-      }
-    else
-      {
-       strcpy(p,head->val[i]); p+=strlen(head->val[i]);
-      }
-
-    strcpy(p,"\r\n");       p+=2;
-   }
-
- strcpy(p,"\r\n");
-
- return(str);
+  return(str);
 }
 
 
@@ -623,27 +502,19 @@ void FreeHeader(Header *head)
 {
  int i;
 
- if(head->type)
-   {
-    free(head->method);
-    free(head->url);
-   }
- else
-    free(head->note);
+ if(head->method)  free(head->method);
+ if(head->url)     free(head->url);
+ if(head->note)    free(head->note);
+ if(head->version) free(head->version);
 
- free(head->version);
+ for(i=0;i<head->n;++i)
+   if(head->line[i].key)
+     {
+       free(head->line[i].key);
+       free(head->line[i].val);
+     }
 
- for(i=0;i<head->n;i++)
-   {
-    free(head->key[i]);
-    free(head->val[i]);
-   }
-
- if(head->n)
-   {
-    free(head->key);
-    free(head->val);
-   }
+ if(head->line) free(head->line);
 
  free(head);
 }
@@ -657,16 +528,14 @@ void FreeHeader(Header *head)
   int length The length of the body;
   ++++++++++++++++++++++++++++++++++++++*/
 
-Body *CreateBody(int length)
+/* Body *CreateBody(int length)
 {
- Body *new=(Body*)malloc(sizeof(*new));
+ Body *new=(Body*)malloc(sizeof(Body)+length+1);
 
  new->length=length;
 
- new->content=malloc(length+3);
-
  return(new);
-}
+} */
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -675,104 +544,84 @@ Body *CreateBody(int length)
   Body *body The body structure to free.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void FreeBody(Body *body)
+/* void FreeBody(Body *body)
 {
- if(body->content)
-    free(body->content);
-
  free(body);
-}
+} */
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Split a header that contains a list into a structure.
+  Construct a list of items from a header.
 
-  HeaderList *SplitHeaderList Returns a structure containing a list of items and q values.
+  HeaderList *GetHeaderList Returns a structure containing a list of items and q values
+                            or NULL if key was not found.
 
-  char *val The header to split.
+  Header *head The header to search through.
+
+  char* key The key to look for.
   ++++++++++++++++++++++++++++++++++++++*/
-
-HeaderList *SplitHeaderList(char *val)
+/* written by Paul Rombouts  as a replacement for SplitHeaderList */
+HeaderList *GetHeaderList(Header *head,const char* key)
 {
- char **list=split_header_list(val),**l;
- HeaderList *hlist=(HeaderList*)malloc(sizeof(HeaderList));
+  HeaderList *list;
+  int i,nitems=0;
+  const char *p;
 
- hlist->n=0;
- hlist->item=(HeaderListItem*)malloc(8*sizeof(HeaderListItem));
+  for(i=0;i<head->n;++i)
+    if(head->line[i].key && !strcasecmp(head->line[i].key,key))
+      {
+	++nitems;
+	for(p=head->line[i].val; *p; ++p) if(*p==',') ++nitems;
+      }
+	
+  if(nitems==0) return NULL;
 
- for(l=list;**l;l++)
-   {
-    char *p=*l,*q;
-    float qval=1;
+  list=(HeaderList*)malloc(sizeof(HeaderList)+sizeof(HeaderListItem)*nitems);
 
-    while(p<*(l+1) && !isspace(*p) && *p!=',' && *p!=';')
-       p++;
+  nitems=0;
+  for(i=0;i<head->n;++i)
+    if(head->line[i].key && !strcasecmp(head->line[i].key,key))
+      {
+	p=head->line[i].val;
+	for(;;)
+	  {
+	    const char *q,*r;
 
-    q=p;
+	    while(*p && isspace(*p)) ++p;
 
-    while(p<*(l+1) && isspace(*p))
-       p++;
+	    q=p;
 
-    if(*p==';')
-       sscanf(p+1," q=%f",&qval);
+	    while(*p && *p!=',' && *p!=';') ++p;
 
-    while(p<*(l+1))
-       p++;
+	    r=p;
+	    while(--r>=q && isspace(*r));
+	    ++r;
 
-    if(hlist->n>=8)
-       hlist->item=(HeaderListItem*)realloc((void*)hlist->item,sizeof(HeaderListItem)*(hlist->n+1));
+	    {
+	      float qval=1; 
+ 
+	      if(*p==';')
+		{
+		  ++p;
+		  sscanf(p," q=%f",&qval);
+		  while(*p && *p!=',') ++p;
+		}
 
-    hlist->item[hlist->n].val=(char*)malloc((q-*l)+1);
-    strncpy(hlist->item[hlist->n].val,*l,q-*l);
-    hlist->item[hlist->n].val[q-*l]=0;
-    hlist->item[hlist->n].qval=qval;
-    hlist->n++;
-   }
+	      list->item[nitems].val=strndup(q,r-q);
+	      list->item[nitems].qval=qval;
 
- qsort(hlist->item,hlist->n,sizeof(HeaderListItem),(int (*)(const void*,const void*))sort_qval);
+	      ++nitems;
+	    }
 
- free(list);
+	    if(!*p) break;
+	    ++p; /* skip ',' */
+	  }
+      }
 
- return(hlist);
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Split a header that contains a list into items.
-
-  char **split_header_list Returns an array of pointers into the header, terminated by a pointer to the NULL char.
-
-  char *val The header to split.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-static char **split_header_list(char *val)
-{
- char *p=val;
- char **list=malloc(8*sizeof(char*));
- int nlist=0;
-
- while(*p)
-   {
-    while(*p && isspace(*p))
-       p++;
-    if(!*p)
-       break;
-
-    if(nlist>7)
-       list=(char**)realloc((void*)list,(nlist+2)*sizeof(char*));
-
-    list[nlist++]=p;
-
-    while(*p && *p!=',')
-       p++;
-
-    if(*p==',')
-       p++;
-   }
-
- list[nlist]=p;
-
- return(list);
+  list->n=nitems;
+  qsort(list->item,nitems,sizeof(HeaderListItem),(int (*)(const void*,const void*))sort_qval);
+ 
+  return(list);
 }
 
 
@@ -784,14 +633,12 @@ static char **split_header_list(char *val)
 
 void FreeHeaderList(HeaderList *hlist)
 {
- int i;
+  int i;
 
- for(i=0;i<hlist->n;i++)
+  for(i=0;i<hlist->n;++i)
     free(hlist->item[i].val);
 
- free(hlist->item);
-
- free(hlist);
+  free(hlist);
 }
 
 
@@ -807,11 +654,6 @@ void FreeHeaderList(HeaderList *hlist)
 
 static int sort_qval(HeaderListItem *a,HeaderListItem *b)
 {
- float aq=a->qval;
- float bq=b->qval;
- int chosen;
-
- chosen=1000*(bq-aq);
-
- return(chosen);
+  float b_a=(b->qval)-(a->qval);
+  return (b_a>0)?1:(b_a<0)?-1:0;
 }

@@ -322,6 +322,7 @@ static /*@null@*/ /*@observer@*/ char *cache_info=NULL;
 
 /*+ The file descriptor that we are reading from. +*/
 static int htmlmodify_yyfd=-1;
+static int htmlmodify_read_err=0;
 
 /*+ The base URL of this page. +*/
 static /*@null@*/ URL *baseUrl=NULL;
@@ -332,6 +333,7 @@ static int disable_output=DISABLE_NONE;
 
 /*++++++++++++++++++++++++++++++++++++++
   Output the file with the modificatons if it is HTML, else just output.
+  Returns -1 if error was encountered while reading spool.
 
   int client The file to write to.
 
@@ -340,7 +342,7 @@ static int disable_output=DISABLE_NONE;
   URL *Url The URL that we are parsing.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void OutputHTMLWithModifications(int client,int spool,URL *Url)
+int OutputHTMLWithModifications(int client,int spool,URL *Url)
 {
  static int first=1;
 
@@ -348,12 +350,12 @@ void OutputHTMLWithModifications(int client,int spool,URL *Url)
    {
     struct stat buf;
     time_t t_ago;
-    char *date,*timeunit,timeago[8];
+    char date[MAXDATESIZE],timeago[8],*timeunit;
 
     fstat(spool,&buf);
 
     t_ago=time(NULL)-buf.st_mtime;
-    date=RFC822Date(buf.st_mtime,0);
+    RFC822Date_r(buf.st_mtime,0,date);
     
     if(t_ago<0)
       {strcpy(timeago,"?");timeunit="";}
@@ -380,6 +382,7 @@ void OutputHTMLWithModifications(int client,int spool,URL *Url)
 
  output_fd=client;
  htmlmodify_yyfd=spool;
+ htmlmodify_read_err=0;
  if(!first)
     htmlmodify_yyrestart(NULL);
 
@@ -388,6 +391,7 @@ void OutputHTMLWithModifications(int client,int spool,URL *Url)
  cache_info=NULL;
 
  first=0;
+ return(htmlmodify_read_err);
 }
 
 
@@ -569,15 +573,15 @@ static void output_img_or_object_tag(Tag *tag,int src_att,
    {
     output_tag(tag,"!-- WWWOFFLE (replace-dontget-images) - "," --");
 
-    tag->attr_val[src_att]=(char*)realloc((void*)tag->attr_val[src_att],strlen(dontget_replacement)+1);
-    strcpy(tag->attr_val[src_att],dontget_replacement);
+    if(tag->attr_val[src_att]) free(tag->attr_val[src_att]);
+    tag->attr_val[src_att]=strdup(dontget_replacement);
    }
  else if(is_webbug)
    {
     output_tag(tag,"!-- WWWOFFLE (replace-webbug-images) - "," --");
 
-    tag->attr_val[src_att]=(char*)realloc((void*)tag->attr_val[src_att],strlen(webbug_replacement)+1);
-    strcpy(tag->attr_val[src_att],webbug_replacement);
+    if(tag->attr_val[src_att]) free(tag->attr_val[src_att]);
+    tag->attr_val[src_att]=strdup(webbug_replacement);
    }
 
  /* Remove the alt attribute (if required) and shuffle the tag structure accordingly. */
@@ -656,8 +660,8 @@ static int handle_object_tag(Tag *tag,int replace_dontget,char *dontget_replacem
  if(replace_dontget || replace_webbug)
    {
     for(i=0;i<tag->nattr;i++)
-       if((tag->attr_type[i]==att_codetype && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"image",5)) ||
-          (tag->attr_type[i]==att_type && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"image",5)))
+       if((tag->attr_type[i]==att_codetype && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"image")) ||
+          (tag->attr_type[i]==att_type && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"image")))
           is_image=1;
        else if(tag->attr_type[i]==att_data && tag->attr_val[i])
           data_att=i;
@@ -668,9 +672,9 @@ static int handle_object_tag(Tag *tag,int replace_dontget,char *dontget_replacem
  if(disable_html_applet)
    {
     for(i=0;i<tag->nattr;i++)
-       if(tag->attr_type[i]==att_codetype && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"application/java",16))
+       if(tag->attr_type[i]==att_codetype && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"application/java"))
           is_java=1;
-       else if(tag->attr_type[i]==att_classid && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"java:",5))
+       else if(tag->attr_type[i]==att_classid && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"java:"))
           is_java=1;
    }
 
@@ -680,13 +684,13 @@ static int handle_object_tag(Tag *tag,int replace_dontget,char *dontget_replacem
    {
     for(i=0;i<tag->nattr;i++)
        if((tag->attr_type[i]==att_codetype || tag->attr_type[i]==att_type) &&
-          tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"application/x-shockwave-flash",29))
+          tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"application/x-shockwave-flash"))
           is_flash=1;
        else if(tag->attr_type[i]==att_classid && tag->attr_val[i] &&
-               !strncasecmp(tag->attr_val[i],"clsid:D27CDB6E-AE6D-11cf-96B8-444553540000",42))
+               !strcasecmp_litbeg(tag->attr_val[i],"clsid:D27CDB6E-AE6D-11cf-96B8-444553540000"))
           is_flash=1;
        else if(tag->attr_type[i]==att_src && tag->attr_val[i] &&
-               !strncasecmp(tag->attr_val[i]+strlen(tag->attr_val[i])-4,".swf",4))
+               !strcasecmp_litbeg(tag->attr_val[i]+strlen(tag->attr_val[i])-4,".swf"))
           is_flash=1;
    }
 
@@ -695,8 +699,8 @@ static int handle_object_tag(Tag *tag,int replace_dontget,char *dontget_replacem
  if(disable_html_dontget_iframes)
    {
     for(i=0;i<tag->nattr;i++)
-       if((tag->attr_type[i]==att_codetype && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"text",4)) ||
-          (tag->attr_type[i]==att_type && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"text",4)))
+       if((tag->attr_type[i]==att_codetype && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"text")) ||
+          (tag->attr_type[i]==att_type && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"text")))
           is_inline=1;
        else if(tag->attr_type[i]==att_data && tag->attr_val[i])
          {
@@ -746,7 +750,7 @@ static void handle_link_tag(Tag *tag,int disable_html_style)
  int is_stylesheet=0;
 
  for(i=0;i<tag->nattr;i++)
-    if(tag->attr_type[i]==att_rel && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"Stylesheet",10))
+    if(tag->attr_type[i]==att_rel && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"Stylesheet"))
        is_stylesheet=1;
 
  /* Output the original or modified tag. */
@@ -785,7 +789,7 @@ static int handle_style_script_tag(Tag *tag,int disable_html_script)
 
        while(j>=0) /* strcasestr() */
          {
-          if(!strncasecmp(&tag->attr_val[i][j],"javascript",10))
+          if(!strcasecmp_litbeg(&tag->attr_val[i][j],"javascript"))
              is_really_script=1;
           j--;
          }
@@ -819,7 +823,7 @@ static void handle_meta_tag(Tag *tag,int disable_html_metarefresh,int disable_ht
  char *meta_refresh=NULL;
 
  for(i=0;i<tag->nattr;i++)
-    if(tag->attr_type[i]==att_http_equiv && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"Refresh",7))
+    if(tag->attr_type[i]==att_http_equiv && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"Refresh"))
        is_meta_http_equiv_refresh=1;
 
  if(is_meta_http_equiv_refresh)
@@ -842,8 +846,7 @@ static void handle_meta_tag(Tag *tag,int disable_html_metarefresh,int disable_ht
              while(isspace(*p)) p++;
              if(!*p)
                {
-                meta_refresh=(char*)malloc(strlen(baseUrl->name)+1);
-                strcpy(meta_refresh,baseUrl->name);
+                meta_refresh=strdup(baseUrl->name);
                }
              else if(*p!=';' && *p!=',')
                 ; /* unparseable */
@@ -851,7 +854,7 @@ static void handle_meta_tag(Tag *tag,int disable_html_metarefresh,int disable_ht
                {
                 p++;
                 while(isspace(*p)) p++;
-                if(!strncasecmp(p,"URL",3))
+                if(!strcasecmp_litbeg(p,"URL"))
                   {
                    p+=3;
                    while(isspace(*p)) p++;
@@ -866,8 +869,7 @@ static void handle_meta_tag(Tag *tag,int disable_html_metarefresh,int disable_ht
                       ; /* unparseable */
                    else
                      {
-                      meta_refresh=(char*)malloc(strlen(p)+1);
-                      strcpy(meta_refresh,p);
+                      meta_refresh=strdup(p);
                      }
                   }
                }
@@ -998,11 +1000,9 @@ static void modify_html(URL *Url)
     char *copy=replacement_html_dontget_image;
     char *localhost=GetLocalHost(1);
 
-    replacement_html_dontget_image=(char*)malloc(strlen(copy)+strlen(localhost)+8);
+    replacement_html_dontget_image=(char*)alloca(sizeof("http://")+strlen(localhost)+strlen(copy));
 
-    strcpy(replacement_html_dontget_image,"http://");
-    strcat(replacement_html_dontget_image,localhost);
-    strcat(replacement_html_dontget_image,copy);
+    stpcpy(stpcpy(stpcpy(replacement_html_dontget_image,"http://"),localhost),copy);
 
     free(localhost);
    }
@@ -1012,11 +1012,9 @@ static void modify_html(URL *Url)
     char *copy=replacement_html_webbug_image;
     char *localhost=GetLocalHost(1);
 
-    replacement_html_webbug_image=(char*)malloc(strlen(copy)+strlen(localhost)+8);
+    replacement_html_webbug_image=(char*)alloca(sizeof("http://")+strlen(localhost)+strlen(copy));
 
-    strcpy(replacement_html_webbug_image,"http://");
-    strcat(replacement_html_webbug_image,localhost);
-    strcat(replacement_html_webbug_image,copy);
+    stpcpy(stpcpy(stpcpy(replacement_html_webbug_image,"http://"),localhost),copy);
 
     free(localhost);
    }
@@ -1055,8 +1053,8 @@ static void modify_html(URL *Url)
        if(tag>=tag_complex && tag<tag_ntags)
          {
           tagdata.type=tag;
-          tagdata.tag=(char*)realloc((void*)tagdata.tag,strlen(htmlmodify_yylval)+1);
-          strcpy(tagdata.tag,htmlmodify_yylval);
+          if(tagdata.tag) free(tagdata.tag);
+          tagdata.tag=strdup(htmlmodify_yylval);
           tagdata.nattr=0;
           tagdata.xhtml=0;
          }
@@ -1258,8 +1256,8 @@ static void modify_html(URL *Url)
        break;
 
       case LEX_ATTR_KEY:
-       key_string=(char*)realloc((void*)key_string,strlen(htmlmodify_yylval)+1);
-       strcpy(key_string,htmlmodify_yylval);
+       if(key_string) free(key_string);
+       key_string=strdup(htmlmodify_yylval);
 
        for(key=0;key<att_natts;key++)
           if(!strcasecmp(htmlmodify_yylval,attributes[key]))
@@ -1355,16 +1353,15 @@ static void modify_html(URL *Url)
             }
 
           tagdata.attr_type[tagdata.nattr]=key;
-          tagdata.attr_key[tagdata.nattr]=(char*)realloc((void*)tagdata.attr_key[tagdata.nattr],strlen(key_string)+1);
-          strcpy(tagdata.attr_key[tagdata.nattr],key_string);
+          if(tagdata.attr_key[tagdata.nattr]) free(tagdata.attr_key[tagdata.nattr]);
+          tagdata.attr_key[tagdata.nattr]=strdup(key_string);
+	  if(tagdata.attr_val[tagdata.nattr]) free(tagdata.attr_val[tagdata.nattr]);
           if(htmlmodify_yylval)
             {
-             tagdata.attr_val[tagdata.nattr]=(char*)realloc((void*)tagdata.attr_val[tagdata.nattr],strlen(htmlmodify_yylval)+1);
-             strcpy(tagdata.attr_val[tagdata.nattr],htmlmodify_yylval);
+             tagdata.attr_val[tagdata.nattr]=strdup(htmlmodify_yylval);
             }
           else
             {
-             if(tagdata.attr_val[tagdata.nattr]) free(tagdata.attr_val[tagdata.nattr]);
              tagdata.attr_val[tagdata.nattr]=NULL;
             }
           tagdata.attr_quote[tagdata.nattr]=quote;
@@ -1425,30 +1422,27 @@ static void modify_html(URL *Url)
 
 /*+ Reset the current string. +*/
 #define reset_string \
- if(string) *string=0; \
- stringused=0;
+{if(string) *string=0; stringused=0;}
 
 /*+ append information to the current string. +*/
 #define append_string(xx) \
- newlen=strlen(xx); \
- if((stringused+newlen)>=stringlen) \
-    string=(char*)realloc((void*)string,stringlen=(stringused+newlen+1)); \
- strcpy(string+stringused,xx); \
- stringused+=newlen;
+{size_t _str_len=strlen(xx),_new_len=stringused+_str_len; \
+ if(_new_len>=stringallocsize) string=(char*)realloc((void*)string,stringallocsize=_new_len+1); \
+ memcpy(string+stringused,xx,_str_len+1); \
+ stringused=_new_len;}
 
 /*+ A macro to read data that can be used by the lexer. +*/
 #define YY_INPUT(buf,result,max_size) \
-        if((result=read_data(htmlmodify_yyfd,buf,max_size))==-1) \
-           result=0;
+{if(htmlmodify_read_err==-1 || (result=htmlmodify_read_err=read_data(htmlmodify_yyfd,buf,max_size))==-1) result=0;}
 
 %}
 
 %%
  /* Must use static variables since the parser returns often. */
  static char *string=NULL;
- static int stringlen=0,stringused=0;
+ static size_t stringallocsize=0,stringused=0;
  static int after_tag=INITIAL;
- int newlen;
+
 
  /* Handle comments and other tags */
 
@@ -1579,5 +1573,5 @@ static void modify_html(URL *Url)
 
  /* End of file */
 
-<<EOF>>                     { free(string); stringlen=stringused=0; BEGIN(INITIAL); return(0); }
+<<EOF>>                     { free(string); stringallocsize=stringused=0; BEGIN(INITIAL); return(0); }
 %%

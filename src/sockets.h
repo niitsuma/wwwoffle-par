@@ -36,4 +36,16 @@ char *GetFQDN(void);
 void SetDNSTimeout(int timeout);
 void SetConnectTimeout(int timeout);
 
+/* following Added by Paul Rombouts */
+#include <sys/param.h>
+
+#if USE_IPV6
+#define max_hostname_len NI_MAXHOST
+#define ipaddr_strlen    INET6_ADDRSTRLEN
+
+#else /* use IPV4 */
+#define max_hostname_len MAXHOSTNAMELEN
+#define ipaddr_strlen    16
+#endif
+
 #endif /* SOCKETS_H */

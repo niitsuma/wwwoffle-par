@@ -38,6 +38,7 @@
 
 #include "wwwoffle.h"
 #include "misc.h"
+#include "headbody.h"
 #include "config.h"
 #include "errors.h"
 #include "sockets.h"
@@ -68,7 +69,7 @@ static int nbuffer=0,           /*+ in total for the body part. +*/
            nbuffertail=0,       /*+ in total for the tail . +*/
            nreadtail=0;         /*+ that have been read from the tail. +*/
 
-static /*@null@*/ char *htmlise_dir_entry(void);
+static /*@null@*/ char *htmlise_dir_entry(char *line);
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -82,35 +83,38 @@ static /*@null@*/ char *htmlise_dir_entry(void);
 char *FTP_Open(URL *Url)
 {
  char *msg=NULL;
- char *hoststr,*portstr;
  char *server_host=NULL;
  int server_port=Protocols[Protocol_FTP].defport;
 
  /* Sort out the host. */
 
- proxy=ConfigStringURL(Proxies,Url);
  if(IsLocalNetHost(Url->host))
-    proxy=NULL;
-
- if(proxy)
-    server_host=proxy;
+   proxy=NULL;
  else
-    server_host=Url->host;
+   proxy=ConfigStringURL(Proxies,Url);
 
- SplitHostPort(server_host,&hoststr,&portstr);
+ if(proxy) {
+   char *hoststr, *portstr; int hostlen;
 
- if(portstr)
-    server_port=atoi(portstr);
+   SplitHostPort(proxy,&hoststr,&hostlen,&portstr);
+   server_host=strndupa(hoststr,hostlen);
+   if(portstr)
+     server_port=atoi(portstr);
+ }
+ else {
+   server_host=Url->host;
+   server_port=Url->portnum;
+ }
+
 
  /* Open the connection. */
 
- server_ctrl=OpenClientSocket(hoststr,server_port);
- init_buffer(server_ctrl);
+ server_ctrl=OpenClientSocket(server_host,server_port);
 
- if(server_ctrl==-1)
-    msg=PrintMessage(Warning,"Cannot open the FTP control connection to %s port %d; [%!s].",hoststr,server_port);
-
- RejoinHostPort(server_host,hoststr,portstr);
+ if(server_ctrl!=-1)
+   init_buffer(server_ctrl);
+ else
+   msg=PrintMessage(Warning,"Cannot open the FTP control connection to %s port %d; [%!s].",server_host,server_port);
 
  return(msg);
 }
@@ -133,9 +137,9 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
  char *msg=NULL,*str=NULL;
  char *path,*file=NULL;
  char *host,*mimetype=NULL;
- char *msg_reply=NULL;
- char *timestamp,sizebuf[32];
- int i,l,port;
+ char *msg_reply=NULL; size_t msg_reply_len=0;
+ char sizebuf[32];
+ int l,port;
  time_t modtime=0;
  char *user,*pass;
 
@@ -155,14 +159,14 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
 
     /* Send the request. */
 
-    head=HeaderString(request_head);
+    head=HeaderString(request_head,NULL);
 
     PrintMessage(ExtraDebug,"Outgoing Request Head (to proxy)\n%s",head);
 
-    if(write_string(server_ctrl,head)==-1)
+    if(write_string(server_ctrl,head)<0)
        msg=PrintMessage(Warning,"Failed to write head to remote FTP proxy; [%!s].");
     if(request_body)
-       if(write_data(server_ctrl,request_body->content,request_body->length)==-1)
+       if(write_data(server_ctrl,request_body->content,request_body->length)<0)
           msg=PrintMessage(Warning,"Failed to write body to remote FTP proxy; [%!s].");
 
     free(head);
@@ -173,19 +177,21 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
  /* Else Sort out the path. */
 
  path=URLDecodeGeneric(Url->path);
- if(path[strlen(path)-1]=='/')
-   {
-    path[strlen(path)-1]=0;
-    file=NULL;
-   }
- else
-    for(i=strlen(path)-1;i>=0;i--)
-       if(path[i]=='/')
+ {
+   char *p=strchrnul(path,0)-1;
+   if(*p=='/')
+     {
+       *p=0;
+     }
+   else
+     while(--p>=path)
+       if(*p=='/')
          {
-          path[i]=0;
-          file=&path[i+1];
+          *p=0;
+          file=p+1;
           break;
          }
+ }
 
  if(Url->user)
    {
@@ -210,21 +216,11 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
  do
    {
     str=read_line_or_timeout(server_ctrl,str);
-    if(str)
-       PrintMessage(ExtraDebug,"FTP: connected; got: %s",str);
+    if(str) PrintMessage(ExtraDebug,"FTP: connected; got: %s",str);
 
     if(!file && !*path && str && isdigit(str[0]) && isdigit(str[1]) && isdigit(str[2]) && str[3]=='-')
       {
-       if(msg_reply)
-         {
-          msg_reply=(char*)realloc((void*)msg_reply,strlen(msg_reply)+strlen(str));
-          strcat(msg_reply,str+4);
-         }
-       else
-         {
-          msg_reply=(char*)malloc(strlen(str));
-          strcpy(msg_reply,str+4);
-         }
+       strn_append(&msg_reply,&msg_reply_len,str+4);
       }
    }
  while(str && (!isdigit(str[0]) || !isdigit(str[1]) || !isdigit(str[2]) || str[3]!=' '));
@@ -232,83 +228,60 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
  if(!str)
    {
     msg=PrintMessage(Warning,"No reply from FTP server when connected; timed out?");
-    free(path);
-    return(msg);
+    goto free_return;
    }
 
  if(atoi(str)!=220)
    {
-    char *p=str+strlen(str)-1;
-    while(*p=='\n' || *p=='\r') *p--=0;
+    chomp_str(str);
     msg=PrintMessage(Warning,"Got '%s' message when connected to FTP server.",str);
-    free(path);
-    free(str);
-    return(msg);
+    goto free_return;
    }
 
  /* Login */
 
- if(write_formatted(server_ctrl,"USER %s\r\n",user)==-1)
+ if(write_formatted(server_ctrl,"USER %s\r\n",user)<0)
    {
     msg=PrintMessage(Warning,"Failed to write 'USER' command to remote FTP host; [%!s].");
-    free(path);
-    free(str);
-    return(msg);
+    goto free_return;
    }
 
  do
    {
     str=read_line_or_timeout(server_ctrl,str);
-    if(str)
-       PrintMessage(ExtraDebug,"FTP: sent 'USER %s'; got: %s",user,str);
+    if(str) PrintMessage(ExtraDebug,"FTP: sent 'USER %s'; got: %s",user,str);
    }
  while(str && (!isdigit(str[0]) || !isdigit(str[1]) || !isdigit(str[2]) || str[3]!=' '));
 
  if(!str)
    {
     msg=PrintMessage(Warning,"No reply from FTP server to 'USER' command; timed out?");
-    free(path);
-    return(msg);
+    goto free_return;
    }
 
  if(atoi(str)!=230 && atoi(str)!=331)
    {
-    char *p=str+strlen(str)-1;
-    while(*p=='\n' || *p=='\r') *p--=0;
+    chomp_str(str);
     msg=PrintMessage(Warning,"Got '%s' message after sending 'USER' command to FTP server.",str);
-    free(path);
-    free(str);
-    return(msg);
+    goto free_return;
    }
 
  if(atoi(str)==331)
    {
-    if(write_formatted(server_ctrl,"PASS %s\r\n",pass)==-1)
+    if(write_formatted(server_ctrl,"PASS %s\r\n",pass)<0)
       {
        msg=PrintMessage(Warning,"Failed to write 'PASS' command to remote FTP host; [%!s].");
-       free(path);
-       free(str);
-       return(msg);
+       goto free_return;
       }
 
     do
       {
        str=read_line_or_timeout(server_ctrl,str);
-       if(str)
-          PrintMessage(ExtraDebug,"FTP: sent 'PASS %s'; got: %s",pass,str);
+       if(str) PrintMessage(ExtraDebug,"FTP: sent 'PASS %s'; got: %s",pass,str);
 
        if(!file && !*path && str && isdigit(str[0]) && isdigit(str[1]) && isdigit(str[2]) && str[3]=='-')
          {
-          if(msg_reply)
-            {
-             msg_reply=(char*)realloc((void*)msg_reply,strlen(msg_reply)+strlen(str));
-             strcat(msg_reply,str+4);
-            }
-          else
-            {
-             msg_reply=(char*)malloc(strlen(str));
-             strcpy(msg_reply,str+4);
-            }
+          strn_append(&msg_reply,&msg_reply_len,str+4);
          }
       }
     while(str && (!isdigit(str[0]) || !isdigit(str[1]) || !isdigit(str[2]) || str[3]!=' '));
@@ -316,49 +289,33 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
     if(!str)
       {
        msg=PrintMessage(Warning,"No reply from FTP server to 'PASS' command; timed out?");
-       free(path);
-       return(msg);
+       goto free_return;
       }
 
     if(atoi(str)!=202 && atoi(str)!=230)
       {
-       char *p=str+strlen(str)-1;
-       while(*p=='\n' || *p=='\r') *p--=0;
+       chomp_str(str);
        msg=PrintMessage(Warning,"Got '%s' message after sending 'PASS' command to FTP server.",str);
-       free(path);
-       free(str);
-       return(msg);
+       goto free_return;
       }
    }
 
  /* Change directory */
 
- if(write_formatted(server_ctrl,"CWD %s\r\n",*path?path:"/")==-1)
+ if(write_formatted(server_ctrl,"CWD %s\r\n",*path?path:"/")<0)
    {
     msg=PrintMessage(Warning,"Failed to write 'CWD' command to remote FTP host; [%!s].");
-    free(path);
-    free(str);
-    return(msg);
+    goto free_return;
    }
 
  do
    {
     str=read_line_or_timeout(server_ctrl,str);
-    if(str)
-       PrintMessage(ExtraDebug,"FTP: sent 'CWD %s' got: %s",*path?path:"/",str);
+    if(str) PrintMessage(ExtraDebug,"FTP: sent 'CWD %s' got: %s",*path?path:"/",str);
 
     if(!file && str && isdigit(str[0]) && isdigit(str[1]) && isdigit(str[2]) && str[3]=='-')
       {
-       if(msg_reply)
-         {
-          msg_reply=(char*)realloc((void*)msg_reply,strlen(msg_reply)+strlen(str));
-          strcat(msg_reply,str+4);
-         }
-       else
-         {
-          msg_reply=(char*)malloc(strlen(str));
-          strcpy(msg_reply,str+4);
-         }
+       strn_append(&msg_reply,&msg_reply_len,str+4);
       }
    }
  while(str && (!isdigit(str[0]) || !isdigit(str[1]) || !isdigit(str[2]) || str[3]!=' '));
@@ -366,72 +323,58 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
  if(!str)
    {
     msg=PrintMessage(Warning,"No reply from FTP server to 'CWD' command; timed out?");
-    free(path);
-    return(msg);
+    goto free_return;
    }
 
  if(atoi(str)!=250)
    {
-    char *p=str+strlen(str)-1;
-    while(*p=='\n' || *p=='\r') *p--=0;
+    chomp_str(str);
     msg=PrintMessage(Warning,"Got '%s' message after sending 'CWD' command to FTP server.",str);
-    free(path);
-    free(str);
-    return(msg);
+    goto free_return;
    }
 
  /* Change directory again to see if file is a dir. */
 
  if(file)
    {
-    if(write_formatted(server_ctrl,"CWD %s\r\n",file)==-1)
+    if(write_formatted(server_ctrl,"CWD %s\r\n",file)<0)
       {
        msg=PrintMessage(Warning,"Failed to write 'CWD' command to remote FTP host; [%!s].");
-       free(path);
-       free(str);
-       return(msg);
+       goto free_return;
       }
 
     do
       {
        str=read_line_or_timeout(server_ctrl,str);
-       if(str)
-          PrintMessage(ExtraDebug,"FTP: sent 'CWD %s' got: %s",file,str);
+       if(str) PrintMessage(ExtraDebug,"FTP: sent 'CWD %s' got: %s",file,str);
       }
     while(str && (!isdigit(str[0]) || !isdigit(str[1]) || !isdigit(str[2]) || str[3]!=' '));
 
     if(!str)
       {
        msg=PrintMessage(Warning,"No reply from FTP server to 'CWD' command; timed out?");
-       free(path);
-       return(msg);
+       goto free_return;
       }
 
     if(atoi(str)!=250 && atoi(str)!=501 && atoi(str)!=530 && atoi(str)!=550)
       {
-       char *p=str+strlen(str)-1;
-       while(*p=='\n' || *p=='\r') *p--=0;
+       chomp_str(str);
        msg=PrintMessage(Warning,"Got '%s' message after sending 'CWD' command to FTP server.",str);
-       free(path);
-       free(str);
-       return(msg);
+       goto free_return;
       }
 
     if(atoi(str)==250)
       {
-       char *loc=(char*)malloc(strlen(Url->link)+2);
+       char loc[strlen(Url->link)+2];
 
-       strcpy(loc,Url->link);
-       strcat(loc,"/");
+       {char *p=stpcpy(loc,Url->link); *p++='/'; *p=0;}
 
-       bufferhead=CreateHeader("HTTP/1.0 302 FTP is a directory",0);
+       CreateHeader("HTTP/1.0 302 FTP is a directory",0,&bufferhead);
        AddToHeader(bufferhead,"Location",loc);
 
        buffer=HTMLMessageBody(-1,"FTPDirRedirect",
-                              "url",Url->link,
+                              "url",loc,
                               NULL);
-
-       free(loc);
 
        goto near_end;
       }
@@ -439,37 +382,30 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
 
  /* Set mode to binary or ASCII */
 
- if(write_formatted(server_ctrl,"TYPE %c\r\n",file?'I':'A')==-1)
+ if(write_formatted(server_ctrl,"TYPE %c\r\n",file?'I':'A')<0)
    {
     msg=PrintMessage(Warning,"Failed to write 'TYPE' command to remote FTP host; [%!s].");
-    free(path);
-    free(str);
-    return(msg);
+    goto free_return;
    }
 
  do
    {
     str=read_line_or_timeout(server_ctrl,str);
-    if(str)
-       PrintMessage(ExtraDebug,"FTP: sent 'TYPE %c'; got: %s",file?'I':'A',str);
+    if(str) PrintMessage(ExtraDebug,"FTP: sent 'TYPE %c'; got: %s",file?'I':'A',str);
    }
  while(str && (!isdigit(str[0]) || !isdigit(str[1]) || !isdigit(str[2]) || str[3]!=' '));
 
  if(!str)
    {
     msg=PrintMessage(Warning,"No reply from FTP server to 'TYPE' command; timed out?");
-    free(path);
-    return(msg);
+    goto free_return;
    }
 
  if(atoi(str)!=200)
    {
-    char *p=str+strlen(str)-1;
-    while(*p=='\n' || *p=='\r') *p--=0;
+    chomp_str(str);
     msg=PrintMessage(Warning,"Got '%s' message after sending 'TYPE' command to FTP server.",str);
-    free(path);
-    free(str);
-    return(msg);
+    goto free_return;
    }
 
  if(!strcmp(request_head->method,"GET"))
@@ -478,54 +414,46 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
 
     if(file)
       {
-       if(write_formatted(server_ctrl,"SIZE %s\r\n",file)==-1)
+       if(write_formatted(server_ctrl,"SIZE %s\r\n",file)<0)
          {
           msg=PrintMessage(Warning,"Failed to write 'SIZE' command to remote FTP host; [%!s].");
-          free(path);
-          free(str);
-          return(msg);
+	  goto free_return;
          }
 
        do
          {
           str=read_line_or_timeout(server_ctrl,str);
-          if(str)
-             PrintMessage(ExtraDebug,"FTP: sent 'SIZE %s'; got: %s",file,str);
+          if(str) PrintMessage(ExtraDebug,"FTP: sent 'SIZE %s'; got: %s",file,str);
          }
        while(str && (!isdigit(str[0]) || !isdigit(str[1]) || !isdigit(str[2]) || str[3]!=' '));
 
        if(!str)
          {
           msg=PrintMessage(Warning,"No reply from FTP server to 'SIZE' command; timed out?");
-          free(path);
-          return(msg);
+	  goto free_return;
          }
 
        if(atoi(str)==213)
           if(str[4])
              sprintf(sizebuf,"%ld",(long)atoi(str+4));
 
-       if(write_formatted(server_ctrl,"MDTM %s\r\n",file)==-1)
+       if(write_formatted(server_ctrl,"MDTM %s\r\n",file)<0)
          {
           msg=PrintMessage(Warning,"Failed to write 'MDTM' command to remote FTP host; [%!s].");
-          free(path);
-          free(str);
-          return(msg);
+	  goto free_return;
          }
 
        do
          {
           str=read_line_or_timeout(server_ctrl,str);
-          if(str)
-             PrintMessage(ExtraDebug,"FTP: sent 'MDTM %s'; got: %s",file,str);
+          if(str) PrintMessage(ExtraDebug,"FTP: sent 'MDTM %s'; got: %s",file,str);
          }
        while(str && (!isdigit(str[0]) || !isdigit(str[1]) || !isdigit(str[2]) || str[3]!=' '));
 
        if(!str)
          {
           msg=PrintMessage(Warning,"No reply from FTP server to 'MDTM' command; timed out?");
-          free(path);
-          return(msg);
+	  goto free_return;
          }
 
        if(atoi(str)==213)
@@ -552,27 +480,23 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
 
  /* Create the data connection. */
 
- if(write_string(server_ctrl,"EPSV\r\n")==-1)
+ if(write_string(server_ctrl,"EPSV\r\n")<0)
    {
     msg=PrintMessage(Warning,"Failed to write 'EPSV' command to remote FTP host; [%!s].");
-    free(path);
-    free(str);
-    return(msg);
+    goto free_return;
    }
 
  do
    {
     str=read_line_or_timeout(server_ctrl,str);
-    if(str)
-       PrintMessage(ExtraDebug,"FTP: sent 'EPSV'; got: %s",str);
+    if(str) PrintMessage(ExtraDebug,"FTP: sent 'EPSV'; got: %s",str);
    }
  while(str && (!isdigit(str[0]) || !isdigit(str[1]) || !isdigit(str[2]) || str[3]!=' '));
 
  if(!str)
    {
     msg=PrintMessage(Warning,"No reply from FTP server to 'EPSV' command; timed out?");
-    free(path);
-    return(msg);
+    goto free_return;
    }
 
  if(atoi(str)==229)
@@ -580,30 +504,26 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
     host=strchr(str,'(');
     if(!host || sscanf(host+1,"%*c%*c%*c%d%*c",&port)!=1)
       {
-       char *p=str+strlen(str)-1;
-       while(*p=='\n' || *p=='\r') *p--=0;
+       chomp_str(str);
        msg=PrintMessage(Warning,"Got '%s' message after sending 'EPSV' command, cannot parse.",str);
-       free(path);
-       free(str);
-       return(msg);
+       goto free_return;
       }
-    if(SocketRemoteName(server_ctrl,&host,NULL,NULL))
-      {
-       msg=PrintMessage(Warning,"Cannot determine server address.");
-       free(path);
-       free(str);
-       return(msg);
-      }
+    {
+      char *ip;
+      if(!SocketRemoteName(server_ctrl,&host,&ip,NULL))
+	{if(!host) host=ip;}
+      else
+	{
+	  msg=PrintMessage(Warning,"Cannot determine server address.");
+	  goto free_return;
+	}
+    }
    }
  else if(str[0]!='5' || str[1]!='0' || !isdigit(str[2]))
    {
-    char *p=str+strlen(str)-1;
-
-    while(*p=='\n' || *p=='\r') *p--=0;
+    chomp_str(str);
     msg=PrintMessage(Warning,"Got '%s' message after sending 'EPSV' command",str);
-    free(path);
-    free(str);
-    return(msg);
+    goto free_return;
    }
  else
    {
@@ -611,59 +531,49 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
 
     /* Let's try PASV instead then */
 
-    if(write_string(server_ctrl,"PASV\r\n")==-1)
+    if(write_string(server_ctrl,"PASV\r\n")<0)
       {
        msg=PrintMessage(Warning,"Failed to write 'PASV' command to remote FTP host; [%!s].");
-       free(path);
-       free(str);
-       return(msg);
+       goto free_return;
       }
 
     do
       {
        str=read_line_or_timeout(server_ctrl,str);
-       if(str)
-          PrintMessage(ExtraDebug,"FTP: sent 'PASV'; got: %s",str);
+       if(str) PrintMessage(ExtraDebug,"FTP: sent 'PASV'; got: %s",str);
       }
     while(str && (!isdigit(str[0]) || !isdigit(str[1]) || !isdigit(str[2]) || str[3]!=' '));
 
     if(!str)
       {
        msg=PrintMessage(Warning,"No reply from FTP server to 'PASV' command; timed out?");
-       free(path);
-       return(msg);
+       goto free_return;
       }
 
     if(atoi(str)!=227)
       {
-       char *p=str+strlen(str)-1;
-       while(*p=='\n' || *p=='\r') *p--=0;
+       chomp_str(str);
        msg=PrintMessage(Warning,"Got '%s' message after sending 'PASV' command",str);
-       free(path);
-       free(str);
-       return(msg);
+       goto free_return;
       }
 
     if((host=strchr(str,',')))
       {
-       while(isdigit(*--host));
-       host++;
+       while(--host>=str && isdigit(*host));
+       ++host;
       }
 
     if(!host || sscanf(host,"%*d,%*d,%*d,%*d%n,%d,%d",&l,&port_h,&port_l)!=2)
       {
-       char *p=str+strlen(str)-1;
-       while(*p=='\n' || *p=='\r') *p--=0;
+       chomp_str(str);
        msg=PrintMessage(Warning,"Got '%s' message after sending 'PASV' command, cannot parse.",str);
-       free(path);
-       free(str);
-       return(msg);
+       goto free_return;
       }
 
     port=port_l+256*port_h;
 
     host[l]=0;
-    for(;l>0;l--)
+    while(--l>=0)
        if(host[l]==',')
           host[l]='.';
    }
@@ -674,9 +584,7 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
  if(server_data==-1)
    {
     msg=PrintMessage(Warning,"Cannot open the FTP data connection [%!s].");
-    free(path);
-    free(str);
-    return(msg);
+    goto free_return;
    }
 
  /* Make the request */
@@ -689,19 +597,16 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
       {
        command="RETR";
 
-       if(write_formatted(server_ctrl,"RETR %s\r\n",file)==-1)
+       if(write_formatted(server_ctrl,"RETR %s\r\n",file)<0)
          {
           msg=PrintMessage(Warning,"Failed to write 'RETR' command to remote FTP host; [%!s].");
-          free(path);
-          free(str);
-          return(msg);
+	  goto free_return;
          }
 
        do
          {
           str=read_line_or_timeout(server_ctrl,str);
-          if(str)
-             PrintMessage(ExtraDebug,"FTP: sent 'RETR %s'; got: %s",file,str);
+          if(str) PrintMessage(ExtraDebug,"FTP: sent 'RETR %s'; got: %s",file,str);
          }
        while(str && (!isdigit(str[0]) || !isdigit(str[1]) || !isdigit(str[2]) || str[3]!=' '));
 
@@ -718,26 +623,22 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
           else
              command="LIST";
 
-          if(write_formatted(server_ctrl,"%s\r\n",command)==-1)
+          if(write_formatted(server_ctrl,"%s\r\n",command)<0)
             {
              msg=PrintMessage(Warning,"Failed to write '%s' command to remote FTP host; [%!s].",command);
-             free(path);
-             free(str);
-             return(msg);
+             goto free_return;
             }
 
           do
             {
              str=read_line_or_timeout(server_ctrl,str);
-             if(str)
-                PrintMessage(ExtraDebug,"FTP: sent '%s'; got: %s",command,str);
+             if(str) PrintMessage(ExtraDebug,"FTP: sent '%s'; got: %s",command,str);
             }
           while(str && (!isdigit(str[0]) || !isdigit(str[1]) || !isdigit(str[2]) || str[3]!=' '));
 
           if(i==0 && str && (atoi(str)!=150 && atoi(str)!=125))
             {
-             char *p=str+strlen(str)-1;
-             while(*p=='\n' || *p=='\r') *p--=0;
+             chomp_str(str);
              msg=PrintMessage(Warning,"Got '%s' message after sending '%s' command to FTP server.",str,command);
             }
           else
@@ -758,34 +659,28 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
       {
        if(str)
          {
-          char *p=str+strlen(str)-1;
-          while(*p=='\n' || *p=='\r') *p--=0;
+          chomp_str(str);
           msg=PrintMessage(Warning,"Got '%s' message after sending '%s' command to FTP server.",str,command);
-          free(str);
          }
        else
           msg=PrintMessage(Warning,"No reply from FTP server to '%s' command; timed out?",command);
-       free(path);
-       return(msg);
+       goto free_return;
       }
    }
  else if(file) /* PUT */
    {
     if(file)
       {
-       if(write_formatted(server_ctrl,"STOR %s\r\n",file)==-1)
+       if(write_formatted(server_ctrl,"STOR %s\r\n",file)<0)
          {
           msg=PrintMessage(Warning,"Failed to write 'STOR' command to remote FTP host; [%!s].");
-          free(path);
-          free(str);
-          return(msg);
+          goto free_return;
          }
 
        do
          {
           str=read_line_or_timeout(server_ctrl,str);
-          if(str)
-             PrintMessage(ExtraDebug,"FTP: sent 'STOR %s'; got: %s",file,str);
+          if(str) PrintMessage(ExtraDebug,"FTP: sent 'STOR %s'; got: %s",file,str);
          }
        while(str && (!isdigit(str[0]) || !isdigit(str[1]) || !isdigit(str[2]) || str[3]!=' '));
 
@@ -794,9 +689,7 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
     else
       {
        msg=PrintMessage(Warning,"Cannot use the PUT method on a directory name");
-       free(path);
-       free(str);
-       return(msg);
+       goto free_return;
       }
 
     if(str && (atoi(str)==150 || atoi(str)==125))
@@ -810,15 +703,12 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
       {
        if(str)
          {
-          char *p=str+strlen(str)-1;
-          while(*p=='\n' || *p=='\r') *p--=0;
+          chomp_str(str);
           msg=PrintMessage(Warning,"Got '%s' message after sending 'STOR' command to FTP server.",str);
-          free(str);
          }
        else
           msg=PrintMessage(Warning,"No reply from FTP server to 'STOR' command; timed out?");
-       free(path);
-       return(msg);
+       goto free_return;
       }
 
     write_data(server_data,request_body->content,request_body->length);
@@ -829,7 +719,7 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
  buffer=NULL;
  buffertail=NULL;
 
- bufferhead=CreateHeader("HTTP/1.0 200 FTP Proxy OK",0);
+ CreateHeader("HTTP/1.0 200 FTP Proxy OK",0,&bufferhead);
  AddToHeader(bufferhead,"Content-Type",mimetype);
 
  if(!strcmp(request_head->method,"GET"))
@@ -841,8 +731,7 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
       {
        char *ims;
 
-       timestamp=RFC822Date(modtime,1);
-       AddToHeader(bufferhead,"Last-Modified",timestamp);
+       AddToHeader(bufferhead,"Last-Modified",RFC822Date(modtime,1));
 
        if((ims=GetHeader(request_head,"If-Modified-Since")))
          {
@@ -889,14 +778,13 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
 
 near_end:
 
- if(msg_reply)
-    free(msg_reply);
-
  nbuffer=buffer?strlen(buffer):0; nread=0;
  nbuffertail=buffertail?strlen(buffertail):0; nreadtail=0;
 
+free_return:
  free(path);
- free(str);
+ if(str) free(str);
+ if(msg_reply) free(msg_reply);
 
  return(msg);
 }
@@ -916,7 +804,7 @@ int FTP_ReadHead(Header **reply_head)
 
  if(proxy)
    {
-    ParseReply(server_ctrl,reply_head);
+    ParseReply(server_ctrl,reply_head,NULL);
 
     return(server_ctrl);
    }
@@ -958,33 +846,32 @@ int FTP_ReadBody(char *s,int n)
     for(;nreadtail<nbuffertail && m<n;nreadtail++,m++)
        s[m]=buffertail[nreadtail];
    }
- else if(!buffer && !buffertail) /* File not dir entry. */
-    m=read_data_or_timeout(server_data,s,n);
- else if(buffer && buffertail)  /* Middle of dir entry */
+ else if(buffertail)
    {
-    for(;nread<nbuffer && m<n;nread++,m++)
-       s[m]=buffer[nread];
+     if(buffer)  /* Middle of dir entry */
+       {
+	 for(;nread<nbuffer && m<n;nread++,m++)
+	   s[m]=buffer[nread];
 
-    if(nread==nbuffer)
-      {
-       free(buffer);
-       buffer=htmlise_dir_entry();
-       if(buffer)
-          nbuffer=strlen(buffer),nread=0;
-      }
+	 if(nread==nbuffer)
+	   {
+	     buffer=htmlise_dir_entry(buffer);
+	     if(buffer)
+	       {nbuffer=strlen(buffer); nread=0;}
+	   }
+       }
 
-    if(!buffer)
-       for(;nreadtail<nbuffertail && m<n;nreadtail++,m++)
-          s[m]=buffertail[nreadtail];
+     if(!buffer) /* End of dir entry. */
+       {
+	 for(;nreadtail<nbuffertail && m<n;nreadtail++,m++)
+	   s[m]=buffertail[nreadtail];
+       }
    }
- else if(!buffer && buffertail) /* End of dir entry. */
-   {
-    for(;nreadtail<nbuffertail && m<n;nreadtail++,m++)
-       s[m]=buffertail[nreadtail];
-   }
+ else if(!buffer) /* File not dir entry. */
+   m=read_data_or_timeout(server_data,s,n);
  else /* if(buffer && !buffertail) */ /* Done a PUT */
    {
-    for(;nread<nbuffer && m<n;nread++,m++)
+     for(;nread<nbuffer && m<n;nread++,m++)
        s[m]=buffer[nread];
    }
 
@@ -1024,15 +911,13 @@ int FTP_Close(void)
  do
    {
     str=read_line_or_timeout(server_ctrl,str);
-    if(str)
-       PrintMessage(ExtraDebug,"FTP: sent 'QUIT'; got: %s",str);
+    if(str) PrintMessage(ExtraDebug,"FTP: sent 'QUIT'; got: %s",str);
    }
  while(str && (!isdigit(str[0]) || !isdigit(str[1]) || !isdigit(str[2]) || str[3]!=' '));
 
  err=CloseSocket(server_ctrl);
 
- if(str)
-    free(str);
+ if(str) free(str);
 
  if(buffer)
     free(buffer);
@@ -1043,145 +928,128 @@ int FTP_Close(void)
 }
 
 
+struct pointer_pair {char *beg,*end;};
+
+inline static int split_line(char *line,struct pointer_pair *p)
+{
+  int i;
+  char *q;
+
+  for(q=line,i=0;*q && i<12;++i)
+    {
+      while(isspace(*q)) if(!*++q) goto done;
+      p[i].beg=q;
+      while(*++q && !isspace(*q));
+      p[i].end=q;
+    }
+
+ done:
+  return i;
+}
+  
+
 /*++++++++++++++++++++++++++++++++++++++
   Convert a line from the ftp server dir listing into a pretty listing.
 
   char *htmlise_dir_entry Returns the next line.
+
+  char *line The previous line.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static char *htmlise_dir_entry(void)
+static char *htmlise_dir_entry(char *line)
 {
  int i,isdir=0,islink=0;
- char *q,*p[16],*l;
+ struct pointer_pair p[12];
  int file=0,link=0;
 
- l=read_line_or_timeout(server_data,NULL);
+ if((line=read_line_or_timeout(server_data,line))) {
 
- if(!l)
-    return(l);
+   i=split_line(line,p);
 
- for(q=l,i=0;*q && i<16;i++)
-   {
-    while(*q && isspace(*q))
-       q++;
-    if(*q)
-       p[i]=q;
-    else
-       break;
-    while(*q && !isspace(*q))
-       q++;
-   }
+   if((*p[0].beg=='-' || *p[0].beg=='d' || *p[0].beg=='l') && i>=8) /* A UNIX 'ls -l' listing. */
+     {
+       if(i==8)
+	 {file=7; link=file;}
+       else if(i==9)
+	 {file=8; link=file;}
+       else if(i==10) {
+	 if(*p[8].beg=='-' && *(p[8].beg+1)=='>')
+	   {file=7; link=9;}
+       }
+       else if(i==11) {
+	 if(*p[9].beg=='-' && *(p[9].beg+1)=='>')
+	   {file=8; link=10;}
+       }
 
- if((*p[0]=='-' || *p[0]=='d' || *p[0]=='l') && i>=8) /* A UNIX 'ls -l' listing. */
-   {
-    if(i==8)
-      {file=7; link=file;}
-    else if(i==10 && (*p[8]=='-' && *(p[8]+1)=='>'))
-      {file=7; link=9;}
-    else if(i==9)
-      {file=8; link=file;}
-    else if(i==11 && (*p[9]=='-' && *(p[9]+1)=='>'))
-      {file=8; link=10;}
+       if(*p[0].beg=='d')
+	 isdir=1;
 
-    if(*p[0]=='d')
-       isdir=1;
+       if(*p[0].beg=='l')
+	 islink=1;
+     }
 
-    if(*p[0]=='l')
-       islink=1;
-   }
+   if(file)
+     {
+       char *pfile=p[file].beg,*endf=p[file].end, *plink=p[link].beg,*endl=p[link].end;
+       char *hline,*fileurlenc,*linkurlenc=NULL;
+       int linelen;
 
- if(file)
-   {
-    char *endf,endfc,*endl,endlc,*ll,*fileurlenc,*linkurlenc;
-    char *h;
+       hline=HTMLString(line,0);
+       i=split_line(hline,p);
 
-    /* Get the filename and link URLs. */
+       /* Get the filename and link URLs. */
 
-    endf=p[file];
-    while(*endf && !isspace(*endf))
-       endf++;
-    endfc=*endf;
+       fileurlenc=STRDUP3(pfile,endf,URLEncodePath);
 
-    endl=p[link];
-    while(*endl && !isspace(*endl))
-       endl++;
-    endlc=*endl;
+       linelen=strlen(hline)+strlen(fileurlenc)+strlitlen("<a href=\".//\"></a>");
 
-    *endf=0;
-    fileurlenc=URLEncodePath(p[file]);
-    *endf=endfc;
+       if(islink && link!=file) {
+	 linkurlenc=STRDUP3(plink,endl,URLEncodePath);
+	 linelen+=strlen(linkurlenc)+strlitlen("<a href=\"./\"></a>");
+       }
 
-    *endl=0;
-    linkurlenc=URLEncodePath(p[link]);
-    *endl=endlc;
+       /* The buffer allocated by read_line() to hold line is at least BUFSIZE+1 bytes large. */
+       if(linelen>BUFSIZE) {
+	 free(line);
+	 line=(char*)malloc(linelen+1);
+       }
 
-    /* Sanitise the string. */
+       /* Create the line. */
 
-    h=HTMLString(l,0);
-    for(q=h,i=0;*q && i<16;i++)
-      {
-       while(*q && isspace(*q))
-          q++;
-       if(*q)
-          p[i]=q;
-       else
-          break;
-       while(*q && !isspace(*q))
-          q++;
-      }
+       {
+	 char *q;
+	 q=mempcpy(line,hline,p[file].beg-hline);
+	 q=stpcpy(q,"<a href=\"");
+	 if(!(isdir && *fileurlenc=='.' && (!*(fileurlenc+1) || *(fileurlenc+1)=='/' || (*(fileurlenc+1)=='.' && (!*(fileurlenc+2) || *(fileurlenc+2)=='/')))))
+	   q=stpcpy(q,"./");
+	 q=stpcpy(q,fileurlenc);
+	 if(isdir && *(q-1)!='/')
+	   *q++='/';
+	 q=stpcpy(q,"\">");
+	 q=mempcpy(q,p[file].beg,p[file].end-p[file].beg);
+	 q=stpcpy(q,"</a>");
 
-    endf=p[file];
-    while(*endf && !isspace(*endf))
-       endf++;
-    endfc=*endf;
+	 if(islink && link!=file) {
+	   q=mempcpy(q,p[file].end,p[link].beg-p[file].end);
+	   q=stpcpy(q,"<a href=\"");
+	   if(!(*linkurlenc=='/' || (*linkurlenc=='.' && (*(linkurlenc+1)=='/' || (*(linkurlenc+1)=='.' && *(linkurlenc+2)=='/')))))
+	     q=stpcpy(q,"./");
+	   q=stpcpy(q,linkurlenc);
+	   q=stpcpy(q,"\">");
+	   q=mempcpy(q,p[link].beg,p[link].end-p[link].beg);
+	   q=stpcpy(q,"</a>");
+	   q=stpcpy(q,p[link].end);
+	 }
+	 else
+	   q=stpcpy(q,p[file].end);
 
-    endl=p[link];
-    while(*endl && !isspace(*endl))
-       endl++;
-    endlc=*endl;
+       }
 
-    ll=(char*)malloc(strlen(h)+strlen(fileurlenc)+strlen(linkurlenc)+40);
+       free(hline);
+       free(fileurlenc);
+       if(linkurlenc) free(linkurlenc);
+     }
+ }
 
-    /* Create the line. */
-
-    strncpy(ll,h,p[file]-h);
-    strcpy(ll+(p[file]-h),"<a href=\"");
-    strcat(ll,"./");
-    strcat(ll,fileurlenc);
-    if(isdir && *(endl-1)!='/')
-       strcat(ll,"/");
-    strcat(ll,"\">");
-    *endf=0;
-    strcat(ll,p[file]);
-    *endf=endfc;
-    strcat(ll,"</a>");
-
-    if(islink)
-      {
-       strncat(ll,endf,p[link]-endf);
-       strcat(ll,"<a href=\"");
-       if(strncmp(linkurlenc,"../",3) && strncmp(linkurlenc,"./",2) && strncmp(linkurlenc,"/",1))
-          strcat(ll,"./");
-       strcat(ll,linkurlenc);
-       strcat(ll,"\">");
-       *endl=0;
-       strcat(ll,p[link]);
-       *endl=endlc;
-       strcat(ll,"</a>");
-
-       strcat(ll,endl);
-      }
-    else
-      {
-       strcat(ll,endf);
-      }
-
-    free(fileurlenc);
-    free(linkurlenc);
-    free(l);
-    free(h);
-    l=ll;
-   }
-
- return(l);
+ return(line);
 }

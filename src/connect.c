@@ -104,13 +104,13 @@ void CommandConnect(int client)
  if(!(line=read_line_or_timeout(client,line)))
    {PrintMessage(Warning,"Nothing to read from the wwwoffle control socket [%!s]."); return;}
 
- if(strncmp(line,"WWWOFFLE ",9))
+ if(strcmp_litbeg(line,"WWWOFFLE "))
    {
     PrintMessage(Warning,"WWWOFFLE Not a command."); /* Used in audit-usage.pl */
     return;
    }
 
- if(ConfigString(PassWord) || !strncmp(&line[9],"PASSWORD ",9))
+ if(ConfigString(PassWord) || !strcmp_litbeg(&line[9],"PASSWORD "))
    {
     char *password;
 
@@ -118,13 +118,8 @@ void CommandConnect(int client)
        password="";
     else
       {
-       int i;
-
-       for(i=18;line[i];i++)
-          if(line[i]=='\r' || line[i]=='\n')
-             line[i]=0;
-
        password=&line[18];
+       chomp_str(password);
       }
 
     if(!ConfigString(PassWord) || strcmp(password,ConfigString(PassWord)))
@@ -137,14 +132,14 @@ void CommandConnect(int client)
     if(!(line=read_line_or_timeout(client,line)))
       {PrintMessage(Warning,"Unexpected end of wwwoffle control command [%!s]."); return;}
 
-    if(strncmp(line,"WWWOFFLE ",9))
+    if(strcmp_litbeg(line,"WWWOFFLE "))
       {
        PrintMessage(Warning,"WWWOFFLE Not a command."); /* Used in audit-usage.pl */
        return;
       }
    }
 
- if(!strncmp(&line[9],"ONLINE",6))
+ if(!strcmp_litbeg(&line[9],"ONLINE"))
    {
     if(online==1)
        write_string(client,"WWWOFFLE Already Online\n"); /* Used in wwwoffle.c */
@@ -161,7 +156,7 @@ void CommandConnect(int client)
     OnlineTime=time(NULL);
     online=1;
    }
- else if(!strncmp(&line[9],"AUTODIAL",8))
+ else if(!strcmp_litbeg(&line[9],"AUTODIAL"))
    {
     if(online==-1)
        write_string(client,"WWWOFFLE Already in Autodial Mode\n"); /* Used in wwwoffle.c */
@@ -176,7 +171,7 @@ void CommandConnect(int client)
     OnlineTime=time(NULL);
     online=-1;
    }
- else if(!strncmp(&line[9],"OFFLINE",7))
+ else if(!strcmp_litbeg(&line[9],"OFFLINE"))
    {
     if(!online)
        write_string(client,"WWWOFFLE Already Offline\n"); /* Used in wwwoffle.c */
@@ -191,7 +186,7 @@ void CommandConnect(int client)
     OfflineTime=time(NULL);
     online=0;
    }
- else if(!strncmp(&line[9],"FETCH",5))
+ else if(!strcmp_litbeg(&line[9],"FETCH"))
    {
     if(fetch_fd!=-1)
        write_string(client,"WWWOFFLE Already Fetching.\n"); /* Used in wwwoffle.c */
@@ -212,7 +207,7 @@ void CommandConnect(int client)
        ForkRunModeScript(ConfigString(RunFetch),"fetch","start",fetch_fd);
       }
    }
- else if(!strncmp(&line[9],"CONFIG",6))
+ else if(!strcmp_litbeg(&line[9],"CONFIG"))
    {
     write_string(client,"WWWOFFLE Reading Configuration File.\n");
     PrintMessage(Important,"WWWOFFLE Re-reading Configuration File."); /* Used in audit-usage.pl */
@@ -227,7 +222,7 @@ void CommandConnect(int client)
 
     PrintMessage(Important,"WWWOFFLE Finished Re-reading Configuration File.");
    }
- else if(!strncmp(&line[9],"PURGE",5))
+ else if(!strcmp_litbeg(&line[9],"PURGE"))
    {
     pid_t pid;
 
@@ -269,7 +264,7 @@ void CommandConnect(int client)
        exit(0);
       }
    }
- else if(!strncmp(&line[9],"STATUS",5))
+ else if(!strcmp_litbeg(&line[9],"STATUS"))
    {
     int i;
 
@@ -280,34 +275,19 @@ void CommandConnect(int client)
 
     write_formatted(client,"Version      : %s\n",WWWOFFLE_VERSION);
 
-    if(online==1)
-       write_string(client,"State        : online\n");
-    else if(online==-1)
-       write_string(client,"State        : autodial\n");
-    else
-       write_string(client,"State        : offline\n");
+    write_string(client,(online==1)?  "State        : online\n":
+		        (online==-1)? "State        : autodial\n":
+		                      "State        : offline\n");
 
-    if(fetch_fd!=-1)
-       write_string(client,"Fetch        : active (wwwoffle -fetch)\n");
-    else if(fetching==1)
-       write_string(client,"Fetch        : active (recursive request)\n");
-    else
-       write_string(client,"Fetch        : inactive\n");
+    write_string(client,(fetch_fd!=-1)? "Fetch        : active (wwwoffle -fetch)\n":
+		        (fetching==1)?  "Fetch        : active (recursive request)\n":
+		                        "Fetch        : inactive\n");
 
-    if(purging)
-       write_string(client,"Purge        : active\n");
-    else
-       write_string(client,"Purge        : inactive\n");
+    write_string(client,purging?"Purge        : active\n":"Purge        : inactive\n");
 
-    if(OnlineTime)
-       write_formatted(client,"Last-Online  : %s\n",RFC822Date(OnlineTime,0));
-    else
-       write_formatted(client,"Last-Online  : unknown\n");
+    write_formatted(client,"Last-Online  : %s\n",OnlineTime?RFC822Date(OnlineTime,0):"unknown");
 
-    if(OfflineTime)
-       write_formatted(client,"Last-Offline : %s\n",RFC822Date(OfflineTime,0));
-    else
-       write_formatted(client,"Last-Offline : unknown\n");
+    write_formatted(client,"Last-Offline : %s\n",OfflineTime?RFC822Date(OfflineTime,0):"unknown");
 
     write_formatted(client,"Total-Servers: %d\n",n_servers);
     write_formatted(client,"Fetch-Servers: %d\n",n_fetch_servers);
@@ -331,7 +311,7 @@ void CommandConnect(int client)
     if(purging)
        write_formatted(client,"Purge-PID    : %d\n",purge_pid);
    }
- else if(!strncmp(&line[9],"KILL",4))
+ else if(!strcmp_litbeg(&line[9],"KILL"))
    {
     write_string(client,"WWWOFFLE Kill Signalled.\n");
     PrintMessage(Important,"WWWOFFLE Kill."); /* Used in audit-usage.pl */
@@ -340,8 +320,7 @@ void CommandConnect(int client)
    }
  else
    {
-    while(line[strlen(line)-1]=='\r' || line[strlen(line)-1]=='\n')
-       line[strlen(line)-1]=0;
+    chomp_str(line);
 
     write_formatted(client,"WWWOFFLE Unknown Command '%s'.",line);
     PrintMessage(Warning,"WWWOFFLE Unknown control command '%s'.",line); /* Used in audit-usage.pl */

@@ -8,7 +8,8 @@
 
 function FindProxyForURL(url, host)
 {
- if(isPlainHostName(host))
+ if(isPlainHostName(host) || dnsDomainIs(host, ".localdomain") || 
+    shExpMatch(host, "192.168.1.*") || shExpMatch(host, "127.0.0.*"))
     return "DIRECT";
  else
     if((url.substring(0, 5) == "http:") || (url.substring(0, 4) == "ftp:"))

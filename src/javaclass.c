@@ -282,8 +282,7 @@ int readCONSTANTS(int fd)
 char *addclass(char *name)
 {
     char *ret = (char *)malloc(strlen(name) + sizeof(class));
-    strcpy(ret,name);
-    strcat(ret,class);
+    stpcpy(stpcpy(ret,name),class);
     free(name);
     return ret;
 }

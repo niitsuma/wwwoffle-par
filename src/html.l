@@ -314,16 +314,15 @@ static void add_codebase_url(char *obj,char *codebase,RefType refType)
    {
     if(codebase)
       {
-       char *url=(char*)malloc(strlen(codebase)+sizeof("/")+strlen(obj)+1);
+       char *p;
+       char url[strlen(codebase)+strlen(obj)+sizeof("/")];
 
-       strcpy(url,codebase);
-       if(url[strlen(url)-1]!='/')
-          strcat(url,"/"); 
-       strcat(url,obj);
+       p=stpcpy(url,codebase);
+       if(p>url && *(p-1)!='/') *p++='/'; 
+       stpcpy(p,obj);
 
        AddReference(url,refType);
 
-       free(url);
       }
     else
        AddReference(obj,refType);
@@ -344,26 +343,28 @@ static void add_java_applet_url(char *obj,char *codebase,RefType refType)
 {
  if(*obj)
    {
-    char *dots;
     char *applet=obj;
     static const char class_suffix[]=".class";
+    int strlen_obj=strlen(obj);
+    int strlen_applet=strlen_obj;
+    int strlen_diff=strlen_obj-strlitlen(class_suffix);
 
-    if(strlen(obj)>strlen(class_suffix) && strcmp(&obj[strlen(obj)-strlen(class_suffix)],class_suffix))
+    if(strlen_diff<0 || strcmp(&obj[strlen_diff],class_suffix))
       {
-       applet=(char*)malloc(strlen(applet)+sizeof(class_suffix)+1);
+       strlen_applet=strlen_obj+strlitlen(class_suffix);
+       applet=(char*)alloca(strlen_applet+1);
 
-       strcpy(applet,obj);
-       strcat(applet,class_suffix);
+       stpcpy(stpcpy(applet,obj),class_suffix);
       }
 
-    dots = applet;
-    while((dots=strchr(dots,'.'))<(applet+strlen(applet)-sizeof(class_suffix)))
-       *dots = '/';
+    {
+      char *lastdot=applet+strlen_applet-strlitlen(class_suffix);
+      char *p;
+      for(p=applet;p<lastdot;++p)
+	if(*p=='.') *p = '/';
+    }
 
     add_codebase_url(applet,codebase,refType);
-
-    if(obj!=applet)
-       free(applet);
    }
 }
 
@@ -395,8 +396,8 @@ static void handle_object_tag(Tag *tag,int fetch_webbug_images)
  /* Check for images. */
 
  for(i=0;i<tag->nattr;i++)
-    if((tag->attr_type[i]==att_codetype && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"image",5)) ||
-       (tag->attr_type[i]==att_type && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"image",5)))
+    if((tag->attr_type[i]==att_codetype && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"image")) ||
+       (tag->attr_type[i]==att_type && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"image")))
        is_image=1;
     else if(tag->attr_type[i]==att_width && tag->attr_val[i])
        width=atoi(tag->attr_val[i]);
@@ -439,9 +440,9 @@ static void handle_object_tag(Tag *tag,int fetch_webbug_images)
        else if(tag->attr_type[i]==att_data)     {uri=tag->attr_val[i];}
        else if(tag->attr_type[i]==att_classid)
          {
-          if(!strncasecmp(tag->attr_val[i],"java:",5))       {uri=tag->attr_val[i]+5; is_java=1;}
-          else if(!strncasecmp(tag->attr_val[i],"clsid:",6)) {uri=tag->attr_val[i]+6;}
-          else if(strncasecmp(tag->attr_val[i],"data:",5))   {uri=tag->attr_val[i];}
+          if(!strcasecmp_litbeg(tag->attr_val[i],"java:"))       {uri=tag->attr_val[i]+strlitlen("java:"); is_java=1;}
+          else if(!strcasecmp_litbeg(tag->attr_val[i],"clsid:")) {uri=tag->attr_val[i]+strlitlen("clsid:");}
+          else if(strcasecmp_litbeg(tag->attr_val[i],"data:"))   {uri=tag->attr_val[i];}
          }
       }
 
@@ -506,7 +507,7 @@ static void handle_link_tag(Tag *tag)
  int is_stylesheet=0;
 
  for(i=0;i<tag->nattr;i++)
-    if(tag->attr_type[i]==att_rel && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"Stylesheet",10))
+    if(tag->attr_type[i]==att_rel && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"Stylesheet"))
        is_stylesheet=1;
 
  for(i=0;i<tag->nattr;i++)
@@ -532,7 +533,7 @@ static void handle_meta_tag(Tag *tag)
  int is_meta_http_equiv_refresh=0;
 
  for(i=0;i<tag->nattr;i++)
-    if(tag->attr_type[i]==att_http_equiv && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"Refresh",7))
+    if(tag->attr_type[i]==att_http_equiv && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"Refresh"))
        is_meta_http_equiv_refresh=1;
 
  if(is_meta_http_equiv_refresh)
@@ -561,7 +562,7 @@ static void handle_meta_tag(Tag *tag)
                {
                 p++;
                 while(isspace(*p)) p++;
-                if(!strncasecmp(p,"URL",3))
+                if(!strcasecmp_litbeg(p,"URL"))
                   {
                    p+=3;
                    while(isspace(*p)) p++;
@@ -576,8 +577,7 @@ static void handle_meta_tag(Tag *tag)
                       ; /* unparseable */
                    else
                      {
-                      meta_refresh=(char*)malloc(strlen(p)+1);
-                      strcpy(meta_refresh,p);
+                      meta_refresh=strdup(p);
                      }
                   }
                }
@@ -732,7 +732,7 @@ static void parse_html(URL *Url)
        /* Other simple ones using a single attribute. */
 
        else if(key==att_href && tag==tag_base && html_yylval!=NULL)
-         {base_url=(char*)malloc(strlen(html_yylval)+1); strcpy(base_url,html_yylval);}
+         {base_url=strdup(html_yylval);}
 
        /* More complicated ones that depend on other attributes are stored and done later. */
 
@@ -747,14 +747,13 @@ static void parse_html(URL *Url)
             }
 
           tagdata.attr_type[tagdata.nattr]=key;
+	  if(tagdata.attr_val[tagdata.nattr]) free(tagdata.attr_val[tagdata.nattr]);
           if(html_yylval)
             {
-             tagdata.attr_val[tagdata.nattr]=(char*)realloc((void*)tagdata.attr_val[tagdata.nattr],strlen(html_yylval)+1);
-             strcpy(tagdata.attr_val[tagdata.nattr],html_yylval);
+             tagdata.attr_val[tagdata.nattr]=strdup(html_yylval);
             }
           else
             {
-             if(tagdata.attr_val[tagdata.nattr]) free(tagdata.attr_val[tagdata.nattr]);
              tagdata.attr_val[tagdata.nattr]=NULL;
             }
 
@@ -785,30 +784,27 @@ static void parse_html(URL *Url)
 
 /*+ Reset the current string. +*/
 #define reset_string \
- if(string) *string=0; \
- stringused=0;
+{if(string) *string=0; stringused=0;}
 
 /*+ append information to the current string. +*/
 #define append_string(xx) \
- newlen=strlen(xx); \
- if((stringused+newlen)>=stringlen) \
-    string=(char*)realloc((void*)string,stringlen=(stringused+newlen+1)); \
- strcpy(string+stringused,xx); \
- stringused+=newlen;
+{size_t _str_len=strlen(xx),_new_len=stringused+_str_len; \
+ if(_new_len>=stringallocsize) string=(char*)realloc((void*)string,stringallocsize=_new_len+1); \
+ memcpy(string+stringused,xx,_str_len+1); \
+ stringused=_new_len;}
 
 /*+ A macro to read data that can be used by the lexer. +*/
 #define YY_INPUT(buf,result,max_size) \
-        if((result=read_data(html_yyfd,buf,max_size))==-1) \
-           result=0;
+{if((result=read_data(html_yyfd,buf,max_size))==-1) result=0;}
 
 %}
 
 %%
  /* Must use static variables since the parser returns often. */
  static char *string=NULL;
- static int stringlen=0,stringused=0;
+ static size_t stringallocsize=0,stringused=0;
  static int after_tag=INITIAL;
- int newlen;
+
 
  /* Handle comments and other tags */
 
@@ -925,5 +921,5 @@ static void parse_html(URL *Url)
 
  /* End of file */
 
-<<EOF>>                     { free(string); stringlen=stringused=0; BEGIN(INITIAL); return(0); }
+<<EOF>>                     { free(string); stringallocsize=stringused=0; BEGIN(INITIAL); return(0); }
 %%

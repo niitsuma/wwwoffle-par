@@ -24,6 +24,7 @@
 #include "wwwoffle.h"
 #include "errors.h"
 #include "misc.h"
+#include "headbody.h"
 #include "config.h"
 #include "sockets.h"
 #include "proto.h"
@@ -46,35 +47,38 @@ static int server=-1;
 char *HTTP_Open(URL *Url)
 {
  char *msg=NULL;
- char *hoststr,*portstr;
  char *server_host=NULL;
  int server_port=Protocols[Protocol_HTTP].defport;
 
  /* Sort out the host. */
 
- proxy=ConfigStringURL(Proxies,Url);
  if(IsLocalNetHost(Url->host))
-    proxy=NULL;
-
- if(proxy)
-    server_host=proxy;
+   proxy=NULL;
  else
-    server_host=Url->host;
+   proxy=ConfigStringURL(Proxies,Url);
 
- SplitHostPort(server_host,&hoststr,&portstr);
+ if(proxy) {
+   char *hoststr, *portstr; int hostlen;
 
- if(portstr)
-    server_port=atoi(portstr);
+   SplitHostPort(proxy,&hoststr,&hostlen,&portstr);
+   server_host=strndupa(hoststr,hostlen);
+   if(portstr)
+     server_port=atoi(portstr);
+ }
+ else {
+   server_host=Url->host;
+   server_port=Url->portnum;
+ }
+
 
  /* Open the connection. */
 
- server=OpenClientSocket(hoststr,server_port);
- init_buffer(server);
+ server=OpenClientSocket(server_host,server_port);
 
- if(server==-1)
-    msg=PrintMessage(Warning,"Cannot open the HTTP connection to %s port %d; [%!s].",hoststr,server_port);
-
- RejoinHostPort(server_host,hoststr,portstr);
+ if(server!=-1)
+   init_buffer(server);
+ else
+   msg=PrintMessage(Warning,"Cannot open the HTTP connection to %s port %d; [%!s].",server_host,server_port);
 
  return(msg);
 }
@@ -105,7 +109,7 @@ char *HTTP_Request(URL *Url,Header *request_head,Body *request_body)
 
  /* Send the request. */
 
- head=HeaderString(request_head);
+ head=HeaderString(request_head,NULL);
 
  if(proxy)
     PrintMessage(ExtraDebug,"Outgoing Request Head (to proxy)\n%s",head);
@@ -134,7 +138,7 @@ char *HTTP_Request(URL *Url,Header *request_head,Body *request_body)
 
 int HTTP_ReadHead(Header **reply_head)
 {
- ParseReply(server,reply_head);
+ ParseReply(server,reply_head,NULL);
 
  return(server);
 }

@@ -151,6 +151,9 @@ $val_type?=UserId{
 $val_type?=GroupId{
 <input type="text" value="$_val" size="10" name="val">
 }{}
+$val_type?=CompressionSpecification{
+<input type="text" value="$_val" size="8" name="val">
+}{}
 $val_type?=String{
 <input type="text" value="$_val" size="30" name="val">
 }{}
@@ -207,7 +210,7 @@ $nentriesallowed?=0any{
 $nentriesallowed?=1any{
 <input type="radio" name="action" value="before">de waarde hierboven <b>invoegen</b> <i>voor</i> de hieronder geselecteerde waarde<br>
 <input type="radio" name="action" value="replace" checked>de waarde hierboven <b>invoegen</b> <i>in plaats van</i> de hieronder geselecteerde waarde<br>
-<input type="radio" name="action" value="after">de waarde hierboven <b>invoegen</b> <i>na</i>de hieronder geselecteerde waarde<br>
+<input type="radio" name="action" value="after">de waarde hierboven <b>invoegen</b> <i>na</i> de hieronder geselecteerde waarde<br>
 }{}
 
 $nentries?=0{}{

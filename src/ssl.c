@@ -38,6 +38,7 @@
 #include "wwwoffle.h"
 #include "errors.h"
 #include "misc.h"
+#include "headbody.h"
 #include "config.h"
 #include "sockets.h"
 #include "proto.h"
@@ -61,25 +62,29 @@ static int server=-1;
 char *SSL_Open(URL *Url)
 {
  char *msg=NULL;
- char *hoststr,*portstr;
  char *server_host=NULL;
  int server_port=0;
 
  /* Sort out the host. */
 
- proxy=ConfigStringURL(SSLProxy,Url);
  if(IsLocalNetHost(Url->host))
-    proxy=NULL;
-
- if(proxy)
-    server_host=proxy;
+   proxy=NULL;
  else
-    server_host=Url->host;
+   proxy=ConfigStringURL(SSLProxy,Url);
 
- SplitHostPort(server_host,&hoststr,&portstr);
+ if(proxy) {
+   char *hoststr, *portstr; int hostlen;
 
- if(portstr)
-    server_port=atoi(portstr);
+   SplitHostPort(proxy,&hoststr,&hostlen,&portstr);
+   server_host=strndupa(hoststr,hostlen);
+   if(portstr)
+     server_port=atoi(portstr);
+ }
+ else {
+   server_host=Url->host;
+   if(Url->port) server_port=Url->portnum;
+ }
+
 
  /* Open the connection. */
 
@@ -87,16 +92,15 @@ char *SSL_Open(URL *Url)
 
  if(server_port)
    {
-    server=OpenClientSocket(hoststr,server_port);
-    init_buffer(server);
+    server=OpenClientSocket(server_host,server_port);
 
-    if(server==-1)
-       msg=PrintMessage(Warning,"Cannot open the SSL connection to %s port %d; [%!s].",hoststr,server_port);
+    if(server!=-1)
+      init_buffer(server);
+    else
+      msg=PrintMessage(Warning,"Cannot open the SSL connection to %s port %d; [%!s].",server_host,server_port);
    }
  else
     msg=PrintMessage(Warning,"No port given for the SSL connection to %s.",server_host);
-
- RejoinHostPort(server_host,hoststr,portstr);
 
  return(msg);
 }
@@ -124,9 +128,9 @@ char *SSL_Request(int client,URL *Url,Header *request_head)
 
     MakeRequestProxyAuthorised(proxy,request_head);
 
-    ChangeURLInHeader(request_head,Url->host);
+    ChangeURLInHeader(request_head,Url->hostport);
 
-    head=HeaderString(request_head);
+    head=HeaderString(request_head,NULL);
 
     PrintMessage(ExtraDebug,"Outgoing Request Head (to SSL proxy)\n%s",head);
 

@@ -23,6 +23,7 @@
 #include "wwwoffle.h"
 #include "errors.h"
 #include "misc.h"
+#include "headbody.h"
 #include "config.h"
 #include "sockets.h"
 #include "proto.h"
@@ -46,35 +47,38 @@ static int server=-1;
 char *Finger_Open(URL *Url)
 {
  char *msg=NULL;
- char *hoststr,*portstr;
  char *server_host=NULL;
  int server_port=Protocols[Protocol_Finger].defport;
 
  /* Sort out the host. */
 
- proxy=ConfigStringURL(Proxies,Url);
  if(IsLocalNetHost(Url->host))
-    proxy=NULL;
-
- if(proxy)
-    server_host=proxy;
+   proxy=NULL;
  else
-    server_host=Url->host;
+   proxy=ConfigStringURL(Proxies,Url);
 
- SplitHostPort(server_host,&hoststr,&portstr);
+ if(proxy) {
+   char *hoststr, *portstr; int hostlen;
 
- if(portstr)
-    server_port=atoi(portstr);
+   SplitHostPort(proxy,&hoststr,&hostlen,&portstr);
+   server_host=strndupa(hoststr,hostlen);
+   if(portstr)
+     server_port=atoi(portstr);
+ }
+ else {
+   server_host=Url->host;
+   server_port=Url->portnum;
+ }
+
 
  /* Open the connection. */
 
- server=OpenClientSocket(hoststr,server_port);
- init_buffer(server);
+ server=OpenClientSocket(server_host,server_port);
 
- if(server==-1)
-    msg=PrintMessage(Warning,"Cannot open the Finger connection to %s port %d; [%!s].",hoststr,server_port);
-
- RejoinHostPort(server_host,hoststr,portstr);
+ if(server!=-1)
+   init_buffer(server);
+ else
+   msg=PrintMessage(Warning,"Cannot open the Finger connection to %s port %d; [%!s].",server_host,server_port);
 
  return(msg);
 }
@@ -95,21 +99,21 @@ char *Finger_Open(URL *Url)
 char *Finger_Request(URL *Url,Header *request_head,/*@unused@*/ Body *request_body)
 {
  char *msg=NULL;
- char *user,*slash;
+ char *user;
 
  /* Take a simple route if it is proxied. */
 
  if(proxy)
    {
-    char *head;
+    char *head; int head_len;
 
     MakeRequestProxyAuthorised(proxy,request_head);
 
-    head=HeaderString(request_head);
+    head=HeaderString(request_head,&head_len);
 
     PrintMessage(ExtraDebug,"Outgoing Request Head (to proxy)\n%s",head);
 
-    if(write_string(server,head)==-1)
+    if(write_all(server,head,head_len)<0)
        msg=PrintMessage(Warning,"Failed to write to remote Finger proxy; [%!s].");
 
     free(head);
@@ -119,24 +123,19 @@ char *Finger_Request(URL *Url,Header *request_head,/*@unused@*/ Body *request_bo
 
  /* Else Sort out the path. */
 
- user=(char*)malloc(strlen(Url->path));
- strcpy(user,Url->path+1);
-
- if((slash=strchr(user,'/')))
-    *slash=0;
+ user=Url->path+1;
+ {char *slash=strchr(user,'/'); if(slash) user=strndupa(user,slash-user);}
 
  if(*user)
    {
-    if(write_formatted(server,"/W %s\r\n",user)==-1)
+    if(write_formatted(server,"/W %s\r\n",user)<0)
        msg=PrintMessage(Warning,"Failed to write to remote Finger server; [%!s].");
    }
  else
    {
-    if(write_string(server,"/W\r\n")==-1)
+    if(write_string(server,"/W\r\n")<0)
        msg=PrintMessage(Warning,"Failed to write to remote Finger server; [%!s].");
    }
-
- free(user);
 
  return(msg);
 }
@@ -158,14 +157,14 @@ int Finger_ReadHead(Header **reply_head)
 
  if(proxy)
    {
-    ParseReply(server,reply_head);
+    ParseReply(server,reply_head,NULL);
 
     return(server);
    }
 
  /* Else send the header. */
 
- *reply_head=CreateHeader("HTTP/1.0 200 Finger OK",0);
+ CreateHeader("HTTP/1.0 200 Finger OK",0,reply_head);
 
  AddToHeader(*reply_head,"Content-Type","text/plain");
 

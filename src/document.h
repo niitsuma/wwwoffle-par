@@ -75,10 +75,10 @@ void ParseXML(int fd,URL *Url);
 
 /* In gifmodify.c */
 
-void OutputGIFWithModifications(int client,int spool,URL *Url);
+int OutputGIFWithModifications(int client,int spool,URL *Url);
 
 /* In htmlmodify.c (htmlmodify.l) */
 
-void OutputHTMLWithModifications(int client,int spool,URL *Url);
+int OutputHTMLWithModifications(int client,int spool,URL *Url);
 
 #endif /* DOCUMENT_H */

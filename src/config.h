@@ -39,10 +39,14 @@ int ConfigInteger(/*@null@*/ ConfigItem item);
 /*@observer@*/ /*@null@*/ char *ConfigString(/*@null@*/ ConfigItem item);
 
 int ConfigIntegerURL(/*@null@*/ ConfigItem item,/*@null@*/ URL *Url);
+int ConfigIntegerProtoHostPort(/*@null@*/ ConfigItem item,char *proto,char *hostport);
 #define ConfigBooleanURL ConfigIntegerURL
+#define ConfigBooleanProtoHostPort ConfigIntegerProtoHostPort
 /*@observer@*/ /*@null@*/ char *ConfigStringURL(/*@null@*/ ConfigItem item,/*@null@*/ URL *Url);
+/*@observer@*/ /*@null@*/ char *ConfigStringProtoHostPort(/*@null@*/ ConfigItem item,char *proto,char *hostport);
 
 int ConfigBooleanMatchURL(/*@null@*/ ConfigItem item,URL *Url);
+int ConfigBooleanMatchProtoHostPort(/*@null@*/ ConfigItem item,char *proto,char *hostport);
 
 
 /* StartUp section */
@@ -157,6 +161,9 @@ extern /*@null@*/ ConfigItem RequestCompressedData;
 
 /*+ The option to allow or ignore the 'Pragma: no-cache' request. +*/
 extern /*@null@*/ ConfigItem PragmaNoCache;
+
+/*+ The option to allow or ignore the 'Cache-Control: no-cache' or 'Cache-Control: max-age=0' request. +*/
+extern /*@null@*/ ConfigItem CacheControlNoCache;
 
 /*+ The option to not automatically make requests while offline but to need confirmation. +*/
 extern /*@null@*/ ConfigItem ConfirmRequests;
@@ -328,10 +335,14 @@ extern /*@null@*/ ConfigItem DontCompressMIME;
 extern /*@null@*/ ConfigItem DontCompressExt;
 
 
-/* CensorHeader section */
+/* CensorIncomingHeader and CensorOutgoingHeader sections */
 
 /*+ The list of censored headers. +*/
-extern /*@null@*/ ConfigItem CensorHeader;
+extern /*@null@*/ ConfigItem CensorIncomingHeader;
+extern /*@null@*/ ConfigItem CensorOutgoingHeader;
+
+/*+ Flags to cause Set-Cookie headers to be mangled. +*/
+extern /*@null@*/ ConfigItem SessionCookiesOnly;
 
 /*+ Flags to cause the referer header to be mangled. +*/
 extern /*@null@*/ ConfigItem RefererSelf;
@@ -408,19 +419,20 @@ extern /*@null@*/ ConfigItem PurgeCompressAges;
 
 /* Options Section */
 
-int IsSSLAllowedPort(char *host);
+int IsSSLAllowedPort(int port);
 int IsCGIAllowed(char *path);
 
 
 /* LocalHost Section */
 
 char *GetLocalHost(int port);
-int IsLocalHost(char *host,int port);
+int IsLocalHostPort(char *hostport);
 
 
 /* LocalNet Section */
 
 int IsLocalNetHost(char *host);
+int IsLocalNetHostPort(char *hostport);
 
 
 /* AllowedConnectHosts Section */
@@ -440,7 +452,7 @@ int NotCompressed(/*@null@*/ char *mime_type,/*@null@*/ char *path);
 
 /* CensorHeader Section */
 
-char *CensoredHeader(URL *Url,char *key,/*@returned@*/ char *val);
+char *CensoredHeader(ConfigItem confitem,URL *Url,char *key,/*@returned@*/ char *val);
 
 
 /* MIMETypes Section */
@@ -450,7 +462,7 @@ char /*@observer@*/ *WhatMIMEType(char *path);
 
 /* Alias Section */
 
-int IsAliased(char *proto,char *host,char *path,/*@out@*/ char **new_proto,/*@out@*/ char **new_host,/*@out@*/ char **new_path);
+int IsAliased(char *proto,char *hostport,char *path,/*@out@*/ char **new_proto,/*@out@*/ char **new_hostport,/*@out@*/ char **new_path);
 
 
 #endif /* CONFIG_H */

@@ -1,7 +1,7 @@
 /***************************************
   $Header: /home/amb/wwwoffle/src/RCS/purge.c 2.53 2002/08/04 10:26:06 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
   Purge old files from the cache.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -76,6 +76,7 @@
 
 #include "wwwoffle.h"
 #include "misc.h"
+#include "headbody.h"
 #include "proto.h"
 #include "config.h"
 #include "errors.h"
@@ -94,7 +95,7 @@ extern int fSpoolDir;
 /* Local functions */
 
 static void PurgeFiles(char *proto,char *host,int def_purge_age,int def_compress_age,/*@out@*/ unsigned long *remain,/*@out@*/ unsigned long *deleted,/*@out@*/ unsigned long *compressed);
-static void what_purge_compress_age(char *proto,char *host,/*@null@*/ char *file,/*@out@*/ int *purge_age,/*@out@*/ int *compress_age);
+static void what_purge_compress_age(char *proto,char *hostport,/*@null@*/ char *file,/*@out@*/ int *purge_age,/*@out@*/ int *compress_age);
 #if USE_ZLIB
 static unsigned long compress_file(char *proto,char *host,char *file);
 #endif
@@ -521,7 +522,7 @@ void PurgeCache(int fd)
           ent=readdir(dir);  /* skip .. */
 
           while((ent=readdir(dir)))
-             if(!strncmp(ent->d_name,"tmp.",4))
+             if(!strcmp_litbeg(ent->d_name,"tmp."))
                {
                 struct stat buf;
 
@@ -565,7 +566,7 @@ void PurgeCache(int fd)
           ent=readdir(dir);  /* skip .. */
 
           while((ent=readdir(dir)))
-             if(!strncmp(ent->d_name,"tmp.",4))
+             if(!strcmp_litbeg(ent->d_name,"tmp."))
                {
                 struct stat buf;
 
@@ -766,7 +767,7 @@ static void PurgeFiles(char *proto,char *host,int def_purge_age,int def_compress
 
   char *proto The protocol to use.
 
-  char *host The host to use.
+  char *hostport The host (and port) to use.
 
   char *file The filename to use (if purging by URL).
 
@@ -775,9 +776,9 @@ static void PurgeFiles(char *proto,char *host,int def_purge_age,int def_compress
   int *compress_age The age at which the file should be compressed.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void what_purge_compress_age(char *proto,char *host,char *file,int *purge_age,int *compress_age)
+static void what_purge_compress_age(char *proto,char *hostport,char *file,int *purge_age,int *compress_age)
 {
- URL *Url;
+ URL *Url=NULL;
 
  if(purge_age)
     *purge_age=-1;
@@ -795,30 +796,19 @@ static void what_purge_compress_age(char *proto,char *host,char *file,int *purge
     Url=SplitURL(url);
     free(url);
    }
- else
-   {
-    URL fakeUrl;
-
-    /* cheat a bit here and poke in the values we need. */
-
-    fakeUrl.proto=proto;
-    fakeUrl.host=host;
-    fakeUrl.path="/";
-    fakeUrl.args=NULL;
-
-    Url=&fakeUrl;
-   }
 
  if(purge_age)
    {
-    *purge_age=ConfigIntegerURL(PurgeAges,Url);
-
-    if(ConfigBoolean(PurgeDontGet) && ConfigBooleanMatchURL(DontGet,Url))
-       *purge_age=0;
-
-    if(ConfigBoolean(PurgeDontCache) && (ConfigBooleanMatchURL(DontCache,Url) || IsLocalNetHost(host)))
-       *purge_age=0;
-   }
+    if((ConfigBoolean(PurgeDontGet) &&
+	(file?ConfigBooleanMatchURL(DontGet,Url):ConfigBooleanMatchProtoHostPort(DontGet,proto,hostport)))
+       ||
+       (ConfigBoolean(PurgeDontCache) &&
+	((file?ConfigBooleanMatchURL(DontCache,Url):ConfigBooleanMatchProtoHostPort(DontCache,proto,hostport)) ||
+	 IsLocalNetHostPort(hostport))))
+      *purge_age=0;
+    else
+      *purge_age=file?ConfigIntegerURL(PurgeAges,Url):ConfigIntegerProtoHostPort(PurgeAges,proto,hostport);
+  }
 
  if(compress_age)
     *compress_age=ConfigIntegerURL(PurgeCompressAges,Url);
@@ -873,7 +863,7 @@ static unsigned long compress_file(char *proto,char *host,char *file)
     return(0);
    }
 
- ParseReply(ifd,&spool_head);
+ ParseReply(ifd,&spool_head,NULL);
 
  if(!spool_head ||
     GetHeader(spool_head,"Content-Encoding") ||
@@ -891,9 +881,8 @@ static unsigned long compress_file(char *proto,char *host,char *file)
  AddToHeader(spool_head,"Pragma","wwwoffle-compressed");
  RemoveFromHeader(spool_head,"Content-Length");
 
- zfile=(char*)malloc(strlen(file)+4);
- strcpy(zfile,file);
- strcat(zfile,".z");
+ zfile=(char*)alloca(strlen(file)+sizeof(".z"));
+ stpcpy(stpcpy(zfile,file),".z");
 
  ofd=open(zfile,O_WRONLY|O_BINARY|O_CREAT|O_TRUNC,buf.st_mode&07777);
  init_buffer(ofd);
@@ -902,13 +891,12 @@ static unsigned long compress_file(char *proto,char *host,char *file)
    {
     PrintMessage(Inform,"Cannot open file '%s/%s/%s' to compress to [%!s].",proto,host,zfile);
     FreeHeader(spool_head);
-    free(zfile);
     close(ifd);
     utime(file,&ubuf);
     return(0);
    }
 
- head=HeaderString(spool_head);
+ head=HeaderString(spool_head,NULL);
  FreeHeader(spool_head);
 
  write_string(ofd,head);
@@ -934,8 +922,6 @@ static unsigned long compress_file(char *proto,char *host,char *file)
 
  if(!stat(file,&buf))
     new_size=buf.st_size;
-
- free(zfile);
 
  if(new_size<orig_size)
     return(Bytes_to_Blocks(orig_size-new_size));

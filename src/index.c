@@ -159,9 +159,7 @@ void IndexPage(int fd,URL *Url)
        char *url=URLDecodeFormArgs(Url->args);
        URL *indexUrl=SplitURL(Url->args);
        char *localhost=GetLocalHost(1);
-       char *relocate=(char*)malloc(strlen(localhost)+strlen(indexUrl->proto)+strlen(indexUrl->host)+32);
-
-       sprintf(relocate,"http://%s/index/%s/%s?sort=%s\r\n",localhost,indexUrl->proto,indexUrl->host,sorttype[Alpha]);
+       char *relocate=x_asprintf("http://%s/index/%s/%s/?sort=%s",localhost,indexUrl->proto,indexUrl->hostport,sorttype[Alpha]);
        HTMLMessage(fd,301,"WWWOFFLE Index URL Redirect",relocate,"IndexURLRedirect",
                    "url",url,
                    "link",relocate+7+strlen(localhost),
@@ -180,33 +178,33 @@ void IndexPage(int fd,URL *Url)
     return;
    }
 
- newpath=(char*)malloc(strlen(Url->path)-6);
- strcpy(newpath,Url->path+7);
+ newpath=strdupa(Url->path+strlitlen("/index/"));
 
- if(*newpath && newpath[strlen(newpath)-1]=='/')
-    newpath[strlen(newpath)-1]=0;
+ {
+   char *p=strchrnul(newpath,0)-1;
+   if(p>=newpath && *p=='/') *p=0;
 
- for(i=0;newpath[i];i++)
-    if(newpath[i]=='/')
-      {
-       newpath[i]=0;
-       host=newpath+i+1;
-       break;
-      }
+   p=strchr(newpath,'/');
+   if(p) {*p=0; host=p+1;}
+ }
 
  proto=newpath;
 
- for(i=0;i<NProtocols;i++)
+ for(i=0;i<NProtocols;++i)
     if(!strcmp(proto,Protocols[i].name))
-       protocol=&Protocols[i];
+      {protocol=&Protocols[i]; break;}
 
- outgoing=!strcmp(proto,"outgoing");
- monitor =!strcmp(proto,"monitor");
- lasttime=!strcmp(proto,"lasttime");
- prevtime=!strncmp(proto,"prevtime",8) && atoi(proto+8)>=0 && atoi(proto+8)<=NUM_PREVTIME_DIR;
- lastout =!strcmp(proto,"lastout");
- prevout =!strncmp(proto,"prevout",7) && atoi(proto+7)>=0 && atoi(proto+7)<=NUM_PREVTIME_DIR;
- mainpage=(!protocol && !outgoing && !monitor && !lasttime && !prevtime && !lastout && !prevout);
+ {
+   int nprev;
+   
+   outgoing=!strcmp(proto,"outgoing");
+   monitor =!strcmp(proto,"monitor");
+   lasttime=!strcmp(proto,"lasttime");
+   prevtime=!strcmp_litbeg(proto,"prevtime") && (nprev=atoi(proto+strlitlen("prevtime")))>=0 && nprev<=NUM_PREVTIME_DIR;
+   lastout =!strcmp(proto,"lastout");
+   prevout =!strcmp_litbeg(proto,"prevout") && (nprev=atoi(proto+strlitlen("prevout")))>=0 && nprev<=NUM_PREVTIME_DIR;
+   mainpage=(!protocol && !outgoing && !monitor && !lasttime && !prevtime && !lastout && !prevout);
+ }
 
  if(Url->args)
    {
@@ -216,10 +214,10 @@ void IndexPage(int fd,URL *Url)
 
     for(a=&args[0];*a;a++)
       {
-       if(!strncmp(*a,"sort=",5))
+       if(!strcmp_litbeg(*a,"sort="))
          {
           for(s=0;s<NSortModes;s++)
-             if(!strcmp(*a+5,sorttype[s]))
+             if(!strcmp(*a+strlitlen("sort="),sorttype[s]))
                {sort=s;break;}
          }
        else if(!strcmp(*a,"delete"))
@@ -253,8 +251,7 @@ void IndexPage(int fd,URL *Url)
  else if(sort==NSortModes)
    {
     char *localhost=GetLocalHost(1);
-    char *relocate=(char*)malloc(strlen(localhost)+strlen(Url->path)+strlen(sorttype[0])+16);
-    sprintf(relocate,"http://%s%s?sort=%s",localhost,Url->path,sorttype[0]);
+    char *relocate=x_asprintf("http://%s%s?sort=%s",localhost,Url->path,sorttype[0]);
     HTMLMessage(fd,301,"WWWOFFLE Index Redirect",relocate,"IndexRedirect",
                 "url",Url->pathp,
                 "link",relocate+7+strlen(localhost),
@@ -266,6 +263,7 @@ void IndexPage(int fd,URL *Url)
    {
     HTMLMessageHead(fd,200,"WWWOFFLE Index",
                     NULL);
+    if(out_err==-1) return;
     HTMLMessageBody(fd,"Index-Head",
                     "type",prevtime?"prevtime":prevout?"prevout":proto,
                     "subtype",prevtime?proto+8:prevout?proto+7:host,
@@ -276,6 +274,8 @@ void IndexPage(int fd,URL *Url)
                     "all"    ,allopt?";all":"",
                     "config" ,confopt?";config":"",
                     NULL);
+
+    if(out_err==-1) return;
 
     if(outgoing)
        IndexOutgoing(fd,sort,allopt);
@@ -292,11 +292,11 @@ void IndexPage(int fd,URL *Url)
     else
        IndexRoot(fd);
 
+    if(out_err==-1) return;
+
     HTMLMessageBody(fd,"Index-Tail",
                     NULL);
    }
-
- free(newpath);
 }
 
 
@@ -329,7 +329,7 @@ static void IndexProtocol(int fd,char *proto,SortMode mode,/*@unused@*/ int allo
  DIR *dir;
  struct dirent* ent;
  int i;
- char total[8],indexed[8],notindexed[8];
+ char total[12],indexed[12],notindexed[12];
  int lastdays=0,lasthours=0;
 
  /* Open the spool directory. */
@@ -380,16 +380,19 @@ static void IndexProtocol(int fd,char *proto,SortMode mode,/*@unused@*/ int allo
 
  for(i=0;i<nfiles;i++)
    {
-    if(mode==Dated)
-       dated_separator(fd,i,&lastdays,&lasthours);
+    if(out_err!=-1) {
+      if(mode==Dated)
+	dated_separator(fd,i,&lastdays,&lasthours);
 
-    HTMLMessageBody(fd,"IndexProtocol-Body",
-                    "host",files[i]->name,
-                    NULL);
-
+      HTMLMessageBody(fd,"IndexProtocol-Body",
+		      "host",files[i]->name,
+		      NULL);
+    }
     free(files[i]->name);
     free(files[i]);
    }
+
+ if(out_err==-1) goto free_return;
 
  sprintf(indexed   ,"%d",nfiles);
  sprintf(notindexed,"%d",0);
@@ -401,6 +404,7 @@ static void IndexProtocol(int fd,char *proto,SortMode mode,/*@unused@*/ int allo
 
  /* Tidy up and exit */
 
+free_return:
  if(files)
     free(files);
  files=NULL;
@@ -427,7 +431,7 @@ static void IndexHost(int fd,char *proto,char *host,SortMode mode,int allopt)
  DIR *dir;
  struct dirent* ent;
  int i,nindexed=0;
- char total[8],indexed[8],notindexed[8];
+ char total[12],indexed[12],notindexed[12];
  int lastdays=0,lasthours=0;
 
  /* Open the spool subdirectory. */
@@ -497,9 +501,9 @@ static void IndexHost(int fd,char *proto,char *host,SortMode mode,int allopt)
 
  for(i=0;i<nfiles;i++)
    {
-    if(allopt || is_indexed(files[i]->url,IndexListHost))
+     if(out_err!=-1 && (allopt || is_indexed(files[i]->url,IndexListHost)))
       {
-       char count[8];
+       char count[12];
 
        sprintf(count,"%d",i);
 
@@ -520,6 +524,8 @@ static void IndexHost(int fd,char *proto,char *host,SortMode mode,int allopt)
     free(files[i]);
    }
 
+ if(out_err==-1) goto free_return;
+
  sprintf(indexed   ,"%d",nindexed);
  sprintf(notindexed,"%d",nfiles-nindexed);
 
@@ -529,7 +535,7 @@ static void IndexHost(int fd,char *proto,char *host,SortMode mode,int allopt)
                  NULL);
 
  /* Tidy up and exit */
-
+free_return:
  if(files)
     free(files);
  files=NULL;
@@ -552,7 +558,7 @@ static void IndexOutgoing(int fd,SortMode mode,int allopt)
  DIR *dir;
  struct dirent* ent;
  int i,nindexed=0;
- char total[8],indexed[8],notindexed[8];
+ char total[12],indexed[12],notindexed[12];
  int lastdays=0,lasthours=0;
 
  /* Open the outgoing subdirectory. */
@@ -604,9 +610,9 @@ static void IndexOutgoing(int fd,SortMode mode,int allopt)
 
  for(i=0;i<nfiles;i++)
    {
-    if(allopt || is_indexed(files[i]->url,IndexListOutgoing))
+     if(out_err!=-1 && (allopt || is_indexed(files[i]->url,IndexListOutgoing)))
       {
-       char count[8];
+       char count[12];
 
        sprintf(count,"%d",i);
 
@@ -627,6 +633,8 @@ static void IndexOutgoing(int fd,SortMode mode,int allopt)
     free(files[i]);
    }
 
+ if(out_err==-1) goto free_return;
+
  sprintf(indexed   ,"%d",nindexed);
  sprintf(notindexed,"%d",nfiles-nindexed);
 
@@ -637,6 +645,7 @@ static void IndexOutgoing(int fd,SortMode mode,int allopt)
 
  /* Tidy up and exit */
 
+free_return:
  if(files)
     free(files);
  files=NULL;
@@ -659,7 +668,7 @@ static void IndexMonitor(int fd,SortMode mode,int allopt)
  DIR *dir;
  struct dirent* ent;
  int i,nindexed=0;
- char total[8],indexed[8],notindexed[8];
+ char total[12],indexed[12],notindexed[12];
  int lastdays=0,lasthours=0;
 
  /* Open the monitor subdirectory. */
@@ -711,11 +720,11 @@ static void IndexMonitor(int fd,SortMode mode,int allopt)
 
  for(i=0;i<nfiles;i++)
    {
-    if(allopt || is_indexed(files[i]->url,IndexListMonitor))
+     if(out_err!=-1 && (allopt || is_indexed(files[i]->url,IndexListMonitor)))
       {
        int last,next;
-       char laststr[8],nextstr[8];
-       char count[8];
+       char laststr[12],nextstr[12];
+       char count[12];
 
        sprintf(count,"%d",i);
 
@@ -749,6 +758,8 @@ static void IndexMonitor(int fd,SortMode mode,int allopt)
     free(files[i]);
    }
 
+ if(out_err==-1) goto free_return;
+
  sprintf(indexed   ,"%d",nindexed);
  sprintf(notindexed,"%d",nfiles-nindexed);
 
@@ -759,6 +770,7 @@ static void IndexMonitor(int fd,SortMode mode,int allopt)
 
  /* Tidy up and exit */
 
+free_return:
  if(files)
     free(files);
  files=NULL;
@@ -783,7 +795,7 @@ static void IndexLastTime(int fd,char *name,SortMode mode,int allopt)
  DIR *dir;
  struct dirent* ent;
  int i,nindexed=0;
- char total[8],indexed[8],notindexed[8],*date;
+ char total[12],indexed[12],notindexed[12],date[MAXDATESIZE];
  int lastdays=0,lasthours=0;
  struct stat buf;
 
@@ -805,9 +817,9 @@ static void IndexLastTime(int fd,char *name,SortMode mode,int allopt)
  ent=readdir(dir);  /* skip .. */
 
  if(stat(".timestamp",&buf))
-    date="?";
+    strcpy(date,"?");
  else
-    date=RFC822Date(buf.st_mtime,0);
+    RFC822Date_r(buf.st_mtime,0,date);
 
  /* Add all of the file names. */
 
@@ -843,9 +855,9 @@ static void IndexLastTime(int fd,char *name,SortMode mode,int allopt)
 
  for(i=0;i<nfiles;i++)
    {
-    if(allopt || is_indexed(files[i]->url,IndexListLatest))
+     if(out_err!=-1 && (allopt || is_indexed(files[i]->url,IndexListLatest)))
       {
-       char count[8];
+       char count[12];
 
        sprintf(count,"%d",i);
 
@@ -866,6 +878,8 @@ static void IndexLastTime(int fd,char *name,SortMode mode,int allopt)
     free(files[i]);
    }
 
+ if(out_err==-1) goto free_return;
+
  sprintf(indexed   ,"%d",nindexed);
  sprintf(notindexed,"%d",nfiles-nindexed);
 
@@ -876,6 +890,7 @@ static void IndexLastTime(int fd,char *name,SortMode mode,int allopt)
 
  /* Tidy up and exit */
 
+free_return:
  if(files)
     free(files);
  files=NULL;
@@ -900,7 +915,7 @@ static void IndexLastOut(int fd,char *name,SortMode mode,int allopt)
  DIR *dir;
  struct dirent* ent;
  int i,nindexed=0;
- char total[8],indexed[8],notindexed[8],*date;
+ char total[12],indexed[12],notindexed[12],date[MAXDATESIZE];
  int lastdays=0,lasthours=0;
  struct stat buf;
 
@@ -922,9 +937,9 @@ static void IndexLastOut(int fd,char *name,SortMode mode,int allopt)
  ent=readdir(dir);  /* skip .. */
 
  if(stat(".timestamp",&buf))
-    date="?";
+    strcpy(date,"?");
  else
-    date=RFC822Date(buf.st_mtime,0);
+    RFC822Date_r(buf.st_mtime,0,date);
 
  /* Add all of the file names. */
 
@@ -960,9 +975,9 @@ static void IndexLastOut(int fd,char *name,SortMode mode,int allopt)
 
  for(i=0;i<nfiles;i++)
    {
-    if(allopt || is_indexed(files[i]->url,IndexListLatest))
+     if(out_err!=-1 && (allopt || is_indexed(files[i]->url,IndexListLatest)))
       {
-       char count[8];
+       char count[12];
 
        sprintf(count,"%d",i);
 
@@ -983,6 +998,8 @@ static void IndexLastOut(int fd,char *name,SortMode mode,int allopt)
     free(files[i]);
    }
 
+ if(out_err==-1) goto free_return;
+
  sprintf(indexed   ,"%d",nindexed);
  sprintf(notindexed,"%d",nfiles-nindexed);
 
@@ -993,6 +1010,7 @@ static void IndexLastOut(int fd,char *name,SortMode mode,int allopt)
 
  /* Tidy up and exit */
 
+free_return:
  if(files)
     free(files);
  files=NULL;
@@ -1037,10 +1055,7 @@ static void add_dir(char *name,SortMode mode)
    {
     if(!(nfiles%16))
       {
-       if(!files)
-          files=(FileIndex**)malloc(16*sizeof(FileIndex*));
-       else
-          files=(FileIndex**)realloc(files,(nfiles+16)*sizeof(FileIndex*));
+       files=(FileIndex**)realloc(files,(nfiles+16)*sizeof(FileIndex*));
       }
     files[nfiles]=(FileIndex*)malloc(sizeof(FileIndex));
 
@@ -1050,8 +1065,7 @@ static void add_dir(char *name,SortMode mode)
        name[i]=':';
 #endif
 
-    files[nfiles]->name=(char*)malloc(strlen(name)+1);
-    strcpy(files[nfiles]->name,name);
+    files[nfiles]->name=strdup(name);
 
     if(mode==Domain)
        files[nfiles]->host=files[nfiles]->name;
@@ -1105,18 +1119,17 @@ static void add_file(char *name,SortMode mode)
     files[nfiles]->name=files[nfiles]->url->name;
 
     if(mode==Domain)
-       files[nfiles]->host=files[nfiles]->url->host;
+       files[nfiles]->host=files[nfiles]->url->hostport;
     else if(mode==Type)
       {
-       char *p=files[nfiles]->url->path+strlen(files[nfiles]->url->path)-1;
+       char *p=strchrnul(files[nfiles]->url->path,0);
 
        files[nfiles]->type="";
 
-       while(p>=files[nfiles]->url->path && *p!='/')
-         {
-          if(*p=='.')
-            files[nfiles]->type=p;
-          p--;
+       while(--p>=files[nfiles]->url->path && *p!='/')
+	 if(*p=='.') {
+	   files[nfiles]->type=p;
+	   break;
          }
       }
     else if(mode==MTime || mode==Dated)
@@ -1151,7 +1164,7 @@ static void dated_separator(int fd,int file,int *lastdays,int *lasthours)
 
  if(*lastdays<days)
    {
-    char daystr[8];
+    char daystr[12];
     sprintf(daystr,"%ld",days-*lastdays);
 
     HTMLMessageBody(fd,"IndexSeparator-Body",
@@ -1231,8 +1244,8 @@ static int sort_type(FileIndex **a,FileIndex **b)
 
 static int sort_domain(FileIndex **a,FileIndex **b)
 {
- char *ap=(*a)->host+strlen((*a)->host);
- char *bp=(*b)->host+strlen((*b)->host);
+ char *ap=strchrnul((*a)->host,0);
+ char *bp=strchrnul((*b)->host,0);
  int chosen=0;
 
  /* Compare longer and longer domain parts */

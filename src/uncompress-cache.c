@@ -57,6 +57,7 @@
 #include "wwwoffle.h"
 #include "version.h"
 #include "misc.h"
+#include "headbody.h"
 #include "errors.h"
 #include "config.h"
 
@@ -303,7 +304,7 @@ static void UncompressHost(char *proto,char *host)
           continue;
          }
 
-       ParseReply(ifd,&spool_head);
+       ParseReply(ifd,&spool_head,NULL);
 
        if(spool_head && GetHeader2(spool_head,"Pragma","wwwoffle-compressed"))
          {
@@ -330,7 +331,7 @@ static void UncompressHost(char *proto,char *host)
           RemoveFromHeader(spool_head,"Content-Encoding");
           RemoveFromHeader2(spool_head,"Pragma","wwwoffle-compressed");
 
-          head=HeaderString(spool_head);
+          head=HeaderString(spool_head,NULL);
 
           write_string(ofd,head);
           free(head);

@@ -1,7 +1,7 @@
 /***************************************
   $Header: /home/amb/wwwoffle/src/RCS/controledit.c 2.29 2002/08/04 10:26:06 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
   Configuration file management via a web-page.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -20,7 +20,9 @@
 #include <string.h>
 #include <ctype.h>
 
+#include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 #include "wwwoffle.h"
@@ -66,15 +68,13 @@ void ControlEditPage(int fd,char *request_args,Body *request_body)
     if(*request_args=='!' && strchr(request_args+1,'!'))
       {
        char *pling;
-       newargs=(char*)malloc(strlen(request_args)+1);
-       strcpy(newargs,request_args+1);
+       newargs=strdupa(request_args+1);
        pling=strchr(newargs,'!');
        *pling=0;
       }
     else if(*request_args!='!')
       {
-       newargs=(char*)malloc(strlen(request_args)+1);
-       strcpy(newargs,request_args);
+       newargs=strdupa(request_args);
       }
    }
 
@@ -102,7 +102,7 @@ void ControlEditPage(int fd,char *request_args,Body *request_body)
                    "section",newargs,
                    "reason","BadSection",
                    NULL);
-    else if(!request_body || strncmp(request_body->content,"value=",6))
+    else if(!request_body || strcmp_litbeg(request_body->content,"value="))
        HTMLMessage(fd,404,"WWWOFFLE Configuration Error",NULL,"ControlEditError",
                    "section",newargs,
                    "reason","BadBody",
@@ -134,8 +134,7 @@ void ControlEditPage(int fd,char *request_args,Body *request_body)
  if(sections)
     free_sections(sections);
 
- if(newargs)
-    free(newargs);
+ /* newargs was allocated with alloca() and doesn't need to be freed explicitly */
 }
 
 
@@ -232,7 +231,6 @@ static ControlEditSection *read_config_file(void)
  while((line=fgets_realloc(line,conf)))
    {
     char *l=line;
-    char *r=line+strlen(line)-1;
 
     line_num++;
 
@@ -245,13 +243,11 @@ static ControlEditSection *read_config_file(void)
        sections=(ControlEditSection*)realloc((void*)sections,sizeof(ControlEditSection)*(sec_num+2));
        sections[sec_num]=(ControlEditSection)calloc(1,sizeof(struct _ControlEditSection));
        sections[++sec_num]=NULL;
-       sections[sec_num-1]->comment=(char*)malloc(strlen(l)+1);
-       strcpy(sections[sec_num-1]->comment,l);
+       sections[sec_num-1]->comment=strdup(l);
       }
     else if((state==1 || state==2) && *l=='#')
       {
-       sections[sec_num-1]->comment=(char*)realloc((void*)sections[sec_num-1]->comment,strlen(sections[sec_num-1]->comment)+strlen(l)+1);
-       strcat(sections[sec_num-1]->comment,l);
+       str_append(&sections[sec_num-1]->comment,l);
       }
     else if(state==0 && !*l)
       ;
@@ -260,24 +256,22 @@ static ControlEditSection *read_config_file(void)
     else if((state==0 || state==1) && *l)
       {
        state=2;
-       while(r>l && isspace(*r))
-          *r--=0;
+
+       {char *r=strchrnul(l,0); while(--r>l && isspace(*r)) *r=0;}
        if(sec_num==0 || sections[sec_num-1]->name)
          {
           sections=(ControlEditSection*)realloc((void*)sections,sizeof(ControlEditSection)*(sec_num+2));
           sections[sec_num]=(ControlEditSection)calloc(1,sizeof(struct _ControlEditSection));
           sections[++sec_num]=NULL;
          }
-       sections[sec_num-1]->name=(char*)malloc(strlen(l)+1);
-       strcpy(sections[sec_num-1]->name,l);
+       sections[sec_num-1]->name=strdup(l);
       }
     else if(state==2 && !*l)
       ;
     else if(state==2 && *l=='{')
       {
        state=3;
-       sections[sec_num-1]->content=(char*)malloc(1);
-       strcpy(sections[sec_num-1]->content,"");
+       sections[sec_num-1]->content=strdup("");
       }
     else if(state==2 && *l=='[')
       {
@@ -287,67 +281,91 @@ static ControlEditSection *read_config_file(void)
        state=0;
     else if(state==3)
       {
-       sections[sec_num-1]->content=(char*)realloc((void*)sections[sec_num-1]->content,strlen(sections[sec_num-1]->content)+strlen(line)+1);
-       strcat(sections[sec_num-1]->content,line);
+       str_append(&sections[sec_num-1]->content,line);
       }
     else if(state==4 && *l)
       {
        state=5;
-       while(r>l && isspace(*r))
-          *r--=0;
-       sections[sec_num-1]->file=(char*)malloc(strlen(l)+1);
-       strcpy(sections[sec_num-1]->file,l);
+       {char *r=strchrnul(l,0); while(--r>l && isspace(*r)) *r=0;}
+       sections[sec_num-1]->file=strdup(l);
       }
     else if(state==5 && *l==']')
        state=0;
     else
       {
-       line[strlen(line)-1]=0;
+       chomp_str(line);
        PrintMessage(Warning,"Error parsing config file, line %d = '%s' [state=%d]",line_num,line,state);
-       free_sections(sections);
-       free(line);
-       return(NULL);
+       goto tidyup_return;
       }
    }
 
  fclose(conf);
 
- for(sec_num=0;sections[sec_num];sec_num++)
+ for(sec_num=0;sections[sec_num];++sec_num)
     if(sections[sec_num]->name && sections[sec_num]->file)
       {
-       char *name,*r,*old;
+       char *name=sections[sec_num]->file;
+       int fd; size_t content_len;
+       struct stat buf;
 
-       sections[sec_num]->content=(char*)malloc(1);
-       strcpy(sections[sec_num]->content,"");
+       if(*name!='/') {
+	 char *basename=name;
+	 int basenamesize=strlen(basename)+1;
+	 char *configname=ConfigurationFileName();
+	 char *p=strchrnul(configname,0);
+	 int pathlen;
+	 while(--p>=configname && *p!='/');
+	 pathlen=p+1-configname;
+	 name=(char*)malloc(pathlen+basenamesize);
+	 mempcpy(mempcpy(name,configname,pathlen),basename,basenamesize);
+	 free(basename);
+	 sections[sec_num]->file=name;
+       }
 
-       name=(char*)malloc(strlen(ConfigurationFileName())+strlen(sections[sec_num]->file)+1);
+       fd=open(name,O_RDONLY);
+       if(fd==-1) {
+         PrintMessage(Warning,"Cannot open the config file '%s' for reading; [%!s].",name);
+	 goto free_sections_return;
+       }
 
-       strcpy(name,ConfigurationFileName());
+       if(fstat(fd,&buf)==-1) {
+         PrintMessage(Warning,"Cannot stat the config file '%s'; [%!s].",name);
+	 close(fd);
+	 goto free_sections_return;
+       }
 
-       r=name+strlen(name)-1;
-       while(r>name && *r!='/')
-          r--;
+       content_len=buf.st_size;
+       sections[sec_num]->content=(char *)malloc(content_len+1);
 
-       strcpy(r+1,sections[sec_num]->file);
+       if(!sections[sec_num]->content) {
+	 PrintMessage(Warning,"Cannot allocate memory to read config file '%s' [%!s].",name);
+	 close(fd);
+	 goto free_sections_return;
+       }
 
-       conf=fopen(name,"r");
-       if(!conf)
-         {PrintMessage(Warning,"Cannot open the config file '%s' for reading; [%!s].",name); free_sections(sections); free(name); return(NULL);}
+       {
+	 size_t n=0; ssize_t m;
 
-       old=sections[sec_num]->file;
-       sections[sec_num]->file=name;
-       free(old);
+	 while(n<content_len && (m=read(fd,sections[sec_num]->content+n,content_len-n))>0)
+	   n+=m;
 
-       while((line=fgets_realloc(line,conf)))
-         {
-          sections[sec_num]->content=(char*)realloc((void*)sections[sec_num]->content,strlen(sections[sec_num]->content)+strlen(line)+1);
-          strcat(sections[sec_num]->content,line);
-         }
+	 if(n<content_len)
+	   PrintMessage(Warning,"Failed to read entire config file '%s' [%!s].",name);
 
-       fclose(conf);
+	 sections[sec_num]->content[n]=0;
+       }
+
+       close(fd);
       }
 
  return(sections);
+
+tidyup_return:
+ if(line) free(line);
+ fclose(conf);
+free_sections_return:
+ free_sections(sections);
+ return(NULL);
 }
 
 
@@ -361,7 +379,6 @@ static ControlEditSection *read_config_file(void)
 
 static int write_config_file(ControlEditSection *sections)
 {
- char *conf_file_backup;
  char *conf_file=ConfigurationFileName();
  int renamed=0,i;
  struct stat buf;
@@ -369,20 +386,19 @@ static int write_config_file(ControlEditSection *sections)
 
  /* Rename the old file as a backup. */
 
- conf_file_backup=(char*)malloc(strlen(conf_file)+5);
- strcpy(conf_file_backup,conf_file);
- strcat(conf_file_backup,".bak");
+ {
+   char conf_file_backup[strlen(conf_file)+sizeof(".bak")];
+   stpcpy(stpcpy(conf_file_backup,conf_file),".bak");
 
- if(rename(conf_file,conf_file_backup))
-    PrintMessage(Warning,"Cannot rename the config file '%s' to '%s'; [%!s].",conf_file,conf_file_backup);
- else
-   {
-    renamed=1;
-    if(stat(conf_file_backup,&buf))
-       PrintMessage(Warning,"Cannot stat the config file '%s'; [%!s].",conf_file);
-   }
-
- free(conf_file_backup);
+   if(rename(conf_file,conf_file_backup))
+     PrintMessage(Warning,"Cannot rename the config file '%s' to '%s'; [%!s].",conf_file,conf_file_backup);
+   else
+     {
+       renamed=1;
+       if(stat(conf_file_backup,&buf))
+	 PrintMessage(Warning,"Cannot stat the config file '%s'; [%!s].",conf_file);
+     }
+ }
 
  conf=fopen(conf_file,"w");
  if(!conf)
@@ -428,9 +444,9 @@ static int write_config_file(ControlEditSection *sections)
  for(i=0;sections[i];i++)
     if(sections[i]->name && sections[i]->file)
       {
-       conf_file_backup=(char*)malloc(strlen(sections[i]->file)+5);
-       strcpy(conf_file_backup,sections[i]->file);
-       strcat(conf_file_backup,".bak");
+       char conf_file_backup[strlen(sections[i]->file)+sizeof(".bak")];
+
+       stpcpy(stpcpy(conf_file_backup,sections[i]->file),".bak");
 
        if(rename(sections[i]->file,conf_file_backup))
           PrintMessage(Warning,"Cannot rename the config file '%s' to '%s'; [%!s].",sections[i]->file,conf_file_backup);
@@ -440,8 +456,6 @@ static int write_config_file(ControlEditSection *sections)
           if(stat(conf_file_backup,&buf))
              PrintMessage(Warning,"Cannot stat the config file '%s'; [%!s].",sections[i]->file);
          }
-
-       free(conf_file_backup);
 
        conf=fopen(sections[i]->file,"w");
        if(!conf)

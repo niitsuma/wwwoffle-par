@@ -41,6 +41,7 @@
 #include "errors.h"
 #include "config.h"
 #include "misc.h"
+#include "headbody.h"
 
 
 /*+ Need this for Win32 to use binary mode +*/
@@ -49,17 +50,23 @@
 #endif
 
 
+static char *FindLanguageFile(char* search, struct stat *buf);
 static char /*@null@*/ /*@observer@*/ **get_languages(int *ndirs);
 
 
 /*+ The language header that the browser sent. +*/
-static char /*@null@*/ /*@only@*/ *accept_language=NULL;
+static HeaderList /*@null@*/ /*@only@*/ *accept_languages=NULL;
+static int num_lang_dirs=0;
+static char **lang_dirs=NULL;
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Output a local page.
+  LocalPage writes the content directly to the client and returns 1,
+            or it uses the temporary file and returns 0.
 
-  int fd The file descriptor to write to.
+  int clientfd The file descriptor of the client to write to.
+  int tmpfd    The file descriptor of the alternative temporary client.
 
   URL *Url The URL for the local page.
 
@@ -68,69 +75,90 @@ static char /*@null@*/ /*@only@*/ *accept_language=NULL;
   Body *request_body The body of the request that was made for this page.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
+int LocalPage(int clientfd,int tmpfd,URL *Url,Header *request_head,Body *request_body)
 {
- int found=0;
+ int found=0,retval=0;
  char *file;
+ struct stat buf;
 
  /* Don't allow paths backwards */
 
  if(strstr(Url->path,"/../"))
    {
     PrintMessage(Warning,"Illegal path containing '/../' for the local page '%s'.",Url->path);
-    HTMLMessage(fd,404,"WWWOFFLE Page Not Found",NULL,"PageNotFound",
+    HTMLMessage(tmpfd,404,"WWWOFFLE Page Not Found",NULL,"PageNotFound",
                 "url",Url->path,
                 NULL);
-    return;
+    return 0;
    }
 
  /* Get the filename */
 
- if((file=FindLanguageFile(Url->path+1)))
+ if((file=FindLanguageFile(Url->path+1,&buf)))
    {
-    struct stat buf;
-
-    if(stat(file,&buf))
-       ;
-    else if(S_ISREG(buf.st_mode) && buf.st_mode&S_IROTH)
+    if(S_ISREG(buf.st_mode) && buf.st_mode&S_IROTH)
       {
        if(buf.st_mode&S_IXOTH && IsCGIAllowed(Url->path))
          {
-          LocalCGI(fd,Url,file,request_head,request_body);
+          LocalCGI(tmpfd,file,Url,request_head,request_body);
           found=1;
          }
        else
          {
           int htmlfd=open(file,O_RDONLY|O_BINARY);
-          init_buffer(htmlfd);
 
           if(htmlfd==-1)
              PrintMessage(Warning,"Cannot open the local page '%s' [%!s].",file);
           else
             {
-             char *ims=NULL;
+	     int fd;
              time_t since=0;
+
+	     init_buffer(htmlfd);
+
+	     if(clientfd!=-1) {fd=clientfd; retval=1;}
+	     else {fd=tmpfd;}
 
              PrintMessage(Debug,"Using the local page '%s'.",file);
 
-             if((ims=GetHeader(request_head,"If-Modified-Since")))
-                since=DateToTimeT(ims);
+             {
+	       char *ims=GetHeader(request_head,"If-Modified-Since");
+	       if(ims) since=DateToTimeT(ims);
+	     }
 
-             if(since>=buf.st_mtime)
+             if(since>=buf.st_mtime) {
                 HTMLMessageHead(fd,304,"WWWOFFLE Not Modified",
-                                NULL);
+                                "Content-Length","0",
+				NULL);
+		if(out_err==-1)
+		  PrintMessage(Warning,"Cannot write local page '%s' to client [%!s].",file);
+	     }
              else
                {
-                char buffer[READ_BUFFER_SIZE];
-                int n;
+		 {
+		   char date[MAXDATESIZE]; char length[12];
 
-                HTMLMessageHead(fd,200,"WWWOFFLE Local OK",
-                                "Last-Modified",RFC822Date(buf.st_mtime,1),
-                                "Content-Type",WhatMIMEType(file),
-                                NULL);
+		   RFC822Date_r(buf.st_mtime,1,date);
+		   sprintf(length,"%lu",(unsigned long)buf.st_size);
 
-                while((n=read_data(htmlfd,buffer,READ_BUFFER_SIZE))>0)
-                   write_data(fd,buffer,n);
+		   HTMLMessageHead(fd,200,"WWWOFFLE Local OK",
+				   "Last-Modified",date,
+				   "Content-Type",WhatMIMEType(file),
+				   "Content-Length",length,
+				   NULL);
+		 }
+
+		 if(out_err==-1)
+		   PrintMessage(Warning,"Cannot write local page '%s' to client [%!s].",file);
+		 else {
+		   char buffer[READ_BUFFER_SIZE];
+		   int n;
+		   while((n=read_data(htmlfd,buffer,READ_BUFFER_SIZE))>0)
+		     if(write_data(fd,buffer,n)<0) {
+		       PrintMessage(Warning,"Cannot write local page '%s' to client [%!s].",file);
+		       break;
+		     };
+		 }
                }
 
              close(htmlfd);
@@ -142,17 +170,15 @@ void LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
     else if(S_ISDIR(buf.st_mode))
       {
        char *localhost=GetLocalHost(1);
-       char *dir=(char*)malloc(strlen(Url->path)+strlen(localhost)+24);
+       char *dir=(char*)malloc(strlen(Url->path)+strlen(localhost)+sizeof("http:///index.html"));
+       char *p;
 
        PrintMessage(Debug,"Using the local directory '%s'.",file);
 
-       strcpy(dir,"http://");
-       strcat(dir,localhost);
-       strcat(dir,Url->path);
-       if(dir[strlen(dir)-1]!='/')
-          strcat(dir,"/");
-       strcat(dir,"index.html");
-       HTMLMessage(fd,301,"WWWOFFLE Local Dir Redirect",dir,"LocalDirRedirect",
+       p=stpcpy(stpcpy(stpcpy(dir,"http://"),localhost),Url->path);
+       if(*(p-1)!='/') *p++='/';
+       stpcpy(p,"index.html");
+       HTMLMessage(tmpfd,301,"WWWOFFLE Local Dir Redirect",dir,"LocalDirRedirect",
                    "dir",Url->path,
                    NULL);
 
@@ -170,26 +196,38 @@ void LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
  if(!found)
    {
     PrintMessage(Warning,"Cannot find a local URL '%s'.",Url->path);
-    HTMLMessage(fd,404,"WWWOFFLE Page Not Found",NULL,"PageNotFound",
+    HTMLMessage(tmpfd,404,"WWWOFFLE Page Not Found",NULL,"PageNotFound",
                 "url",Url->path,
                 NULL);
    }
+
+ return retval;
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Set the language that will be accepted for the mesages.
+  Set the language that will be accepted for the messages.
 
-  char *accept The contents of the Accept-Language header.
+  Header *head The header.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void SetLanguage(char *accept)
+void SetLanguage(Header *head)
 {
- if(accept)
-   {
-    accept_language=(char*)malloc(strlen(accept)+1);
-    strcpy(accept_language,accept);
-   }
+  HeaderList *accept_list=GetHeaderList(head,"Accept-Language");
+  if(accept_list)
+    {
+      if(accept_languages) FreeHeaderList(accept_languages);
+      if(lang_dirs) {
+	int i;
+	for(i=0;i<num_lang_dirs;++i)
+	  free(lang_dirs[i]);
+	free(lang_dirs);
+      }
+
+      accept_languages=accept_list;
+      num_lang_dirs=-1;   /* negative value signals accept_language has changed */
+      lang_dirs=NULL;
+    }
 }
 
 
@@ -199,12 +237,13 @@ void SetLanguage(char *accept)
   char *FindLanguageFile Returns the file name or NULL.
 
   char* search The name of the file to search for (e.g. 'messages/foo.html' or 'local/bar.html').
+  struct stat *buf  Information about the attributes of the file.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *FindLanguageFile(char* search)
+static char *FindLanguageFile(char* search, struct stat *buf)
 {
  char *file=NULL;
- int dirn=0;
+ int idir=0;
  char **dirs;
  int ndirs=0;
 
@@ -214,30 +253,26 @@ char *FindLanguageFile(char* search)
 
  /* Find the file */
 
- if(!strcmp(search,"local/"))
-    dirn=-1;
+ if(!strcmp_litbeg(search,"local/"))
+    idir=-1;
 
- while(dirn<(ndirs+2))
+ for(; idir<(ndirs+2); ++idir)
    {
-    struct stat buf;
     char *dir="",*tryfile;
 
-    if(dirn==-1)
-       dir="./";                /* must include "local" at the start. */
-    else if(dirn<ndirs)
-       dir=dirs[dirn];          /* is formatted like "html/$LANG/" */
-    else if(dirn==ndirs)
+    if(idir<0)
+       ;                        /* must include "local" at the start. */
+    else if(idir<ndirs)
+       dir=dirs[idir];          /* is formatted like "html/$LANG/" */
+    else if(idir==ndirs)
        dir="html/default/";
-    else if(dirn==(ndirs+1))
+    else if(idir==(ndirs+1))
        dir="html/en/";
 
-    dirn++;
-
     tryfile=(char*)malloc(strlen(dir)+strlen(search)+1);
-    strcpy(tryfile,dir);
-    strcat(tryfile,search);
+    stpcpy(stpcpy(tryfile,dir),search);
 
-    if(!stat(tryfile,&buf))
+    if(!stat(tryfile,buf))
       {
        file=tryfile;
        break;
@@ -262,16 +297,17 @@ int OpenLanguageFile(char* search)
 {
  int fd=-1;
  char *file;
+ struct stat buf;
 
  /* Find the file. */
 
- file=FindLanguageFile(search);
+ file=FindLanguageFile(search,&buf);
 
  if(file)
    {
-    fd=open(file,O_RDONLY|O_BINARY);
+     fd=open(file,O_RDONLY|O_BINARY);
 
-    free(file);
+     free(file);
    }
 
  if(fd!=-1)
@@ -282,7 +318,7 @@ int OpenLanguageFile(char* search)
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Parse the language string and add the directories to the list.
+  Parse the language list and construct a list of directories.
 
   char ***get_languages Returns the list of directories to try.
 
@@ -291,36 +327,26 @@ int OpenLanguageFile(char* search)
 
 static char **get_languages(int *ndirs)
 {
- static char **dirs=NULL;
- static int n_dirs=0;
- static int first=1;
-
- if(first)
+  if(num_lang_dirs<0)  /* negative value signals that accept_languages has changed */
    {
-    first=0;
+    num_lang_dirs=0;
 
-    if(accept_language)
+    if(accept_languages)
       {
        int i;
-       HeaderList *list=SplitHeaderList(accept_language);
 
-       for(i=0;i<list->n;i++)
-          if(list->item[i].qval>0)
+       lang_dirs=(char**)malloc(sizeof(char*)*(accept_languages->n));
+
+       for(i=0;i<accept_languages->n;++i)
+          if(accept_languages->item[i].qval>0)
             {
-             if((n_dirs%8)==0)
-                dirs=(char**)realloc((void*)dirs,(8+n_dirs)*sizeof(char*));
-
-             dirs[n_dirs]=(char*)malloc(8+strlen(list->item[i].val)+1);
-             sprintf(dirs[n_dirs],"html/%s/",list->item[i].val);
-
-             n_dirs++;
+             lang_dirs[num_lang_dirs++]= x_asprintf("html/%s/",accept_languages->item[i].val);
             }
 
-       FreeHeaderList(list);
       }
    }
 
- *ndirs=n_dirs;
+ *ndirs=num_lang_dirs;
 
- return(dirs);
+ return(lang_dirs);
 }

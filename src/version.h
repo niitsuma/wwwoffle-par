@@ -16,6 +16,8 @@
 #ifndef VERSION_H
 #define VERSION_H    /*+ To stop multiple inclusions. +*/
 
-#define WWWOFFLE_VERSION "2.7e"
+/* The initials "par" stand for Paul A. Rombouts.
+   I've customized large portions of code to suit my own taste. */
+#define WWWOFFLE_VERSION "2.7e-par"
 
 #endif /* VERSION_H */

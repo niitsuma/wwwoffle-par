@@ -161,7 +161,7 @@ int main(int argc, char** argv)
        continue;
       }
 
-    if(!strncmp(argv[i],"-g",2))
+    if(!strcmp_litbeg(argv[i],"-g"))
       {
        if(action!=None && action!=Get)
          {fprintf(stderr,"wwwoffle: Only one command at a time.\n\n");usage(0);}
@@ -203,7 +203,7 @@ int main(int argc, char** argv)
        continue;
       }
 
-    if(!strncmp(argv[i],"-R",2) || !strncmp(argv[i],"-r",2) || !strncmp(argv[i],"-d",2))
+    if(!strcmp_litbeg(argv[i],"-R") || !strcmp_litbeg(argv[i],"-r") || !strcmp_litbeg(argv[i],"-d"))
       {
        if(action!=None && action!=Get)
          {fprintf(stderr,"wwwoffle: Only one command at a time.\n\n");usage(0);}
@@ -232,7 +232,7 @@ int main(int argc, char** argv)
 
     if(!strcmp(argv[i],"-p"))
       {
-       char *hoststr,*portstr;
+       char *hoststr,*portstr; int hostlen;
 
        if(++i>=argc)
          {fprintf(stderr,"wwwoffle: The '-p' argument requires a hostname and optionally a port number.\n"); exit(1);}
@@ -240,7 +240,7 @@ int main(int argc, char** argv)
        if(config_file)
          {fprintf(stderr,"wwwoffle: The '-p' and '-c' options cannot be used together.\n"); exit(1);}
 
-       SplitHostPort(argv[i],&hoststr,&portstr);
+       SplitHostPort(argv[i],&hoststr,&hostlen,&portstr);
 
        if(portstr)
          {
@@ -250,7 +250,7 @@ int main(int argc, char** argv)
             {fprintf(stderr,"wwwoffle: The port number %d '%s' is invalid.\n",port,argv[i]); exit(1);}
          }
 
-       host=hoststr;
+       host=strndup(hoststr,hostlen);
 
        /* Don't need to use RejoinHostPort(argv[i],hoststr,portstr) here. */
 
@@ -378,27 +378,19 @@ int main(int argc, char** argv)
        config_file=env;
     else
       {
-       char *colon;
-       char *hoststr,*portstr;
+       char *hoststr,*portstr; int hostlen;
 
-       host=(char*)malloc(strlen(env)+1);
-       strcpy(host,env);
-
-       SplitHostPort(host,&hoststr,&portstr);
-       host=hoststr;
+       SplitHostPort(env,&hoststr,&hostlen,&portstr);
+       host=strndup(hoststr,hostlen);
 
        if(portstr)
          {
-          if((colon=strchr(portstr,':')))
-            {
-             *colon=0;
-             if(action==Get || action==Output || action==OutputWithHeader)
-                port=atoi(portstr);
-             else
-                port=atoi(colon+1);
-            }
-          else
-             port=atoi(portstr);
+	  char *colon=strchr(portstr,':');
+
+	  if(!colon || action==Get || action==Output || action==OutputWithHeader)
+	    port=atoi(portstr);
+	  else
+	    port=atoi(colon+1);
 
           if(port<=0 || port>=65536)
             {fprintf(stderr,"wwwoffle: The port number %d '%s' is invalid.\n",port,env); exit(1);}
@@ -442,43 +434,34 @@ int main(int argc, char** argv)
     if(ConfigString(PassWord))
        write_formatted(socket,"WWWOFFLE PASSWORD %s\r\n",ConfigString(PassWord));
 
-    if(action==Online)
-       write_string(socket,"WWWOFFLE ONLINE\r\n");
-    else if(action==Autodial)
-       write_string(socket,"WWWOFFLE AUTODIAL\r\n");
-    else if(action==Offline)
-       write_string(socket,"WWWOFFLE OFFLINE\r\n");
-    else if(action==Fetch)
-       write_string(socket,"WWWOFFLE FETCH\r\n");
-    else if(action==Config)
-       write_string(socket,"WWWOFFLE CONFIG\r\n");
-    else if(action==Purge)
-       write_string(socket,"WWWOFFLE PURGE\r\n");
-    else if(action==Status)
-       write_string(socket,"WWWOFFLE STATUS\r\n");
-    else if(action==Kill)
-       write_string(socket,"WWWOFFLE KILL\r\n");
-    else
-       write_string(socket,"WWWOFFLE BOGUS\r\n");
+    write_string(socket,(action==Online)?  "WWWOFFLE ONLINE\r\n":
+			(action==Autodial)?"WWWOFFLE AUTODIAL\r\n":
+			(action==Offline)? "WWWOFFLE OFFLINE\r\n":
+			(action==Fetch)?   "WWWOFFLE FETCH\r\n":
+			(action==Config)?  "WWWOFFLE CONFIG\r\n":
+			(action==Purge)?   "WWWOFFLE PURGE\r\n":
+			(action==Status)?  "WWWOFFLE STATUS\r\n":
+			(action==Kill)?    "WWWOFFLE KILL\r\n":
+				           "WWWOFFLE BOGUS\r\n");
 
     while((line=read_line(socket,line)))
       {
        fputs(line,stdout);
        fflush(stdout);
 
-       if(!strncmp("WWWOFFLE Incorrect Password",line,27))
+       if(!strcmp_litbeg(line,"WWWOFFLE Incorrect Password"))
           exitval=3;
 
-       if(action==Online && !strncmp("WWWOFFLE Already Online",line,23))
+       else if(action==Online && !strcmp_litbeg(line,"WWWOFFLE Already Online"))
           exitval=1;
-       else if(action==Autodial && !strncmp("WWWOFFLE Already in Autodial Mode",line,33))
+       else if(action==Autodial && !strcmp_litbeg(line,"WWWOFFLE Already in Autodial Mode"))
           exitval=1;
-       else if(action==Offline && !strncmp("WWWOFFLE Already Offline",line,24))
+       else if(action==Offline && !strcmp_litbeg(line,"WWWOFFLE Already Offline"))
           exitval=1;
-       else if(action==Fetch && (!strncmp("WWWOFFLE Already Fetching",line,25) ||
-                            !strncmp("WWWOFFLE Must be online or autodial to fetch",line,44)))
+       else if(action==Fetch && (!strcmp_litbeg(line,"WWWOFFLE Already Fetching") ||
+                            !strcmp_litbeg(line,"WWWOFFLE Must be online or autodial to fetch")))
           exitval=1;
-       else if(action==Config && !strncmp("Configuration file syntax error",line,31))
+       else if(action==Config && !strcmp_litbeg(line,"Configuration file syntax error"))
           exitval=1;
       }
 
@@ -515,23 +498,20 @@ int main(int argc, char** argv)
 
           if(recursive_mode || depth || force || stylesheets || images || frames || scripts || objects)
             {
-             char *limit="";
+             char *limit=NULL;
 
              if(recursive_mode==3)
-                limit="";
+                limit=strdup("");
              else if(recursive_mode==2)
                {
-                limit=(char*)malloc(strlen(Url->proto)+strlen(Url->host)+5);
-                sprintf(limit,"%s://%s/",Url->proto,Url->host);
+		limit=(char*)malloc((Url->pathp-Url->name)+2);
+		{char *p=mempcpy(limit,Url->name,Url->pathp-Url->name); *p++='/'; *p=0; }
                }
              else if(recursive_mode==1)
                {
-                char *p;
-                limit=(char*)malloc(strlen(Url->proto)+strlen(Url->host)+strlen(Url->path)+5);
-                sprintf(limit,"%s://%s%s",Url->proto,Url->host,Url->path);
-                p=limit+strlen(limit)-1;
-                while(p>limit && *p!='/')
-                   *p--=0;
+		char *p=Url->pathendp;
+		while(--p>=Url->pathp && *p!='/');
+		limit=strndup(Url->name,p+1-Url->name);
                }
              else
                 depth=0;
@@ -540,7 +520,7 @@ int main(int argc, char** argv)
                                        force,
                                        stylesheets,images,frames,scripts,objects);
 
-             if(*limit)
+             if(limit)
                 free(limit);
 
              printf("Getting: %s (with recursive options).\n",Url->name);
@@ -600,7 +580,6 @@ int main(int argc, char** argv)
        else if(!strcmp(url_file_list[i],"-") || S_ISREG(buf.st_mode))
          {
           int file;
-          char *buffer=(char*)malloc(strlen(url_file_list[i])+256);
           char **links;
 
           if(strcmp(url_file_list[i],"-"))
@@ -621,22 +600,33 @@ int main(int argc, char** argv)
              printf("Reading: <stdin>\n");
             }
 
-          strcpy(buffer,"file://localhost");
-          if(*url_file_list[i]=='/')
-             strcat(buffer,url_file_list[i]);
-          else
-            {
-             char cwd[PATH_MAX+1];
+	  {
+	    int len=strlitlen("file://localhost")+strlen(url_file_list[i]);
+	    char *cwd=NULL;
+	      
+	    if(*url_file_list[i]!='/')
+	      { /* needs glibc to work */
+		if(!(cwd=getcwd(NULL,0)))
+		  PrintMessage(Fatal,"Cannot get value of current working directory [%!s].");
+		len+=strlen(cwd)+1;
+	      }
 
-             if(!getcwd(cwd,PATH_MAX))
-             cwd[0]=0;
+	    {
+	      char *p; char buffer[len+1]; 
 
-             strcat(buffer,cwd);
-             strcat(buffer,"/");
-             strcat(buffer,url_file_list[i]);
-            }
+	      p=stpcpy(buffer,"file://localhost");
 
-          Url=SplitURL(buffer);
+	      if(cwd)
+		{
+		  p=stpcpy(p,cwd);
+		  *p++='/';
+		  free(cwd);
+		}
+	      stpcpy(p,url_file_list[i]);
+	      Url=SplitURL(buffer);
+	    }
+	  }
+
           ParseHTML(file,Url);
 
           if(stylesheets && (links=GetReferences(RefStyleSheet)))
@@ -661,7 +651,6 @@ int main(int argc, char** argv)
              add_url_list(links);
 
           FreeURL(Url);
-          free(buffer);
           if(file!=0)
              close(file);
          }
@@ -1011,9 +1000,7 @@ static void add_url_file(char *url_file)
        url_file_list=(char**)malloc(16*sizeof(char*));
    }
 
- url_file_list[n_url_file_list]=(char*)malloc(strlen(url_file)+1);
-
- strcpy(url_file_list[n_url_file_list],url_file);
+ url_file_list[n_url_file_list]=strdup(url_file);
 
  n_url_file_list++;
 }

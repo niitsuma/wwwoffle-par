@@ -77,6 +77,13 @@ static void mnoGoSearch(int fd,char *args);
 
 static void Namazu(int fd,char *args);
 
+#define putenv_var_val(varname,value) \
+{ \
+  char *envstr = (char *)malloc(sizeof(varname "=")+strlen(value)); \
+  stpcpy(stpcpy(envstr,varname "="),value); \
+  putenv(envstr); \
+}
+
 
 /*++++++++++++++++++++++++++++++++++++++
   Create a page for one of the search pages on the local server.
@@ -92,7 +99,7 @@ static void Namazu(int fd,char *args);
 
 void SearchPage(int fd,URL *Url,Header *request_head,Body *request_body)
 {
- if(!strncmp(Url->path+8,"index/",6))
+ if(!strcmp_litbeg(Url->path+8,"index/"))
     SearchIndex(fd,Url);
  else if(!strcmp(Url->path+8,"htdig/htsearch"))
     HTSearch(fd,Url->args);
@@ -102,16 +109,16 @@ void SearchPage(int fd,URL *Url,Header *request_head,Body *request_body)
     mnoGoSearch(fd,Url->args);
  else if(!strcmp(Url->path+8,"namazu/namazu"))
     Namazu(fd,Url->args);
- else if(!strncmp(Url->path+8,"htdig/",6) && !strchr(Url->path+8+6,'/'))
-    LocalPage(fd,Url,request_head,request_body);
- else if(!strncmp(Url->path+8,"mnogosearch/",12) && !strchr(Url->path+8+12,'/'))
-    LocalPage(fd,Url,request_head,request_body);
- else if(!strncmp(Url->path+8,"udmsearch/",10) && !strchr(Url->path+8+10,'/'))
-    LocalPage(fd,Url,request_head,request_body);
- else if(!strncmp(Url->path+8,"namazu/",7) && !strchr(Url->path+8+7,'/'))
-    LocalPage(fd,Url,request_head,request_body);
+ else if(!strcmp_litbeg(Url->path+8,"htdig/") && !strchr(Url->path+8+strlitlen("htdig/"),'/'))
+    LocalPage(-1,fd,Url,request_head,request_body);
+ else if(!strcmp_litbeg(Url->path+8,"mnogosearch/") && !strchr(Url->path+8+strlitlen("mnogosearch/"),'/'))
+    LocalPage(-1,fd,Url,request_head,request_body);
+ else if(!strcmp_litbeg(Url->path+8,"udmsearch/") && !strchr(Url->path+8+strlitlen("udmsearch/"),'/'))
+    LocalPage(-1,fd,Url,request_head,request_body);
+ else if(!strcmp_litbeg(Url->path+8,"namazu/") && !strchr(Url->path+8+strlitlen("namazu/"),'/'))
+    LocalPage(-1,fd,Url,request_head,request_body);
  else if(!strchr(Url->path+8,'/'))
-    LocalPage(fd,Url,request_head,request_body);
+    LocalPage(-1,fd,Url,request_head,request_body);
  else
     HTMLMessage(fd,404,"WWWOFFLE Illegal Search Page",NULL,"SearchIllegal",
                 "url",Url->path,
@@ -129,38 +136,30 @@ void SearchPage(int fd,URL *Url,Header *request_head,Body *request_body)
 
 static void SearchIndex(int fd,URL *Url)
 {
- char *proto=(char*)malloc(strlen(Url->path)-10),*host="";
+ char *proto,*host="";
  int lasttime;
- int i;
 
- strcpy(proto,Url->path+8+6);
+ proto=strdupa(Url->path+strlitlen("/search/index/"));
+ {char *p=strchrnul(proto,0)-1; if(p>=proto && *p=='/') *p=0;}
 
  lasttime=!strcmp(proto,"lasttime");
 
- if(*proto && proto[strlen(proto)-1]=='/')
-    proto[strlen(proto)-1]=0;
-
- for(i=0;proto[i];i++)
-    if(proto[i]=='/')
-      {
-       proto[i]=0;
-       host=proto+i+1;
-       break;
-      }
+ {char *p=strchr(proto,'/'); if(p) {*p=0; host=p+1;}}
 
  if(*proto)
    {
-    for(i=0;i<NProtocols;i++)
+    int i;
+    for(i=0;i<NProtocols;++i)
        if(!strcmp(Protocols[i].name,proto))
-          break;
-    if(i==NProtocols)
-       *proto=0;
+          goto found_protocol;
+
+    *proto=0;
+   found_protocol:
    }
 
  if(!lasttime &&
-    ((*host && (strchr(host,'/') || !strcmp(host,"..") || !strcmp(host,"."))) ||
-     (*proto && (!strcmp(host,"..") || !strcmp(host,".")))||
-     (*host && !*proto) || (Url->path[8+6] && !*proto)))
+    ((*host && (!*proto || strchr(host,'/') || !strcmp(host,"..") || !strcmp(host,"."))) ||
+     (Url->path[strlitlen("/search/index/")] && !*proto)))
     HTMLMessage(fd,404,"WWWOFFLE Page Not Found",NULL,"PageNotFound",
                 "url",Url->name,
                 NULL);
@@ -168,12 +167,13 @@ static void SearchIndex(int fd,URL *Url)
    {
     HTMLMessageHead(fd,200,"WWWOFFLE Search Index",
                     NULL);
-    write_string(fd,"<html>\n"
+    if(out_err==-1) return;
+    if(write_string(fd,"<html>\n"
                     "<head>\n"
                     "<meta name=\"robots\" content=\"noindex\">\n"
                     "<title></title>\n"
                     "</head>\n"
-                    "<body>\n");
+                    "<body>\n")==-1) return;
 
     if(lasttime)
        SearchIndexLastTime(fd);
@@ -188,7 +188,6 @@ static void SearchIndex(int fd,URL *Url)
                     "</html>\n");
    }
 
- free(proto);
 }
 
 
@@ -389,9 +388,7 @@ static void HTSearch(int fd,char *args)
    {
     int status;
 
-    wait(&status);
-
-    if(WIFEXITED(status) && WEXITSTATUS(status)==0)
+    if(waitpid(pid, &status, 0)!=-1 && WIFEXITED(status) && WEXITSTATUS(status)==0)
        return;
    }
  else
@@ -408,9 +405,7 @@ static void HTSearch(int fd,char *args)
     putenv("REQUEST_METHOD=GET");
     if(args)
       {
-       char *query=(char*)malloc(strlen(args)+16);
-       sprintf(query,"QUERY_STRING=%s",args);
-       putenv(query);
+       putenv_var_val("QUERY_STRING",args);
       }
     else
        putenv("QUERY_STRING=");
@@ -421,6 +416,7 @@ static void HTSearch(int fd,char *args)
    }
 
  lseek(fd,0,SEEK_SET);
+ ftruncate(fd,0);
 
  HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",
              "error","Problem running ht://Dig htsearch program.",
@@ -446,9 +442,7 @@ static void mnoGoSearch(int fd,char *args)
    {
     int status;
 
-    wait(&status);
-
-    if(WIFEXITED(status) && WEXITSTATUS(status)==0)
+    if(waitpid(pid, &status, 0)!=-1 && WIFEXITED(status) && WEXITSTATUS(status)==0)
        return;
    }
  else
@@ -465,9 +459,7 @@ static void mnoGoSearch(int fd,char *args)
     putenv("REQUEST_METHOD=GET");
     if(args)
       {
-       char *query=(char*)malloc(strlen(args)+16);
-       sprintf(query,"QUERY_STRING=%s",args);
-       putenv(query);
+       putenv_var_val("QUERY_STRING",args);
       }
     else
        putenv("QUERY_STRING=");
@@ -478,6 +470,7 @@ static void mnoGoSearch(int fd,char *args)
    }
 
  lseek(fd,0,SEEK_SET);
+ ftruncate(fd,0);
 
  HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",
              "error","Problem running mnoGoSearch search program.",
@@ -503,9 +496,7 @@ static void Namazu(int fd,char *args)
    {
     int status;
 
-    wait(&status);
-
-    if(WIFEXITED(status) && WEXITSTATUS(status)==0)
+    if(waitpid(pid, &status, 0)!=-1 && WIFEXITED(status) && WEXITSTATUS(status)==0)
        return;
    }
  else
@@ -522,9 +513,7 @@ static void Namazu(int fd,char *args)
     putenv("REQUEST_METHOD=GET");
     if(args)
       {
-       char *query=(char*)malloc(strlen(args)+16);
-       sprintf(query,"QUERY_STRING=%s",args);
-       putenv(query);
+       putenv_var_val("QUERY_STRING",args);
       }
     else
        putenv("QUERY_STRING=");
@@ -535,6 +524,7 @@ static void Namazu(int fd,char *args)
    }
 
  lseek(fd,0,SEEK_SET);
+ ftruncate(fd,0);
 
  HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",
              "error","Problem running Namazu search program.",

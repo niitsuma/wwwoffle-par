@@ -44,4 +44,6 @@ extern ErrorLevel LoggingLevel,     /*+ in the config file for syslog and stderr
 void  InitErrorHandler(char *name,int syslogable,int stderrable);
 char /*@observer@*/ *PrintMessage(ErrorLevel errlev,const char* fmt, ...);
 
+extern int out_err;  /* defined in messages.l */
+
 #endif /* ERRORS_H */

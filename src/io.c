@@ -12,6 +12,9 @@
   for conditions under which this file may be redistributed.
   ***************************************/
 
+/* Note: some of the code here has been modified by Paul Rombouts
+   to suit personal taste.
+*/
 
 #include "autoconfig.h"
 
@@ -52,14 +55,15 @@
 #include "misc.h"
 
 
-/*+ The buffer size for reading lines. +*/
-#define BUFSIZE 64
-
 /*+ The buffer of data from each of the files. +*/
 static char **fdbuf=NULL;
 
-/*+ The number of bytes of data buffered for each file. +*/
-static int *fdbytes=NULL;
+typedef struct _indexpair {unsigned short int front, rear; } indexpair;
+/*+ The starting and end points of data buffered for each file. +*/
+static indexpair *fdbufindex=NULL;
+#define resetbuf(fd) fdbufindex[fd].front=fdbufindex[fd].rear=0
+#define numbufbytes(fd) (fdbufindex[fd].rear-fdbufindex[fd].front)
+#define isemptybuf(fd) (fdbufindex[fd].front>=fdbufindex[fd].rear)
 
 /*+ The number of file buffers allocated. +*/
 static int nfdbuf=0;
@@ -72,16 +76,17 @@ static int read_timeout=0;
 /*+ A data structure to hold the deflate stream and the gzip info. +*/
 typedef struct _zdata
 {
- int direction;                 /*+ The direction, compress or uncompress +*/
  z_stream stream;               /*+ The deflate / inflate stream. +*/
 
- unsigned long crc;             /*+ The gzip crc. +*/
-
- int doing_head;                /*+ A flag to indicate that we are doing a gzip head. +*/
+ char direction;                /*+ The direction, compress or uncompress +*/
+ char doing_head;               /*+ A flag to indicate that we are doing a gzip head. +*/
+ char doing_tail;               /*+ A flag to indicate that we are doing a gzip tail. +*/
+ char done;                     /*+ A flag to indicate that we have reached the end of the compressed data. +*/
  int head_extra_len;            /*+ A gzip header extra field length. +*/
  int head_flag;                 /*+ A flag to store the gzip header flag. +*/
 
- int doing_tail;                /*+ A flag to indicate that we are doing a gzip tail. +*/
+ unsigned long crc;             /*+ The gzip crc. +*/
+
  unsigned long tail_crc;        /*+ The crc value stored in the gzip tail. +*/
  unsigned long tail_len;        /*+ The length value stored in the gzip tail. +*/
 }
@@ -92,9 +97,6 @@ static zdata **fdzlib=NULL;
 
 /*+ The size of the temporary buffer for compressing/uncompressing, smaller than the read/write buffer. +*/
 #define ZBUFFER_SIZE (READ_BUFFER_SIZE/4)
-
-/*+ A temporary buffer for decompressing from or compressing into +*/
-static char zbuffer[ZBUFFER_SIZE];
 
 /*+ The compression error number. +*/
 int z_errno=0;
@@ -107,8 +109,6 @@ char *z_strerror=NULL;
 static int read_into_buffer(int fd);
 static int read_into_buffer_or_timeout(int fd);
 static int read_from_buffer(int fd,char *buffer,int n);
-
-static int write_all(int fd,const char *data,int n);
 
 #if USE_ZLIB
 static int read_uncompressing_from_buffer(int fd,char *buffer,int n);
@@ -185,15 +185,15 @@ void init_buffer(int fd)
  if(fd>=nfdbuf)
    {
     fdbuf=(char**)realloc((void*)fdbuf,(fd+9)*sizeof(char**));
-    fdbytes=(int*)realloc((void*)fdbytes,(fd+9)*sizeof(int));
+    fdbufindex=(indexpair*)realloc((void*)fdbufindex,(fd+9)*sizeof(indexpair));
 #if USE_ZLIB
     fdzlib=(zdata**)realloc((void*)fdzlib,(fd+9)*sizeof(zdata*));
 #endif
 
-    for(;nfdbuf<=(fd+8);nfdbuf++)
+    for(;nfdbuf<(fd+9);nfdbuf++)
       {
        fdbuf[nfdbuf]=NULL;
-       fdbytes[nfdbuf]=0;
+       resetbuf(nfdbuf);
 #if USE_ZLIB
        fdzlib[nfdbuf]=NULL;
 #endif
@@ -203,7 +203,7 @@ void init_buffer(int fd)
  if(!fdbuf[fd])
     fdbuf[fd]=(char*)malloc(BUFSIZE);
 
- fdbytes[fd]=0;
+ resetbuf(fd);
 }
 
 
@@ -217,15 +217,15 @@ void init_buffer(int fd)
 
 int empty_buffer(int fd)
 {
- int nr=fdbytes[fd];
+ int nr=numbufbytes(fd);
 
- while(1)
+ for(;;)
    {
     int n;
     fd_set readfd;
     struct timeval tv;
 
-    while(1)
+    do
       {
        FD_ZERO(&readfd);
 
@@ -235,21 +235,16 @@ int empty_buffer(int fd)
 
        n=select(fd+1,&readfd,NULL,NULL,&tv);
 
-       if(n>0)
-          break;
-       else if(n==0 || errno!=EINTR)
+       if(n==0 || (n<0 && errno!=EINTR))
           return(nr);
       }
+    while(n<=0);
 
-    n=read(fd,fdbuf[fd],BUFSIZE);
+    if((n=read(fd,fdbuf[fd],BUFSIZE))<=0)
+       break;
 
-    if(n>0)
-       nr+=n;
-    else
-       return(nr);
+    nr+=n;
    }
-
- /*@notreached@*/
 
  return(nr);
 }
@@ -275,7 +270,7 @@ int read_data(int fd,char *buffer,int n)
 repeat:
 #endif
 
- if(fdbytes[fd])
+ if(!isemptybuf(fd))
    {
 #if USE_ZLIB
     if(fdzlib[fd])
@@ -292,7 +287,7 @@ repeat:
  if(fdzlib[fd])
    {
     nr=read_uncompressing(fd,buffer,n);
-    if(nr==0 && (fdzlib[fd]->doing_head || fdzlib[fd]->doing_tail))
+    if(nr==0 && !fdzlib[fd]->done)
        goto repeat;
    }
  else
@@ -323,7 +318,7 @@ int read_data_or_timeout(int fd,char *buffer,int n)
 repeat:
 #endif
 
- if(fdbytes[fd])
+ if(!isemptybuf(fd))
    {
 #if USE_ZLIB
     if(fdzlib[fd])
@@ -336,56 +331,42 @@ repeat:
        return(nr);
    }
 
- if(!read_timeout)
+ if(read_timeout)
    {
+     fd_set readfd;
+     struct timeval tv;
+
+     do
+       {
+	 FD_ZERO(&readfd);
+
+	 FD_SET(fd,&readfd);
+
+	 tv.tv_sec=read_timeout;
+	 tv.tv_usec=0;
+
+	 nr=select(fd+1,&readfd,NULL,NULL,&tv);
+
+	 if(nr==0) {
+             errno=ETIMEDOUT;
+	     return(-1);
+	 }
+	 else if(nr<0 && errno!=EINTR)
+	   return(-1);
+       }
+     while(nr<=0);
+   }
+
 #if USE_ZLIB
-    if(fdzlib[fd])
-      {
-       nr=read_uncompressing(fd,buffer,n);
-       if(nr==0 && (fdzlib[fd]->doing_head || fdzlib[fd]->doing_tail))
-          goto repeat;
-      }
-    else
-#endif
-       nr=read(fd,buffer,n);
+ if(fdzlib[fd])
+   {
+     nr=read_uncompressing(fd,buffer,n);
+     if(nr==0 && !fdzlib[fd]->done)
+       goto repeat;
    }
  else
-   {
-    fd_set readfd;
-    struct timeval tv;
-
-    while(1)
-      {
-       FD_ZERO(&readfd);
-
-       FD_SET(fd,&readfd);
-
-       tv.tv_sec=read_timeout;
-       tv.tv_usec=0;
-
-       nr=select(fd+1,&readfd,NULL,NULL,&tv);
-
-       if(nr>0)
-          break;
-       else if(nr==0 || errno!=EINTR)
-         {
-          if(nr==0)
-             errno=ETIMEDOUT;
-          return(-1);
-         }
-      }
-
-#if USE_ZLIB
-    if(fdzlib[fd])
-      {
-       nr=read_uncompressing(fd,buffer,n);
-       if(nr==0 && (fdzlib[fd]->doing_head || fdzlib[fd]->doing_tail))
-          goto repeat;
-      }
-    else
 #endif
-       nr=read(fd,buffer,n);
-   }
+   nr=read(fd,buffer,n);
 
  return(nr);
 }
@@ -405,39 +386,28 @@ repeat:
 
 char *read_line(int fd,char *line)
 {
- int found=0,eof=0;
  int n=0;
 
  if(!line)
     line=(char*)malloc((BUFSIZE+1));
 
- do
+ while(!isemptybuf(fd) || read_into_buffer(fd)>0)
    {
     int i;
 
-    if(!fdbytes[fd])
-       if(read_into_buffer(fd)<=0)
-         {eof=1;break;}
-
-    for(i=0;i<fdbytes[fd];i++)
+    for(i=fdbufindex[fd].front; i<fdbufindex[fd].rear; ++i)
        if(fdbuf[fd][i]=='\n')
          {
-          found=1;
-          n+=read_from_buffer(fd,&line[n],i+1);
+          n+=read_from_buffer(fd,&line[n],i-fdbufindex[fd].front+1);
           line[n]=0;
-          break;
+          return(line);
          }
 
-    if(!found)
-      {
-       n+=read_from_buffer(fd,&line[n],BUFSIZE);
-       line=(char*)realloc((void*)line,n+(BUFSIZE+1));
-      }
+    n+=read_from_buffer(fd,&line[n],BUFSIZE);
+    line=(char*)realloc((void*)line,n+(BUFSIZE+1));
    }
- while(!found && !eof);
 
- if(eof)
-   {free(line);line=NULL;}
+ free(line);line=NULL;
 
  return(line);
 }
@@ -457,7 +427,6 @@ char *read_line(int fd,char *line)
 
 char *read_line_or_timeout(int fd,char *line)
 {
- int found=0,eof=0;
  int n=0;
 
  if(!read_timeout)
@@ -466,33 +435,24 @@ char *read_line_or_timeout(int fd,char *line)
  if(!line)
     line=(char*)malloc((BUFSIZE+1));
 
- do
+ while(!isemptybuf(fd) || read_into_buffer_or_timeout(fd)>0)
    {
     int i;
 
-    if(!fdbytes[fd])
-       if(read_into_buffer_or_timeout(fd)<=0)
-         {eof=1;break;}
-
-    for(i=0;i<fdbytes[fd];i++)
+    for(i=fdbufindex[fd].front; i<fdbufindex[fd].rear; ++i)
        if(fdbuf[fd][i]=='\n')
          {
-          found=1;
-          n+=read_from_buffer(fd,&line[n],i+1);
+          n+=read_from_buffer(fd,&line[n],i-fdbufindex[fd].front+1);
           line[n]=0;
-          break;
+          return(line);
          }
 
-    if(!found)
-      {
-       n+=read_from_buffer(fd,&line[n],BUFSIZE);
-       line=(char*)realloc((void*)line,n+(BUFSIZE+1));
-      }
-   }
- while(!found && !eof);
 
- if(eof)
-   {free(line);line=NULL;}
+    n+=read_from_buffer(fd,&line[n],BUFSIZE);
+    line=(char*)realloc((void*)line,n+(BUFSIZE+1));
+   }
+
+ free(line);line=NULL;
 
  return(line);
 }
@@ -505,13 +465,15 @@ char *read_line_or_timeout(int fd,char *line)
 
   int fd The file descriptor to read from.
   ++++++++++++++++++++++++++++++++++++++*/
-
+/* Note by PAR: this version overwrites previous contents 
+   of buffer, use only if isemptybuf(fd) is true. */
 static int read_into_buffer(int fd)
 {
  int n;
 
- n=read(fd,fdbuf[fd]+fdbytes[fd],BUFSIZE-fdbytes[fd]);
- fdbytes[fd]+=n;
+ resetbuf(fd);
+ n=read(fd,fdbuf[fd],BUFSIZE);
+ if(n>0) fdbufindex[fd].rear=n;
 
  return(n);
 }
@@ -531,7 +493,7 @@ static int read_into_buffer_or_timeout(int fd)
  fd_set readfd;
  struct timeval tv;
 
- while(1)
+ do
    {
     FD_ZERO(&readfd);
 
@@ -542,18 +504,18 @@ static int read_into_buffer_or_timeout(int fd)
 
     n=select(fd+1,&readfd,NULL,NULL,&tv);
 
-    if(n>0)
-       break;
-    else if(n==0 || errno!=EINTR)
-      {
-       if(n==0)
-          errno=ETIMEDOUT;
-       return(-1);
-      }
+    if(n==0) {
+      errno=ETIMEDOUT;
+      return(-1);
+    }
+    else if(n<0 && errno!=EINTR)
+      return(-1);
    }
+ while(n<=0);
 
- n=read(fd,fdbuf[fd]+fdbytes[fd],BUFSIZE-fdbytes[fd]);
- fdbytes[fd]+=n;
+ resetbuf(fd);
+ n=read(fd,fdbuf[fd],BUFSIZE);
+ if(n>0) fdbufindex[fd].rear=n;
 
  return(n);
 }
@@ -573,19 +535,11 @@ static int read_into_buffer_or_timeout(int fd)
 
 static int read_from_buffer(int fd,char *buffer,int n)
 {
- if(n>=fdbytes[fd])
-   {
-    memcpy(buffer,fdbuf[fd],fdbytes[fd]);
-    n=fdbytes[fd];
-    fdbytes[fd]=0;
-   }
- else
-   {
-    memcpy(buffer,fdbuf[fd],n);
-    fdbytes[fd]-=n;
-    memmove(fdbuf[fd],fdbuf[fd]+n,fdbytes[fd]);
-   }
+ int nbytes = numbufbytes(fd);
 
+ if(n>nbytes) n=nbytes;
+ memcpy(buffer,fdbuf[fd]+fdbufindex[fd].front,n);
+ fdbufindex[fd].front+=n;
  return(n);
 }
 
@@ -654,80 +608,30 @@ int write_string(int fd,const char *str)
 
 int write_formatted(int fd,const char *fmt,...)
 {
- int i,n,width;
- char *str,*strp;
+ int n;
+ char *str;
  va_list ap;
 
- /* Estimate the length of the string. */
-
 #ifdef __STDC__
  va_start(ap,fmt);
 #else
  va_start(ap);
 #endif
 
- n=strlen(fmt);
-
- for(i=0;fmt[i];i++)
-    if(fmt[i]=='%')
-      {
-       i++;
-
-       if(fmt[i]=='%')
-          continue;
-
-       width=atoi(fmt+i);
-       if(width<0)
-          width=-width;
-
-       while(!isalpha(fmt[i]))
-          i++;
-
-       switch(fmt[i])
-         {
-         case 's':
-          strp=va_arg(ap,char*);
-          if(width && width>strlen(strp))
-             n+=width;
-          else
-             n+=strlen(strp);
-          break;
-
-         default:
-          (void)va_arg(ap,void*);
-          if(width && width>16)
-             n+=width;
-          else
-             n+=16;
-         }
-      }
-
- va_end(ap);
-
- /* Allocate the string and vsprintf into it. */
-
- str=(char*)malloc(n+1);
-
-#ifdef __STDC__
- va_start(ap,fmt);
-#else
- va_start(ap);
-#endif
-
- n=vsprintf(str,fmt,ap);
-
+ n=vasprintf(&str,fmt,ap);
  va_end(ap);
 
  /* Write the string. */
-
+ if(n>=0) {
 #if USE_ZLIB
- if(fdzlib[fd])
-    n=write_compressing(fd,str,n);
- else
+   if(fdzlib[fd])
+     n=write_compressing(fd,str,n);
+   else
 #endif
-    n=write_all(fd,str,n);
+     n=write_all(fd,str,n);
 
- free(str);
+   free(str);
+ }
 
  return(n);
 }
@@ -745,31 +649,21 @@ int write_formatted(int fd,const char *fmt,...)
   int n The number of bytes to write.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int write_all(int fd,const char *data,int n)
+int write_all(int fd,const char *data,int n)
 {
- int nn=0;
+ int written=0;
 
- /* Unroll the first loop to optimise the obvious case. */
-
- nn=write(fd,data,n);
-
- if(nn<0 || nn==n)
-    return(nn);
-
- /* Loop around until the data is finished. */
-
- do
+ while(written<n)
    {
-    int m=write(fd,data+nn,n-nn);
+    int m=write(fd,data+written,n-written);
 
     if(m<0)
-      {n=m;break;}
-    else
-       nn+=m;
-   }
- while(nn<n);
+      return m;
 
- return(n);
+    written+=m;
+   }
+
+ return written;
 }
 
 
@@ -810,7 +704,7 @@ int init_zlib_buffer(int fd,int direction)
        return(3);
       }
 
-    if(fdzlib[fd]->direction==2)
+    if(direction==2)
       {
        fdzlib[fd]->crc=crc32(0L,Z_NULL,0);
 
@@ -855,6 +749,8 @@ int init_zlib_buffer(int fd,int direction)
 
 int finish_zlib_buffer(int fd)
 {
+ int retval=0;
+
  if(fd==-1)
     return(1);
 
@@ -867,11 +763,13 @@ int finish_zlib_buffer(int fd)
     if(z_errno!=Z_OK)
       {
        set_zerror(fdzlib[fd]->stream.msg);
-       return(3);
+       retval=3;
       }
    }
  else if(fdzlib[fd]->direction<0)
    {
+    char zbuffer[ZBUFFER_SIZE];
+
     /* Finish deflating the buffer and writing it. */
 
     do
@@ -882,14 +780,13 @@ int finish_zlib_buffer(int fd)
        fdzlib[fd]->stream.next_out=zbuffer;
        fdzlib[fd]->stream.avail_out=ZBUFFER_SIZE;
 
-       if(fdzlib[fd]->direction==-1)
-          z_errno=deflate(&fdzlib[fd]->stream,Z_FINISH);
-       else
-          z_errno=deflate(&fdzlib[fd]->stream,Z_FINISH);
-
+       z_errno=deflate(&fdzlib[fd]->stream,Z_FINISH);
+       
        if(z_errno==Z_STREAM_END || z_errno==Z_OK)
-          if(write_all(fd,zbuffer,ZBUFFER_SIZE-fdzlib[fd]->stream.avail_out)<0)
-             break;
+	 if(write_all(fd,zbuffer,ZBUFFER_SIZE-fdzlib[fd]->stream.avail_out)<0) {
+	   retval=3;
+	   goto free_return;
+	 }
       }
     while(fdzlib[fd]->stream.avail_out==0);
 
@@ -914,16 +811,17 @@ int finish_zlib_buffer(int fd)
     if(z_errno!=Z_OK)
       {
        set_zerror(fdzlib[fd]->stream.msg);
-       return(3);
+       retval=3;
       }
    }
  else
-    return(4);
+   retval=4;
 
+free_return:
  free(fdzlib[fd]);
  fdzlib[fd]=NULL;
 
- return(0);
+ return(retval);
 }
 
 
@@ -941,41 +839,45 @@ int finish_zlib_buffer(int fd)
 
 static int read_uncompressing_from_buffer(int fd,char *buffer,int n)
 {
+ int nbytes = numbufbytes(fd);
+
  if(fdzlib[fd]->doing_head)
    {
-    int nb=parse_gzip_head(fd,fdbuf[fd],fdbytes[fd]);
+    int nb=parse_gzip_head(fd,fdbuf[fd]+fdbufindex[fd].front,nbytes);
 
     if(nb<0)
        return(-1);
-    else if(nb==fdbytes[fd])
-      {
-       fdbytes[fd]=0;
+
+    fdbufindex[fd].front+=nb;
+    nbytes-=nb;
+
+    if(nbytes==0)
        return(0);
-      }
-    else if(nb>0)
-      {
-       fdbytes[fd]-=nb;
-       memmove(fdbuf[fd],fdbuf[fd]+nb,fdbytes[fd]);
-      }
    }
  else if(fdzlib[fd]->doing_tail)
    {
-    int nb=parse_gzip_tail(fd,fdbuf[fd],fdbytes[fd]);
+    int nb=parse_gzip_tail(fd,fdbuf[fd]+fdbufindex[fd].front,nbytes);
 
     if(nb<0)
        return(-1);
-    else
-      {
-       fdbytes[fd]=0;
-       return(0);
-      }
+
+    fdbufindex[fd].front+=nb;
+    nbytes-=nb;
+
+    if(!fdzlib[fd]->doing_tail) {
+      fdzlib[fd]->done=1;
+      if(nbytes)
+	{set_zerror("trailing junk after gzip tail");return(-1);}
+    }
+
+    return(0);
    }
 
  fdzlib[fd]->stream.next_out=buffer;
  fdzlib[fd]->stream.avail_out=n;
 
- fdzlib[fd]->stream.next_in=fdbuf[fd];
- fdzlib[fd]->stream.avail_in=fdbytes[fd];
+ fdzlib[fd]->stream.next_in=fdbuf[fd]+fdbufindex[fd].front;
+ fdzlib[fd]->stream.avail_in=nbytes;
 
  z_errno=inflate(&fdzlib[fd]->stream,Z_NO_FLUSH);
 
@@ -985,18 +887,17 @@ static int read_uncompressing_from_buffer(int fd,char *buffer,int n)
     return(-1);
    }
 
+ n-=fdzlib[fd]->stream.avail_out;
+
+ fdbufindex[fd].front= fdbufindex[fd].rear - fdzlib[fd]->stream.avail_in;
+
  if(fdzlib[fd]->direction==2)
    {
-    fdzlib[fd]->crc=crc32(fdzlib[fd]->crc,buffer,n-fdzlib[fd]->stream.avail_out);
+    fdzlib[fd]->crc=crc32(fdzlib[fd]->crc,buffer,n);
 
     if(z_errno==Z_STREAM_END)
        fdzlib[fd]->doing_tail=1;
    }
-
- n-=fdzlib[fd]->stream.avail_out;
-
- memmove(fdbuf[fd],fdbuf[fd]+(fdbytes[fd]-fdzlib[fd]->stream.avail_in),fdzlib[fd]->stream.avail_in);
- fdbytes[fd]=fdzlib[fd]->stream.avail_in;
 
  return(n);
 }
@@ -1016,47 +917,60 @@ static int read_uncompressing_from_buffer(int fd,char *buffer,int n)
 
 static int read_uncompressing(int fd,char *buffer,int n)
 {
- int nr;
+ int nb=0,nr;
+ char zbuffer[ZBUFFER_SIZE];
 
  nr=read(fd,zbuffer,ZBUFFER_SIZE);
 
- if(fdzlib[fd]->doing_head && nr==0)
-    fdzlib[fd]->doing_head=0;
+ if(nr==0) {
+   if(fdzlib[fd]->direction==2) {
+     if(fdzlib[fd]->doing_head)
+       {set_zerror("incomplete gzip header");return(-1);}
+     else if(fdzlib[fd]->doing_tail)
+       {set_zerror("incomplete gzip tail");return(-1);}
+     else if(!fdzlib[fd]->done)
+       {set_zerror("incomplete gzip content");return(-1);}
+   }
+
+   fdzlib[fd]->done=1;
+ }
+ else if(fdzlib[fd]->done)
+   {set_zerror("trailing junk after compressed data");return(-1);}
 
  if(nr<=0)
     return(nr);
 
  if(fdzlib[fd]->doing_head)
    {
-    int nb=parse_gzip_head(fd,zbuffer,nr);
+    nb=parse_gzip_head(fd,zbuffer,nr);
 
     if(nb<0)
        return(-1);
     else if(nb==nr)
        return(0);
-    else if(nb>0)
-      {
-       memmove(zbuffer,zbuffer+nb,nr-nb);
-       nr-=nb;
-      }
 
-    fdzlib[fd]->doing_head=0;
+    /* fdzlib[fd]->doing_head=0; */
    }
  else if(fdzlib[fd]->doing_tail)
    {
-    int nb=parse_gzip_tail(fd,zbuffer,nr);
+    nb=parse_gzip_tail(fd,zbuffer,nr);
 
     if(nb<0)
        return(-1);
-    else
-       return(0);
+
+    if(!fdzlib[fd]->doing_tail) {
+      fdzlib[fd]->done=1;
+      if(nb!=nr)
+	{set_zerror("trailing junk after gzip tail");return(-1);}
+    }
+    return(0);
    }
 
  fdzlib[fd]->stream.next_out=buffer;
  fdzlib[fd]->stream.avail_out=n;
 
- fdzlib[fd]->stream.next_in=zbuffer;
- fdzlib[fd]->stream.avail_in=nr;
+ fdzlib[fd]->stream.next_in=zbuffer+nb;
+ fdzlib[fd]->stream.avail_in=nr-nb;
 
  z_errno=inflate(&fdzlib[fd]->stream,Z_NO_FLUSH);
 
@@ -1066,13 +980,7 @@ static int read_uncompressing(int fd,char *buffer,int n)
     return(-1);
    }
 
- if(fdzlib[fd]->direction==2)
-   {
-    fdzlib[fd]->crc=crc32(fdzlib[fd]->crc,buffer,n-fdzlib[fd]->stream.avail_out);
-
-    if(z_errno==Z_STREAM_END)
-       fdzlib[fd]->doing_tail=1;
-   }
+ n-=fdzlib[fd]->stream.avail_out;
 
  /* Put the remaining bytes into fdbuf for later. */
 
@@ -1081,10 +989,19 @@ static int read_uncompressing(int fd,char *buffer,int n)
     if(fdzlib[fd]->stream.avail_in>BUFSIZE)
        fdbuf[fd]=(char*)realloc((void*)fdbuf[fd],fdzlib[fd]->stream.avail_in);
     memcpy(fdbuf[fd],fdzlib[fd]->stream.next_in,fdzlib[fd]->stream.avail_in);
-    fdbytes[fd]=fdzlib[fd]->stream.avail_in;
+    fdbufindex[fd].front=0;
+    fdbufindex[fd].rear=fdzlib[fd]->stream.avail_in;
    }
 
- return(n-fdzlib[fd]->stream.avail_out);
+ if(fdzlib[fd]->direction==2)
+   {
+    fdzlib[fd]->crc=crc32(fdzlib[fd]->crc,buffer,n);
+
+    if(z_errno==Z_STREAM_END)
+       fdzlib[fd]->doing_tail=1;
+   }
+
+ return(n);
 }
 
 
@@ -1102,6 +1019,8 @@ static int read_uncompressing(int fd,char *buffer,int n)
 
 static int write_compressing(int fd,const char *buffer,int n)
 {
+ char zbuffer[ZBUFFER_SIZE];
+
  fdzlib[fd]->stream.avail_in=n;
  fdzlib[fd]->stream.next_in=(char*)buffer;
 
@@ -1310,9 +1229,18 @@ void set_zerror(char *msg)
 
  if(z_strerror)
     free(z_strerror);
- z_strerror=(char*)malloc(8+strlen(msg)+1);
-
- sprintf(z_strerror,"zlib: %s",msg);
+ z_strerror=x_asprintf("zlib: %s",msg);
 }
 
 #endif /* USE_ZLIB */
+
+
+/* Added by Paul Rombouts */
+
+off_t buffered_seek_cur(int fd)
+{
+  off_t retval=lseek(fd,0,SEEK_CUR);
+
+  retval-=numbufbytes(fd);
+  return(retval);
+}

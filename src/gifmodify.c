@@ -45,8 +45,11 @@
   Here you can find more information about the structure of GIF files:
   http://members.aol.com/royalef/gifabout.htm
 */
-
-void OutputGIFWithModifications(int client,int spool,/*@unused@*/ URL *Url)
+/* Added by Paul Rombouts:
+   OutputGIFWithModifications returns -1 if an error is encountered while
+   reading from spool.
+*/
+int OutputGIFWithModifications(int client,int spool,/*@unused@*/ URL *Url)
 {
  int bytes_to_skip=0;
  unsigned char blocktype='t';
@@ -98,7 +101,7 @@ void OutputGIFWithModifications(int client,int spool,/*@unused@*/ URL *Url)
 	else {
 	  GIFHeader[pHeader]=gifstream[offset];		    
 	  GIFHeader[6]='\0';
-	  if (!strncmp(GIFHeader,"GIF89a",6)) {
+	  if (!strcmp_litbeg(GIFHeader,"GIF89a")) {
            /* PrintMessage(Debug,"File is a GIF89a."); */
 	    filterGIF = 1;
 	    bytes_to_skip=1+4; /* skip unnecessary information */
@@ -182,4 +185,6 @@ void OutputGIFWithModifications(int client,int spool,/*@unused@*/ URL *Url)
 
   write_data(client,(char*)gifstream,n);
  }
+
+ return(n);
 }

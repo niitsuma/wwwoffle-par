@@ -56,6 +56,7 @@
 
 #include "wwwoffle.h"
 #include "misc.h"
+#include "headbody.h"
 #include "config.h"
 #include "errors.h"
 
@@ -221,50 +222,50 @@ static void MonitorFormParse(int fd,char *request_args,Body *request_body)
 
  for(i=0;args[i];i++)
    {
-    if(!strncmp("url=",args[i],4))
-       url=args[i]+4;
-    if(!strncmp("mofy1=",args[i],6))
-       mofy[0]=args[i][6];
-    if(!strncmp("mofy2=",args[i],6))
-       mofy[1]=args[i][6];
-    if(!strncmp("mofy3=",args[i],6))
-       mofy[2]=args[i][6];
-    if(!strncmp("mofy4=",args[i],6))
-       mofy[3]=args[i][6];
-    if(!strncmp("mofy5=",args[i],6))
-       mofy[4]=args[i][6];
-    if(!strncmp("mofy6=",args[i],6))
-       mofy[5]=args[i][6];
-    if(!strncmp("mofy7=",args[i],6))
-       mofy[6]=args[i][6];
-    if(!strncmp("mofy8=",args[i],6))
-       mofy[7]=args[i][6];
-    if(!strncmp("mofy9=",args[i],6))
-       mofy[8]=args[i][6];
-    if(!strncmp("mofy10=",args[i],7))
-       mofy[9]=args[i][7];
-    if(!strncmp("mofy11=",args[i],7))
-       mofy[10]=args[i][7];
-    if(!strncmp("mofy12=",args[i],7))
-       mofy[11]=args[i][7];
-    if(!strncmp("dofm=",args[i],5))
-       dofm=args[i]+5;
-    if(!strncmp("dofw0=",args[i],6))
-       dofw[0]=args[i][6];
-    if(!strncmp("dofw1=",args[i],6))
-       dofw[1]=args[i][6];
-    if(!strncmp("dofw2=",args[i],6))
-       dofw[2]=args[i][6];
-    if(!strncmp("dofw3=",args[i],6))
-       dofw[3]=args[i][6];
-    if(!strncmp("dofw4=",args[i],6))
-       dofw[4]=args[i][6];
-    if(!strncmp("dofw5=",args[i],6))
-       dofw[5]=args[i][6];
-    if(!strncmp("dofw6=",args[i],6))
-       dofw[6]=args[i][6];
-    if(!strncmp("hofd=",args[i],5))
-       hofd=args[i]+5;
+    if(!strcmp_litbeg(args[i],"url="))
+       url=args[i]+strlitlen("url=");
+    else if(!strcmp_litbeg(args[i],"mofy1="))
+       mofy[0]=args[i][strlitlen("mofy1=")];
+    else if(!strcmp_litbeg(args[i],"mofy2="))
+       mofy[1]=args[i][strlitlen("mofy2=")];
+    else if(!strcmp_litbeg(args[i],"mofy3="))
+       mofy[2]=args[i][strlitlen("mofy3=")];
+    else if(!strcmp_litbeg(args[i],"mofy4="))
+       mofy[3]=args[i][strlitlen("mofy4=")];
+    else if(!strcmp_litbeg(args[i],"mofy5="))
+       mofy[4]=args[i][strlitlen("mofy5=")];
+    else if(!strcmp_litbeg(args[i],"mofy6="))
+       mofy[5]=args[i][strlitlen("mofy6=")];
+    else if(!strcmp_litbeg(args[i],"mofy7="))
+       mofy[6]=args[i][strlitlen("mofy7=")];
+    else if(!strcmp_litbeg(args[i],"mofy8="))
+       mofy[7]=args[i][strlitlen("mofy8=")];
+    else if(!strcmp_litbeg(args[i],"mofy9="))
+       mofy[8]=args[i][strlitlen("mofy9=")];
+    else if(!strcmp_litbeg(args[i],"mofy10="))
+       mofy[9]=args[i][strlitlen("mofy10=")];
+    else if(!strcmp_litbeg(args[i],"mofy11="))
+       mofy[10]=args[i][strlitlen("mofy11=")];
+    else if(!strcmp_litbeg(args[i],"mofy12="))
+       mofy[11]=args[i][strlitlen("mofy12=")];
+    else if(!strcmp_litbeg(args[i],"dofm="))
+       dofm=args[i]+strlitlen("dofm=");
+    else if(!strcmp_litbeg(args[i],"dofw0="))
+       dofw[0]=args[i][strlitlen("dofw0=")];
+    else if(!strcmp_litbeg(args[i],"dofw1="))
+       dofw[1]=args[i][strlitlen("dofw1=")];
+    else if(!strcmp_litbeg(args[i],"dofw2="))
+       dofw[2]=args[i][strlitlen("dofw2=")];
+    else if(!strcmp_litbeg(args[i],"dofw3="))
+       dofw[3]=args[i][strlitlen("dofw3=")];
+    else if(!strcmp_litbeg(args[i],"dofw4="))
+       dofw[4]=args[i][strlitlen("dofw4=")];
+    else if(!strcmp_litbeg(args[i],"dofw5="))
+       dofw[5]=args[i][strlitlen("dofw5=")];
+    else if(!strcmp_litbeg(args[i],"dofw6="))
+       dofw[6]=args[i][strlitlen("dofw6=")];
+    else if(!strcmp_litbeg(args[i],"hofd="))
+       hofd=args[i]+strlitlen("hofd=");
    }
 
  if(url==NULL || *url==0)
@@ -391,7 +392,7 @@ static void MonitorFormParse(int fd,char *request_args,Body *request_body)
  else
    {
     Header *new_request_head=RequestURL(Url,NULL);
-    char *head=HeaderString(new_request_head);
+    char *head=HeaderString(new_request_head,NULL);
 
     write_string(mfd,head);
 
@@ -447,7 +448,7 @@ void RequestMonitoredPages(void)
       {PrintMessage(Inform,"Cannot stat file 'monitor/%s'; [%!s] race condition?",ent->d_name);return;}
     else if(S_ISREG(buf.st_mode) && *ent->d_name=='O')
       {
-       char *url=FileNameToURL(ent->d_name),*file;
+       char *url=FileNameToURL(ent->d_name);
        URL *Url=SplitURL(url);
        int last,next;
 
@@ -496,10 +497,11 @@ void RequestMonitoredPages(void)
 
              close(ifd);
 
-             file=URLToFileName(Url);
-             *file='M';
-             utime(file,NULL);
-             free(file);
+	     {
+	       local_URLToFileName(Url,file)
+	       *file='M';
+	       utime(file,NULL);
+	     }
             }
          }
 

@@ -26,11 +26,12 @@
 #include <sys/stat.h>
 #include <pwd.h>
 #include <grp.h>
+#include <errno.h>
 
+#include "misc.h"
 #include "configpriv.h"
 #include "wwwoffle.h"
 #include "errors.h"
-#include "misc.h"
 
 
 #ifndef PATH_MAX
@@ -39,7 +40,7 @@
 
 /* Local functions */
 
-static char *filename_or_symlink_target(char *name);
+static char *new_filename_or_symlink_target(char *name);
 
 static /*@null@*/ char *InitParser(void);
 static /*@null@*/ char *ParseLine(/*@out@*/ /*@null@*/ char **line);
@@ -96,36 +97,34 @@ char *ReadConfigFile(void)
 
  errmsg=InitParser();
 
- if(!errmsg)
-   {
-    char *line=NULL;
+ if(!errmsg) {
+   char *line=NULL;
 
-    do
-      {
+   do
+     {
        if((errmsg=ParseLine(&line)))
-          break;
+	 break;
 
        if(parse_section!=-1)
          {
-          char *url_str,*key_str,*val_str;
+	   char *url_str,*key_str,*val_str;
 
-          if((errmsg=ParseItem(line,&url_str,&key_str,&val_str)))
+	   if((errmsg=ParseItem(line,&url_str,&key_str,&val_str)))
              break;
 
-          if(parse_item!=-1)
-            {
-             if((errmsg=ParseEntry(&CurrentConfig.sections[parse_section]->itemdefs[parse_item],
-                                   CurrentConfig.sections[parse_section]->itemdefs[parse_item].item,
-                                   url_str,key_str,val_str)))
-                break;
-            }
+	   if(parse_item!=-1)
+	     {
+	       if((errmsg=ParseEntry(&CurrentConfig.sections[parse_section]->itemdefs[parse_item],
+				     CurrentConfig.sections[parse_section]->itemdefs[parse_item].item,
+				     url_str,key_str,val_str)))
+		 break;
+	     }
          }
-      }
-    while(parse_state!=Finished);
+     }
+   while(parse_state!=Finished);
 
-    if(line)
-       free(line);
-   }
+   if(line) free(line);
+ }
 
  if(parse_file)
     fclose(parse_file);
@@ -133,23 +132,26 @@ char *ReadConfigFile(void)
     fclose(parse_file_org);
 
  if(errmsg)
-    RestoreBackupConfigFile();
+   {
+     RestoreBackupConfigFile();
+     {
+       char *newerrmsg=x_asprintf("Configuration file syntax error at line %d in '%s'; %s\n",parse_line,parse_name,errmsg); /* Used in wwwoffle.c */
+       free(errmsg);
+       errmsg=newerrmsg;
+     }
+     
+     if(parse_state==StartSectionIncluded || parse_state==InsideSectionIncluded) {
+       free(parse_name);
+     }
+   }
  else
     PurgeBackupConfigFile(!first_time);
-
- first_time=0;
-
- if(errmsg)
-   {
-    char *newerrmsg=(char*)malloc(strlen(errmsg)+64+strlen(parse_name));
-    sprintf(newerrmsg,"Configuration file syntax error at line %d in '%s'; %s\n",parse_line,parse_name,errmsg); /* Used in wwwoffle.c */
-    free(errmsg);
-    errmsg=newerrmsg;
-   }
 
 #if CONFIG_DEBUG_DUMP
  DumpConfigFile();
 #endif
+
+ first_time=0;
 
  return(errmsg);
 }
@@ -180,7 +182,7 @@ char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char 
  FILE *file=NULL,*file_org=NULL;
  ConfigItem dummy=NULL;
  int matched=0;
- int s,rename_failed=0;
+ int s;
 
  /* Initialise the parser and open the new file. */
 
@@ -188,22 +190,18 @@ char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char 
 
  if(!errmsg)
    {
-    names[0]=filename_or_symlink_target(parse_name);
-
-    strcat(names[0],".new");
+    names[0]=new_filename_or_symlink_target(parse_name);
 
     file=fopen(names[0],"w");
     if(!file)
       {
-       errmsg=(char*)malloc(64+strlen(names[0]));
-       sprintf(errmsg,"Cannot open the configuration file '%s' for writing.",names[0]);
+       errmsg=x_asprintf("Cannot open the configuration file '%s' for writing [%s].",names[0],strerror(errno));
       }
    }
 
  /* Parse the file */
 
- if(!errmsg)
-   {
+ if(!errmsg) {
     char *line=NULL;
 
     do
@@ -214,15 +212,13 @@ char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char 
        if(parse_section==section && line)
          {
           char *url_str,*key_str,*val_str;
-          char *copy;
 
           /* Insert a new entry for a non-existing item. */
 
           if(newentry && !preventry && !sameentry && !nextentry && !matched &&
              (parse_state==InsideSectionCurly || parse_state==InsideSectionIncluded))
             {
-             char *copyentry=(char*)malloc(strlen(newentry)+1);
-             strcpy(copyentry,newentry);
+             local_strdup(newentry,copyentry)
 
              if((errmsg=ParseItem(copyentry,&url_str,&key_str,&val_str)))
                 break;
@@ -235,135 +231,121 @@ char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char 
              fprintf(file,"\n# WWWOFFLE Configuration Edit Inserted: %s\n %s\n\n",RFC822Date(time(NULL),0),newentry);
 
              matched=1;
-
-             free(copyentry);
             }
 
-          copy=(char*)malloc(strlen(line)+1);
-          strcpy(copy,line);
+          {
+	    local_strdup(line,copy)
 
-          if((errmsg=ParseItem(copy,&url_str,&key_str,&val_str)))
-             break;
+	    if((errmsg=ParseItem(copy,&url_str,&key_str,&val_str)))
+	      break;
 
-          if(parse_item==item)
-            {
-             char *thisentry;
+	    if(parse_item==item)
+	      {
+		char *thisentry;
 
-             if((errmsg=ParseEntry(&CurrentConfig.sections[section]->itemdefs[item],
-                                   &dummy,
-                                   url_str,key_str,val_str)))
-                break;
+		if((errmsg=ParseEntry(&CurrentConfig.sections[section]->itemdefs[item],
+				      &dummy,
+				      url_str,key_str,val_str)))
+		  break;
 
-             thisentry=ConfigEntryString(dummy,dummy->nentries-1);
+		thisentry=ConfigEntryString(dummy,dummy->nentries-1);
 
-             /* Insert a new entry before the current one */
+		/* Insert a new entry before the current one */
 
-             if(newentry && nextentry && !strcmp(thisentry,nextentry))
-               {
-                char *copyentry=(char*)malloc(strlen(newentry)+1);
-                strcpy(copyentry,newentry);
+		if(newentry && nextentry && !strcmp(thisentry,nextentry))
+		  {
+		    local_strdup(newentry,copyentry)
 
-                if((errmsg=ParseItem(copyentry,&url_str,&key_str,&val_str)))
-                   break;
+		    if((errmsg=ParseItem(copyentry,&url_str,&key_str,&val_str)))
+		      break;
 
-                if((errmsg=ParseEntry(&CurrentConfig.sections[section]->itemdefs[item],
-                                      &dummy,
-                                      url_str,key_str,val_str)))
-                   break;
+		    if((errmsg=ParseEntry(&CurrentConfig.sections[section]->itemdefs[item],
+					  &dummy,
+					  url_str,key_str,val_str)))
+		      break;
 
-                fprintf(file,"\n# WWWOFFLE Configuration Edit Inserted: %s\n %s\n\n",RFC822Date(time(NULL),0),newentry);
-                fprintf(file,"%s",line);
+		    fprintf(file,"\n# WWWOFFLE Configuration Edit Inserted: %s\n %s\n\n",RFC822Date(time(NULL),0),newentry);
+		    fprintf(file,"%s",line);
 
-                matched=1;
+		    matched=1;
+		  }
 
-                free(copyentry);
-               }
+		/* Insert a new entry after the current one */
 
-             /* Insert a new entry after the current one */
+		else if(newentry && preventry && !strcmp(thisentry,preventry))
+		  {
+		    local_strdup(newentry,copyentry)
 
-             else if(newentry && preventry && !strcmp(thisentry,preventry))
-               {
-                char *copyentry=(char*)malloc(strlen(newentry)+1);
-                strcpy(copyentry,newentry);
+		    if((errmsg=ParseItem(copyentry,&url_str,&key_str,&val_str)))
+		      break;
 
-                if((errmsg=ParseItem(copyentry,&url_str,&key_str,&val_str)))
-                   break;
+		    if((errmsg=ParseEntry(&CurrentConfig.sections[section]->itemdefs[item],
+					  &dummy,
+					  url_str,key_str,val_str)))
+		      break;
 
-                if((errmsg=ParseEntry(&CurrentConfig.sections[section]->itemdefs[item],
-                                      &dummy,
-                                      url_str,key_str,val_str)))
-                   break;
+		    fprintf(file,"%s",line);
+		    fprintf(file,"\n# WWWOFFLE Configuration Edit Inserted: %s\n %s\n\n",RFC822Date(time(NULL),0),newentry);
 
-                fprintf(file,"%s",line);
-                fprintf(file,"\n# WWWOFFLE Configuration Edit Inserted: %s\n %s\n\n",RFC822Date(time(NULL),0),newentry);
+		    matched=1;
+		  }
 
-                matched=1;
+		/* Delete an entry */
 
-                free(copyentry);
-               }
+		else if(!newentry && sameentry && !strcmp(thisentry,sameentry))
+		  {
+		    fprintf(file,"\n# WWWOFFLE Configuration Edit Deleted: %s\n#%s",RFC822Date(time(NULL),0),line);
 
-             /* Delete an entry */
+		    matched=1;
+		  }
 
-             else if(!newentry && sameentry && !strcmp(thisentry,sameentry))
-               {
-                fprintf(file,"\n# WWWOFFLE Configuration Edit Deleted: %s\n#%s",RFC822Date(time(NULL),0),line);
+		/* Change an entry */
 
-                matched=1;
-               }
+		else if(newentry && sameentry && !strcmp(thisentry,sameentry))
+		  {
+		    local_strdup(newentry,copyentry)
 
-             /* Change an entry */
+		    if(CurrentConfig.sections[section]->itemdefs[item].same_key==0 &&
+		       CurrentConfig.sections[section]->itemdefs[item].url_type==0)
+		      {
+			FreeConfigItem(dummy);
+			dummy=NULL;
+		      }
 
-             else if(newentry && sameentry && !strcmp(thisentry,sameentry))
-               {
-                char *copyentry=(char*)malloc(strlen(newentry)+1);
-                strcpy(copyentry,newentry);
+		    if((errmsg=ParseItem(copyentry,&url_str,&key_str,&val_str)))
+		      break;
 
-                if(CurrentConfig.sections[section]->itemdefs[item].same_key==0 &&
-                   CurrentConfig.sections[section]->itemdefs[item].url_type==0)
-                  {
-                   FreeConfigItem(dummy);
-                   dummy=NULL;
-                  }
+		    if((errmsg=ParseEntry(&CurrentConfig.sections[section]->itemdefs[item],
+					  &dummy,
+					  url_str,key_str,val_str)))
+		      break;
 
-                if((errmsg=ParseItem(copyentry,&url_str,&key_str,&val_str)))
-                   break;
+		    fprintf(file,"# WWWOFFLE Configuration Edit Changed: %s\n#%s",RFC822Date(time(NULL),0),line);
+		    fprintf(file," %s\n",newentry);
 
-                if((errmsg=ParseEntry(&CurrentConfig.sections[section]->itemdefs[item],
-                                      &dummy,
-                                      url_str,key_str,val_str)))
-                   break;
+		    matched=1;
+		  }
+		else
+		  fprintf(file,"%s",line);
 
-                fprintf(file,"# WWWOFFLE Configuration Edit Changed: %s\n#%s",RFC822Date(time(NULL),0),line);
-                fprintf(file," %s\n",newentry);
-
-                matched=1;
-
-                free(copyentry);
-               }
-             else
-                fprintf(file,"%s",line);
-
-             free(thisentry);
-            }
-          else
-             fprintf(file,"%s",line);
-
-          free(copy);
+		free(thisentry);
+	      }
+	    else
+	      fprintf(file,"%s",line);
+	  }
          }
        else if(line)
           fprintf(file,"%s",line);
 
        if(parse_state==StartSectionIncluded && !file_org)
          {
-          names[parse_section+1]=filename_or_symlink_target(parse_name);
-          strcat(names[parse_section+1],".new");
+          names[parse_section+1]=new_filename_or_symlink_target(parse_name);
 
           file_org=file;
           file=fopen(names[parse_section+1],"w");
           if(!file)
             {
-             errmsg=(char*)malloc(48+strlen(names[parse_section+1]));
-             sprintf(errmsg,"Cannot open the included file '%s' for writing.",names[parse_section+1]);
+             errmsg=x_asprintf("Cannot open the included file '%s' for writing [%s].",names[parse_section+1],strerror(errno));
              break;
             }
          }
@@ -376,66 +358,47 @@ char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char 
       }
     while(parse_state!=Finished);
 
-    if(line)
-       free(line);
-   }
+    if(line) free(line);
+ }
+
+ if(file) fclose(file);
+ if(file_org) fclose(file_org);
+ if(parse_file) fclose(parse_file);
+ if(parse_file_org) fclose(parse_file_org);
+ if(parse_state==StartSectionIncluded || parse_state==InsideSectionIncluded) {
+   free(parse_name);
+ }
 
  if(!errmsg && !matched && (preventry || sameentry || nextentry))
    {
     char *whichentry=sameentry?sameentry:preventry?preventry:nextentry;
 
-    errmsg=(char*)malloc(64+strlen(whichentry));
-    sprintf(errmsg,"No entry to match '%s' was found to make the change.",whichentry);
+    errmsg=x_asprintf("No entry to match '%s' was found to make the change.",whichentry);
    }
 
- if(file)
-    fclose(file);
- if(file_org)
-    fclose(file_org);
- if(parse_file)
-    fclose(parse_file);
- if(parse_file_org)
-    fclose(parse_file_org);
-
- for(s=0;s<=CurrentConfig.nsections;s++)
+ for(s=0;s<=CurrentConfig.nsections;++s)
     if(names[s])
       {
        if(!errmsg)
          {
-          char *name=(char*)malloc(strlen(names[s])+1);
-          char *name_bak=(char*)malloc(strlen(names[s])+16);
+	  int name_len=strlen(names[s])-strlitlen(".new");
+          char name[name_len+1], name_bak[name_len+sizeof(".bak")];
 
-          strcpy(name,names[s]);
-          name[strlen(name)-4]=0;
+          *((char *)mempcpy(name,names[s],name_len))=0;
+          mempcpy(mempcpy(name_bak,names[s],name_len),".bak",sizeof(".bak"));
 
-          strcpy(name_bak,names[s]);
-          strcpy(name_bak+strlen(name_bak)-3,"bak");
-
-          if(rename(name,name_bak))
-            {
-             rename_failed++;
-             PrintMessage(Warning,"Cannot rename '%s' to '%s' when modifying configuration entry [%!s].",name,name_bak);
-            }
-          if(rename(names[s],name))
-            {
-             rename_failed++;
-             PrintMessage(Warning,"Cannot rename '%s' to '%s' when modifying configuration entry [%!s].",name[s],name);
-            }
-
-          free(name);
-          free(name_bak);
+          if(rename(name,name_bak)<0) {
+	    errmsg=x_asprintf("Can't rename '%s' as '%s' [%s].",name,name_bak,strerror(errno));
+	  }
+	  else if(rename(names[s],name)<0) {
+	    errmsg=x_asprintf("Can't rename '%s' as '%s' [%s].",names[s],name,strerror(errno));
+	  }
          }
        else
           unlink(names[s]);
 
        free(names[s]);
       }
-
- if(rename_failed)
-   {
-    errmsg=(char*)malloc(120);
-    sprintf(errmsg,"There were problems renaming files, check the error log (this might stop the change you tried to make).");
-   }
 
  FreeConfigItem(dummy);
 
@@ -448,51 +411,23 @@ char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char 
 /*++++++++++++++++++++++++++++++++++++++
   Find the real filename of a potential symbolic link.
 
-  char *filename_or_symlink_target Returns the real file name.
+  char *new_filename_or_symlink_target Returns the real file name with ".new" appended.
 
   char *name The file name that may be a symbolic link.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static char *filename_or_symlink_target(char *name)
+static char *new_filename_or_symlink_target(char *name)
 {
- struct stat buf;
- char linkname[PATH_MAX+1];
- char *result=NULL;
+  char *result=canonicalize_file_name(name);
 
- if(!stat(name,&buf) && buf.st_mode&&S_IFLNK)
-   {
-    int linklen=0;
+  if(result)
+    str_append(&result,".new");
+  else {
+    result=(char*)malloc(strlen(name)+sizeof(".new"));
+    stpcpy(stpcpy(result,name),".new");
+  }
 
-    if((linklen=readlink(name,linkname,PATH_MAX))!=-1)
-      {
-       linkname[linklen]=0;
-
-       if(*linkname=='/')
-         {
-          result=(char*)malloc(linklen+8);
-          strcpy(result,linkname);
-         }
-       else
-         {
-          char *p;
-          result=(char*)malloc(strlen(name)+linklen+8);
-          strcpy(result,name);
-          p=result+strlen(result)-1;
-          while(p>=result && *p!='/')
-             p--;
-          strcpy(p+1,linkname);
-          CanonicaliseName(result);
-         }
-      }
-   }
-
- if(!result)
-   {
-    result=(char*)malloc(strlen(name)+8);
-    strcpy(result,name);
-   }
-
- return(result);
+  return(result);
 }
 
 
@@ -504,16 +439,11 @@ static char *filename_or_symlink_target(char *name)
 
 static char *InitParser(void)
 {
+ char *errmsg=NULL;
+
  parse_name=CurrentConfig.name;
  parse_file=fopen(parse_name,"r");
  parse_line=0;
-
- if(!parse_file)
-   {
-    char *errmsg=(char*)malloc(64+strlen(parse_name));
-    sprintf(errmsg,"Cannot open the configuration file '%s' for reading.",parse_name);
-    return(errmsg);
-   }
 
  parse_name_org=NULL;
  parse_file_org=NULL;
@@ -523,7 +453,12 @@ static char *InitParser(void)
  parse_item=-1;
  parse_state=OutsideSection;
 
- return(NULL);
+ if(!parse_file)
+   {
+    errmsg=x_asprintf("Cannot open the configuration file '%s' for reading [%s].",parse_name,strerror(errno));
+   }
+
+ return(errmsg);
 }
 
 
@@ -543,7 +478,7 @@ static char *ParseLine(char **line)
 
  *line=fgets_realloc(*line,parse_file);
 
- parse_line++;
+ ++parse_line;
 
  parse_item=-1;
 
@@ -552,7 +487,9 @@ static char *ParseLine(char **line)
  if(!*line)
    {
     if(parse_state==OutsideSection)
+      {
        parse_state=Finished;
+      }
     else if(parse_state==StartSectionIncluded || parse_state==InsideSectionIncluded)
       {
        fclose(parse_file);
@@ -571,8 +508,7 @@ static char *ParseLine(char **line)
       }
     else
       {
-       errmsg=(char*)malloc(32);
-       strcpy(errmsg,"Unexpected end of file.");
+       errmsg=strdup("Unexpected end of file.");
       }
    }
  else
@@ -582,34 +518,28 @@ static char *ParseLine(char **line)
     /* Trim the line. */
 
     l=*line;
-    r=*line+strlen(*line)-1;
+    while(*l && isspace(*l)) ++l;
 
-    while(isspace(*l))
-       l++;
-
-    while(r>l && isspace(*r))
-       r--;
-    r++;
+    r=strchrnul(l,0);
+    while(--r>=l && isspace(*r));
+    ++r;
 
     /* Outside of section, searching for a section. */
 
     if(parse_state==OutsideSection)
       {
-       if(*l!='#' && *l!=0)
+       if(*l!=0 && *l!='#')
          {
           for(parse_section=0;parse_section<CurrentConfig.nsections;parse_section++)
              if(!strncmp(CurrentConfig.sections[parse_section]->name,l,r-l))
                {
                 parse_state=StartSection;
-                break;
+                goto found_section;
                }
 
-          if(parse_section==CurrentConfig.nsections)
-            {
-             errmsg=(char*)malloc(64+strlen(l));
-             sprintf(errmsg,"Unrecognised text outside of section (not section label) '%s'.",l);
-             parse_section=-1;
-            }
+	  errmsg=x_asprintf("Unrecognised text outside of section (not section label) '%s'.",l);
+	  parse_section=-1;
+	 found_section:
          }
       }
 
@@ -627,13 +557,11 @@ static char *ParseLine(char **line)
          }
        else if(*l!='{' && *l!='[')
          {
-          errmsg=(char*)malloc(48);
-          strcpy(errmsg,"Start of section must be '{' or '['.");
+          errmsg=strdup("Start of section must be '{' or '['.");
          }
        else
          {
-          errmsg=(char*)malloc(48);
-          sprintf(errmsg,"Start of section '%c' has trailing junk.",*l);
+          errmsg=x_asprintf("Start of section '%c' has trailing junk.",*l);
          }
       }
 
@@ -643,16 +571,18 @@ static char *ParseLine(char **line)
       {
        parse_state=InsideSectionCurly;
 
-       if(*l=='}' && (l+1)==r)
-         {
-          parse_state=OutsideSection;
-          parse_section=-1;
-         }
-       else if(*l=='}')
-         {
-          errmsg=(char*)malloc(48);
-          sprintf(errmsg,"End of section '%c' has trailing junk.",*l);
-         }
+       if(*l=='}')
+	 {
+	   if((l+1)==r)
+	     {
+	       parse_state=OutsideSection;
+	       parse_section=-1;
+	     }
+	   else
+	     {
+	       errmsg=x_asprintf("End of section '%c' has trailing junk.",*l);
+	     }
+	 }
       }
 
     /* Inside a include '[...]' section. */
@@ -661,56 +591,53 @@ static char *ParseLine(char **line)
       {
        parse_state=InsideSectionSquare;
 
-       if(*l==']' && (l+1)==r)
+       if(*l==']')
+	 {
+	   if((l+1)==r)
+	     {
+	       parse_state=OutsideSection;
+	       parse_section=-1;
+	     }
+	   else
+	     {
+	       errmsg=x_asprintf("End of section '%c' has trailing junk.",*l);
+	     }
+	 }
+       else if(*l!=0 && *l!='#')
          {
-          parse_state=OutsideSection;
-          parse_section=-1;
-         }
-       else if(*l==']')
-         {
-          errmsg=(char*)malloc(48);
-          sprintf(errmsg,"End of section '%c' has trailing junk.",*l);
-         }
-       else if(*l!='#' && *l!=0)
-         {
-          char *rr;
-          char *inc_parse_name;
-          FILE *inc_parse_file;
+	  char *parse_name_new; FILE *parse_file_new;
 
-          inc_parse_name=(char*)malloc(strlen(CurrentConfig.name)+(r-l)+1);
+	  if(*l=='/') parse_name_new=strndup(l,r-l);
+	  else {
+	    char *p=strchrnul(CurrentConfig.name,0); int pathlen;
+	    while(--p>=CurrentConfig.name && *p!='/');
+	    pathlen=p+1-CurrentConfig.name;
+	    parse_name_new=(char*)malloc(pathlen+(r-l)+1);
+	    *((char *)mempcpy(mempcpy(parse_name_new,CurrentConfig.name,pathlen),l,r-l))=0;
+	  }
 
-          strcpy(inc_parse_name,CurrentConfig.name);
+          parse_file_new=fopen(parse_name_new,"r");
 
-          rr=inc_parse_name+strlen(inc_parse_name)-1;
-          while(rr>inc_parse_name && *rr!='/')
-             rr--;
-
-          strncpy(rr+1,l,r-l);
-          *((rr+1)+(r-l))=0;
-
-          inc_parse_file=fopen(inc_parse_name,"r");
-
-          if(!inc_parse_file)
+          if(!parse_file_new)
             {
-             errmsg=(char*)malloc(48+strlen(inc_parse_name));
-             sprintf(errmsg,"Cannot open the included file '%s' for reading.",inc_parse_name);
+             errmsg=x_asprintf("Cannot open included file '%s' for reading [%s].",parse_name_new,strerror(errno));
+	     free(parse_name_new);
             }
           else
-            {
-             parse_state=StartSectionIncluded;
+	    {
+	      parse_name_org=parse_name;
+	      parse_file_org=parse_file;
+	      parse_line_org=parse_line;
+	      parse_name=parse_name_new;
+	      parse_file=parse_file_new;
+	      parse_line=0;
 
-             parse_name_org=parse_name;
-             parse_file_org=parse_file;
-             parse_line_org=parse_line;
-
-             parse_name=inc_parse_name;
-             parse_file=inc_parse_file;
-             parse_line=0;
-            }
+	      parse_state=StartSectionIncluded;
+	    }
          }
       }
 
-    else if(parse_state==StartSectionIncluded || parse_state==InsideSectionIncluded)
+    else if(parse_state==StartSectionIncluded)
       {
        parse_state=InsideSectionIncluded;
       }
@@ -743,20 +670,16 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
  if(parse_state==InsideSectionCurly || parse_state==InsideSectionIncluded)
    {
     char *url=NULL,*key=NULL,*val=NULL;
-    char *l,*r;
+    char *l;
 
     l=line;
 
-    while(isspace(*l))
-       l++;
+    while(*l && isspace(*l)) ++l;
 
     if(!*l || *l=='#')
        return(NULL);
 
-    r=line+strlen(line)-1;
-
-    while(r>l && isspace(*r))
-       *r--=0;
+    {char *r=strchrnul(l,0); while(--r>=l && isspace(*r)) *r=0;}
 
     if(*l=='<')
       {
@@ -767,8 +690,7 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
           uu++;
        if(!*uu)
          {
-          char *errmsg=(char*)malloc(32);
-          strcpy(errmsg,"No '>' to match the '<'.");
+          char *errmsg=strdup("No '>' to match the '<'.");
           return(errmsg);
          }
 
@@ -778,64 +700,47 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
           key++;
        if(!*key)
          {
-          char *errmsg=(char*)malloc(48);
-          strcpy(errmsg,"No configuration entry following the '<...>'.");
+          char *errmsg=strdup("No configuration entry following the '<...>'.");
           return(errmsg);
          }
       }
     else
        key=l;
 
-    for(parse_item=0;parse_item<CurrentConfig.sections[parse_section]->nitemdefs;parse_item++)
-       if(!*CurrentConfig.sections[parse_section]->itemdefs[parse_item].name ||
-          !strncmp(CurrentConfig.sections[parse_section]->itemdefs[parse_item].name,key,strlen(CurrentConfig.sections[parse_section]->itemdefs[parse_item].name)))
+    for(parse_item=0;parse_item<CurrentConfig.sections[parse_section]->nitemdefs;++parse_item) {
+       ConfigItemDef *itemdef=&CurrentConfig.sections[parse_section]->itemdefs[parse_item];
+
+       if(!*itemdef->name ||
+          !strcmp_beg(key,itemdef->name))
          {
           char *ll;
 
-          if(*CurrentConfig.sections[parse_section]->itemdefs[parse_item].name)
+          if(*itemdef->name)
             {
-             ll=key+strlen(CurrentConfig.sections[parse_section]->itemdefs[parse_item].name);
+             ll=key+strlen(itemdef->name);
 
              if(*ll && *ll!='=' && !isspace(*ll))
                 continue;
             }
-          else if(CurrentConfig.sections[parse_section]->itemdefs[parse_item].key_type==UrlSpecification)
-            {
-             char *equal;
-
-             ll=key;
-
-             while((equal=strchr(ll,'=')))
-               {
-                ll=equal;
-                if(equal>key && isspace(*(equal-1)))
-                   break;
-                ll++;
-               }
-
-             while(*ll && *ll!='=' && !isspace(*ll))
-                ll++;
-            }
           else
             {
+	     char delimiter = (itemdef->key_type==UrlSpecification)? 0 : '=';
              ll=key;
-             while(*ll && *ll!='=' && !isspace(*ll))
+             while(*ll && *ll!=delimiter && !isspace(*ll))
                 ll++;
             }
 
-          if(CurrentConfig.sections[parse_section]->itemdefs[parse_item].url_type==0 && url)
+          if(itemdef->url_type==0 && url)
             {
-             char *errmsg=(char*)malloc(48);
-             strcpy(errmsg,"No URL context '<...>' allowed for this entry.");
+             char *errmsg=strdup("No URL context '<...>' allowed for this entry.");
              return(errmsg);
             }
 
-          if(CurrentConfig.sections[parse_section]->itemdefs[parse_item].val_type==None)
+          if(itemdef->val_type==None)
             {
-             if(strchr(ll,'='))
+             if(itemdef->key_type!=UrlSpecification && strchr(ll,'='))
                {
-                char *errmsg=(char*)malloc(40);
-                strcpy(errmsg,"Equal sign seen but not expected.");
+                char *errmsg=strdup("Equal sign seen but not expected.");
                 return(errmsg);
                }
 
@@ -847,37 +752,32 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
              val=strchr(ll,'=');
              if(!val)
                {
-                char *errmsg=(char*)malloc(40);
-                strcpy(errmsg,"No equal sign seen but expected.");
+                char *errmsg=strdup("No equal sign seen but expected.");
                 return(errmsg);
                }
 
              *ll=0;
              if(!*key)
                {
-                char *errmsg=(char*)malloc(48);
-                strcpy(errmsg,"Nothing to the left of the equal sign.");
+                char *errmsg=strdup("Nothing to the left of the equal sign.");
                 return(errmsg);
                }
 
-             val++;
-             while(isspace(*val))
-                val++;
+             do {++val;} while(*val && isspace(*val));
             }
 
           *url_str=url;
           *key_str=key;
           *val_str=val;
 
-          break;
+          return(NULL);
          }
+    }
 
-    if(parse_item==CurrentConfig.sections[parse_section]->nitemdefs)
-      {
-       char *errmsg=(char*)malloc(32+strlen(l));
-       sprintf(errmsg,"Unrecognised entry '%s'.",l);
-       return(errmsg);
-      }
+    {
+      char *errmsg=x_asprintf("Unrecognised entry '%s'.",key);
+      return(errmsg);
+    }
    }
 
  return(NULL);
@@ -887,7 +787,8 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
 /*++++++++++++++++++++++++++++++++++++++
   Parse an entry from the file.
 
-  char *ParseEntry Return a string containing an error message in case of error.
+  char *ParseEntry Return a string containing an error message in case of error,
+                   or NULL in case of no error.
 
   ConfigItemDef *itemdef The item definition for the item in the section.
 
@@ -900,102 +801,95 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
   char *val_str The string to the value.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static char *ParseEntry(ConfigItemDef *itemdef,ConfigItem *item,char *url_str,char *key_str,char *val_str)
+static char *ParseEntry(ConfigItemDef *itemdef,ConfigItem *item_p,char *url_str,char *key_str,char *val_str)
 {
- UrlSpec *url=NULL;
+ ConfigItem item=*item_p;
+ UrlSpec *url;
  KeyOrValue key,val;
  char *errmsg=NULL;
 
- key.string=NULL;
- val.string=NULL;
-
- if(itemdef->same_key==0 && itemdef->url_type==0 && (*item) && (*item)->nentries)
+ if(!itemdef->same_key && !itemdef->url_type && item && item->nentries)
    {
-    errmsg=(char*)malloc(32+strlen(key_str));
-    sprintf(errmsg,"Duplicated entry: '%s'.",key_str);
+    errmsg=x_asprintf("Duplicated entry: '%s'.",key_str);
     return(errmsg);
    }
 
  if(!itemdef->url_type || !url_str)
     url=NULL;
- else
-    if((errmsg=ParseKeyOrValue(url_str,UrlSpecification,(KeyOrValue*)&url)))
-       return(errmsg);
+ else if((errmsg=ParseKeyOrValue(url_str,UrlSpecification,(KeyOrValue*)&url)))
+   return(errmsg);
 
  if(itemdef->key_type==Fixed)
    {
     if(strcmp(key_str,itemdef->name))
       {
-       errmsg=(char*)malloc(32+strlen(key_str));
-       sprintf(errmsg,"Unexpected key string: '%s'.",key_str);
-       if(url) free(url);
-       return(errmsg);
+       errmsg=x_asprintf("Unexpected key string: '%s'.",key_str);
+       goto freeurlspec_return;
       }
-    key.string=itemdef->name;
+    key.string=NULL;
    }
- else
-    if((errmsg=ParseKeyOrValue(key_str,itemdef->key_type,&key)))
-      {
-       if(url) free(url);
-       return(errmsg);
-      }
+ else if((errmsg=ParseKeyOrValue(key_str,itemdef->key_type,&key)))
+   goto freeurlspec_return;
 
- if(!val_str)
+ if(itemdef->val_type==None || !val_str)
     val.string=NULL;
- else if(itemdef->val_type==None)
-    val.string=NULL;
- else
-    if((errmsg=ParseKeyOrValue(val_str,itemdef->val_type,&val)))
-      {
-       if(url) free(url);
-       FreeKeyOrValue(&key,itemdef->key_type);
-       return(errmsg);
-      }
+ else if((errmsg=ParseKeyOrValue(val_str,itemdef->val_type,&val)))
+   goto freekey_freeurlspec_return;
+
+ if(!item_p)
+   goto freeval_freekey_freeurlspec_return;
 
  if(!item)
    {
-    if(url) free(url);
-    FreeKeyOrValue(&key,itemdef->key_type);
-    FreeKeyOrValue(&val,itemdef->val_type);
-    return(NULL);
+    *item_p=item=(ConfigItem)malloc(sizeof(struct _ConfigItem));
+    item->itemdef=itemdef;
+    item->nentries=0;
+    item->url=NULL;
+    item->key=NULL;
+    item->val=NULL;
+    item->def_val.string=NULL;
    }
 
- if(!(*item))
-   {
-    *item=(ConfigItem)malloc(sizeof(struct _ConfigItem));
-    (*item)->itemdef=itemdef;
-    (*item)->nentries=0;
-    (*item)->url=NULL;
-    (*item)->key=NULL;
-    (*item)->val=NULL;
-    (*item)->def_val=NULL;
-   }
- if(!(*item)->nentries)
-   {
-    (*item)->nentries=1;
-    if(itemdef->url_type!=0)
-       (*item)->url=(UrlSpec**)malloc(sizeof(UrlSpec*));
-    (*item)->key=(KeyOrValue*)malloc(sizeof(KeyOrValue));
-    if(itemdef->val_type!=None)
-       (*item)->val=(KeyOrValue*)malloc(sizeof(KeyOrValue));
-   }
- else
-   {
-    (*item)->nentries++;
-    if(itemdef->url_type!=0)
-       (*item)->url=(UrlSpec**)realloc((void*)(*item)->url,(*item)->nentries*sizeof(UrlSpec*));
-    (*item)->key=(KeyOrValue*)realloc((void*)(*item)->key,(*item)->nentries*sizeof(KeyOrValue));
-    if(itemdef->val_type!=None)
-       (*item)->val=(KeyOrValue*)realloc((void*)(*item)->val,(*item)->nentries*sizeof(KeyOrValue));
+ {
+   int k= item->nentries++;
+   int newnum=0;
+
+   if(k==0 && !itemdef->same_key && !itemdef->url_type)
+     newnum=1;
+   else if((k&7)==0)   /* Note: k&7 == k mod 8 */
+     newnum=k+8;       /* grow arrays in increments of 8 to reduce number of realloc calls */
+
+   if(itemdef->url_type) {
+     if(newnum)
+       item->url=(UrlSpec**)realloc((void*)item->url,sizeof(UrlSpec*)*newnum);
+     item->url[k]=url;
    }
 
- if(itemdef->url_type!=0)
-    (*item)->url[(*item)->nentries-1]=url;
- (*item)->key[(*item)->nentries-1]=key;
- if(itemdef->val_type!=None)
-    (*item)->val[(*item)->nentries-1]=val;
+   if(itemdef->key_type!=Fixed) {
+     if(newnum)
+       item->key=(KeyOrValue*)realloc((void*)item->key,sizeof(KeyOrValue)*newnum);
+     item->key[k]=key;
+   }
+
+   if(itemdef->val_type!=None) {
+     if(newnum)
+       item->val=(KeyOrValue*)realloc((void*)item->val,sizeof(KeyOrValue)*newnum);
+     item->val[k]=val;
+   }
+ }
 
  return(NULL);
+
+freeval_freekey_freeurlspec_return:
+ FreeKeysOrValues(&val,itemdef->val_type,1);
+
+freekey_freeurlspec_return:
+ FreeKeysOrValues(&key,itemdef->key_type,1);
+
+freeurlspec_return:
+ FreeUrlSpecification(url);
+
+ return(errmsg);
 }
 
 
@@ -1023,33 +917,33 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case CfgMaxServers:
     if(!*text)
-      {errmsg=(char*)malloc(56);strcpy(errmsg,"Expecting a maximum server count, got nothing.");}
+      {errmsg=strdup("Expecting a maximum server count, got nothing.");}
     else if(!isanumber(text))
-      {errmsg=(char*)malloc(48+strlen(text));sprintf(errmsg,"Expecting a maximum server count, got '%s'.",text);}
+      {errmsg=x_asprintf("Expecting a maximum server count, got '%s'.",text);}
     else
       {
        pointer->integer=atoi(text);
        if(pointer->integer<=0 || pointer->integer>MAX_SERVERS)
-         {errmsg=(char*)malloc(48);sprintf(errmsg,"Invalid maximum server count: %d.",pointer->integer);}
+         {errmsg=x_asprintf("Invalid maximum server count: %d.",pointer->integer);}
       }
     break;
 
    case CfgMaxFetchServers:
     if(!*text)
-      {errmsg=(char*)malloc(56);strcpy(errmsg,"Expecting a maximum fetch server count, got nothing.");}
+      {errmsg=strdup("Expecting a maximum fetch server count, got nothing.");}
     else if(!isanumber(text))
-      {errmsg=(char*)malloc(56+strlen(text));sprintf(errmsg,"Expecting a maximum fetch server count, got '%s'.",text);}
+      {errmsg=x_asprintf("Expecting a maximum fetch server count, got '%s'.",text);}
     else
       {
        pointer->integer=atoi(text);
        if(pointer->integer<=0 || pointer->integer>MAX_FETCH_SERVERS)
-         {errmsg=(char*)malloc(48);sprintf(errmsg,"Invalid maximum fetch server count: %d.",pointer->integer);}
+         {errmsg=x_asprintf("Invalid maximum fetch server count: %d.",pointer->integer);}
       }
     break;
 
    case CfgLogLevel:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a log level, got nothing.");}
+      {errmsg=strdup("Expecting a log level, got nothing.");}
     else if(strcasecmp(text,"debug")==0)
        pointer->integer=Debug;
     else if(strcasecmp(text,"info")==0)
@@ -1061,36 +955,36 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
     else if(strcasecmp(text,"fatal")==0)
        pointer->integer=Fatal;
     else
-      {errmsg=(char*)malloc(48+strlen(text));sprintf(errmsg,"Expecting a log level, got '%s'.",text);}
+      {errmsg=x_asprintf("Expecting a log level, got '%s'.",text);}
     break;
 
    case Boolean:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a Boolean, got nothing.");}
+      {errmsg=strdup("Expecting a Boolean, got nothing.");}
     else if(!strcasecmp(text,"yes") || !strcasecmp(text,"true"))
        pointer->integer=1;
     else if(!strcasecmp(text,"no") || !strcasecmp(text,"false"))
        pointer->integer=0;
     else
-      {errmsg=(char*)malloc(48+strlen(text));sprintf(errmsg,"Expecting a Boolean, got '%s'.",text);}
+      {errmsg=x_asprintf("Expecting a Boolean, got '%s'.",text);}
     break;
 
    case PortNumber:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a port number, got nothing.");}
+      {errmsg=strdup("Expecting a port number, got nothing.");}
     else if(!isanumber(text))
-      {errmsg=(char*)malloc(40+strlen(text));sprintf(errmsg,"Expecting a port number, got '%s'.",text);}
+      {errmsg=x_asprintf("Expecting a port number, got '%s'.",text);}
     else
       {
        pointer->integer=atoi(text);
        if(pointer->integer<=0 || pointer->integer>65535)
-         {errmsg=(char*)malloc(32);sprintf(errmsg,"Invalid port number %d.",pointer->integer);}
+         {errmsg=x_asprintf("Invalid port number %d.",pointer->integer);}
       }
     break;
 
    case AgeDays:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting an age in days, got nothing.");}
+      {errmsg=strdup("Expecting an age in days, got nothing.");}
     else if(isanumber(text))
        pointer->integer=atoi(text);
     else
@@ -1111,13 +1005,13 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
              pointer->integer=val;
          }
        else
-         {errmsg=(char*)malloc(40+strlen(text));sprintf(errmsg,"Expecting an age in days, got '%s'.",text);}
+         {errmsg=x_asprintf("Expecting an age in days, got '%s'.",text);}
       }
     break;
 
    case TimeSecs:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a time in seconds, got nothing.");}
+      {errmsg=strdup("Expecting a time in seconds, got nothing.");}
     else if(isanumber(text))
        pointer->integer=atoi(text);
     else
@@ -1140,52 +1034,52 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
              pointer->integer=val;
          }
        else
-         {errmsg=(char*)malloc(40+strlen(text));sprintf(errmsg,"Expecting a time in seconds, got '%s'.",text);}
+         {errmsg=x_asprintf("Expecting a time in seconds, got '%s'.",text);}
       }
     break;
 
    case CacheSize:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a cache size in MB, got nothing.");}
+      {errmsg=strdup("Expecting a cache size in MB, got nothing.");}
     else if(!isanumber(text))
-      {errmsg=(char*)malloc(40+strlen(text));sprintf(errmsg,"Expecting a cache size in MB, got '%s'.",text);}
+      {errmsg=x_asprintf("Expecting a cache size in MB, got '%s'.",text);}
     else
       {
        pointer->integer=atoi(text);
        if(pointer->integer<0)
-         {errmsg=(char*)malloc(48);sprintf(errmsg,"Invalid cache size %d.",pointer->integer);}
+         {errmsg=x_asprintf("Invalid cache size %d.",pointer->integer);}
       }
     break;
 
    case FileSize:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a file size in kB, got nothing.");}
+      {errmsg=strdup("Expecting a file size in kB, got nothing.");}
     else if(!isanumber(text))
-      {errmsg=(char*)malloc(40+strlen(text));sprintf(errmsg,"Expecting a file size in kB, got '%s'.",text);}
+      {errmsg=x_asprintf("Expecting a file size in kB, got '%s'.",text);}
     else
       {
        pointer->integer=atoi(text);
        if(pointer->integer<0)
-         {errmsg=(char*)malloc(48);sprintf(errmsg,"Invalid file size %d.",pointer->integer);}
+         {errmsg=x_asprintf("Invalid file size %d.",pointer->integer);}
       }
     break;
 
    case Percentage:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a percentage, got nothing.");}
+      {errmsg=strdup("Expecting a percentage, got nothing.");}
     else if(!isanumber(text))
-      {errmsg=(char*)malloc(40+strlen(text));sprintf(errmsg,"Expecting a percentage, got '%s'.",text);}
+      {errmsg=x_asprintf("Expecting a percentage, got '%s'.",text);}
     else
       {
        pointer->integer=atoi(text);
        if(pointer->integer<0)
-         {errmsg=(char*)malloc(48);sprintf(errmsg,"Invalid percentage %d.",pointer->integer);}
+         {errmsg=x_asprintf("Invalid percentage %d.",pointer->integer);}
       }
     break;
 
    case UserId:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a username or uid, got nothing.");}
+      {errmsg=strdup("Expecting a username or uid, got nothing.");}
     else
       {
        int uid;
@@ -1195,9 +1089,9 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
        else
          {
           if(sscanf(text,"%d",&uid)!=1)
-            {errmsg=(char*)malloc(32+strlen(text));sprintf(errmsg,"Invalid user %s.",text);}
+            {errmsg=x_asprintf("Invalid user %s.",text);}
           else if(uid!=-1 && !getpwuid(uid))
-            {errmsg=(char*)malloc(32);sprintf(errmsg,"Unknown user id %d.",uid);}
+            {errmsg=x_asprintf("Unknown user id %d.",uid);}
          }
        pointer->integer=uid;
       }
@@ -1205,7 +1099,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case GroupId:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a group name or gid, got nothing.");}
+      {errmsg=strdup("Expecting a group name or gid, got nothing.");}
     else
       {
        int gid;
@@ -1215,12 +1109,27 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
        else
          {
           if(sscanf(text,"%d",&gid)!=1)
-            {errmsg=(char*)malloc(32+strlen(text));sprintf(errmsg,"Invalid group %s.",text);}
+            {errmsg=x_asprintf("Invalid group %s.",text);}
           else if(gid!=-1 && !getgrgid(gid))
-            {errmsg=(char*)malloc(32);sprintf(errmsg,"Unknown group id %d.",gid);}
+            {errmsg=x_asprintf("Unknown group id %d.",gid);}
          }
        pointer->integer=gid;
       }
+    break;
+
+   case CompressSpec:
+    if(!*text)
+      {errmsg=strdup("Expecting a CompressionSpecifier, got nothing.");}
+    else if(!strcasecmp(text,"no") || !strcasecmp(text,"false") || !strcasecmp(text,"none"))
+       pointer->integer=0;
+    else if(!strcasecmp(text,"deflate"))
+       pointer->integer=1;
+    else if(!strcasecmp(text,"gzip"))
+       pointer->integer=2;
+    else if(!strcasecmp(text,"yes") || !strcasecmp(text,"true"))
+       pointer->integer=3;
+    else
+      {errmsg=x_asprintf("Expecting a CompressionSpecifier, got '%s'.",text);}
     break;
 
    case String:
@@ -1228,54 +1137,50 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
        pointer->string=NULL;
     else
       {
-       pointer->string=(char*)malloc(strlen(text)+1);
-       strcpy(pointer->string,text);
+       pointer->string=strdup(text);
       }
     break;
 
    case PathName:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a pathname, got nothing.");}
+      {errmsg=strdup("Expecting a pathname, got nothing.");}
     else if(*text!='/')
-      {errmsg=(char*)malloc(48+strlen(text));sprintf(errmsg,"Expecting an absolute pathname, got '%s'.",text);}
+      {errmsg=x_asprintf("Expecting an absolute pathname, got '%s'.",text);}
     else
       {
-       pointer->string=(char*)malloc(strlen(text)+1);
-       strcpy(pointer->string,text);
+       pointer->string=strdup(text);
       }
     break;
 
    case FileExt:
     if(!*text)
-      {errmsg=(char*)malloc(40);strcpy(errmsg,"Expecting a file extension, got nothing.");}
+      {errmsg=strdup("Expecting a file extension, got nothing.");}
     else if(*text!='.')
-      {errmsg=(char*)malloc(40+strlen(text));sprintf(errmsg,"Expecting a file extension, got '%s'.",text);}
+      {errmsg=x_asprintf("Expecting a file extension, got '%s'.",text);}
     else
       {
-       pointer->string=(char*)malloc(strlen(text)+1);
-       strcpy(pointer->string,text);
+       pointer->string=strdup(text);
       }
     break;
 
    case FileMode:
     if(!*text)
-      {errmsg=(char*)malloc(40);strcpy(errmsg,"Expecting a file permissions mode, got nothing.");}
+      {errmsg=strdup("Expecting a file permissions mode, got nothing.");}
     else if(!isanumber(text) || *text!='0')
-      {errmsg=(char*)malloc(48+strlen(text));sprintf(errmsg,"Expecting a file permissions mode, got '%s'.",text);}
+      {errmsg=x_asprintf("Expecting a file permissions mode, got '%s'.",text);}
     else
        sscanf(text,"%o",&pointer->integer);
     break;
 
    case MIMEType:
      if(!*text)
-       {errmsg=(char*)malloc(40);strcpy(errmsg,"Expecting a MIME Type, got nothing.");}
+       {errmsg=strdup("Expecting a MIME Type, got nothing.");}
      else
        {
         char *slash=strchr(text,'/');
         if(!slash)
-          {errmsg=(char*)malloc(48+strlen(text));sprintf(errmsg,"Expecting a MIME Type/Subtype, got '%s'.",text);}
-        pointer->string=(char*)malloc(strlen(text)+1);
-        strcpy(pointer->string,text);
+          {errmsg=x_asprintf("Expecting a MIME Type/Subtype, got '%s'.",text);}
+        pointer->string=strdup(text);
        }
     break;
 
@@ -1290,7 +1195,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case Host:
     if(!*text)
-      {errmsg=(char*)malloc(40);strcpy(errmsg,"Expecting a hostname, got nothing.");}
+      {errmsg=strdup("Expecting a hostname, got nothing.");}
     else
       {
        char *p,*host;
@@ -1302,8 +1207,8 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
           if(*p=='*')
              wildcard=1;
           else if(*p==':')
-             colons++;
-          p++;
+             ++colons;
+          ++p;
          }
 
        /*
@@ -1319,24 +1224,24 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
        else
           host=CanonicaliseHost(text);
 
-       if(colons==1 && *host!='[')
-         {errmsg=(char*)malloc(56+strlen(text));sprintf(errmsg,"Expecting a hostname without a port number, got '%s'.",text);}
-       else
-         {
-          pointer->string=(char*)malloc(strlen(host)+1);
-          if(*host=='[')
-            {
-             strcpy(pointer->string,host+1);
-             pointer->string[strlen(pointer->string)-1]=0;
-            }
-          else
-             strcpy(pointer->string,host);
-          for(p=pointer->string;*p;p++)
-             *p=tolower(*p);
-         }
+       if(*host=='[') {
+	 if(!(p=strchr(host+1,']'))) goto hosterr;		
+	 pointer->string=strndup(host+1,p-(host+1));
+       }
+       else if(colons==1)
+	 {goto hosterr;}
+       else {
+	 pointer->string=strdup(host);
+       }
 
+       downcase(pointer->string);
+       goto free_host;
+
+      hosterr:
+       errmsg=x_asprintf("Expecting a hostname without a port number, got '%s'.",text);
+      free_host:
        if(host!=text)
-          free(host);
+	 free(host);
       }
      break;
 
@@ -1351,32 +1256,26 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case HostAndPort:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a hostname (and port), got nothing.");}
+      {errmsg=strdup("Expecting a hostname (and port), got nothing.");}
     else
       {
-       char *hoststr,*portstr;
-
        /*
          This is also tricky due to the IPv6 problem.
          We have to rely on the user using '[xxxx]:yyy' if they want an IPv6 address and port.
        */
 
-       SplitHostPort(text,&hoststr,&portstr);
-       RejoinHostPort(text,hoststr,portstr);
-
        if(*text==':')
-         {errmsg=(char*)malloc(48+strlen(text));sprintf(errmsg,"Expecting a hostname before the ':', got '%s'.",text);}
+         {errmsg=x_asprintf("Expecting a hostname before the ':', got '%s'.",text);}
        else
          {
+	  char *portstr=ExtractPort(text);
+
           if(portstr && (!isanumber(portstr) || atoi(portstr)<=0 || atoi(portstr)>65535))
-            {errmsg=(char*)malloc(32+strlen(portstr));sprintf(errmsg,"Invalid port number %s.",portstr);}
+            {errmsg=x_asprintf("Invalid port number %s.",portstr);}
           else
             {
-             char *p;
-             pointer->string=(char*)malloc(strlen(text)+1);
-             strcpy(pointer->string,text);
-             for(p=pointer->string;*p;p++)
-                *p=tolower(*p);
+             pointer->string= strdup(text);
+             downcase(pointer->string);
             }
          }
       }
@@ -1384,9 +1283,9 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case UserPass:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a username and password, got nothing.");}
+      {errmsg=strdup("Expecting a username and password, got nothing.");}
     else if(!strchr(text,':'))
-      {errmsg=(char*)malloc(48+strlen(text));sprintf(errmsg,"Expecting a username and password, got '%s'.",text);}
+      {errmsg=x_asprintf("Expecting a username and password, got '%s'.",text);}
     else
        pointer->string=Base64Encode(text,strlen(text));
     break;
@@ -1398,11 +1297,10 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
       {
        URL *tempUrl=SplitURL(text);
        if(!tempUrl->Protocol)
-         {errmsg=(char*)malloc(32+strlen(text));sprintf(errmsg,"Expecting a URL, got '%s'.",text);}
+         {errmsg=x_asprintf("Expecting a URL, got '%s'.",text);}
        else
          {
-          pointer->string=(char*)malloc(strlen(text)+1);
-          strcpy(pointer->string,text);
+          pointer->string=strdup(text);
          }
        FreeURL(tempUrl);
       }
@@ -1410,225 +1308,191 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case UrlSpecification:
     if(!*text)
-      {errmsg=(char*)malloc(64);strcpy(errmsg,"Expecting a URL-SPECIFICATION, got nothing.");}
+      {errmsg=strdup("Expecting a URL-SPECIFICATION, got nothing.");}
     else
       {
        char *p,*orgtext=text;
-
-       pointer->urlspec=(UrlSpec*)malloc(sizeof(UrlSpec));
-       pointer->urlspec->null=0;
-       pointer->urlspec->negated=0;
-       pointer->urlspec->nocase=0;
-       pointer->urlspec->proto=0;
-       pointer->urlspec->host=0;
-       pointer->urlspec->port=-1;
-       pointer->urlspec->path=0;
-       pointer->urlspec->args=0;
+       char negated=0,nocase=0;
+       char *proto=NULL,*host=NULL;
+       int port=-1;
+       char *path=NULL,*params=NULL,*args=NULL;
 
        /* !~ */
 
-       while(*text)
+       for(;;)
          {
           if(*text=='!')
-             pointer->urlspec->negated=1;
+             negated=1;
           else if(*text=='~')
-             pointer->urlspec->nocase=1;
+             nocase=1;
           else
              break;
 
-          text++;
+          ++text;
          }
 
        /* protocol */
 
        if(!strncmp(text,"*://",4))
-          p=text+4;
+	 p=text+4;
        else if(!strncmp(text,"://",3))
-          p=text+3;
-       else if((p=strstr(text,"://")))
-         {
-          pointer->urlspec->proto=sizeof(UrlSpec);
+	 p=text+3;
+       else if((p=strstr(text,"://"))) {
+	 proto=strndupa(text,p-text);
+	 p+=3;
 
-          pointer->urlspec=(UrlSpec*)realloc((void*)pointer->urlspec,
-                                             pointer->urlspec->proto+(p-text)+1);
-
-          strncpy(UrlSpecProto(pointer->urlspec),text,p-text);
-          *(UrlSpecProto(pointer->urlspec)+(p-text))=0;
-          p+=3;
-         }
+	 downcase(proto);
+       }
        else
-         {errmsg=(char*)malloc(64+strlen(orgtext));sprintf(errmsg,"Expecting a URL-SPECIFICATION, got this '%s'.",orgtext);
-          free(pointer->urlspec); break;}
-
-       if(pointer->urlspec->proto)
-         {
-          char *q;
-
-          for(q=UrlSpecProto(pointer->urlspec);*q;q++)
-             *q=tolower(*q);
-         }
+         goto urlspec_error;
 
        text=p;
 
        /* host */
 
-       if(*text=='*' && (*(text+1)=='/' || !*(text+1)))
-          p=text+1;
-       else if(*text==':')
-          p=text;
-       else if(*text=='[' && (p=strchr(text,']')))
-         {
-          p++;
-          pointer->urlspec->host=1;
-         }
-       else if((p=strchr(text,':')) && p<strchr(text,'/'))
-         {
-          pointer->urlspec->host=1;
-         }
-       else if((p=strchr(text,'/')))
-         {
-          pointer->urlspec->host=1;
-         }
-       else if(*text)
-         {
-          p=text+strlen(text);
-          pointer->urlspec->host=1;
-         }
-       else
-          p=text;
+       if(*text) {
+	 if(*text=='*' && (!*(text+1) || *(text+1)==':' || *(text+1)=='/'))
+	   p=text+1;
+	 else if(*text!=':' && *text!='/') {
+	   if(*text=='[' && (p=strchr(text+1,']')))
+	     ++p;
+	   else {
+	     char *q;
+	     p=strchrnul(text,':'); q=strchrnul(text,'/');
+	     if(p>q) p=q;
+	   }
 
-       if(pointer->urlspec->host)
-         {
-          char *q;
+	   host=strndupa(text,p-text);	   
 
-          pointer->urlspec->host=(unsigned short)(sizeof(UrlSpec)+
-                                                  (pointer->urlspec->proto?1+strlen(UrlSpecProto(pointer->urlspec)):0));
+	   downcase(host);
+	 }
 
-          pointer->urlspec=(UrlSpec*)realloc((void*)pointer->urlspec,
-                                             pointer->urlspec->host+(p-text)+1);
+	 text=p;
 
-          strncpy(UrlSpecHost(pointer->urlspec),text,p-text);
-          *(UrlSpecHost(pointer->urlspec)+(p-text))=0;
+	 /* port */
+	 if(*text) {
+	   if(*text==':') {
+	     ++text;
+	     if(isdigit(*text)) {
+	       port=atoi(text);
+	       p=text;
+	       while(isdigit(*++p));
+	     }
+	     else if(*text==0 || *text=='/') {
+	       port=0;
+	       p=text;
+	     }
+	     else if(*text=='*')
+	       p=text+1;
+	     else
+	       goto urlspec_error;
+	   }
 
-          for(q=UrlSpecHost(pointer->urlspec);*q;q++)
-             *q=tolower(*q);
-         }
+	   text=p;
 
-       text=p;
+	   /* path */
+	   if(*text) {
+	     char *semi=strchrnul(text,';');
+	     char *ques=strchrnul(text,'?');
+	     if(*text=='/') {
+	       p=ques;
+	       if(semi<ques) p=semi;
+	       if(*(text+1)!='*' || (++text)+1!=p) {
+		 char *temp1,*temp2;
 
-       /* port */
+		 temp1=(*p)?strndupa(text,p-text):text;
+		 temp2=URLDecodeGeneric(temp1);
+		 path=URLEncodePath(temp2);
+		 free(temp2);
+	       }
+	     }
+	     else if(text!=semi && text!=ques)
+	       goto urlspec_error;
 
-       if(*text==':' && isdigit(*(text+1)))
-         {
-          pointer->urlspec->port=atoi(text+1);
-          p=text+1;
-          while(isdigit(*p))
-             p++;
-         }
-       else if(*text==':' && (*(text+1)=='/' || *(text+1)==0))
-         {
-          pointer->urlspec->port=0;
-          p=text+1;
-         }
-       else if(*text==':' && *(text+1)=='*')
-         {
-          p=text+2;
-         }
-       else if(*text==':')
-         {errmsg=(char*)malloc(64+strlen(orgtext));sprintf(errmsg,"Expecting a URL-SPECIFICATION, got this '%s'.",orgtext);
-          free(pointer->urlspec); break;}
+	     text=p;
 
-       text=p;
+	     /* params */
 
-       /* path */
+	     if(*text==';') {
+	       ++text;
+	       p=ques;
+	       {
+		 char *temp=(*p)?strndupa(text,p-text):text;
+		 params=URLRecodeFormArgs(temp);
+	       }
+	     }
 
-       if(!*text)
-          ;
-       else if(*text=='?')
-          ;
-       else if(*text=='/' && (p=strchr(text,'?')))
-         {
-          if(strncmp(text,"/*?",3))
-             pointer->urlspec->path=1;
-         }
-       else if(*text=='/')
-         {
-          p=text+strlen(text);
-          if(strcmp(text,"/*"))
-             pointer->urlspec->path=1;
-         }
-       else
-         {errmsg=(char*)malloc(64+strlen(orgtext));sprintf(errmsg,"Expecting a URL-SPECIFICATION, got this '%s'.",orgtext);
-          free(pointer->urlspec); break;}
+	     text=p;
 
-       if(pointer->urlspec->path)
-         {
-          char *temppath,*path,oldp;
+	     /* args */
 
-          oldp=*p;
-          *p=0;
-          temppath=URLDecodeGeneric(text);
-          *p=oldp;
+	     if(*text=='?') {
+	       ++text;
+	       args=URLRecodeFormArgs(text);
+	     }
+	   }
+	 }
+       }
 
-          path=URLEncodePath(temppath);
-          free(temppath);
+       {
+	 UrlSpec* urlspec;
+	 size_t size=sizeof(UrlSpec);
+	 unsigned short proto_offset=0,host_offset=0,path_offset=0,params_offset=0,args_offset=0;
 
-          pointer->urlspec->path=(unsigned short)(sizeof(UrlSpec)+
-                                                  (pointer->urlspec->proto?1+strlen(UrlSpecProto(pointer->urlspec)):0)+
-                                                  (pointer->urlspec->host ?1+strlen(UrlSpecHost (pointer->urlspec)):0));
+	 if(proto) {
+	   proto_offset=size;
+	   size+=strlen(proto)+1;
+	 }
+	 if(host) {
+	   host_offset=size;
+	   size+=strlen(host)+1;
+	 }
+	 if(path) {
+	   path_offset=size;
+	   size+=strlen(path)+1;
+	 }
+	 if(params) {
+	   params_offset=size;
+	   size+=strlen(params)+1;
+	 }
+	 if(args) {
+	   args_offset=size;
+	   size+=strlen(args)+1;
+	 }
 
-          pointer->urlspec=(UrlSpec*)realloc((void*)pointer->urlspec,
-                                             pointer->urlspec->path+strlen(path)+1);
+	 urlspec=(UrlSpec*)malloc(size);
+	 urlspec->negated=negated;
+	 urlspec->nocase=nocase;
+	 urlspec->proto=proto_offset;
+	 urlspec->host=host_offset;
+	 urlspec->port=port;
+	 urlspec->path=path_offset;
+	 urlspec->params=params_offset;
+	 urlspec->args=args_offset;
 
-          strcpy(UrlSpecPath(pointer->urlspec),path);
+	 if(proto)
+	   strcpy(UrlSpecProto(urlspec),proto);
+	 if(host)
+	   strcpy(UrlSpecHost(urlspec),host);
+	 if(path) {
+	   strcpy(UrlSpecPath(urlspec),path);
+	   free(path);
+	 }
+	 if(params) {
+	   strcpy(UrlSpecParams(urlspec),params);
+	   free(params);
+	 }
+	 if(args) {
+	   strcpy(UrlSpecArgs(urlspec),args);
+	   free(args);
+	 }
 
-          free(path);
-         }
+	 pointer->urlspec=urlspec;
+       }
+       break;
 
-       text=p;
-
-       /* args */
-
-       if(!*text)
-          ;
-       else if(*text=='?' && !*(text+1))
-         {
-          p=text+1;
-
-          pointer->urlspec->args=1;
-         }
-       else if(*text=='?')
-         {
-          p=text+1;
-
-          pointer->urlspec->args=1;
-         }
-       else
-         {errmsg=(char*)malloc(64+strlen(orgtext));sprintf(errmsg,"Expecting a URL-SPECIFICATION, got this '%s'.",orgtext);
-          free(pointer->urlspec); break;}
-
-       if(pointer->urlspec->args)
-         {
-          char *args=NULL;
-
-          if(*p)
-             args=URLRecodeFormArgs(p);
-          else
-             args=p;
-
-          pointer->urlspec->args=(unsigned short)(sizeof(UrlSpec)+
-                                                  (pointer->urlspec->proto?1+strlen(UrlSpecProto(pointer->urlspec)):0)+
-                                                  (pointer->urlspec->host ?1+strlen(UrlSpecHost (pointer->urlspec)):0)+
-                                                  (pointer->urlspec->path ?1+strlen(UrlSpecPath (pointer->urlspec)):0));
-
-          pointer->urlspec=(UrlSpec*)realloc((void*)pointer->urlspec,
-                                             pointer->urlspec->args+strlen(args)+1);
-
-          strcpy(UrlSpecArgs(pointer->urlspec),args);
-
-          if(*args)
-             free(args);
-         }
+      urlspec_error:
+       errmsg=x_asprintf("Expecting a URL-SPECIFICATION, got this '%s'.",orgtext);
       }
     break;
    }

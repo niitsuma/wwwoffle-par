@@ -73,7 +73,23 @@ int CreateTempSpoolFile(void);
 void CloseTempSpoolFile(int fd);
 
 char *FileNameToURL(char *file);
-char *URLToFileName(URL *Url);
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  A macro to Convert a URL to a filename.
+  local_URLToFileName declares filename as a variable length array
+  and fills it with the file name corresponding to Url.
+  Written by Paul Rombouts as a replacement for the function URLToFileName().
+  ++++++++++++++++++++++++++++++++++++++*/
+
+#define local_URLToFileName(Url,filename) \
+ char *_hash=MakeHash(Url->file); \
+ size_t _hash_size=strlen(_hash)+1; \
+ char filename[_hash_size+2]; \
+ *filename='X'; \
+ memcpy(filename+1,_hash,_hash_size); \
+ free(_hash);
+
 
 #if defined(__CYGWIN__)
 int fchdir(int fd);
@@ -93,11 +109,12 @@ void ModifyRequest(URL *Url,Header *request_head);
 void MakeRequestProxyAuthorised(char *proxy,Header *request_head);
 void MakeRequestNonProxy(URL *Url,Header *request_head);
 
-int ParseReply(int fd,/*@out@*/ Header **reply_head);
+int ParseReply(int fd,/*@out@*/ Header **reply_head,/*@out@*/ int *reply_head_size);
 
 int SpooledPageStatus(URL *Url);
 
 int WhichCompression(char *content_encoding);
+int AcceptWhichCompression(HeaderList *list);
 
 void ModifyReply(URL *Url,Header *reply_head);
 
@@ -109,15 +126,14 @@ char /*@observer@*/ *HTMLMessageBody(int fd,char *template, ...);
 
 /* In local.c */
 
-void LocalPage(int fd,URL *Url,Header *request_head,/*@null@*/ Body *request_body);
+int LocalPage(int clientfd,int tmpfd,URL *Url,Header *request_head,/*@null@*/ Body *request_body);
 
-char /*@null@*/ *FindLanguageFile(char* search);
 int OpenLanguageFile(char* search);
-void SetLanguage(char *accept);
+void SetLanguage(Header *head);
 
 /* In cgi.c */
 
-void LocalCGI(int fd,URL *Url,char *file,Header *request_head,/*@null@*/ Body *request_body);
+void LocalCGI(int fd,char *file,URL *Url,Header *request_head,/*@null@*/ Body *request_body);
 
 /* In index.c */
 

@@ -12,17 +12,24 @@ proto       = The URL protocol (= '$proto').
 host        = The URL host (= '$host').
 port        = The URL host port (= '$port').
 path        = The URL path (= '$path').
+params      = The URL params (= '$params').
 args        = The URL args (= '$args').
 
 WWWOFFLE Configuration page Prefix
 
 $control=http://$localhost/control
 $configuration=http://$localhost/configuration
-
+$htmlurl=%html[url]
+$htmlproto=%html[proto]
+$htmlhost=%html[host]
+$htmlport=%html[port]
+$htmlpath=%html[path]
+$htmlparams=%html[params]
+$htmlargs=%html[args]
 -->
 
 <HEAD>
-<TITLE>WWWOFFLE - Interactive Configuration Page - URL $url</TITLE>
+<TITLE>WWWOFFLE - Interactive Configuration Page - URL $htmlurl</TITLE>
 </HEAD>
 
 <BODY>
@@ -40,9 +47,9 @@ $configuration=http://$localhost/configuration
 <H1 align=center>WWWOFFLE Interactive Configuration</H1>
 
 $wildcard?{
-<H2>URL: $url</H2>
+<H2>URL: $htmlurl</H2>
 }{
-<H2>URL: <a href="$url">$url</a></H2>
+<H2>URL: <a href="$htmlurl">$htmlurl</a></H2>
 }
 
 This page allows a number of configuration items for a particular URL to be set.
@@ -57,57 +64,73 @@ wildcard options as shown in the form below.
 Protocol:
 <select name="proto">
 $proto?=*{}{
-  <option value="$proto"              selected>$proto</option>
+  <option value="$htmlproto" selected>$htmlproto</option>
 }
-  <option value="*"      $proto?=*{selected}{}>Any Protocol</option>
-  <option value="OTHER"                       >Other; specify --&gt;</option>
+  <option value="*" $proto?=*{selected}{}>Any Protocol</option>
+  <option value="OTHER">Other; specify --&gt;</option>
 </select>
-[other: <input type="text" value="$proto" size="5" name="proto_other">]
+[other: <input type="text" value="$htmlproto" size="5" name="proto_other">]
 
 <p>
-Host:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Host:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <select name="host">
 $host?=*{}{
-  <option value="$host"             selected>$host</option>
+  <option value="$htmlhost" selected>$htmlhost</option>
 }
-  <option value="*"     $host?=*{selected}{}>Any Host</option>
-  <option value="OTHER"                     >Other (e.g. *.com or www.*.com); specify --&gt;</option>
+  <option value="*" $host?=*{selected}{}>Any Host</option>
+  <option value="OTHER">Other (e.g. *.com or www.*.com); specify --&gt;</option>
 </select>
-[other: <input type="text" value="$host" size="24" name="host_other">]
+[other: <input type="text" value="$htmlhost" size="24" name="host_other">]
 
 <p>
-Port:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Port:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <select name="port">
-$port?{
-  <option value=":$port" selected          >$port</option>
+$port?=:{}$port?{
+  <option value="$htmlport" selected>$htmlport</option>
 }{}
-  <option value=":"                        >Default port for protocol</option>
-  <option value=""       $port?{}{selected}>Any port</option>
-  <option value="OTHER"                    >Other (e.g. port 8080); specify --&gt;</option>
+  <option value=":" $port?=:{selected}{}>Default port for protocol</option>
+  <option value="" $port?{}{selected}>Any port</option>
+}
+  <option value="OTHER">Other (e.g. port 8080); specify --&gt;</option>
 </select>
-[other: <input type="text" value="$port" size="5" name="port_other">]
+[other: <input type="text" value="$htmlport" size="5" name="port_other">]
 
 <p>
-Path:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+Path:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <select name="path">
-  <option value="$path" $path?=/*{}{selected}>$path</option>
-  <option value="/*"    $path?=/*{selected}{}>Any Path</option>
-  <option value="OTHER"                      >Other (e.g. /foo/* or /*.bar); specify --&gt;</option>
+$path?=/*{}{
+  <option value="$htmlpath" selected>$htmlpath</option>
+}
+  <option value="/*" $path?=/*{selected}{}>Any Path</option>
+  <option value="OTHER">Other (e.g. /foo/* or /*.bar); specify --&gt;</option>
 </select>
-[other: <input type="text" value="$path" size="16" name="path_other">]
+[other: <input type="text" value="$htmlpath" size="32" name="path_other">]
+
+<p>
+Parameters:
+<select name="params">
+$params?=;{}$params?=;*{}$params?{
+  <option value="$htmlparams" selected>$htmlparams</option>
+}{}
+  <option value=";" $params?=;{selected}{}>No parameters</option>
+  <option value=";*" $params?=;*{selected}{}>Any parameters</option>
+  <option value="" $params?{}{selected}>Any or none</option>
+  <option value="OTHER">Other (e.g. ;foo=bar); specify --&gt;</option>
+</select>
+[other: <input type="text" value="$htmlparams" size="32" name="params_other">]
 
 <p>
 Arguments:
 <select name="args">
-$args?{
-  <option value="?$args"           selected>$args</option>
+$args?=?{}$args?=?*{}$args?{
+  <option value="$htmlargs" selected>$htmlargs</option>
 }{}
-  <option value="?"                        >No arguments</option>
-  <option value="?*"                       >Any arguments</option>
-  <option value=""       $args?{}{selected}>Any or none</option>
-  <option value="OTHER"                    >Other (e.g. ?foo=bar); specify --&gt;</option>
+  <option value="?" $args?=?{selected}{}>No arguments</option>
+  <option value="?*" $args?=?*{selected}{}>Any arguments</option>
+  <option value="" $args?{}{selected}>Any or none</option>
+  <option value="OTHER">Other (e.g. ?foo=bar); specify --&gt;</option>
 </select>
-[other: <input type="text" value="$args" size="16" name="args_other">]
+[other: <input type="text" value="$htmlargs" size="32" name="args_other">]
 
 <p>
 <input type="submit" value="Change URL-SPECIFICATION">

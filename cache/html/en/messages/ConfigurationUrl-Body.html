@@ -2,7 +2,6 @@
 
 Available WWWOFFLE Variables (all with a '$' prefix).
 
-entry = The entry in the configuration file (= '$entry').
 section     = The section of the configuration file (= '$section').
 item        = The item in the section of the configuration file (= '$item').
 template    = The template for the item.
@@ -26,6 +25,6 @@ $description?{$description}{<i>No description</i>}
 
 $current?{
 <ul>
-  <li>%html[current]
+%htmlitems[current]
 </ul>
 }{}

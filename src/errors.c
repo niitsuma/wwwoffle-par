@@ -1,7 +1,7 @@
 /***************************************
   $Header: /home/amb/wwwoffle/src/RCS/errors.c 2.32 2002/08/04 10:27:34 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
   Generate error messages in a standard format optionally to syslog and stderr.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -89,6 +89,11 @@ char* strerror(int err)
 extern int h_errno;
 #endif
 
+#include "errors.h"
+#include "config.h"
+#include "misc.h"
+
+
 /* A function to get an error message for h_errno. */
 
 static /*@observer@*/ char* h_strerror(int err);
@@ -150,13 +155,9 @@ extern char *z_strerror;
 extern int gai_errno;
 #endif
 
-
-#include "errors.h"
-#include "config.h"
-#include "misc.h"
-
+static char unknown_program[]= "?";
 /*+ The name of the program. +*/
-static char *program="?";
+static char *program=unknown_program;
 
 /*+ The process id of the program. +*/
 static pid_t pid;
@@ -195,7 +196,7 @@ ErrorLevel LoggingLevel=Important,  /*+ in the config file for syslog and stderr
 
 void InitErrorHandler(char *name,int syslogable,int stderrable)
 {
- if(use_syslog && *program!='?')
+ if(use_syslog && program!=unknown_program)
     closelog();
 
  program=name;
@@ -236,11 +237,9 @@ void InitErrorHandler(char *name,int syslogable,int stderrable)
 
 char *PrintMessage(ErrorLevel errlev,const char* fmt, ...)
 {
- int str_len=16+strlen(fmt);
- static /*@only@*/ char* string=NULL;
- va_list ap;
- int i,j;
- time_t this_time=time(NULL);
+ static char* /*@only@*/ string=NULL;
+ const char *new_fmt=fmt;
+ time_t this_time;
 
  /* Shortcut (bypass if debug) */
 
@@ -249,6 +248,7 @@ char *PrintMessage(ErrorLevel errlev,const char* fmt, ...)
 
  /* Periodic timestamp */
 
+ this_time=time(NULL);
  if(last_time && (this_time-last_time)>3600)
    {
     last_time=this_time;
@@ -256,102 +256,122 @@ char *PrintMessage(ErrorLevel errlev,const char* fmt, ...)
        fprintf(stderr,"%s[%ld] Timestamp: %s",program,(long)pid,ctime(&this_time)); /* Used in audit-usage.pl */
    }
 
- /* Parsing of printf style arguments. */
-
  if(string)
     free(string);
 
- string=(char*)malloc(str_len);
+ /* Parsing of special conversion specifiers %!s and %!d. */
+ {
+   int fmt_len=0,strerrlen=0,strerrnolen=0;
+   char *strerr=NULL, *strerrno=NULL, *p; const char *q;
 
-#ifdef __STDC__
- va_start(ap,fmt);
-#else
- va_start(ap);
-#endif
-
- for(i=0,j=0;fmt[i];i++)
-    if(fmt[i]!='%')
-       string[j++]=fmt[i];
-    else
-      {
-       char str[16],*strp=NULL;
-
-       switch(fmt[++i])
-         {
-         case '!':
-          if(fmt[++i]=='s')
-            {
-             if(errno==ERRNO_USE_H_ERRNO)
-                strp=h_strerror(h_errno);
+   for(q=fmt; *q; ++q) {
+     if(*q=='%') {
+       if(*++q=='!') {
+	 if(*++q=='s') {
+	   if(!strerr) {
+	     char *r; const char *str,*s;
+	     if(errno==ERRNO_USE_H_ERRNO)
+	       str=h_strerror(h_errno);
 #if USE_ZLIB
-             else if(errno==ERRNO_USE_Z_ERRNO)
-                strp=z_strerror;
+	     else if(errno==ERRNO_USE_Z_ERRNO)
+	       str=z_strerror;
 #endif
 #if USE_IPV6
-             else if(errno==ERRNO_USE_GAI_ERRNO)
-                strp=(char*)gai_strerror(gai_errno);
+	     else if(errno==ERRNO_USE_GAI_ERRNO)
+	       str=(char*)gai_strerror(gai_errno);
 #endif
-             else
-                strp=strerror(errno);
-            }
-          else
-            {
-             if(errno==ERRNO_USE_H_ERRNO)
-                sprintf(strp=str,"%d (h_errno)",h_errno);
+	     else
+	       str=strerror(errno);
+
+	     /* We have to double any possible % */
+	     strerrlen=0;
+	     for(s=str; *s; ++s) {
+	       ++strerrlen;
+	       if(*s=='%') ++strerrlen;
+	     }
+	   
+	     strerr=r=(char *)alloca(strerrlen+1);
+	     for(s=str; *s; ++s) {
+	       *r++=*s;
+	       if(*s=='%') *r++=*s;
+	     }
+	     *r=0;
+	   }
+	   fmt_len+=strerrlen;
+	 }
+	 else {
+	   if(!strerrno) {
+	     strerrno=(char *)alloca(24);
+	     if(errno==ERRNO_USE_H_ERRNO)
+	       strerrnolen=sprintf(strerrno,"%d (h_errno)",h_errno);
 #if USE_ZLIB
-             else if(errno==ERRNO_USE_Z_ERRNO)
-                sprintf(strp=str,"%d (z_errno)",z_errno);
+	     else if(errno==ERRNO_USE_Z_ERRNO)
+	       strerrnolen=sprintf(strerrno,"%d (z_errno)",z_errno);
 #endif
 #if USE_IPV6
-             else if(errno==ERRNO_USE_GAI_ERRNO)
-                sprintf(strp=str,"%d (gai_errno)",gai_errno);
+	     else if(errno==ERRNO_USE_GAI_ERRNO)
+	       strerrnolen=sprintf(strerrno,"%d (gai_errno)",gai_errno);
 #endif
-             else
-                sprintf(strp=str,"%d",errno);
-            }
-          break;
+	     else
+	       strerrnolen=sprintf(strerrno,"%d",errno);
+	   }
+	   fmt_len+=strerrnolen;
+	   if(!*q) break;
+	 }
+	 continue;
+       }
+       else {
+	 fmt_len+=1;
+	 if(!*q) break;
+       }
+     }
 
-         case 'c':
-          str[0]=(char)va_arg(ap,int); /* beware of type promotion */
-          str[1]=0;
-          strp=str;
-          break;
+     fmt_len+=1;
+   }
 
-         case 'd':
-          sprintf(strp=str,"%d",va_arg(ap,int));
-          break;
+   if(q==fmt || *(q-1)!='\n') {
+     fmt_len+=1;
+     goto make_new_fmt;
+   }
 
-         case 's':
-          strp=va_arg(ap,char*);
-          if(!strp) strp="(null)";
-          break;
+   if(strerr || strerrno)
+   make_new_fmt:
+   {
+     new_fmt= p= (char*)alloca(fmt_len+1);
 
-         default:
-          str[0]='%';
-          str[1]=fmt[i];
-          str[2]=0;
-          strp=str;
-          (void)va_arg(ap,void*);
-         }
+     for(q=fmt; *q; ++q) {
+       if(*q=='%') {
+	 if(*++q=='!') {
+	   if(*++q=='s')
+	     p=stpcpy(p,strerr);
+	   else {
+	     p=stpcpy(p,strerrno);
+	     if(!*q) break;
+	   }
+	   continue;
+	 }
+	 else {
+	   *p++=*(q-1);
+	   if(!*q) break;
+	 }
+       }
 
-       str_len+=strlen(strp);
-       string=realloc(string,str_len);
-       strcpy(&string[j],strp);
-       j+=strlen(strp);
-      }
+       *p++=*q;
+     }
 
-#if defined(__CYGWIN__)
- if(string[j-1]=='\n')
-    j--;
- string[j++]='\r';
- string[j++]='\n';
-#else
- if(string[j-1]!='\n')
-    string[j++]='\n';
-#endif
- string[j]=0;
+     if(q==fmt || *(q-1)!='\n') *p++='\n';
 
- va_end(ap);
+     *p=0;
+   }
+ }
+
+ {
+   va_list ap;
+
+   va_start(ap,fmt);
+   if(vasprintf(&string,new_fmt,ap)<0) string=NULL;
+   va_end(ap);
+ }
 
  /* Output the result. */
 
@@ -384,13 +404,14 @@ static char *syslog_facility=NULL;
 static void openlog(char *facility)
 {
  char *config_file=ConfigurationFileName();
- char *syslogfile=(char*)malloc(strlen(config_file)+16),*p;
+ char *p=strchrnul(config_file,0);
+ char *syslogfile;
+ int pathlen;
 
- strcpy(syslogfile,config_file);
- p=syslogfile+strlen(syslogfile)-1;
- while(p>=syslogfile && *p!='/')
-    *p--=0;
- strcat(syslogfile,"wwwoffle.syslog");
+ while(--p>=config_file && *p!='/');
+ pathlen=p+1-config_file;
+ syslogfile=(char *)alloca(pathlen+sizeof("wwwoffle.syslog"));
+ stpcpy(mempcpy(syslogfile,config_file,pathlen),"wwwoffle.syslog");
 
  syslog_file=open(syslogfile,O_WRONLY|O_CREAT|O_APPEND);
  init_buffer(syslog_file);

@@ -17,6 +17,9 @@
 #define MISC_H    /*+ To stop multiple inclusions. +*/
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 
 /*+ A forward definition of the protocol type. +*/
 typedef struct _Protocol *ProtocolP;
@@ -32,9 +35,13 @@ typedef struct _URL
 
  char *hostp;                   /*+ A pointer to the host in the url. +*/
  char *pathp;                   /*+ A pointer to the path in the url. +*/
+ char *pathendp;                /*+ A pointer to the end of the path in url +*/
 
  char *proto;                   /*+ The protocol. +*/
- char *host;                    /*+ The host. +*/
+ char *hostport;                /*+ host and port combination +*/
+ char *host;                    /*+ The host (may point to hostport) +*/
+ char *port;                    /*+ The port (points inside hostport, or is null) +*/
+ int   portnum;                 /*+ The port (integer representation) +*/
  char *path;                    /*+ The path. +*/
  char *params;                  /*+ The parameters. +*/
  char *args;                    /*+ The arguments (also known as the query in RFCs). +*/
@@ -51,55 +58,23 @@ typedef struct _URL
 URL;
 
 /*+ A request or reply header type. +*/
-typedef struct _Header
-{
- int type;                      /*+ The type of header, request=1 or reply=0. +*/
-
- char *method;                  /*+ The request method used. +*/
- char *url;                     /*+ The requested URL. +*/
- int status;                    /*+ The reply status. +*/
- char *note;                    /*+ The reply string. +*/
- char *version;                 /*+ The HTTP version. +*/
-
- int n;                         /*+ The number of header entries. +*/
- char **key;                    /*+ The name of the header line. +*/
- char **val;                    /*+ The value of the header line. +*/
-
- int size;                      /*+ The size of the header as read from the file/socket. +*/
-}
-Header;
+typedef struct _Header Header;
 
 /*+ A request or reply body type. +*/
 typedef struct _Body
 {
  int length;                    /*+ The length of the content. +*/
-
- char *content;                 /*+ The content itself. +*/
+ char content[0];               /*+ The content itself. +*/
 }
 Body;
 
-
-/*+ A header list item. +*/
-typedef struct _HeaderListItem
-{
- char *val;                     /*+ The string value. +*/
- float qval;                    /*+ The quality value. +*/
-}
-HeaderListItem;
-
 /*+ A header value split into a list. +*/
-typedef struct _HeaderList
-{
- int n;                         /*+ The number of items in the list. +*/
-
- HeaderListItem *item;          /*+ The individual items (sorted into q value preference order). +*/
-}
-HeaderList;
+typedef struct _HeaderList HeaderList;
 
 
 /* in miscurl.c */
 
-URL /*@only@*/ /*@unique@*/ *SplitURL(char *url);
+URL /*@only@*/ /*@unique@*/ *SplitURL(const char *url);
 void AddURLPassword(URL *Url,char *user,/*@null@*/ char *pass);
 void FreeURL(/*@only@*/ URL *Url);
 
@@ -108,8 +83,44 @@ char *LinkURL(URL *Url,char *link);
 char *CanonicaliseHost(char *host);
 void CanonicaliseName(char *name);
 
-void SplitHostPort(char *hostport,/*@out@*/ char **host,/*@out@*/ /*@null@*/ char **port);
-void RejoinHostPort(char *hostport,char *host,/*@null@*/ char *port);
+inline static void SplitHostPort(char *hostport,char **host,int *hostlen,char **port)
+{
+  *port=NULL;
+  if(*hostport=='[') {   /* IPv6 */
+    char *square=strchrnul(hostport,']');
+    if(*square) {
+      ++hostport;
+      if(*(square+1)==':') *port=square+2;
+    }
+    *host=hostport;
+    *hostlen=square-hostport;
+  }
+  else {
+    char *colon=strchrnul(hostport,':');
+    if(*colon) {
+      *port=colon+1;
+    }
+    *host=hostport;
+    *hostlen=colon-hostport;
+  }
+}
+
+inline static char *ExtractPort(char *hostport)
+{
+  if(*hostport=='[') {   /* IPv6 */
+    char *square=strchr(hostport,']');
+    if(square) {
+      if(*(square+1)==':') return square+2;
+    }
+  }
+  else {
+    char *colon=strchr(hostport,':');
+    if(colon)
+      return colon+1;
+  }
+
+  return NULL;
+}
 
 
 /* In miscencdec.c */
@@ -127,45 +138,23 @@ char /*@only@*/ **SplitFormArgs(char *str);
 
 char /*@only@*/ *MakeHash(const char *args);
 
-char /*@observer@*/ *RFC822Date(long t,int utc);
-long DateToTimeT(const char *date);
+#define MAXDATESIZE 32
+void RFC822Date_r(time_t t,int utc,char *buf);
+char /*@observer@*/ *RFC822Date(time_t t,int utc);
+time_t DateToTimeT(const char *date);
 char /*@observer@*/ *DurationToString(const long duration);
 
 char /*@only@*/ *Base64Decode(const char *str,/*@out@*/ int *l);
 char /*@only@*/ *Base64Encode(const char *str,int l);
 
-char /*@only@*/* HTMLString(const char* c,int nbsp);
+char /*@only@*/ *HTMLString(const char* c,int nbsp);
 
-
-/* In headbody.c */
-
-Header /*@only@*/ *CreateHeader(char *line,int type);
-
-void AddToHeader(Header *head,/*@null@*/ char *key,char *val);
-int AddToHeaderRaw(Header *head,char *line);
-
-void ChangeURLInHeader(Header *head,char *url);
-void ChangeNoteInHeader(Header *head,char *note);
-void RemovePlingFromHeader(Header *head,char *url);
-
-void RemoveFromHeader(Header *head,char* key);
-void RemoveFromHeader2(Header *head,char* key,char *val);
-
-char /*@null@*/ /*@observer@*/ *GetHeader(Header *head,char* key);
-char /*@null@*/ /*@observer@*/ *GetHeader2(Header *head,char* key,char *val);
-
-char /*@only@*/ *HeaderString(Header *head);
-
-void FreeHeader(/*@only@*/ Header *head);
-
-Body /*@only@*/ *CreateBody(int length);
-void FreeBody(/*@only@*/ Body *body);
-
-HeaderList /*@only@*/ *SplitHeaderList(char *val);
-void FreeHeaderList(/*@only@*/ HeaderList *hlist);
 
 
 /* In io.c */
+
+/*+ The buffer size for reading lines. +*/
+#define BUFSIZE 256
 
 void set_read_timeout(int timeout);
 
@@ -196,5 +185,71 @@ int init_zlib_buffer(int fd,int direction);
 int finish_zlib_buffer(int fd);
 #endif
 
+int write_all(int fd,const char *data,int n);  /* placed here by Paul Rombouts */
+
+off_t buffered_seek_cur(int fd);  /* added by Paul Rombouts */
+
+
+
+/* following inline functions and macros were added by Paul Rombouts */
+
+inline static void upcase(char *p)
+{
+  for(;*p;++p) *p=toupper(*p);
+}
+
+inline static void downcase(char *p)
+{
+  for(;*p;++p) *p=tolower(*p);
+}
+
+inline static void str_append(char **dst, const char *src)
+{
+  size_t strlen_dst=(*dst)?strlen(*dst):0;
+  size_t sizeof_src=strlen(src)+1;
+  *dst= (char *)realloc(*dst, strlen_dst+sizeof_src);
+  memcpy(*dst+strlen_dst,src,sizeof_src);
+}
+
+inline static void strn_append(char **dst, size_t *lendst, const char *src)
+{
+  size_t lensrc=strlen(src);
+  size_t newlen=*lendst+lensrc;
+  *dst= (char *)realloc(*dst, newlen+1);
+  memcpy(*dst+*lendst,src,lensrc+1);
+  *lendst=newlen;
+}
+
+inline static void chomp_str(char *str)
+{
+  char *p=strchrnul(str,0);
+  while(--p>=str && (*p=='\n' || *p=='\r')) *p=0;
+}
+
+/* I need a macro that gives the length of a string literal.
+   This should preferably yield an integer constant.
+   If the compiler is capable of constant folding and 
+   recognizes strlen() as a builtin function (like gcc),
+   the first definition is better (better type safety),
+   otherwise the second alternative should be used. */
+#define strlitlen(strlit) strlen(strlit)
+/* #define strlitlen(strlit) (sizeof(strlit)-1) */
+
+#define strcmp_beg(str,beg) strncmp(str,beg,strlen(beg))
+#define strcasecmp_beg(str,beg) strncasecmp(str,beg,strlen(beg))
+
+#define strcmp_litbeg(str,strlit) strncmp(str,strlit,strlitlen(strlit))
+#define strcasecmp_litbeg(str,strlit) strncasecmp(str,strlit,strlitlen(strlit))
+
+#define x_asprintf(...)  \
+ ({ char *_result; (asprintf(&_result, __VA_ARGS__) >= 0) ? _result : NULL; })
+  
+#define sprintf_strdupa(format,str)  \
+ ({ char *_str=(str); char *_result= (char *)alloca((sizeof(format)-2)+strlen(_str)); sprintf(_result,(format),_str); _result; })
+
+#define STRDUP2(p,q)  strndup((p),(q)-(p))
+#define STRDUP3(p,q,f) ({size_t _templen=(q)-(p); char _temp[_templen+1]; *((char *)mempcpy(_temp, (p), _templen))=0; f(_temp); })
+
+#define local_strdup(str,copy) size_t _str_size=strlen(str)+1; char copy[_str_size]; memcpy(copy,str,_str_size);
 
 #endif /* MISC_H */

@@ -1,7 +1,7 @@
 /***************************************
   $Header: /home/amb/wwwoffle/src/RCS/configpriv.h 1.17 2002/08/21 14:28:30 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
   Configuration file management functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -104,6 +104,8 @@ typedef enum _ConfigType
  UserId,                        /*+ For user IDs, (numeric or string). +*/
  GroupId,                       /*+ For group IDs, (numeric or string). +*/
 
+ CompressSpec,                  /*+ For compression specifiers (0=identity, 1=deflate, 2=gzip, 3= wwwoffle default) +*/
+
  String,                        /*+ For an arbitrary string. +*/
 
  PathName,                      /*+ For pathname values (string starting with '/'). +*/
@@ -162,21 +164,22 @@ ConfigFile;
 /*+ A URL-SPECIFICATION as described in README.CONF. +*/
 typedef struct _UrlSpec
 {
-          char  null;           /*+ A null character for parts that are not set. +*/
           char  negated;        /*+ Set to true if this is a negated URL-SPECIFICATION +*/
           char  nocase;         /*+ A flag that is set if case is ignored in the path.  +*/
  unsigned short proto;          /*+ The protocol or 0 (specified as an offset from start of UrlSpec). +*/
  unsigned short host;           /*+ The hostname or 0 (specified as an offset from start of UrlSpec). +*/
-          int   port;           /*+ The port number (or 0 or -1). +*/
  unsigned short path;           /*+ The pathname or 0 (specified as an offset from start of UrlSpec). +*/
+ unsigned short params;         /*+ The parameters or 0 (specified as an offset from start of UrlSpec). +*/
  unsigned short args;           /*+ The arguments or 0 (specified as an offset from start of UrlSpec). +*/
+          int   port;           /*+ The port number (or 0 or -1). +*/
 }
 UrlSpec;
 
-#define UrlSpecProto(xxx) (char*)((char*)(xxx)+(int)(xxx)->proto)
-#define UrlSpecHost(xxx)  (char*)((char*)(xxx)+(int)(xxx)->host)
-#define UrlSpecPath(xxx)  (char*)((char*)(xxx)+(int)(xxx)->path)
-#define UrlSpecArgs(xxx)  (char*)((char*)(xxx)+(int)(xxx)->args)
+#define UrlSpecProto(xxx)  ((char*)(xxx)+(xxx)->proto)
+#define UrlSpecHost(xxx)   ((char*)(xxx)+(xxx)->host)
+#define UrlSpecPath(xxx)   ((char*)(xxx)+(xxx)->path)
+#define UrlSpecParams(xxx) ((char*)(xxx)+(xxx)->params)
+#define UrlSpecArgs(xxx)   ((char*)(xxx)+(xxx)->args)
 
 /*+ A key or a value. +*/
 typedef union _KeyOrValue
@@ -195,7 +198,7 @@ struct _ConfigItem
  UrlSpec      **url;            /*+ The list of URL-SPECIFICATIONs if present. +*/
  KeyOrValue    *key;            /*+ The list of keys. +*/
  KeyOrValue    *val;            /*+ The list of values. +*/
- KeyOrValue    *def_val;        /*+ The default value. +*/
+ KeyOrValue     def_val;        /*+ The default value. +*/
 };
 
 
@@ -219,10 +222,21 @@ void PurgeBackupConfigFile(int restore_startup);
 void PurgeConfigFile(void);
 
 void FreeConfigItem(/*@null@*/ /*@only@*/ ConfigItem item);
-void FreeKeyOrValue(/*@only@*/ KeyOrValue *keyval,ConfigType type);
+void FreeKeysOrValues(KeyOrValue *keyval,ConfigType type,int n);  /* Added by Paul Rombouts */
 
-int MatchUrlSpecification(UrlSpec *spec,char *proto,char *host,char *path,/*@null@*/ char *args);
-int WildcardMatch(char *string,char *pattern,int nocase);
+/* Added by Paul Rombouts */
+inline static void FreeUrlSpecification(UrlSpec *urlspec)
+{
+  if(urlspec)
+    free(urlspec);
+}
+
+
+int MatchUrlSpecification(UrlSpec *spec,URL *Url);
+int MatchUrlSpecificationProtoHostPort(UrlSpec *spec,char *proto,char *hostport);
+int WildcardMatch(const char *string,const char *pattern);
+int WildcardCaseMatch(const char *string,const char *pattern);
+int WildcardMatchN(const char *string,int stringlen,const char *pattern);
 
 #if CONFIG_DEBUG_DUMP
 void DumpConfigFile(void);

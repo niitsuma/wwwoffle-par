@@ -197,7 +197,7 @@ static ConfigItemDef onlineoptions_itemdefs[]={
  {"intr-download-size"     ,&IntrDownloadSize     ,1,0,Fixed,FileSize  ,"1"  },
  {"intr-download-percent"  ,&IntrDownloadPercent  ,1,0,Fixed,Percentage,"80" },
  {"timeout-download-keep"  ,&TimeoutDownloadKeep  ,1,0,Fixed,Boolean   ,"no" },
- {"request-compressed-data",&RequestCompressedData,1,0,Fixed,Boolean   ,"yes"}
+ {"request-compressed-data",&RequestCompressedData,1,0,Fixed,CompressSpec,"yes"}
 };
 
 /*+ OnlineOptions section. +*/
@@ -211,6 +211,9 @@ static ConfigSection onlineoptions_section={"OnlineOptions",
 /*+ The option to allow or ignore the 'Pragma: no-cache' request. +*/
 ConfigItem PragmaNoCache;
 
+/*+ The option to allow or ignore the 'Cache-Control: no-cache' or 'Cache-Control: max-age=0' request. +*/
+ConfigItem CacheControlNoCache;
+
 /*+ The option to not automatically make requests while offline but to need confirmation. +*/
 ConfigItem ConfirmRequests;
 
@@ -219,9 +222,10 @@ ConfigItem DontRequestOffline;
 
 /*+ The item definitions in the OfflineOptions section. +*/
 static ConfigItemDef offlineoptions_itemdefs[]={
- {"pragma-no-cache" ,&PragmaNoCache     ,1,0,Fixed,Boolean,"yes"},
- {"confirm-requests",&ConfirmRequests   ,1,0,Fixed,Boolean,"no" },
- {"dont-request"    ,&DontRequestOffline,1,0,Fixed,Boolean,"no" }
+ {"pragma-no-cache"        ,&PragmaNoCache      ,1,0,Fixed,Boolean,"yes"},
+ {"cache-control-no-cache" ,&CacheControlNoCache,1,0,Fixed,Boolean,"yes"},
+ {"confirm-requests"       ,&ConfirmRequests    ,1,0,Fixed,Boolean,"no" },
+ {"dont-request"           ,&DontRequestOffline ,1,0,Fixed,Boolean,"no" }
 };
 
 /*+ OfflineOptions section. +*/
@@ -532,26 +536,45 @@ static ConfigSection dontcompress_section={"DontCompress",
                                            dontcompress_itemdefs};
 
 
-/* CensorHeader section */
+/* CensorIncomingHeader section */
 
 /*+ The list of censored headers. +*/
-ConfigItem CensorHeader;
+ConfigItem CensorIncomingHeader;
+
+/*+ Flags to cause Set-Cookie headers to be mangled. +*/
+ConfigItem SessionCookiesOnly;
+
+/*+ The item definitions in the censor incoming headers section. +*/
+static ConfigItemDef censorincomingheader_itemdefs[]={
+ {"session-cookies-only",&SessionCookiesOnly  ,1,0,Fixed ,Boolean,"no"},
+ {""                    ,&CensorIncomingHeader,1,1,String,String ,NULL}
+};
+
+/*+ The CensorIncomingHeader section. +*/
+static ConfigSection censorincomingheader_section={"CensorIncomingHeader",
+                                           sizeof(censorincomingheader_itemdefs)/sizeof(ConfigItemDef),
+                                           censorincomingheader_itemdefs};
+
+/* CensorOutgoingHeader section */
+
+/*+ The list of censored headers. +*/
+ConfigItem CensorOutgoingHeader;
 
 /*+ Flags to cause the referer header to be mangled. +*/
 ConfigItem RefererSelf;
 ConfigItem RefererSelfDir;
 
-/*+ The item definitions in the censor headers section. +*/
-static ConfigItemDef censorheader_itemdefs[]={
- {"referer-self"    ,&RefererSelf   ,1,0,Fixed ,Boolean,"no"},
- {"referer-self-dir",&RefererSelfDir,1,0,Fixed ,Boolean,"no"},
- {""                ,&CensorHeader  ,1,1,String,String ,NULL}
+/*+ The item definitions in the censor outgoing headers section. +*/
+static ConfigItemDef censoroutgoingheader_itemdefs[]={
+ {"referer-self"    ,&RefererSelf         ,1,0,Fixed ,Boolean,"no"},
+ {"referer-self-dir",&RefererSelfDir      ,1,0,Fixed ,Boolean,"no"},
+ {""                ,&CensorOutgoingHeader,1,1,String,String ,NULL}
 };
 
-/*+ The CensorHeader section. +*/
-static ConfigSection censorheader_section={"CensorHeader",
-                                           sizeof(censorheader_itemdefs)/sizeof(ConfigItemDef),
-                                           censorheader_itemdefs};
+/*+ The CensorOutgoingHeader section. +*/
+static ConfigSection censoroutgoingheader_section={"CensorOutgoingHeader",
+                                           sizeof(censoroutgoingheader_itemdefs)/sizeof(ConfigItemDef),
+                                           censoroutgoingheader_itemdefs};
 
 
 /* FTPOptions section */
@@ -703,7 +726,8 @@ static ConfigSection *sections[]={&startup_section,
                                   &dontcache_section,
                                   &dontget_section,
                                   &dontcompress_section,
-                                  &censorheader_section,
+                                  &censorincomingheader_section,
+                                  &censoroutgoingheader_section,
                                   &ftpoptions_section,
                                   &mimetypes_section,
                                   &proxy_section,
@@ -741,15 +765,20 @@ void InitConfigurationFile(char *name)
 
  if(*CurrentConfig.name!='/')
    {
-    static char cwd[PATH_MAX+1];
+    char *cwd;
 
-    if(getcwd(cwd,PATH_MAX))
-      {
-       strcat(cwd,"/");
-       strcat(cwd,CurrentConfig.name);
+    if((cwd=getcwd(NULL,0))) {/* needs glibc to work */
+      int cwdlen=strlen(cwd);
+      int confignamelen=strlen(CurrentConfig.name);
+      cwd=(char *)realloc(cwd,cwdlen+confignamelen+2);
 
-       CurrentConfig.name=cwd;
-      }
+      cwd[cwdlen]='/';
+      memcpy(&cwd[cwdlen+1],CurrentConfig.name,confignamelen+1);
+
+      CurrentConfig.name=cwd;
+    }
+    else
+      PrintMessage(Warning,"Cannot get value of current working directory [%!s].");
    }
 
  /* Default values that cannot be set at compile time. */

@@ -22,6 +22,14 @@
 
 #include <sys/types.h>
 #include <unistd.h>
+/* The following declarations should be contained in unistd.h, but for some reason there are not on my system.
+   I list them here to avoid distracting warning messages when compiling with the -Wall option. */
+#if HAVE_SETRESUID
+int setresuid(uid_t ruid, uid_t euid, uid_t suid);
+#endif
+#if HAVE_SETRESGID
+int setresgid(gid_t rgid, gid_t egid, gid_t sgid);
+#endif
 
 #if TIME_WITH_SYS_TIME
 # include <sys/time.h>
@@ -111,9 +119,10 @@ static int print_pid=0;
 /*+ True if the -f option was passed on the command line. +*/
 int nofork=0;
 
-/* Global variables used to pass on information about remote client to CGI. */
-extern char *client_hostname,*client_ip;
-
+/* some code to save the hostname and ip address of the client in global variables */
+/* static char saved_hostname[max_hostname_len],saved_ip[ipaddr_strlen]; */
+extern char *client_hostname, *client_ip;
+#define save_client_hostname_ip(host,ip) {client_hostname=host; client_ip=ip;}
 
 /*++++++++++++++++++++++++++++++++++++++
   The main program.
@@ -125,7 +134,6 @@ int main(int argc, char** argv)
  int err;
  struct stat buf;
  char *config_file=NULL;
- int uid,gid;
 
  /* Parse the command line options */
 
@@ -212,71 +220,72 @@ int main(int argc, char** argv)
  PrintMessage(Inform,"WWWOFFLE Read Configuration File '%s'.",ConfigurationFileName());
 
  /* Change the user and group. */
+ {
+   uid_t uid=ConfigInteger(WWWOFFLE_Uid);
+   gid_t gid=ConfigInteger(WWWOFFLE_Gid);
 
- gid=ConfigInteger(WWWOFFLE_Gid);
- uid=ConfigInteger(WWWOFFLE_Uid);
+   /* gain superuser privileges if possible */
+   if(geteuid()!=0 && uid!=-1) seteuid(0);
 
- if(uid!=-1)
-    seteuid(0);
-
- if(gid!=-1)
-   {
+   if(gid != -1)
+     {
 #if HAVE_SETGROUPS
-    if(getuid()==0 || geteuid()==0)
-       if(setgroups(0, NULL)<0)
-          PrintMessage(Fatal,"Cannot clear supplementary group list [%!s].");
+       if(geteuid()==0 || getuid()==0)
+	 if(setgroups(0, NULL)<0)
+	   PrintMessage(Fatal,"Cannot clear supplementary group list [%!s].");
 #endif
 
 #if HAVE_SETRESGID
-    if(setresgid(gid,gid,gid)<0)
-       PrintMessage(Fatal,"Cannot set real/effective/saved group id to %d [%!s].",gid);
+       if(setresgid(gid,gid,gid)<0)
+	 PrintMessage(Fatal,"Cannot set real/effective/saved group id to %d [%!s].",gid);
 #else
-    if(geteuid()==0)
-      {
-       if(setgid(gid)<0)
-          PrintMessage(Fatal,"Cannot set group id to %d [%!s].",gid);
-      }
-    else
-      {
+       if(geteuid()==0)
+	 {
+	   if(setgid(gid)<0)
+	     PrintMessage(Fatal,"Cannot set group id to %d [%!s].",gid);
+	 }
+       else
+	 {
 #if HAVE_SETREGID
-       if(setregid(getegid(),gid)<0)
-          PrintMessage(Fatal,"Cannot set effective group id to %d [%!s].",gid);
-       if(setregid(gid,-1)<0)
-          PrintMessage(Fatal,"Cannot set real group id to %d [%!s].",gid);
+	   if(setregid(getegid(),gid)<0)
+	     PrintMessage(Fatal,"Cannot set effective group id to %d [%!s].",gid);
+	   if(setregid(gid,-1)<0)
+	     PrintMessage(Fatal,"Cannot set real group id to %d [%!s].",gid);
 #else
-       PrintMessage(Fatal,"Must be root to totally change group id.");
+	   PrintMessage(Fatal,"Must be root to totally change group id.");
 #endif
-      }
+	 }
 #endif
-   }
+     }
 
- if(uid!=-1)
-   {
+   if(uid!=-1)
+     {
 #if HAVE_SETRESUID
-    if(setresuid(uid,uid,uid)<0)
-       PrintMessage(Fatal,"Cannot set real/effective/saved user id to %d [%!s].",uid);
+       if(setresuid(uid,uid,uid)<0)
+	 PrintMessage(Fatal,"Cannot set real/effective/saved user id to %d [%!s].",uid);
 #else
-    if(geteuid()==0)
-      {
-       if(setuid(uid)<0)
-          PrintMessage(Fatal,"Cannot set user id to %d [%!s].",uid);
-      }
-    else
-      {
+       if(geteuid()==0)
+	 {
+	   if(setuid(uid)<0)
+	     PrintMessage(Fatal,"Cannot set user id to %d [%!s].",uid);
+	 }
+       else
+	 {
 #if HAVE_SETREUID
-       if(setreuid(geteuid(),uid)<0)
-          PrintMessage(Fatal,"Cannot set effective user id to %d [%!s].",uid);
-       if(setreuid(uid,-1)<0)
-          PrintMessage(Fatal,"Cannot set real user id to %d [%!s].",uid);
+	   if(setreuid(geteuid(),uid)<0)
+	     PrintMessage(Fatal,"Cannot set effective user id to %d [%!s].",uid);
+	   if(setreuid(uid,-1)<0)
+	     PrintMessage(Fatal,"Cannot set real user id to %d [%!s].",uid);
 #else
-       PrintMessage(Fatal,"Must be root to totally change user id.");
+	   PrintMessage(Fatal,"Must be root to totally change user id.");
 #endif
-      }
+	 }
 #endif
-   }
+     }
 
- if(uid!=-1 || gid!=-1)
-    PrintMessage(Inform,"Running with uid=%d, gid=%d.",geteuid(),getegid());
+   if(uid!=-1 || gid!=-1)
+     PrintMessage(Inform,"Running with uid=%d, gid=%d.",geteuid(),getegid());
+ }
 
  if(geteuid()==0 || getegid()==0)
     PrintMessage(Warning,"Running with root user or group privileges is not recommended.");
@@ -444,9 +453,9 @@ int main(int argc, char** argv)
                {
                 char *canonical_ip=CanonicaliseHost(ip);
 
-                if(IsAllowedConnectHost(host) || IsAllowedConnectHost(canonical_ip))
+                if((host && IsAllowedConnectHost(host)) || IsAllowedConnectHost(canonical_ip))
                   {
-                   PrintMessage(Important,"WWWOFFLE Connection from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
+                   PrintMessage(Important,"WWWOFFLE Connection from host %s (%s).",host?host:"unknown",canonical_ip); /* Used in audit-usage.pl */
 
                    CommandConnect(client);
 
@@ -455,7 +464,7 @@ int main(int argc, char** argv)
                   }
                 else
                   {
-                   PrintMessage(Warning,"WWWOFFLE Connection rejected from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
+                   PrintMessage(Warning,"WWWOFFLE Connection rejected from host %s (%s).",host?host:"unknown",canonical_ip); /* Used in audit-usage.pl */
                    CloseSocket(client);
                   }
 
@@ -476,17 +485,16 @@ int main(int argc, char** argv)
                {
                 char *canonical_ip=CanonicaliseHost(ip);
 
-                if(IsAllowedConnectHost(host) || IsAllowedConnectHost(canonical_ip))
+                if((host && IsAllowedConnectHost(host)) || IsAllowedConnectHost(canonical_ip))
                   {
-                   PrintMessage(Inform,"HTTP Proxy connection from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
-
-                   client_hostname=host;
-                   client_ip=canonical_ip;
+                   PrintMessage(Inform,"HTTP Proxy connection from host %s (%s).",host?host:"unknown",canonical_ip); /* Used in audit-usage.pl */
+		   /* save hostname and ip address of client in case we need it again */
+		   save_client_hostname_ip(host,ip);
 
                    ForkServer(client,1);
                   }
                 else
-                   PrintMessage(Warning,"HTTP Proxy connection rejected from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
+                   PrintMessage(Warning,"HTTP Proxy connection rejected from host %s (%s).",host?host:"unknown",canonical_ip); /* Used in audit-usage.pl */
 
                 if(nofork)
                    closedown=1;

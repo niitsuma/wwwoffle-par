@@ -22,6 +22,12 @@
 
 #include <sys/types.h>
 #include <unistd.h>
+#if HAVE_SETRESUID
+int setresuid(uid_t ruid, uid_t euid, uid_t suid);
+#endif
+#if HAVE_SETRESGID
+int setresgid(gid_t rgid, gid_t egid, gid_t sgid);
+#endif
 
 #if TIME_WITH_SYS_TIME
 # include <sys/time.h>
@@ -160,8 +166,8 @@ int main(int argc,char **argv)
  if(mode==LS)
     for(i=1;i<argc;i++)
        if(!strcmp(argv[i],"outgoing") || !strcmp(argv[i],"monitor") ||
-          !strcmp(argv[i],"lasttime") || (!strncmp(argv[i],"prevtime",8) && isdigit(argv[i][8])) || 
-          !strcmp(argv[i],"lastout")  || (!strncmp(argv[i],"prevout",7)  && isdigit(argv[i][7])))
+          !strcmp(argv[i],"lasttime") || (!strcmp_litbeg(argv[i],"prevtime") && isdigit(argv[i][strlitlen("prevtime")])) || 
+          !strcmp(argv[i],"lastout")  || (!strcmp_litbeg(argv[i],"prevout")  && isdigit(argv[i][strlitlen("prevout")])))
           mode=LS_SPECIAL;
 
  /* Find the configuration file */
@@ -254,33 +260,36 @@ int main(int argc,char **argv)
 
     for(i=1;i<argc;i++)
       {
-       char *arg,*colon,*slash;
+       char *arg;
+       {
+	 char *spooldir=ConfigString(SpoolDir); int strlen_spooldir=strlen(spooldir);
+	 if(!strncmp(argv[i],spooldir,strlen_spooldir) &&
+	    argv[i][strlen_spooldir]=='/')
+	   arg=argv[i]+strlen_spooldir+1;
+	 else
+	   arg=argv[i];
+       }
+       {
+	 char *colon=strchr(arg,':');
+	 char *slash=strchr(arg,'/');
 
-       if(!strncmp(ConfigString(SpoolDir),argv[i],strlen(ConfigString(SpoolDir))) &&
-          argv[i][strlen(ConfigString(SpoolDir))]=='/')
-          arg=argv[i]+strlen(ConfigString(SpoolDir))+1;
-       else
-          arg=argv[i];
+	 if((colon && slash && colon<slash) ||
+	    !slash)
+	   {
+	     Url[i]=SplitURL(arg);
+	   }
+	 else
+	   {
+	     char *url;
 
-       colon=strchr(arg,':');
-       slash=strchr(arg,'/');
+	     *slash=0;
+	     url=(char*)malloc(strlen(slash+1)+strlen(arg)+8);
+	     sprintf(url,"%s://%s",arg,slash+1);
 
-       if((colon && slash && colon<slash) ||
-          !slash)
-         {
-          Url[i]=SplitURL(arg);
-         }
-       else
-         {
-          char *url;
-
-          *slash=0;
-          url=(char*)malloc(strlen(slash+1)+strlen(arg)+8);
-          sprintf(url,"%s://%s",arg,slash+1);
-
-          Url[i]=SplitURL(url);
-          free(url);
-         }
+	     Url[i]=SplitURL(url);
+	     free(url);
+	   }
+       }
       }
    }
 
@@ -300,72 +309,72 @@ int main(int argc,char **argv)
    {
     if(config_file)
       {
-       /* Change the user and group. */
+	/* Change the user and group. */
 
-       int gid=ConfigInteger(WWWOFFLE_Gid);
-       int uid=ConfigInteger(WWWOFFLE_Uid);
+	uid_t uid=ConfigInteger(WWWOFFLE_Uid);
+	gid_t gid=ConfigInteger(WWWOFFLE_Gid);
 
-       if(uid!=-1)
-          seteuid(0);
+	/* gain superuser privileges if possible */
+	if(geteuid()!=0 && uid!=-1) seteuid(0);
 
-       if(gid!=-1)
-         {
+	if(gid != -1)
+	  {
 #if HAVE_SETGROUPS
-          if(getuid()==0 || geteuid()==0)
-             if(setgroups(0, NULL)<0)
-                PrintMessage(Fatal,"Cannot clear supplementary group list [%!s].");
+	    if(geteuid()==0 || getuid()==0)
+	      if(setgroups(0, NULL)<0)
+		PrintMessage(Fatal,"Cannot clear supplementary group list [%!s].");
 #endif
 
 #if HAVE_SETRESGID
-          if(setresgid(gid,gid,gid)<0)
-             PrintMessage(Fatal,"Cannot set real/effective/saved group id to %d [%!s].",gid);
+	    if(setresgid(gid,gid,gid)<0)
+	      PrintMessage(Fatal,"Cannot set real/effective/saved group id to %d [%!s].",gid);
 #else
-          if(geteuid()==0)
-            {
-             if(setgid(gid)<0)
-                PrintMessage(Fatal,"Cannot set group id to %d [%!s].",gid);
-            }
-          else
-            {
+	    if(geteuid()==0)
+	      {
+		if(setgid(gid)<0)
+		  PrintMessage(Fatal,"Cannot set group id to %d [%!s].",gid);
+	      }
+	    else
+	      {
 #if HAVE_SETREGID
-             if(setregid(getegid(),gid)<0)
-                PrintMessage(Fatal,"Cannot set effective group id to %d [%!s].",gid);
-             if(setregid(gid,-1)<0)
-                PrintMessage(Fatal,"Cannot set real group id to %d [%!s].",gid);
+		if(setregid(getegid(),gid)<0)
+		  PrintMessage(Fatal,"Cannot set effective group id to %d [%!s].",gid);
+		if(setregid(gid,-1)<0)
+		  PrintMessage(Fatal,"Cannot set real group id to %d [%!s].",gid);
 #else
-             PrintMessage(Fatal,"Must be root to totally change group id.");
+		PrintMessage(Fatal,"Must be root to totally change group id.");
 #endif
-            }
+	      }
 #endif
-         }
+	  }
 
-       if(uid!=-1)
-         {
+	if(uid!=-1)
+	  {
 #if HAVE_SETRESUID
-          if(setresuid(uid,uid,uid)<0)
-             PrintMessage(Fatal,"Cannot set real/effective/saved user id to %d [%!s].",uid);
+	    if(setresuid(uid,uid,uid)<0)
+	      PrintMessage(Fatal,"Cannot set real/effective/saved user id to %d [%!s].",uid);
 #else
-          if(geteuid()==0)
-            {
-             if(setuid(uid)<0)
-                PrintMessage(Fatal,"Cannot set user id to %d [%!s].",uid);
-            }
-          else
-            {
+	    if(geteuid()==0)
+	      {
+		if(setuid(uid)<0)
+		  PrintMessage(Fatal,"Cannot set user id to %d [%!s].",uid);
+	      }
+	    else
+	      {
 #if HAVE_SETREUID
-             if(setreuid(geteuid(),uid)<0)
-                PrintMessage(Fatal,"Cannot set effective user id to %d [%!s].",uid);
-             if(setreuid(uid,-1)<0)
-                PrintMessage(Fatal,"Cannot set real user id to %d [%!s].",uid);
+		if(setreuid(geteuid(),uid)<0)
+		  PrintMessage(Fatal,"Cannot set effective user id to %d [%!s].",uid);
+		if(setreuid(uid,-1)<0)
+		  PrintMessage(Fatal,"Cannot set real user id to %d [%!s].",uid);
 #else
-             PrintMessage(Fatal,"Must be root to totally change user id.");
+		PrintMessage(Fatal,"Must be root to totally change user id.");
 #endif
-            }
+	      }
 #endif
-         }
+	  }
 
-       if(uid!=-1 || gid!=-1)
-          PrintMessage(Inform,"Running with uid=%d, gid=%d.",geteuid(),getegid());
+	if(uid!=-1 || gid!=-1)
+	  PrintMessage(Inform,"Running with uid=%d, gid=%d.",geteuid(),getegid());
       }
 
     wwwoffle_write(Url[1]);
@@ -397,12 +406,10 @@ static void wwwoffle_ls(URL *Url)
 
  if(strcmp(Url->path,"/"))
    {
-    char *name=URLToFileName(Url);
+    local_URLToFileName(Url,name)
 
     *name='D';
     ls(name);
-
-    free(name);
    }
  else
    {
@@ -543,7 +550,7 @@ static void wwwoffle_mv(URL *Url1,URL *Url2)
          {
           char *url2;
           URL *Url;
-          char *path2,*name1,*name2;
+          char *path2,*name1;
           int fd2;
 
           Url=SplitURL(url1);
@@ -554,31 +561,31 @@ static void wwwoffle_mv(URL *Url1,URL *Url2)
           name1=ent->d_name;
 
           Url=SplitURL(url2);
-          name2=URLToFileName(Url);
+          {
+	    local_URLToFileName(Url,name2)
 
-          path2=(char*)malloc(strlen(Url2->proto)+strlen(Url2->dir)+strlen(name2)+16);
+	    path2=(char*)malloc(strlen(Url2->proto)+strlen(Url2->dir)+strlen(name2)+16);
 
-          sprintf(path2,"../../%s",Url2->proto);
-          mkdir(path2,DEF_DIR_PERM);
+	    sprintf(path2,"../../%s",Url2->proto);
+	    mkdir(path2,DEF_DIR_PERM);
 
-          sprintf(path2,"../../%s/%s",Url2->proto,Url2->dir);
-          mkdir(path2,DEF_DIR_PERM);
+	    sprintf(path2,"../../%s/%s",Url2->proto,Url2->dir);
+	    mkdir(path2,DEF_DIR_PERM);
 
-          *name1=*name2='D';
-          sprintf(path2,"../../%s/%s/%s",Url2->proto,Url2->dir,name2);
-          rename(name1,path2);
+	    *name1=*name2='D';
+	    sprintf(path2,"../../%s/%s/%s",Url2->proto,Url2->dir,name2);
+	    rename(name1,path2);
 
-          *name1=*name2='U';
-          sprintf(path2,"../../%s/%s/%s",Url2->proto,Url2->dir,name2);
-          fd2=open(path2,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,DEF_FILE_PERM);
-          init_buffer(fd2);
-          write_string(fd2,Url->name);
-          close(fd2);
-          unlink(name2);
-
+	    *name1=*name2='U';
+	    sprintf(path2,"../../%s/%s/%s",Url2->proto,Url2->dir,name2);
+	    fd2=open(path2,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,DEF_FILE_PERM);
+	    init_buffer(fd2);
+	    write_string(fd2,Url->name);
+	    close(fd2);
+	    unlink(name2);
+	  }
           free(url1);
           free(url2);
-          free(name2);
           free(path2);
           FreeURL(Url);
          }
@@ -626,7 +633,7 @@ static void wwwoffle_read(URL *Url)
  while((line=read_line(spool,line)))
    {
 #if USE_ZLIB
-    if(!strncmp(line,"Pragma: wwwoffle-compressed",27))
+    if(!strcmp_litbeg(line,"Pragma: wwwoffle-compressed"))
        compression=2;
     else
 #endif
@@ -685,8 +692,7 @@ static void wwwoffle_write(URL *Url)
 
 static void wwwoffle_hash(URL *Url)
 {
- char *name=URLToFileName(Url);
+ local_URLToFileName(Url,name)
 
  printf("%s\n",name+1);
- free(name);
 }

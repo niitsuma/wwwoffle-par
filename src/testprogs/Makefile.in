@@ -21,7 +21,7 @@ SHELL=/bin/sh
 ########
 
 CC=@CC@
-CFLAGS=@CFLAGS@
+CFLAGS=@CFLAGS@ -Wall -Winline -D_GNU_SOURCE
 
 LD=@CC@
 LDFLAGS=@LDFLAGS@
@@ -49,7 +49,7 @@ install : compile
 
 clean :
 	-rm -f test-doc test-msg test-modify
-	-rm -f core *.o *~
+	-rm -f core *.o
 
 ########
 
