@@ -19,9 +19,9 @@ val             ({alphanum}|{nonascii}|{safepunct})+
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/htmlmodify.l 1.71 2004/01/11 10:28:20 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/htmlmodify.l 1.74 2004/09/29 18:07:36 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   Parse the HTML and modify the source.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -84,32 +84,34 @@ typedef enum _HTMLTags
  tag_base      = 1  /* "base"      */ ,
  tag_blink     = 2  /* "blink"     */ ,
  tag__blink    = 3  /* "/blink"    */ ,
- tag__body     = 4  /* "/body"     */ ,
- tag__html     = 5  /* "/html"     */ ,
- tag_noscript  = 6  /* "noscript"  */ ,
- tag__noscript = 7  /* "/noscript" */ ,
- tag_script    = 8  /* "script"    */ ,
- tag__script   = 9  /* "/script"   */ ,
- tag__style    =10  /* "/style"    */ ,
- tag_applet    =11  /* "applet"    */ ,
- tag__applet   =12  /* "/applet"   */ ,
- tag_param     =13  /* "param"     */ ,
- tag__object   =14  /* "/object"   */ ,
- tag__iframe   =15  /* "/iframe"   */ ,
- tag__embed    =16  /* "/embed"    */ ,
+ tag_marquee   = 4  /* "marquee"   */ ,
+ tag__marquee  = 5  /* "/marquee"  */ ,
+ tag__body     = 6  /* "/body"     */ ,
+ tag__html     = 7  /* "/html"     */ ,
+ tag_noscript  = 8  /* "noscript"  */ ,
+ tag__noscript = 9  /* "/noscript" */ ,
+ tag_script    =10  /* "script"    */ ,
+ tag__script   =11  /* "/script"   */ ,
+ tag__style    =12  /* "/style"    */ ,
+ tag_applet    =13  /* "applet"    */ ,
+ tag__applet   =14  /* "/applet"   */ ,
+ tag_param     =15  /* "param"     */ ,
+ tag__object   =16  /* "/object"   */ ,
+ tag__iframe   =17  /* "/iframe"   */ ,
+ tag__embed    =18  /* "/embed"    */ ,
 
- tag_complex   =17  /* Complex tags, stored and processed as a whole. */,
+ tag_complex   =19  /* Complex tags, stored and processed as a whole. */,
 
- tag_style     =17  /* "style"     */ ,
- tag_meta      =18  /* "meta"      */ ,
- tag_link      =19  /* "link"      */ ,
- tag_object    =20  /* "object"    */ ,
- tag_a         =21  /* "a"         */ ,
- tag_iframe    =22  /* "iframe"    */ ,
- tag_img       =23  /* "img"       */ ,
- tag_embed     =24  /* "embed"     */ ,
+ tag_style     =19  /* "style"     */ ,
+ tag_meta      =20  /* "meta"      */ ,
+ tag_link      =21  /* "link"      */ ,
+ tag_object    =22  /* "object"    */ ,
+ tag_a         =23  /* "a"         */ ,
+ tag_iframe    =24  /* "iframe"    */ ,
+ tag_img       =25  /* "img"       */ ,
+ tag_embed     =26  /* "embed"     */ ,
 
- tag_ntags     =25
+ tag_ntags     =27
 }
 HTMLTags;
 
@@ -121,6 +123,8 @@ static char *tags[]=
  /* tag_base      = 1  */  "base"      ,
  /* tag_blink     = 2  */  "blink"     ,
  /* tag__blink    = 3  */  "/blink"    ,
+ /* tag_marquee   = 4  */  "marquee"   ,
+ /* tag__marquee  = 5  */  "/marquee"  ,
  /* tag__body     = 4  */  "/body"     ,
  /* tag__html     = 5  */  "/html"     ,
  /* tag_noscript  = 6  */  "noscript"  ,
@@ -239,52 +243,12 @@ typedef struct _Tag
 Tag;
 
 
-/* Ideas taken from the public domain Demoroniser perl script */
-
-/*************************************************/
-/* De-moron-ise Text from Microsoft Applications */
-/*         by John Walker -- January 1998        */
-/*            http://www.fourmilab.ch/           */
-/*************************************************/
-
 /* Microsoft Character mapping */
 
 /*+ The option to convert the characters when seen. +*/
 static int demoronise_ms_chars;
+static int fix_mixed_cyrillic;
 
-/*+ The list of characters to replace. +*/
-static char *demoronise_ms_chars_list[]={/* 0x80 */ "\200",
-                                         /* 0x81 */ "\201",
-                                         /* 0x82 */ ",",
-                                         /* 0x83 */ "<em>f</em>",
-                                         /* 0x84 */ ",,",
-                                         /* 0x85 */ "...",
-                                         /* 0x86 */ "\206",
-                                         /* 0x87 */ "\207",
-                                         /* 0x88 */ "^",
-                                         /* 0x89 */ " °/°°",
-                                         /* 0x8A */ "\212",
-                                         /* 0x8B */ "<",
-                                         /* 0x8C */ "Oe",
-                                         /* 0x8D */ "\215",
-                                         /* 0x8E */ "\216",
-                                         /* 0x8F */ "\217",
-                                         /* 0x90 */ "\220",
-                                         /* 0x91 */ "`",
-                                         /* 0x92 */ "'",
-                                         /* 0x93 */ "\"",
-                                         /* 0x94 */ "\"",
-                                         /* 0x95 */ "*",
-                                         /* 0x96 */ "-",
-                                         /* 0x97 */ "--",
-                                         /* 0x98 */ "<sup>~</sup>",
-                                         /* 0x99 */ "<sup>TM</sup>",
-                                         /* 0x9A */ "\232",
-                                         /* 0x9B */ ">",
-                                         /* 0x9C */ "oe",
-                                         /* 0x9D */ "\235",
-                                         /* 0x9E */ "\236",
-                                         /* 0x9F */ "\237"};
 
 /* Definitions of why the output is disabled. */
 
@@ -307,6 +271,8 @@ static void modify_html(URL *Url);
 static /*@null@*/ char *htmlmodify_yylval=NULL;
 extern int htmlmodify_yylex(void);
 
+static /*@null@*/ char *extract_charset(char *content_type);
+
 static int handle_a_tag(Tag *tag,int disable_dontget_anchors);
 static int handle_iframe_tag(Tag *tag,int disable_dontget_iframes);
 static void handle_img_tag(Tag *tag,int replace_dontget,char *dontget_replacement,
@@ -323,6 +289,8 @@ static void handle_link_tag(Tag *tag,int disable_style);
 static int handle_style_script_tag(Tag *tag,int disable_script);
 static void handle_meta_tag(Tag *tag,int disable_meta_refresh,int disable_meta_refresh_self,int disable_meta_set_cookie);
 static void output_tag(Tag *tag,char *prefix,char *suffix);
+
+static void handle_high_bit(unsigned char ch);
 
 
 /*+ The add-cache-info optional footer. +*/
@@ -341,9 +309,11 @@ static int disable_output=DISABLE_NONE;
   URL *Url The URL that we are parsing.
 
   int spool The file descriptor for the spool file to get the date from.
+
+  char *content_type The HTTP header containing the content type (and perhaps the charset).
   ++++++++++++++++++++++++++++++++++++++*/
 
-void OutputHTMLWithModifications(URL *Url,int spool)
+void OutputHTMLWithModifications(URL *Url,int spool,char *content_type)
 {
  static int first=1;
 
@@ -379,6 +349,43 @@ void OutputHTMLWithModifications(URL *Url,int spool)
                                  NULL);
    }
 
+ demoronise_ms_chars=0;
+ if(ConfigBooleanURL(DemoroniseMSChars,Url))
+   {
+    char* charset=extract_charset(content_type);
+
+    if(charset)
+      {
+       if(strcasecmp(charset,"utf-8") &&
+          strcasecmp(charset,"koi8-r") &&
+          strcasecmp(charset,"euc-kr") &&
+          strcasecmp(charset,"big5") &&
+          strcasecmp(charset,"iso-2022-jp") &&
+          strcasecmp(charset,"chinesebig5"))
+          demoronise_ms_chars=1;
+
+       free(charset);
+      }
+    else
+       demoronise_ms_chars=1;
+   }
+
+ fix_mixed_cyrillic=0;
+ if(ConfigBooleanURL(FixMixedCyrillic,Url))
+   {
+    char* charset=extract_charset(content_type);
+
+    if(charset)
+      {
+       if(!strcasecmp(charset,"koi8-r"))
+          fix_mixed_cyrillic=1;
+
+       free(charset);
+      }
+    else
+       fix_mixed_cyrillic=1;
+   }
+
  baseUrl=Url;
 
  if(!first)
@@ -396,6 +403,53 @@ void OutputHTMLWithModifications(URL *Url,int spool)
 #define YY_OUTPUT(text) \
            if(!disable_output && *text) \
               wwwoffles_write_data(text,strlen(text))
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Extract the charset from a MIME type and charset.
+
+  char *extract_charset Returns the charset that it found or NULL if none.
+
+  char *content_type The HTTP content type.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+static char *extract_charset(char *content_type)
+{
+ char *p,*charset=NULL;
+
+ /* ' *text/html *; *charset *= *["']?...["']?' */
+
+ p=content_type;
+
+ while(*p && *p!=';') p++;
+ if(*p!=';') return(NULL); /* unparseable */
+ p++;
+
+ while(isspace(*p)) p++;
+ if(!*p) return(NULL); /* unparseable */
+
+ if(!strncasecmp(p,"charset",7))
+   {
+    p+=7;
+
+    while(*p && *p!='=') p++;
+    if(*p!='=') return(NULL); /* unparseable */
+    p++;
+
+    while(isspace(*p)) p++;
+    if(!*p) return(NULL); /* unparseable */
+
+    if(*p=='"' || *p=='\'') p++;
+
+    charset=(char*)malloc(strlen(p)+1);
+    strcpy(charset,p);
+
+    p=charset+strlen(p)-1;
+    if(*p=='"' || *p=='\'') *p=0;
+   }
+
+ return(charset);
+}
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -831,6 +885,7 @@ static void handle_meta_tag(Tag *tag,int disable_meta_refresh,int disable_meta_r
  int i;
  int is_meta_http_equiv_refresh=0;
  int is_meta_http_equiv_set_cookie=0;
+ int is_meta_http_equiv_content_type=0;
 
  /* Check for interesting meta tags */
 
@@ -839,6 +894,8 @@ static void handle_meta_tag(Tag *tag,int disable_meta_refresh,int disable_meta_r
        is_meta_http_equiv_refresh=1;
     else if(tag->attr_type[i]==att_http_equiv && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"Set-Cookie",10))
        is_meta_http_equiv_set_cookie=1;
+    else if(tag->attr_type[i]==att_http_equiv && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"Content-Type",12))
+       is_meta_http_equiv_content_type=1;
 
  /* Handle if they are refresh ones. */
 
@@ -916,6 +973,36 @@ static void handle_meta_tag(Tag *tag,int disable_meta_refresh,int disable_meta_r
     if(meta_refresh)
        free(meta_refresh);
    }
+
+ /* Handle if they are charset ones. */
+
+ if(is_meta_http_equiv_content_type && (demoronise_ms_chars || fix_mixed_cyrillic))
+    for(i=0;i<tag->nattr;i++)
+       if(tag->attr_type[i]==att_content && tag->attr_val[i] && tag->attr_val[i][0])
+         {
+          char* charset=extract_charset(tag->attr_val[i]);
+
+          if(charset)
+            {
+             if(demoronise_ms_chars)
+               {
+                if(!strcasecmp(charset,"utf-8") ||
+                   !strcasecmp(charset,"koi8-r") ||
+                   !strcasecmp(charset,"euc-kr") ||
+                   !strcasecmp(charset,"big5") ||
+                   !strcasecmp(charset,"iso-2022-jp") ||
+                   !strcasecmp(charset,"chinesebig5"))
+                   demoronise_ms_chars=0;
+               }
+             else if(fix_mixed_cyrillic)
+               {
+                if(strcasecmp(charset,"koi8-r"))
+                   fix_mixed_cyrillic=0;
+               }
+
+             free(charset);
+            }
+         }
 
  /* Output the original or modified tag. */
 
@@ -997,6 +1084,7 @@ static void modify_html(URL *Url)
  int object_nesting=0,disable_object[16]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
  int disable_style=ConfigBooleanURL(DisableHTMLStyle,Url),disable_style_script=0;
  int disable_blink=ConfigBooleanURL(DisableHTMLBlink,Url);
+ int disable_marquee=ConfigBooleanURL(DisableHTMLMarquee,Url);
  int disable_flash=ConfigBooleanURL(DisableHTMLFlash,Url);
  int disable_meta_refresh=ConfigBooleanURL(DisableHTMLMetaRefresh,Url);
  int disable_meta_refresh_self=ConfigBooleanURL(DisableHTMLMetaRefreshSelf,Url);
@@ -1014,8 +1102,6 @@ static void modify_html(URL *Url)
  anchor_modify_end[0]=ConfigStringURL(AnchorModifyEnd[0],Url);
  anchor_modify_end[1]=ConfigStringURL(AnchorModifyEnd[1],Url);
  anchor_modify_end[2]=ConfigStringURL(AnchorModifyEnd[2],Url);
-
- demoronise_ms_chars=ConfigBooleanURL(DemoroniseMSChars,Url);
 
  if(*replacement_html_dontget_image=='/')
    {
@@ -1110,6 +1196,8 @@ static void modify_html(URL *Url)
          {YY_OUTPUT(cache_info); free(cache_info); cache_info=NULL;}
        else if((tag==tag_blink || tag==tag__blink) && disable_blink)
           prefix="!-- WWWOFFLE (disable-blink) - ";
+       else if((tag==tag_marquee || tag==tag__marquee) && disable_marquee)
+          prefix="!-- WWWOFFLE (disable-marquee) - ";
        else if((tag==tag_script || tag==tag__script) && disable_script)
           prefix="!-- WWWOFFLE (disable-script) - ";
        else if((tag==tag_noscript || tag==tag__noscript) && disable_script)
@@ -1178,6 +1266,8 @@ static void modify_html(URL *Url)
          {suffix=" --";disable_iframe=0;}
        else if((tag==tag_blink || tag==tag__blink) && disable_blink)
          suffix=" --";
+       else if((tag==tag_marquee || tag==tag__marquee) && disable_marquee)
+         suffix=" --";
        else if((tag==tag_script || tag==tag__script) && disable_script)
          suffix=" --";
        else if((tag==tag_noscript || tag==tag__noscript) && disable_script)
@@ -1209,7 +1299,8 @@ static void modify_html(URL *Url)
        else
          {YY_OUTPUT(">");}
 
-       if(tag==tag_meta && (disable_meta_refresh_self || disable_meta_refresh || disable_meta_set_cookie))
+       if(tag==tag_meta && (disable_meta_refresh_self || disable_meta_refresh || disable_meta_set_cookie ||
+                            demoronise_ms_chars || fix_mixed_cyrillic))
          {
           disable_output&=~DISABLE_META;
           handle_meta_tag(&tagdata,disable_meta_refresh,disable_meta_refresh_self,disable_meta_set_cookie);
@@ -1443,6 +1534,122 @@ static void modify_html(URL *Url)
 }
 
 
+/* The demoronise_ms_chars idea is taken from the public domain Demoroniser perl script */
+
+/*************************************************/
+/* De-moron-ise Text from Microsoft Applications */
+/*         by John Walker -- January 1998        */
+/*            http://www.fourmilab.ch/           */
+/*************************************************/
+
+ /*+ The list of characters to replace. +*/
+ static char *demoronise_ms_chars_list[]={/* 0x80 */ "\200",
+                                          /* 0x81 */ "\201",
+                                          /* 0x82 */ ",",
+                                          /* 0x83 */ "<em>f</em>",
+                                          /* 0x84 */ ",,",
+                                          /* 0x85 */ "...",
+                                          /* 0x86 */ "\206",
+                                          /* 0x87 */ "\207",
+                                          /* 0x88 */ "^",
+                                          /* 0x89 */ " °/°°",
+                                          /* 0x8A */ "\212",
+                                          /* 0x8B */ "<",
+                                          /* 0x8C */ "Oe",
+                                          /* 0x8D */ "\215",
+                                          /* 0x8E */ "\216",
+                                          /* 0x8F */ "\217",
+                                          /* 0x90 */ "\220",
+                                          /* 0x91 */ "`",
+                                          /* 0x92 */ "'",
+                                          /* 0x93 */ "\"",
+                                          /* 0x94 */ "\"",
+                                          /* 0x95 */ "*",
+                                          /* 0x96 */ "-",
+                                          /* 0x97 */ "--",
+                                          /* 0x98 */ "<sup>~</sup>",
+                                          /* 0x99 */ "<sup>TM</sup>",
+                                          /* 0x9A */ "\232",
+                                          /* 0x9B */ ">",
+                                          /* 0x9C */ "oe",
+                                          /* 0x9D */ "\235",
+                                          /* 0x9E */ "\236",
+                                          /* 0x9F */ "\237"};
+
+/* This "fix-mixed-cyrillic" code is written by Ilya Dogolazky
+ * e-mail: ilyad at math dot uni-bonn dot de
+ *
+ * There are weird Russian websites [ www.novayagazeta.ru for example ] using
+ * koi8-r encoding for the letters of Russian alphabeth, and cp-1251 encoding
+ * for the punctuations ("<<", ">>", "No", "\bullet" etc).
+ *
+ * We take all characters between 0x80 and 0xBF (there are three exceptions
+ * below) and recode they from windows-1251 to Unicode (in "&#xCODE;" HTML
+ * notation)
+ *
+ * The idea is similar to that of "demoronise-ms-chars", but these options are
+ * clearly mutually exclusive
+ */
+
+ /* This table is generated by the following Perl statement:
+  * print ord(decode("windows-1251",chr($_)) for (0x80..0xBF) ;
+  * See 3 exceptions below...
+  */                                         
+
+static unsigned int fix_mixed_cyrillic_list[]={0x0402,0x0403,0x201A,0x0453,0x201E,0x2026,0x2020,0x2021,
+                                               0x20AC,0x2030,0x0409,0x2039,0x040A,0x040C,0x040B,0x040F,
+                                               0x0452,0x2018,0x2019,0x201C,0x201D,0x2022,0x2013,0x2014,
+                                               0x0   ,0x2122,0x0459,0x203A,0x045A,0x045C,0x045B,0x045F,
+                                               0x00A0,0x040E,0x045E,0x0   ,0x00A4,0x0490,0x00A6,0x00A7,
+                                               0x0401,0x00A9,0x0404,0x00AB,0x00AC,0x00AD,0x00AE,0x0407,
+                                               0x00B0,0x00B1,0x0406,0x0   ,0x0491,0x00B5,0x00B6,0x00B7,
+                                               0x0451,0x2116,0x0454,0x00BB,0x0458,0x0405,0x0455,0x0457};
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Handle the characters on the input with the high-bit set.
+
+  unsigned char ch The character.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+static void handle_high_bit(unsigned char ch)
+{
+ if(demoronise_ms_chars && ch<=0x9F)
+   {
+    YY_OUTPUT("<!-- WWWOFFLE (demoronise-ms-chars) - '");
+    YY_OUTPUT(htmlmodify_yytext);
+    YY_OUTPUT("' -->");
+    YY_OUTPUT(demoronise_ms_chars_list[ch-0x80]);
+   }
+ else if(fix_mixed_cyrillic) /* && ch<=0xBF */
+   {
+    unsigned int unicode_value = fix_mixed_cyrillic_list[ch-0x80] ;
+
+    if(unicode_value==0x0)
+      {
+       /* We have 3 such values for ch: the first and the second are koi8-r
+          codes of \"e and \"E (ch==163 || ch==179), and the third is
+          ch==152. This value is very mysterious: there is no Unicode-equivalent
+          for character with code 152 of windows-1251 page (perl's decode fails
+          for this code, ask Bill Gates for details :-) */
+       YY_OUTPUT(htmlmodify_yytext);
+      }
+    else
+      {
+       char html_buffer[9];
+       sprintf(html_buffer,"&#x%04X;",unicode_value);
+
+       YY_OUTPUT("<!-- WWWOFFLE (fix-mixed-cyrillic) - '");
+       YY_OUTPUT(htmlmodify_yytext);
+       YY_OUTPUT("' -->");
+       YY_OUTPUT(html_buffer);
+      }
+   }
+ else
+    YY_OUTPUT(htmlmodify_yytext);
+}
+
+
 #define YY_SKIP_YYWRAP 1 /* Remove error with prototype of ..._yywrap */
 #ifndef htmlmodify_yywrap
 /*+ Needed in lex but does nothing. +*/
@@ -1478,17 +1685,9 @@ static void modify_html(URL *Url)
 
  /* Handle comments and other tags */
 
-[\200-\237]                 { if(demoronise_ms_chars)
-                                {
-                                 YY_OUTPUT("<!-- WWWOFFLE (demoronise-ms-chars) - '");
-                                 YY_OUTPUT(htmlmodify_yytext);
-                                 YY_OUTPUT("' -->");
-                                 YY_OUTPUT(demoronise_ms_chars_list[*(unsigned char*)htmlmodify_yytext-0x80]);
-                                }
-                              else
-                                 YY_OUTPUT(htmlmodify_yytext);
-                            }
-[^<\200-\237]+              { YY_OUTPUT(htmlmodify_yytext); /* htmlmodify_yylval=htmlmodify_yytext; return(LEX_PLAINTEXT); */ }
+[\x80-\xBF]                 { handle_high_bit(*(unsigned char*)htmlmodify_yytext); }
+[^<\x80-\xBF]+              { YY_OUTPUT(htmlmodify_yytext); /* htmlmodify_yylval=htmlmodify_yytext; return(LEX_PLAINTEXT); */ }
+
 "<!DOCTYPE"                 { YY_OUTPUT(htmlmodify_yytext); BEGIN(DOCTYPE); reset_string; }
 "<!--"                      { YY_OUTPUT(htmlmodify_yytext); BEGIN(COMMENT); reset_string; }
 "<!"{W}*"-"*                { YY_OUTPUT(htmlmodify_yytext); BEGIN(COMMENT_BAD); reset_string; }

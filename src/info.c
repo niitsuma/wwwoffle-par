@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/info.c 1.15 2004/01/17 16:28:50 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/info.c 1.16 2004/08/25 18:22:21 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   Generate information about the contents of the web pages that are cached in the system.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -334,6 +334,10 @@ static void InfoSource(int fd,int spool,URL *Url,Header *spooled_head)
     else if(!strncmp(type,"text/",5))
        text=1;
     else if(!strncmp(type,"application/x-javascript",24))
+       text=1;
+    else if(!strncmp(type,"application/xhtml",17))
+       text=1;
+    else if(!strncmp(type,"application/xml",15))
        text=1;
    }
 

@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/document.h 1.10 2004/01/17 16:22:18 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/document.h 1.11 2004/06/14 18:20:00 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   Header file for document parsing functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -85,6 +85,6 @@ void OutputGIFWithModifications(void);
 
 /* In htmlmodify.c (htmlmodify.l) */
 
-void OutputHTMLWithModifications(URL *Url,int spool);
+void OutputHTMLWithModifications(URL *Url,int spool,char *content_type);
 
 #endif /* DOCUMENT_H */

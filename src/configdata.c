@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configdata.c 2.147 2004/01/11 10:28:20 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configdata.c 2.149 2004/09/29 18:07:35 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   Configuration data functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -370,6 +370,9 @@ ConfigItem DisableHTMLStyle;
 /*+ The option to disable the <blink> tag. +*/
 ConfigItem DisableHTMLBlink;
 
+/*+ The option to disable the <marquee> tag. +*/
+ConfigItem DisableHTMLMarquee;
+
 /*+ The option to disable Shockwave Flash animations. +*/
 ConfigItem DisableHTMLFlash;
 
@@ -403,6 +406,9 @@ ConfigItem ReplacementHTMLWebbugImage;
 /*+ The option to demoronise MS characters. +*/
 ConfigItem DemoroniseMSChars;
 
+/*+ The option to fix cyrillic pages written in koi8-r mixed with cp1251. +*/
+ConfigItem FixMixedCyrillic;
+
 /*+ The option to disable animated GIFs. +*/
 ConfigItem DisableAnimatedGIF;
 
@@ -420,6 +426,7 @@ static ConfigItemDef modifyhtml_itemdefs[]={
  {"disable-applet"           ,&DisableHTMLApplet          ,1,0,Fixed,Boolean,"no"},
  {"disable-style"            ,&DisableHTMLStyle           ,1,0,Fixed,Boolean,"no"},
  {"disable-blink"            ,&DisableHTMLBlink           ,1,0,Fixed,Boolean,"no"},
+ {"disable-marquee"          ,&DisableHTMLMarquee         ,1,0,Fixed,Boolean,"no"},
  {"disable-flash"            ,&DisableHTMLFlash           ,1,0,Fixed,Boolean,"no"},
  {"disable-meta-refresh"     ,&DisableHTMLMetaRefresh     ,1,0,Fixed,Boolean,"no"},
  {"disable-meta-refresh-self",&DisableHTMLMetaRefreshSelf ,1,0,Fixed,Boolean,"no"},
@@ -431,6 +438,7 @@ static ConfigItemDef modifyhtml_itemdefs[]={
  {"replace-webbug-images"    ,&ReplaceHTMLWebbugImages    ,1,0,Fixed,Boolean,"no"},
  {"replacement-webbug-image" ,&ReplacementHTMLWebbugImage ,1,0,Fixed,Url    ,"/local/dontget/replacement.gif"},
  {"demoronise-ms-chars"      ,&DemoroniseMSChars          ,1,0,Fixed,Boolean,"no"},
+ {"fix-mixed-cyrillic"       ,&FixMixedCyrillic           ,1,0,Fixed,Boolean,"no"},
  {"disable-animated-gif"     ,&DisableAnimatedGIF         ,1,0,Fixed,Boolean,"no"}
 };
 

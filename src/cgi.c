@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/cgi.c 1.17 2004/03/01 19:51:05 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/cgi.c 1.18 2004/06/17 18:47:45 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   CGI Execution functions.
   ******************/ /******************
   Written by Paul A. Rombouts
@@ -306,6 +306,20 @@ static int exec_cgi(int fd, char *file, Header *request_head, Body *request_body
 
     close(cgi_out[0]);
 
+    /* Set up the environment. */
+
+    if(putenv_request(fd,file,request_head,request_body) == -1)
+       PrintMessage(Fatal,"Failed to create environment for local CGI program '%s' [%!s].",file);
+
+    /* Set up stdout (cgi_out[1] is the only file descriptor we *must* keep). */
+
+    if(cgi_out[1]!=STDOUT_FILENO)
+      {
+       if(dup2(cgi_out[1],STDOUT_FILENO)==-1)
+          PrintMessage(Fatal,"Cannnot create standard output for local CGI program '%s' [%!s].",file);
+       close(cgi_out[1]);
+      }
+
     /* Create the temporary file for the request body (if present). */
 
     if(request_body)
@@ -326,10 +340,7 @@ static int exec_cgi(int fd, char *file, Header *request_head, Body *request_body
     else
        cgi_in=open("/dev/null",O_RDONLY);
 
-    /* Set up the environment and stdin/stdout. */
-
-    if(putenv_request(fd,file,request_head,request_body) == -1)
-       PrintMessage(Fatal,"Failed to create environment for local CGI program '%s' [%!s].",file);
+    /* Set up stdin and stderr. */
 
     if(cgi_in!=STDIN_FILENO)
       {
@@ -338,14 +349,7 @@ static int exec_cgi(int fd, char *file, Header *request_head, Body *request_body
        close(cgi_in);
       }
 
-    if(cgi_out[1]!=STDOUT_FILENO)
-      {
-       if(dup2(cgi_out[1],STDOUT_FILENO)==-1)
-          PrintMessage(Fatal,"Cannnot create standard output for local CGI program '%s' [%!s].",file);
-       close(cgi_out[1]);
-      }
-
-    if(dup(STDERR_FILENO)==-1 && errno==EBADF) /* stderr is not open */
+    if(lseek(STDERR_FILENO,0,SEEK_CUR)==-1 && errno==EBADF) /* stderr is not open */
       {
        int cgi_err=open("/dev/null",O_WRONLY);
 

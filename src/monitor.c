@@ -1,5 +1,5 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/monitor.c 1.53 2004/02/14 14:03:18 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/monitor.c 1.54 2004/09/28 16:25:30 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   The functions for monitoring URLs.
@@ -66,7 +66,7 @@
 #endif
 
 static void MonitorFormShow(int fd,char *request_args);
-static void MonitorFormParse(int fd,char *request_args,/*@null@*/ Body *request_body);
+static void MonitorFormParse(int fd,URL *Url,char *request_args,/*@null@*/ Body *request_body);
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -84,7 +84,7 @@ void MonitorPage(int fd,URL *Url,Body *request_body)
  if(!strcmp("/monitor-options/",Url->path))
     MonitorFormShow(fd,Url->args);
  else if(!strcmp("/monitor-request/",Url->path))
-    MonitorFormParse(fd,Url->args,request_body);
+    MonitorFormParse(fd,Url,Url->args,request_body);
  else
     HTMLMessage(fd,404,"WWWOFFLE Illegal Monitor Page",NULL,"MonitorIllegal",
                 "url",Url->pathp,
@@ -187,16 +187,18 @@ static void MonitorFormShow(int fd,char *request_args)
 
   int fd The file descriptor of the client.
 
+  URL *Url The URL of the form that is being processed.
+
   char *request_args The arguments to the requesting URL.
 
   Body *request_body The body of the HTTP request sent by the client.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void MonitorFormParse(int fd,char *request_args,Body *request_body)
+static void MonitorFormParse(int fd,URL *Url,char *request_args,Body *request_body)
 {
  int i,mfd=-1;
  char **args,*url=NULL;
- URL *Url;
+ URL *monUrl;
  char mofy[13]="NNNNNNNNNNNN",*dofm=NULL,dofw[8]="NNNNNNN",*hofd=NULL;
  char MofY[13],DofM[32],DofW[8],HofD[25];
 
@@ -221,48 +223,50 @@ static void MonitorFormParse(int fd,char *request_args,Body *request_body)
    {
     if(!strncmp("url=",args[i],4))
        url=TrimArgs(URLDecodeFormArgs(args[i]+4));
-    if(!strncmp("mofy1=",args[i],6))
+    else if(!strncmp("mofy1=",args[i],6))
        mofy[0]=args[i][6];
-    if(!strncmp("mofy2=",args[i],6))
+    else if(!strncmp("mofy2=",args[i],6))
        mofy[1]=args[i][6];
-    if(!strncmp("mofy3=",args[i],6))
+    else if(!strncmp("mofy3=",args[i],6))
        mofy[2]=args[i][6];
-    if(!strncmp("mofy4=",args[i],6))
+    else if(!strncmp("mofy4=",args[i],6))
        mofy[3]=args[i][6];
-    if(!strncmp("mofy5=",args[i],6))
+    else if(!strncmp("mofy5=",args[i],6))
        mofy[4]=args[i][6];
-    if(!strncmp("mofy6=",args[i],6))
+    else if(!strncmp("mofy6=",args[i],6))
        mofy[5]=args[i][6];
-    if(!strncmp("mofy7=",args[i],6))
+    else if(!strncmp("mofy7=",args[i],6))
        mofy[6]=args[i][6];
-    if(!strncmp("mofy8=",args[i],6))
+    else if(!strncmp("mofy8=",args[i],6))
        mofy[7]=args[i][6];
-    if(!strncmp("mofy9=",args[i],6))
+    else if(!strncmp("mofy9=",args[i],6))
        mofy[8]=args[i][6];
-    if(!strncmp("mofy10=",args[i],7))
+    else if(!strncmp("mofy10=",args[i],7))
        mofy[9]=args[i][7];
-    if(!strncmp("mofy11=",args[i],7))
+    else if(!strncmp("mofy11=",args[i],7))
        mofy[10]=args[i][7];
-    if(!strncmp("mofy12=",args[i],7))
+    else if(!strncmp("mofy12=",args[i],7))
        mofy[11]=args[i][7];
-    if(!strncmp("dofm=",args[i],5))
+    else if(!strncmp("dofm=",args[i],5))
        dofm=args[i]+5;
-    if(!strncmp("dofw0=",args[i],6))
+    else if(!strncmp("dofw0=",args[i],6))
        dofw[0]=args[i][6];
-    if(!strncmp("dofw1=",args[i],6))
+    else if(!strncmp("dofw1=",args[i],6))
        dofw[1]=args[i][6];
-    if(!strncmp("dofw2=",args[i],6))
+    else if(!strncmp("dofw2=",args[i],6))
        dofw[2]=args[i][6];
-    if(!strncmp("dofw3=",args[i],6))
+    else if(!strncmp("dofw3=",args[i],6))
        dofw[3]=args[i][6];
-    if(!strncmp("dofw4=",args[i],6))
+    else if(!strncmp("dofw4=",args[i],6))
        dofw[4]=args[i][6];
-    if(!strncmp("dofw5=",args[i],6))
+    else if(!strncmp("dofw5=",args[i],6))
        dofw[5]=args[i][6];
-    if(!strncmp("dofw6=",args[i],6))
+    else if(!strncmp("dofw6=",args[i],6))
        dofw[6]=args[i][6];
-    if(!strncmp("hofd=",args[i],5))
+    else if(!strncmp("hofd=",args[i],5))
        hofd=args[i]+5;
+    else
+       PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",args[i],Url->name);
    }
 
  if(url==NULL || *url==0)
@@ -276,7 +280,7 @@ static void MonitorFormParse(int fd,char *request_args,Body *request_body)
     return;
    }
 
- Url=SplitURL(url);
+ monUrl=SplitURL(url);
  free(url);
 
  /* Parse the requested time */
@@ -393,7 +397,7 @@ static void MonitorFormParse(int fd,char *request_args,Body *request_body)
           strcpy(HofD,"100000000000000000000000");
    }
 
- mfd=CreateMonitorSpoolFile(Url,MofY,DofM,DofW,HofD);
+ mfd=CreateMonitorSpoolFile(monUrl,MofY,DofM,DofW,HofD);
 
  if(mfd==-1)
     HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",
@@ -401,7 +405,7 @@ static void MonitorFormParse(int fd,char *request_args,Body *request_body)
                 NULL);
  else
    {
-    Header *new_request_head=RequestURL(Url,NULL);
+    Header *new_request_head=RequestURL(monUrl,NULL);
     char *head=HeaderString(new_request_head);
 
     init_io(mfd);
@@ -412,7 +416,7 @@ static void MonitorFormParse(int fd,char *request_args,Body *request_body)
     close(mfd);
 
     HTMLMessage(fd,200,"WWWOFFLE Monitor Will Get",NULL,"MonitorWillGet",
-                "url",Url->name,
+                "url",monUrl->name,
                 NULL);
 
     free(head);
@@ -422,7 +426,7 @@ static void MonitorFormParse(int fd,char *request_args,Body *request_body)
  free(args[0]);
  free(args);
 
- FreeURL(Url);
+ FreeURL(monUrl);
 }
 
 

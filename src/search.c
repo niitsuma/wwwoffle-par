@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/search.c 1.32 2004/03/07 17:35:14 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/search.c 1.33 2004/06/17 18:47:45 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   Handle the interface to the ht://Dig, mnoGoSearch (UdmSearch) and Namazu search engines.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -482,7 +482,19 @@ static void SearchScript(int fd,char *args,char *name,char *script,char *path)
     int cgi_fd;
     int env_err=0;
 
-    close(STDIN_FILENO);
+    /* Set up stdout (fd is the only file descriptor we *must* keep). */
+
+    if(fd!=STDOUT_FILENO)
+      {
+       if(dup2(fd,STDOUT_FILENO)==-1)
+          PrintMessage(Fatal,"Cannnot create standard output for %s search script [%!s].",name);
+       finish_io(fd);
+       close(fd);
+       init_io(STDOUT_FILENO);
+      }
+
+    /* Set up stdin and stderr. */
+
     cgi_fd=open("/dev/null",O_RDONLY);
     if(cgi_fd!=STDIN_FILENO)
       {
@@ -491,17 +503,7 @@ static void SearchScript(int fd,char *args,char *name,char *script,char *path)
        close(cgi_fd);
       }
 
-    if(fd!=STDOUT_FILENO)
-      {
-       close(STDOUT_FILENO);
-       if(dup2(fd,STDOUT_FILENO)==-1)
-          PrintMessage(Fatal,"Cannnot create standard output for %s search script [%!s].",name);
-       finish_io(fd);
-       close(fd);
-       init_io(STDOUT_FILENO);
-      }
-
-    if(dup(STDERR_FILENO)==-1 && errno==EBADF) /* stderr is not open */
+    if(lseek(STDERR_FILENO,0,SEEK_CUR)==-1 && errno==EBADF) /* stderr is not open */
       {
        cgi_fd=open("/dev/null",O_WRONLY);
 
@@ -515,18 +517,16 @@ static void SearchScript(int fd,char *args,char *name,char *script,char *path)
 
     write_formatted(STDOUT_FILENO,"HTTP/1.0 200 %s search output\r\n",name);
 
+    /* Set up the environment. */
+
     /*@-mustfreefresh@*/
 
     putenv_var_val("REQUEST_METHOD","GET");
 
     if(args)
-      {
-       putenv_var_val("QUERY_STRING",args);
-      }
+       putenv_var_val("QUERY_STRING",args)
     else
-      {
        putenv("QUERY_STRING=");
-      }
 
     putenv_var_val("SCRIPT_NAME",script);
 

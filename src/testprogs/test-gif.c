@@ -1,11 +1,11 @@
 /***************************************
   $Header$
 
-  HTML modification test program
+  GIF modification test program
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 2000,01 Andrew M. Bishop
+  This file Copyright 2000,01,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -14,9 +14,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "config.h"
 #include "document.h"
-#include "misc.h"
 #include "io.h"
 #include "errors.h"
 
@@ -26,32 +24,17 @@ int wwwoffles_write_data(char *data,int len);
 
 int main(int argc,char **argv)
 {
- URL *Url;
-
- if(argc==1)
-   {fprintf(stderr,"usage: test-modify URL < contents-of-url\n");return(1);}
+ if(argc!=1)
+   {fprintf(stderr,"usage: test-gif < gif-file-in > gif-file-out\n");return(1);}
 
  StderrLevel=ExtraDebug;
 
- InitErrorHandler("test-modify",0,1);
-
- InitConfigurationFile("./wwwoffle.conf");
-
- init_io(STDERR_FILENO);
-
- if(ReadConfigurationFile(STDERR_FILENO))
-    PrintMessage(Fatal,"Error in configuration file 'wwwoffle.conf'.");
-
- finish_io(STDERR_FILENO);
-
- Url=SplitURL(argv[1]);
+ InitErrorHandler("test-gif",0,1);
 
  init_io(0);
  init_io(1);
 
- OutputHTMLWithModifications(Url,0,"text/html");
-
- FreeURL(Url);
+ OutputGIFWithModifications();
 
  finish_io(0);
  finish_io(1);

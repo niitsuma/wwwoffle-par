@@ -1,5 +1,5 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/refresh.c 2.78 2004/01/17 16:31:18 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/refresh.c 2.79 2004/09/28 16:25:30 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   The HTML interactive page to refresh a URL.
@@ -49,9 +49,9 @@ static int recurse_stylesheets=0, /*+ stylesheets. +*/
 
 /* Local functions */
 
-static void ParseRecurseOptions(char *options);
+static void ParseRecurseOptions(URL *Url);
 
-static /*@null@*/ char *RefreshFormParse(int fd,/*@null@*/ char *request_args,/*@null@*/ Body *request_body);
+static /*@null@*/ char *RefreshFormParse(int fd,URL *Url,/*@null@*/ char *request_args,/*@null@*/ Body *request_body);
 
 static int request_url(URL *Url,/*@null@*/ char *refresh,URL *refUrl);
 
@@ -91,7 +91,7 @@ char *RefreshPage(int fd,URL *Url,Body *request_body,int *recurse)
                 NULL);
  else if(!strcmp("/refresh-request/",Url->path) && Url->args)
    {
-    if((newurl=RefreshFormParse(fd,Url->args,request_body)))
+    if((newurl=RefreshFormParse(fd,Url,Url->args,request_body)))
        *recurse=-1;
    }
  else if(!strcmp("/refresh/",Url->path) && url)
@@ -102,7 +102,7 @@ char *RefreshPage(int fd,URL *Url,Body *request_body,int *recurse)
  else if(!strcmp("/refresh-recurse/",Url->path) && Url->args)
    {
     *recurse=1;
-    ParseRecurseOptions(Url->args);
+    ParseRecurseOptions(Url);
     newurl=(char*)malloc(strlen(recurse_url)+1);
     strcpy(newurl,recurse_url);
    }
@@ -125,18 +125,20 @@ char *RefreshPage(int fd,URL *Url,Body *request_body,int *recurse)
 
   int fd The file descriptor of the client.
 
+  URL *Url The URL of the form that is being processed.
+
   char *request_args The arguments of the requesting URL.
 
   Body *request_body The body of the HTTP request sent by the client.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static char *RefreshFormParse(int fd,char *request_args,Body *request_body)
+static char *RefreshFormParse(int fd,URL *Url,char *request_args,Body *request_body)
 {
  int i;
  char **args,*url=NULL,*limit="",*method=NULL;
  int depth=0,force=0;
  int stylesheets=0,images=0,frames=0,scripts=0,objects=0;
- URL *Url;
+ URL *refUrl;
  char *new_url;
 
  if(!request_args && !request_body)
@@ -160,22 +162,24 @@ static char *RefreshFormParse(int fd,char *request_args,Body *request_body)
    {
     if(!strncmp("url=",args[i],4))
        url=TrimArgs(URLDecodeFormArgs(args[i]+4));
-    if(!strncmp("depth=",args[i],6))
+    else if(!strncmp("depth=",args[i],6))
        depth=atoi(args[i]+6);
-    if(!strncmp("method=",args[i],7))
+    else if(!strncmp("method=",args[i],7))
        method=args[i]+7;
-    if(!strncmp("force=",args[i],6))
+    else if(!strncmp("force=",args[i],6))
        force=!!(args[i][6]=='Y');
-    if(!strncmp("stylesheets=",args[i],12))
+    else if(!strncmp("stylesheets=",args[i],12))
        stylesheets=!!(args[i][12]=='Y');
-    if(!strncmp("images=",args[i],7))
+    else if(!strncmp("images=",args[i],7))
        images=!!(args[i][7]=='Y');
-    if(!strncmp("frames=",args[i],7))
+    else if(!strncmp("frames=",args[i],7))
        frames=!!(args[i][7]=='Y');
-    if(!strncmp("scripts=",args[i],8))
+    else if(!strncmp("scripts=",args[i],8))
        scripts=!!(args[i][8]=='Y');
-    if(!strncmp("objects=",args[i],8))
+    else if(!strncmp("objects=",args[i],8))
        objects=!!(args[i][8]=='Y');
+    else
+       PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",args[i],Url->name);
    }
 
  if(url==NULL || *url==0 || method==NULL || *method==0)
@@ -189,26 +193,26 @@ static char *RefreshFormParse(int fd,char *request_args,Body *request_body)
     return(NULL);
    }
 
- Url=SplitURL(url);
+ refUrl=SplitURL(url);
  free(url);
 
  if(!strcmp(method,"any"))
     limit="";
  else if(!strcmp(method,"proto"))
    {
-    limit=(char*)malloc(strlen(Url->proto)+4);
-    sprintf(limit,"%s://",Url->proto);
+    limit=(char*)malloc(strlen(refUrl->proto)+4);
+    sprintf(limit,"%s://",refUrl->proto);
    }
  else if(!strcmp(method,"host"))
    {
-    limit=(char*)malloc(strlen(Url->proto)+strlen(Url->host)+5);
-    sprintf(limit,"%s://%s/",Url->proto,Url->host);
+    limit=(char*)malloc(strlen(refUrl->proto)+strlen(refUrl->host)+5);
+    sprintf(limit,"%s://%s/",refUrl->proto,refUrl->host);
    }
  else if(!strcmp(method,"dir"))
    {
     char *p;
-    limit=(char*)malloc(strlen(Url->proto)+strlen(Url->host)+strlen(Url->path)+5);
-    sprintf(limit,"%s://%s%s",Url->proto,Url->host,Url->path);
+    limit=(char*)malloc(strlen(refUrl->proto)+strlen(refUrl->host)+strlen(refUrl->path)+5);
+    sprintf(limit,"%s://%s%s",refUrl->proto,refUrl->host,refUrl->path);
     p=limit+strlen(limit)-1;
     while(p>limit && *p!='/')
        *p--=0;
@@ -219,12 +223,12 @@ static char *RefreshFormParse(int fd,char *request_args,Body *request_body)
  free(args[0]);
  free(args);
 
- new_url=CreateRefreshPath(Url,limit,depth,force,stylesheets,images,frames,scripts,objects);
+ new_url=CreateRefreshPath(refUrl,limit,depth,force,stylesheets,images,frames,scripts,objects);
 
  if(*limit)
     free(limit);
 
- FreeURL(Url);
+ FreeURL(refUrl);
 
  return(new_url);
 }
@@ -233,16 +237,16 @@ static char *RefreshFormParse(int fd,char *request_args,Body *request_body)
 /*++++++++++++++++++++++++++++++++++++++
   Parse the recursive url options to decide what needs fetching recursively.
 
-  char *options The options to use, encoding the depth and other things.
+  URL *Url The URL containing the options to use, encoding the depth and other things.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void ParseRecurseOptions(char *options)
+static void ParseRecurseOptions(URL *Url)
 {
  recurse_url=NULL;
  recurse_depth=-1;
  recurse_limit="";
 
- if(options)
+ if(Url->args)
    {
     char **args;
     int i;
@@ -253,29 +257,30 @@ static void ParseRecurseOptions(char *options)
     recurse_scripts=0;
     recurse_objects=0;
 
-    args=SplitFormArgs(options);
+    args=SplitFormArgs(Url->args);
 
     for(i=0;args[i];i++)
       {
        if(!strncmp("url=",args[i],4))
           recurse_url=TrimArgs(URLDecodeFormArgs(args[i]+4));
-       if(!strncmp("depth=",args[i],6))
+       else if(!strncmp("depth=",args[i],6))
          {recurse_depth=atoi(args[i]+6); if(recurse_depth<0) recurse_depth=0;}
-       if(!strncmp("limit=",args[i],6))
+       else if(!strncmp("limit=",args[i],6))
           recurse_limit=TrimArgs(URLDecodeFormArgs(args[i]+6));
-       if(!strncmp("force=",args[i],6))
+       else if(!strncmp("force=",args[i],6))
           recurse_force=!!(args[i][6]=='Y');
-
-       if(!strncmp("stylesheets=",args[i],12))
+       else if(!strncmp("stylesheets=",args[i],12))
           recurse_stylesheets=!!(args[i][12]=='Y')*2;
-       if(!strncmp("images=",args[i],7))
+       else if(!strncmp("images=",args[i],7))
           recurse_images=!!(args[i][7]=='Y')*2;
-       if(!strncmp("frames=",args[i],7))
+       else if(!strncmp("frames=",args[i],7))
           recurse_frames=!!(args[i][7]=='Y')*2;
-       if(!strncmp("scripts=",args[i],8))
+       else if(!strncmp("scripts=",args[i],8))
           recurse_scripts=!!(args[i][8]=='Y')*2;
-       if(!strncmp("objects=",args[i],8))
+       else if(!strncmp("objects=",args[i],8))
           recurse_objects=!!(args[i][8]=='Y')*2;
+       else
+          PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",args[i],Url->name);
       }
 
     PrintMessage(Debug,"Recursive Fetch options: depth=%d limit='%s' force=%d",

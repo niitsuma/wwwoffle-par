@@ -31,6 +31,7 @@ Contents:
         A spec file for creating RPMs for Redhat 9
         Wildcard wwwoffle-ls
         Checking Duplicated Monitored Files
+        WWWOFFLE Book - Creating a purge.conf from browser bookmarks
 
 Note: I did not write or check all of these scripts, they were supplied to me by
       the authors named below.
@@ -462,3 +463,19 @@ If a particular URL is monitored on a daily basis it may be seen that the same
 URL is always fetched even though there seems to be no change.  Provided are two
 scripts that can help find out why the page was re-fetched.  There is a README
 file in the duplicates directory that gives more details.
+
+
+WWWOFFLE Book - Creating a purge.conf from browser bookmarks
+------------------------------------------------------------
+
+Filename:    wwwofflebook/*
+Contributed: <wwm@gmx.ch>
+
+This is a beta version.
+
+> The wwwofflebook scripts can extract the http domains from your browser bookmark
+> file. The http domain of a bookmark is the first part of the address, beginning 
+> after the protocol prefix 'http://'. wwwofflebook passes these domains to the 
+> wwwoffle daemon with the flag to never delete them at all. The pages of this site 
+> will always be available offline, from the wwwoffle cache. 
+> This way a browser-bookmarked site will be retained until you remove the bookmarks.

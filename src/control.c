@@ -1,5 +1,5 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/control.c 2.60 2004/04/25 14:24:13 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/control.c 2.61 2004/09/28 16:25:30 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
   The HTML interactive control pages.
@@ -128,6 +128,8 @@ void ControlPage(int fd,URL *Url,Body *request_body)
             {
              if(!strncmp(*argsp,"hash=",5) && (*argsp)[5])
                 hashash=1;
+             else
+                PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",*argsp,Url->name);
             }
 
           free(*args);
@@ -290,12 +292,14 @@ static void DeleteControlPage(int fd,URL *Url,Body *request_body)
       {
        if(!strncmp(*argsp,"hash=",5))
           hash=URLDecodeFormArgs(&(*argsp)[5]);
-       if(!strncmp(*argsp,"username=",9))
+       else if(!strncmp(*argsp,"username=",9))
           username=&(*argsp)[9];
-       if(!strncmp(*argsp,"password=",9))
+       else if(!strncmp(*argsp,"password=",9))
           password=&(*argsp)[9];
-       if(!strncmp(*argsp,"url=",4))
+       else if(!strncmp(*argsp,"url=",4))
           page=TrimArgs(URLDecodeFormArgs(&(*argsp)[4]));
+       else
+          PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",*argsp,Url->name);
       }
    }
 
@@ -441,8 +445,10 @@ static void DeleteMultipleControlPages(int fd,URL *Url,Body *request_body)
       {
        if(!strncmp(*argsp,"username=",9))
           username=&(*argsp)[9];
-       if(!strncmp(*argsp,"password=",9))
+       else if(!strncmp(*argsp,"password=",9))
           password=&(*argsp)[9];
+       else
+          PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",*argsp,Url->name);
       }
 
     for(argsp=args;*argsp;argsp++)

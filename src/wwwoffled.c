@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffled.c 2.73 2004/02/25 19:35:19 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffled.c 2.74 2004/07/05 08:29:13 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   A demon program to maintain the database and spawn the servers.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -247,6 +247,9 @@ int main(int argc, char** argv)
  if(uid!=-1)
     seteuid(0);
 
+ if(log_file && (uid!=-1 || gid!=-1))
+    chown(log_file,uid,gid);
+
  if(gid!=-1)
    {
 #if HAVE_SETGROUPS
@@ -404,25 +407,23 @@ int main(int argc, char** argv)
 
  /* Detach from terminal */
 
- close(STDIN_FILENO);
- close(STDOUT_FILENO);
-
  if(detached)
    {
-    close(STDERR_FILENO);
-
     demoninit();
 
     PrintMessage(Important,"Detached from terminal and changed pid to %d.",getpid());
 
     if(log_file)
-       OpenErrorLog(log_file);
-
-    if(log_file)
-       InitErrorHandler("wwwoffled",-1,1); /* pid changes after detaching, keep stderr. */
+       InitErrorHandler("wwwoffled",-1,-1); /* pid changes after detaching, keep stderr as was. */
     else
-       InitErrorHandler("wwwoffled",-1,0); /* pid changes after detaching, disable stderr. */
+       InitErrorHandler("wwwoffled",-1, 0); /* pid changes after detaching, disable stderr. */
+
+    if(!log_file)
+       close(STDERR_FILENO);
    }
+
+ close(STDIN_FILENO);
+ close(STDOUT_FILENO);
 
  install_sighandlers();
 

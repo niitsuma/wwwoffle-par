@@ -1,3 +1,29 @@
+Version 2.8d of WWWOFFLE released : Sun Oct 17 14:30:00 2004
+------------------------------------------------------------
+
+Bug Fixes:
+ The add-cache-info option works for xhtml pages.  Images and stylesheets etc in
+ xhtml pages are fetched.  Info pages show xml/xhtml source.  Disallow invalid
+ characters in hostnames.  Fix log file ownership.  Close file descriptor on log
+ file.  Handle stdin, stderr and stdout properly.  Don't force errors to stderr
+ if previously disabled.  Disable the demoronise-ms-html option if the HTML is
+ UTF-8 etc.  Make sure 'wwwoffle -fetch' lists all outgoing URLs.  The
+ wwwoffle-tools programs return an error code in case of error.  Reset page CSS
+ when using add-cache-info option.  Give warning if unexpected URL argument seen
+ for internal URLs.
+
+New Features:
+ A URL-SPEC path like '/*/foo*' matches '/foo*' and '/*/foo*' as a special case.
+ New GIF modification code, handles GIF87a and GIF89a formats, more robust.
+
+New Options
+ Added an HTMLModify option to fix bad Cyrillic pages (like demoroniser).
+ Added an HTMLModify option to stop marquee scrolling text in HTML.
+
+
+*NOTE* See the important notes for version 2.8 as well.
+
+
 Version 2.8c of WWWOFFLE released : Sat Jun 12 16:00:00 2004
 ------------------------------------------------------------
 

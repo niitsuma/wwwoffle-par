@@ -1,14 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/gifmodify.c 1.8 2003/07/27 15:59:49 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/gifmodify.c 1.9 2004/10/14 18:09:34 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8.
-  A function for filtering GIF data streams in order to "disable" the mostly
-  annoying animations.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+  A function to modify GIFs by deleting all except the first image.
   ******************/ /******************
-  Written by Ingo Kloecker
-  Modified by Andrew M. Bishop
+  Written by Andrew M. Bishop
 
-  Copyright 1999,2000,01,02,03 Ingo Kloecker and Andrew M. Bishop
+  Copyright 2004 Andrew M. Bishop
 
   This file may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -18,169 +16,272 @@
 
 #include "autoconfig.h"
 
-#include <string.h>
-
 #include "wwwoffle.h"
 #include "io.h"
 #include "document.h"
 
 
-/*
-  OutputGIFWithModifications - function to disable the animation of GIF89a files
+/*+ Part types +*/
 
-  Short description:
-  In order to "disable" the animation the function searches for Graphic
-  Control Extension and sets the delay time for the following image to
-  655.35 seconds (which is the maximal possible setting as for example
-  the Netscape Navigator misinterprets a value of 0 as no delay instead of 
-  infinite delay).
-  The GIF89a Specification of CompuServe Inc. says the following about the
-  delay time:
-    "Delay Time - If not 0, this field specifies the number of
-                  hundredths (1/100) of a second to wait before
-	  	  continuing with the processing of the Data Stream."
-  and
-    "In the absence of a specified Delay Time, the decoder should wait
-     for user input indefinitely."
-  
-  Here you can find more information about the structure of GIF files:
-  http://members.aol.com/royalef/gifabout.htm
-*/
+typedef enum _GIFParts
+{
+ Unknown          = 0,          /*+ Don't know what comes next. +*/
+
+ CopyToEnd        = 1,          /*+ Copy the remaining data until the end. +*/
+ SkipToEnd        = 2,          /*+ Skip the remaining data until the end. +*/
+
+ GIFHeader        = 3,          /*+ The initial header signature + version. +*/
+ ScreenDescriptor = 4,          /*+ The image size and depth etc. +*/
+ ImageDescriptor  = 5,          /*+ The individual image ddescriptor +*/
+
+ LZWCodeSize      = 6,          /*+ The LZW code size. +*/
+ ImageData        = 7,          /*+ The actual image data. +*/
+
+ Trailer          = 8,          /*+ The final data trailer. +*/
+
+ ExtensionIntro   = 9,          /*+ An extension block introducer byte. +*/
+ ExtensionType    =10,          /*+ An extension block type byte. +*/
+ ExtensionData    =11           /*+ The extension block data. +*/
+}
+GIFBlock;
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Disable the animation of GIF87a & GIF89a files.
+  The output GIF is only the first image in a multi-image GIF.
+  ++++++++++++++++++++++++++++++++++++++*/
 
 void OutputGIFWithModifications(void)
 {
- int bytes_to_skip=0;
- unsigned char blocktype='t';
- int pHeader=0;
- unsigned char GIFHeader[7];
- int colors;
- int colorbits;
- int filterGIF = 1;
-
- unsigned char gifstream[READ_BUFFER_SIZE];
+ GIFBlock state=GIFHeader;
+ unsigned int count=0,remain=0;
+ char data[READ_BUFFER_SIZE];
  int n;
 
- while((n=wwwoffles_read_data((char*)gifstream,READ_BUFFER_SIZE))>0)
+ /* The contents of the packed byte in the Screen/ImageDescriptor */
+
+ char packed=0;
+
+ /* Loop until finished reading */
+
+ while((n=wwwoffles_read_data(data,READ_BUFFER_SIZE))>0)
    {
-    int offset=0;
+    char *p=data;
 
-    while ((filterGIF == 1) && (bytes_to_skip+offset < n)) {
-     offset += bytes_to_skip;
-     bytes_to_skip = 0;
-     if (blocktype==0) {
-      /* Identify next block */
-      blocktype = gifstream[offset];
-      switch (blocktype) {
-      case ',': /* Image Descriptor */
-       /* PrintMessage(Debug,"Image Descriptor Block"); */
-	bytes_to_skip=9; /* skip unnecessary information */
-	break;
-      case '!': /* Extension Block */
-       /* PrintMessage(Debug,"Extension Block"); */
-	bytes_to_skip=1; /* skip to Extension Block Identifier */
-	break;
-      case ';': /* GIF Terminator */
-       /* PrintMessage(Debug,"Terminator Block"); */
-	filterGIF = 0; /* end filtering of GIF file */
-	break;
-      default : /* Unknown Block */
-       /* PrintMessage(Debug,"Unknown Block Type %d in GIF file.", blocktype); */
-	filterGIF = -1;
-      }
-    }
-    else {
-      switch (blocktype) {
-      case 't': /* Checking GIF-Header */
-	if (pHeader<5) { /* If Header hasn't been completely read */
-	  GIFHeader[pHeader]=gifstream[offset];
-	  pHeader++;
-	  bytes_to_skip=1;
-	}
-	else {
-	  GIFHeader[pHeader]=gifstream[offset];		    
-	  GIFHeader[6]='\0';
-	  if (!strncmp(GIFHeader,"GIF89a",6)) {
-           /* PrintMessage(Debug,"File is a GIF89a."); */
-	    filterGIF = 1;
-	    bytes_to_skip=1+4; /* skip unnecessary information */
-	    blocktype='G';
-	  }
-	  else
-	    filterGIF = 0;
-	}
-	break;
-      case 'G': /* Inside Logical Screen Descriptor */
-	/* If Global Color Map exists */
-	if (gifstream[offset] & 0x80) {
-	  colorbits = gifstream[offset] & 0x07;
-	  colors=2;
-	  for (; colorbits>0; colorbits--)
-	    colors*=2;
-	}
-	else
-	  colors=0;
-        /* PrintMessage(Debug,"Global Color Map has %d colors.",colors); */
-	/* skip last 3 bytes of Logical Screen Descr. and optional GCM */
-	bytes_to_skip=3+3*colors;
-	blocktype=0;
-	break;
-      case ',': /* Image Descriptor */
-	/* If Local Color Map exists */
-	if (gifstream[offset] & 0x80) {
-	  colorbits = gifstream[offset] & 0x07;
-	  colors=2;
-	  for (; colorbits>0; colorbits--)
-	    colors*=2;
-	}
-	else {
-	  colors=0;
-	}
-        /* PrintMessage(Debug,"Image has %d colors.",colors); */
-	/* skip last byte of Image Descr., optional LCM and first byte of Raster Data Stream (LZW Minimum Code Size) */
-	bytes_to_skip=1+3*colors+1;
-	blocktype='D'; /* set blocktype to Data Block */
-	break;
-      case 'D': /* Data Block */
-	bytes_to_skip=1+gifstream[offset];
-	if (bytes_to_skip < 1)
-	  bytes_to_skip += 256; 
-        /* PrintMessage(Debug,"Inside Data Block (blocksize=%d).",bytes_to_skip-1); */
-	if (bytes_to_skip == 1) /* If end of Block reached */
-	  blocktype=0; /* reset blocktype */
-	break;
-      case '!': /* Extension Block */
-	/* Falls Graphics Control Extension Block */
-        if (gifstream[offset]==249) {
-         /* PrintMessage(Debug,"Graphics Control Extension Block."); */
-	  bytes_to_skip=3; /* goto delay time entry */
-	  blocktype='1';
-	}
-	else { /* skip this block */
-         /* PrintMessage(Debug,"Other Extension Block."); */
-	  bytes_to_skip=1;
-	  blocktype='D';
-	}
-	break;
-      case '1': /* first byte of delay time */
-	/* set delay time to maximum (0xFFFF = 655.35s) */
-       /* PrintMessage(Debug,"1st byte of delay time was %d",gifstream[offset]); */
-	gifstream[offset]=255;
-	bytes_to_skip=1; /* goto second byte of delay time entry */
-	blocktype='2';
-	break;
-      case '2': /* second byte of delay time */
-       /* PrintMessage(Debug,"2nd byte of delay time was %d",gifstream[offset]); */
-	gifstream[offset]=255;
-	bytes_to_skip=3; /* skip rest of GCE block */
-	blocktype=0;
-	break;
-      }
-    }
-  }
-  if (filterGIF == 1) {
-    bytes_to_skip -= n-offset;
-  }
+    while(n)
+      {
+       /* Ignore the remaining data */
 
-  wwwoffles_write_data((char*)gifstream,n);
- }
+       if(state==SkipToEnd)
+          break;
+
+       /* Copy the remaining data */
+
+       else if(state==CopyToEnd)
+         {
+          wwwoffles_write_data(p,n);
+          break;
+         }
+
+       /* Output the following 'remain' bytes. */
+
+       else if(remain>=n)
+         {
+          wwwoffles_write_data(p,n);
+          remain-=n;
+          break;
+         }
+       else if(remain)
+         {
+          wwwoffles_write_data(p,remain);
+          p+=remain;
+          n-=remain;
+          remain=0;
+         }
+
+       /* Decide what data comes next */
+
+       if(state==Unknown && n)
+         {
+          if(*p==0x2c)
+            {
+             state=ImageDescriptor;
+             count=0;
+            }
+          else if(*p==0x21)
+             state=ExtensionIntro;
+          else if(*p==0x3b)
+             state=Trailer;
+          else
+             state=LZWCodeSize;
+         }
+
+       /* Header, first in file, appears only once */
+
+       if(state==GIFHeader && n)
+         {
+          int m=0;
+          switch(count)
+            {
+            case 0:                 if(p[m]!='G')              goto copytoend; m++;
+            case 1: if(m>=n) break; if(p[m]!='I')              goto copytoend; m++;
+            case 2: if(m>=n) break; if(p[m]!='F')              goto copytoend; m++;
+            case 3: if(m>=n) break; if(p[m]!='8')              goto copytoend; m++;
+            case 4: if(m>=n) break; if(p[m]!='7' && p[m]!='9') goto copytoend; m++;
+            case 5: if(m>=n) break; if(p[m]!='a')              goto copytoend; m++;
+             state=ScreenDescriptor;
+             count=0;
+            }
+
+          if(state==GIFHeader)
+             count+=m;
+          wwwoffles_write_data(p,m);
+          p+=m;
+          n-=m;
+         }
+
+       /* Screen Descriptor, appears only once after Header */
+
+       if(state==ScreenDescriptor && n)
+         {
+          int m=0;
+          switch(count)
+            {
+            case 0:                 m++;
+            case 1: if(m>=n) break; m++;
+            case 2: if(m>=n) break; m++;
+            case 3: if(m>=n) break; m++;
+            case 4: if(m>=n) break; packed=p[m++];
+            case 5: if(m>=n) break; m++;
+            case 6: if(m>=n) break; m++;
+             if(packed&0x80)
+                remain=3*(2<<(packed&0x07));
+             else
+                remain=0;
+
+             state=Unknown;
+            }
+
+          if(state==ScreenDescriptor)
+             count+=m;
+          wwwoffles_write_data(p,m);
+          p+=m;
+          n-=m;
+         }
+
+       /* Global Colour table, appears only once, optional, skipped, after Screen Descriptor */
+
+       /* Image descriptor, appears once per image  */
+
+       if(state==ImageDescriptor && n)
+         {
+          int m=0;
+          switch(count)
+            {
+            case 0:                 m++;
+            case 1: if(m>=n) break; m++;
+            case 2: if(m>=n) break; m++;
+            case 3: if(m>=n) break; m++;
+            case 4: if(m>=n) break; m++;
+            case 5: if(m>=n) break; m++;
+            case 6: if(m>=n) break; m++;
+            case 7: if(m>=n) break; m++;
+            case 8: if(m>=n) break; m++;
+            case 9: if(m>=n) break; packed=p[m++];
+             if(packed&0x80)
+                remain=3*(2<<(packed&0x07));
+             else
+                remain=0;
+
+             state=Unknown;
+            }
+
+          if(state==ImageDescriptor)
+             count+=m;
+          wwwoffles_write_data(p,m);
+          p+=m;
+          n-=m;
+         }
+
+       /* Local Colour table, appears once per image, optional, skipped, after Image Descriptor */
+
+       /* Image block start, one per image */
+
+       if(state==LZWCodeSize && n)
+         {
+          wwwoffles_write_data(p,1);
+          p++;
+          n--;
+          state=ImageData;
+         }
+
+       /* Image data, one per image */
+
+       if(state==ImageData && n)
+         {
+          remain=(unsigned char)*p;
+
+#if 1 /* single image wanted */
+          if(remain==0)
+             state=Trailer;
+#else /* pass through */
+          if(remain==0)
+             state=Unknown;
+#endif
+
+          wwwoffles_write_data(p,1);
+          p++;
+          n--;
+         }
+
+       /* Trailer, appears once at end */
+
+       if(state==Trailer && n)
+         {
+          char end=0x3b;
+          wwwoffles_write_data(&end,1);
+          state=SkipToEnd;
+         }
+
+       /* Extension Introducer, optional, appears any number of times */
+
+       if(state==ExtensionIntro && n)
+         {
+          state=ExtensionType;
+
+          wwwoffles_write_data(p,1);
+          p++;
+          n--;
+         }
+
+       /* Extension type, optional, appears any number of times */
+
+       if(state==ExtensionType && n)
+         {
+          state=ExtensionData;
+
+          wwwoffles_write_data(p,1);
+          p++;
+          n--;
+         }
+
+       /* Extension data, optional, appears any number of times */
+
+       if(state==ExtensionData && n)
+         {
+          remain=(unsigned char)*p;
+          if(remain==0)
+             state=Unknown;
+
+          wwwoffles_write_data(p,1);
+          p++;
+          n--;
+         }
+
+       continue;
+
+      copytoend:
+       state=CopyToEnd;
+      }
+   }
 }

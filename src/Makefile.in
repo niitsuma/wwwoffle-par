@@ -1,12 +1,12 @@
-# $Header: /home/amb/wwwoffle/src/RCS/Makefile.in 1.25 2004/02/14 15:14:38 amb Exp $
+# $Header: /home/amb/wwwoffle/src/RCS/Makefile.in 1.26 2004/09/28 16:25:30 amb Exp $
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
 #
 # Source Makefile.
 #
 # Written by Andrew M. Bishop
 #
-# This file Copyright 1996,97,98,99,2000,01,02,03 Andrew M. Bishop
+# This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
 # It may be distributed under the GNU Public License, version 2, or
 # any higher version.  See section COPYING of the GNU Public license
 # for conditions under which this file may be redistributed.
@@ -233,7 +233,7 @@ gifmodify.o        : gifmodify.c        autoconfig.h wwwoffle.h io.h misc.h     
 htmlmodify.o       : htmlmodify.c       autoconfig.h wwwoffle.h io.h misc.h          config.h                   document.h                                      
 
 configdata.o       : configdata.c       autoconfig.h            io.h misc.h errors.h config.h sockets.h                              configpriv.h               
-configedit.o       : configedit.c       autoconfig.h wwwoffle.h io.h misc.h          config.h                                        configpriv.h               
+configedit.o       : configedit.c       autoconfig.h wwwoffle.h io.h misc.h errors.h config.h                                        configpriv.h               
 configfunc.o       : configfunc.c       autoconfig.h                 misc.h errors.h config.h sockets.h                              configpriv.h               
 configmisc.o       : configmisc.c       autoconfig.h                 misc.h errors.h                                                 configpriv.h               
 configrdwr.o       : configrdwr.c       autoconfig.h            io.h misc.h errors.h config.h                                        configpriv.h               

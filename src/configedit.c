@@ -1,5 +1,5 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configedit.c 1.33 2004/02/01 16:22:48 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configedit.c 1.34 2004/09/28 16:25:30 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
   The HTML interactive configuration editing pages.
@@ -22,6 +22,7 @@
 #include <unistd.h>
 
 #include "wwwoffle.h"
+#include "errors.h"
 #include "io.h"
 #include "misc.h"
 #include "configpriv.h"
@@ -30,8 +31,8 @@
 
 static void ConfigurationIndexPage(int fd,/*@null@*/ char *url);
 static void ConfigurationSectionPage(int fd,int section,/*@null@*/ char *url);
-static void ConfigurationItemPage(int fd,int section,int item,/*@null@*/ char *url,/*@null@*/ Body *request_body);
-static void ConfigurationEditURLPage(int fd,/*@null@*/ Body *request_body);
+static void ConfigurationItemPage(int fd,int section,int item,URL *Url,/*@null@*/ char *url,/*@null@*/ Body *request_body);
+static void ConfigurationEditURLPage(int fd,URL *Url,/*@null@*/ Body *request_body);
 static void ConfigurationURLPage(int fd,char *url);
 static void ConfigurationAuthFail(int fd,char *url);
 
@@ -83,7 +84,7 @@ void ConfigurationPage(int fd,URL *Url,Body *request_body)
 
  if(!strcmp(&Url->path[15],"editurl"))
    {
-    ConfigurationEditURLPage(fd,request_body);
+    ConfigurationEditURLPage(fd,Url,request_body);
     if(url) free(url);
     return;
    }
@@ -112,7 +113,7 @@ void ConfigurationPage(int fd,URL *Url,Body *request_body)
              if(!strcmp(CurrentConfig.sections[s]->itemdefs[i].name,Url->path+16+len) ||
                 (!strcmp(Url->path+16+len,"no-name") && *CurrentConfig.sections[s]->itemdefs[i].name==0))
                {
-                ConfigurationItemPage(fd,s,i,url,request_body);
+                ConfigurationItemPage(fd,s,i,Url,url,request_body);
                 if(url) free(url);
                 return;
                }
@@ -347,12 +348,14 @@ static void ConfigurationSectionPage(int fd,int section,char *url)
 
   int item The item within the section.
 
+  URL *Url The URL of the page that is being requested.
+
   char *url The URL specification from the URL argument.
 
   Body *request_body The body of the POST request containing the information.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void ConfigurationItemPage(int fd,int section,int item,char *url,Body *request_body)
+static void ConfigurationItemPage(int fd,int section,int item,URL *Url,char *url,Body *request_body)
 {
  char *action=NULL,*entry=NULL;
  char *key=NULL,*val=NULL;
@@ -369,14 +372,16 @@ static void ConfigurationItemPage(int fd,int section,int item,char *url,Body *re
       {
        if(!strncmp("url=",args[i],4) && args[i][4])
           url=TrimArgs(URLDecodeFormArgs(args[i]+4));
-       if(!strncmp("key=",args[i],4) && args[i][4])
+       else if(!strncmp("key=",args[i],4) && args[i][4])
           key=TrimArgs(URLDecodeFormArgs(args[i]+4));
-       if(!strncmp("val=",args[i],4) && args[i][4])
+       else if(!strncmp("val=",args[i],4) && args[i][4])
           val=TrimArgs(URLDecodeFormArgs(args[i]+4));
-       if(!strncmp("action=",args[i],7))
+       else if(!strncmp("action=",args[i],7))
           action=TrimArgs(URLDecodeFormArgs(args[i]+7));
-       if(!strncmp("entry=",args[i],6))
+       else if(!strncmp("entry=",args[i],6))
           entry=TrimArgs(URLDecodeFormArgs(args[i]+6));
+       else
+          PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",args[i],Url->name);
       }
 
     free(args[0]);
@@ -613,10 +618,12 @@ static void ConfigurationItemPage(int fd,int section,int item,char *url,Body *re
 
   int fd The file descriptor to write to.
 
+  URL *Url The URL of the page that is being requested.
+
   Body *request_body The body of the request.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void ConfigurationEditURLPage(int fd,Body *request_body)
+static void ConfigurationEditURLPage(int fd,URL *Url,Body *request_body)
 {
  char *url=NULL,*encurl;
  int urllen;
@@ -636,25 +643,26 @@ static void ConfigurationEditURLPage(int fd,Body *request_body)
       {
        if(!strncmp("proto=",arglist[i],6) && arglist[i][6])
           proto=TrimArgs(URLDecodeFormArgs(arglist[i]+6));
-       if(!strncmp("host=",arglist[i],5) && arglist[i][5])
+       else if(!strncmp("host=",arglist[i],5) && arglist[i][5])
           host=TrimArgs(URLDecodeFormArgs(arglist[i]+5));
-       if(!strncmp("port=",arglist[i],5) && arglist[i][5])
+       else if(!strncmp("port=",arglist[i],5) && arglist[i][5])
           port=TrimArgs(URLDecodeFormArgs(arglist[i]+5));
-       if(!strncmp("path=",arglist[i],5) && arglist[i][5])
+       else if(!strncmp("path=",arglist[i],5) && arglist[i][5])
           path=TrimArgs(URLDecodeFormArgs(arglist[i]+5));
-       if(!strncmp("args=",arglist[i],5) && arglist[i][5])
+       else if(!strncmp("args=",arglist[i],5) && arglist[i][5])
           args=TrimArgs(URLDecodeFormArgs(arglist[i]+5));
-
-       if(!strncmp("proto_other=",arglist[i],12) && arglist[i][12])
+       else if(!strncmp("proto_other=",arglist[i],12) && arglist[i][12])
           proto_other=TrimArgs(URLDecodeFormArgs(arglist[i]+12));
-       if(!strncmp("host_other=",arglist[i],11) && arglist[i][11])
+       else if(!strncmp("host_other=",arglist[i],11) && arglist[i][11])
           host_other=TrimArgs(URLDecodeFormArgs(arglist[i]+11));
-       if(!strncmp("port_other=",arglist[i],11) && arglist[i][11])
+       else if(!strncmp("port_other=",arglist[i],11) && arglist[i][11])
           port_other=TrimArgs(URLDecodeFormArgs(arglist[i]+11));
-       if(!strncmp("path_other=",arglist[i],11) && arglist[i][11])
+       else if(!strncmp("path_other=",arglist[i],11) && arglist[i][11])
           path_other=TrimArgs(URLDecodeFormArgs(arglist[i]+11));
-       if(!strncmp("args_other=",arglist[i],11) && arglist[i][11])
+       else if(!strncmp("args_other=",arglist[i],11) && arglist[i][11])
           args_other=TrimArgs(URLDecodeFormArgs(arglist[i]+11));
+       else
+          PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",arglist[i],Url->name);
       }
 
     free(arglist[0]);

@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle-tools.c 1.44 2004/02/14 14:03:18 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle-tools.c 1.45 2004/09/08 18:15:22 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   Tools for use in the cache for version 2.x.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -80,15 +80,15 @@
 #define WRITE      6
 #define HASH       7
 
-static void wwwoffle_ls(URL *Url);
-static void wwwoffle_ls_special(char *name);
-static void wwwoffle_mv(URL *Url1,URL *Url2);
-static void wwwoffle_rm(URL *Url);
-static void wwwoffle_read(URL *Url);
-static void wwwoffle_write(URL *Url);
-static void wwwoffle_hash(URL *Url);
+static int wwwoffle_ls(URL *Url);
+static int wwwoffle_ls_special(char *name);
+static int wwwoffle_mv(URL *Url1,URL *Url2);
+static int wwwoffle_rm(URL *Url);
+static int wwwoffle_read(URL *Url);
+static int wwwoffle_write(URL *Url);
+static int wwwoffle_hash(URL *Url);
 
-static void ls(char *file);
+static int ls(char *file);
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -99,7 +99,7 @@ int main(int argc,char **argv)
 {
  struct stat buf;
  URL **Url=NULL;
- int mode=0;
+ int mode=0,exitval=0;
  int i;
  char *argv0,*config_file=NULL;
 
@@ -291,16 +291,16 @@ int main(int argc,char **argv)
 
  if(mode==LS)
     for(i=1;i<argc;i++)
-       wwwoffle_ls(Url[i]);
+       exitval+=wwwoffle_ls(Url[i]);
  else if(mode==LS_SPECIAL)
-    wwwoffle_ls_special(argv[1]);
+    exitval=wwwoffle_ls_special(argv[1]);
  else if(mode==MV)
-    wwwoffle_mv(Url[1],Url[2]);
+    exitval=wwwoffle_mv(Url[1],Url[2]);
  else if(mode==RM)
     for(i=1;i<argc;i++)
-       wwwoffle_rm(Url[i]);
+       exitval+=wwwoffle_rm(Url[i]);
  else if(mode==READ)
-    wwwoffle_read(Url[1]);
+    exitval=wwwoffle_read(Url[1]);
  else if(mode==WRITE)
    {
     if(config_file)
@@ -373,35 +373,39 @@ int main(int argc,char **argv)
           PrintMessage(Inform,"Running with uid=%d, gid=%d.",geteuid(),getegid());
       }
 
-    wwwoffle_write(Url[1]);
+    exitval=wwwoffle_write(Url[1]);
    }
  else if(mode==HASH)
-    wwwoffle_hash(Url[1]);
+    exitval=wwwoffle_hash(Url[1]);
 
- exit(0);
+ exit(exitval);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   List the URLs within a directory of the cache.
 
+  int wwwoffle_ls Return 1 in case of error or 0 if OK.
+
   URL *Url The URL to list.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void wwwoffle_ls(URL *Url)
+static int wwwoffle_ls(URL *Url)
 {
+ int retval=0;
+
  if(chdir(Url->proto))
-   {PrintMessage(Warning,"Cannot change to directory '%s' [%!s].",Url->proto);return;}
+   {PrintMessage(Warning,"Cannot change to directory '%s' [%!s].",Url->proto);return(1);}
 
  if(chdir(Url->dir))
-   {PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s].",Url->proto,Url->dir);ChangeBackToSpoolDir();return;}
+   {PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s].",Url->proto,Url->dir);ChangeBackToSpoolDir();return(1);}
 
  if(strcmp(Url->path,"/"))
    {
     char *name=URLToFileName(Url);
 
     *name='D';
-    ls(name);
+    retval+=ls(name);
 
     free(name);
    }
@@ -411,11 +415,11 @@ static void wwwoffle_ls(URL *Url)
     DIR *dir=opendir(".");
 
     if(!dir)
-      {PrintMessage(Warning,"Cannot open current directory '%s/%s' [%!s].",Url->proto,Url->dir);ChangeBackToSpoolDir();return;}
+      {PrintMessage(Warning,"Cannot open current directory '%s/%s' [%!s].",Url->proto,Url->dir);ChangeBackToSpoolDir();return(1);}
 
     ent=readdir(dir);
     if(!ent)
-      {PrintMessage(Warning,"Cannot read current directory '%s/%s' [%!s].",Url->proto,Url->dir);closedir(dir);ChangeBackToSpoolDir();return;}
+      {PrintMessage(Warning,"Cannot read current directory '%s/%s' [%!s].",Url->proto,Url->dir);closedir(dir);ChangeBackToSpoolDir();return(1);}
 
     do
       {
@@ -423,7 +427,7 @@ static void wwwoffle_ls(URL *Url)
           continue; /* skip . & .. */
 
        if(*ent->d_name=='D' && ent->d_name[strlen(ent->d_name)-1]!='~')
-          ls(ent->d_name);
+          retval+=ls(ent->d_name);
       }
     while((ent=readdir(dir)));
 
@@ -431,31 +435,36 @@ static void wwwoffle_ls(URL *Url)
    }
 
  ChangeBackToSpoolDir();
+
+ return(retval);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   List the URLs within the outgoing, monitor or lasttime/prevtime special directory of the cache.
 
+  int wwwoffle_ls_special Return 1 in case of error or 0 if OK.
+
   char *name The name of the directory to list.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void wwwoffle_ls_special(char *name)
+static int wwwoffle_ls_special(char *name)
 {
  struct dirent* ent;
  DIR *dir;
+ int retval=0;
 
  if(chdir(name))
-   {PrintMessage(Warning,"Cannot change to directory '%s' [%!s].",name);return;}
+   {PrintMessage(Warning,"Cannot change to directory '%s' [%!s].",name);return(1);}
 
  dir=opendir(".");
 
  if(!dir)
-   {PrintMessage(Warning,"Cannot open current directory '%s' [%!s].",name);ChangeBackToSpoolDir();return;}
+   {PrintMessage(Warning,"Cannot open current directory '%s' [%!s].",name);ChangeBackToSpoolDir();return(1);}
 
  ent=readdir(dir);
  if(!ent)
-   {PrintMessage(Warning,"Cannot read current directory '%s' [%!s].",name);closedir(dir);ChangeBackToSpoolDir();return;}
+   {PrintMessage(Warning,"Cannot read current directory '%s' [%!s].",name);closedir(dir);ChangeBackToSpoolDir();return(1);}
 
  do
    {
@@ -463,23 +472,27 @@ static void wwwoffle_ls_special(char *name)
        continue; /* skip . & .. */
 
     if((*ent->d_name=='D' || *ent->d_name=='O') && ent->d_name[strlen(ent->d_name)-1]!='~')
-       ls(ent->d_name);
+       retval+=ls(ent->d_name);
    }
  while((ent=readdir(dir)));
 
  closedir(dir);
 
  ChangeBackToSpoolDir();
+
+ return(retval);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   List one file.
 
+  int ls Return 1 in case of error or 0 if OK.
+
   char *file The name of the file to ls.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void ls(char *file)
+static int ls(char *file)
 {
  struct stat buf;
  time_t now=-1;
@@ -488,7 +501,7 @@ static void ls(char *file)
     now=time(NULL);
 
  if(stat(file,&buf))
-   {PrintMessage(Warning,"Cannot stat the file '%s' [%!s].",file);return;}
+   {PrintMessage(Warning,"Cannot stat the file '%s' [%!s].",file);return(1);}
  else
    {
     char *url=FileNameToURL(file);
@@ -508,36 +521,40 @@ static void ls(char *file)
        free(url);
       }
    }
+
+ return(0);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Move one URL or host to another.
 
+  int wwwoffle_mv Return 1 in case of error or 0 if OK.
+
   URL *Url1 The source URL.
 
   URL *Url2 The destination URL.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void wwwoffle_mv(URL *Url1,URL *Url2)
+static int wwwoffle_mv(URL *Url1,URL *Url2)
 {
  struct dirent* ent;
  DIR *dir;
 
  if(chdir(Url1->proto))
-   {PrintMessage(Warning,"Cannot change to directory '%s' [%!s].",Url1->proto);return;}
+   {PrintMessage(Warning,"Cannot change to directory '%s' [%!s].",Url1->proto);return(1);}
 
  if(chdir(Url1->dir))
-   {PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s].",Url1->proto,Url1->dir);ChangeBackToSpoolDir();return;}
+   {PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s].",Url1->proto,Url1->dir);ChangeBackToSpoolDir();return(1);}
 
  dir=opendir(".");
 
  if(!dir)
-   {PrintMessage(Warning,"Cannot open current directory '%s/%s' [%!s].",Url1->proto,Url1->dir);ChangeBackToSpoolDir();return;}
+   {PrintMessage(Warning,"Cannot open current directory '%s/%s' [%!s].",Url1->proto,Url1->dir);ChangeBackToSpoolDir();return(1);}
 
  ent=readdir(dir);
  if(!ent)
-   {PrintMessage(Warning,"Cannot read current directory '%s/%s' [%!s].",Url1->proto,Url1->dir);closedir(dir);ChangeBackToSpoolDir();return;}
+   {PrintMessage(Warning,"Cannot read current directory '%s/%s' [%!s].",Url1->proto,Url1->dir);closedir(dir);ChangeBackToSpoolDir();return(1);}
 
  do
    {
@@ -602,28 +619,36 @@ static void wwwoffle_mv(URL *Url1,URL *Url2)
  closedir(dir);
 
  ChangeBackToSpoolDir();
+
+ return(0);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Delete a URL.
 
+  int wwwoffle_rm Return 1 in case of error or 0 if OK.
+
   URL *Url The URL to delete.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void wwwoffle_rm(URL *Url)
+static int wwwoffle_rm(URL *Url)
 {
- DeleteWebpageSpoolFile(Url,0);
+ char *error=DeleteWebpageSpoolFile(Url,0);
+
+ return(!!error);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Read a URL and output on stdout.
 
+  int wwwoffle_read Return 1 in case of error or 0 if OK.
+
   URL *Url The URL to read.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void wwwoffle_read(URL *Url)
+static int wwwoffle_read(URL *Url)
 {
  char *line=NULL,buffer[READ_BUFFER_SIZE];
  int n,spool=OpenWebpageSpoolFile(1,Url);
@@ -632,7 +657,7 @@ static void wwwoffle_read(URL *Url)
 #endif
 
  if(spool==-1)
-    return;
+    return(1);
 
  init_io(1);
  init_io(spool);
@@ -661,22 +686,26 @@ static void wwwoffle_read(URL *Url)
  finish_io(1);
  finish_io(spool);
  close(spool);
+
+ return(0);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Write a URL from the input on stdin.
 
+  int wwwoffle_write Return 1 in case of error or 0 if OK.
+
   URL *Url The URL to write.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void wwwoffle_write(URL *Url)
+static int wwwoffle_write(URL *Url)
 {
  char buffer[READ_BUFFER_SIZE];
  int n,spool=OpenWebpageSpoolFile(0,Url);
 
  if(spool==-1)
-    return;
+    return(1);
 
  init_io(0);
  init_io(spool);
@@ -687,19 +716,25 @@ static void wwwoffle_write(URL *Url)
  finish_io(0);
  finish_io(spool);
  close(spool);
+
+ return(0);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Print the hash pattern for an URL
   
+  int wwwoffle_hash Return 1 in case of error or 0 if OK.
+
   URL *Url The URL to be hashed.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void wwwoffle_hash(URL *Url)
+static int wwwoffle_hash(URL *Url)
 {
  char *name=URLToFileName(Url);
 
  printf("%s\n",name+1);
  free(name);
+
+ return(0);
 }

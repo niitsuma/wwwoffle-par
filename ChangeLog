@@ -1,6 +1,99 @@
+2004-10-17  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* doc/NEWS, src/version.h: Update to version 2.8d.
+
+2004-10-14  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* doc/README:
+	Update acknowledgements section (removal of old GIF code).
+
+	* src/gifmodify.c:
+	All new GIF modification code (handles GIF87a and GIF89a).
+
+2004-09-30  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* doc/README.CONF:
+	Make sure that all lines are less than 78 characters long.
+
+2004-09-29  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/htmlmodify.l, conf/upgrade-config.pl,
+	conf/wwwoffle.conf.template, doc/CHANGES.CONF, doc/README.CONF,
+	src/config.h, src/configdata.c:
+	Add a new option to remove HTML "marquee" effect (scrolling text).
+
+2004-09-28  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/Makefile.in, src/configedit.c, src/control.c, src/index.c,
+	src/monitor.c, src/refresh.c:
+	Give warnings if processing URL arguments and an unexpected one is seen.
+
+2004-09-26  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* conf/wwwoffle.conf.template, doc/CHANGES.CONF, doc/README,
+	doc/README.CONF, src/config.h, src/configdata.c, src/htmlmodify.l,
+	conf/upgrade-config.pl:
+	Add an HTMLModify option to fix bad cyrillic coding.
+
+2004-09-08  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/wwwoffle-tools.c: Return an error status in case of a failure.
+
+2004-09-06  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/wwwoffles.c:
+	Make sure that there is a message from 'wwwoffle -fetch' for all URLs.
+
+2004-09-01  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/miscurl.c: Fix hostname character checking.
+
+2004-08-25  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/document.c: Parse xhtml pages for links and images.
+
+	* src/info.c: Display source of xhtml and xml pages.
+
+	* src/wwwoffles.c: Add cache information to xhtml pages.
+
+2004-07-17  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* doc/README.CONF: Clarify the try-without-password option wording.
+
+	* src/miscurl.c:
+	When splitting a URL disallow invalid characters in hostnames.
+
+2004-07-05  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/wwwoffled.c: Change log file ownership before changing uid/gid.
+	Close stdin/stdout/stderr after detaching from terminal not before.
+	Don't open log file again after detaching from terminal.
+	Don't force usage of stderr when re-initialising error handler.
+
+2004-07-03  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* doc/README.CONF, src/configmisc.c:
+	A URL-SPEC path like '/*/foo*' matches '/foo*' and '/*/foo*' as a special case.
+
+2004-06-17  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/cgi.c, src/search.c:
+	Fix bug with setting up stdout for CGI program.
+
+	* src/errors.c: Fix bug that left file descriptor open on log file.
+
+2004-06-14  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* src/document.h, src/htmlmodify.l, src/wwwoffles.c:
+	Disable the demoronise-ms-html option if the HTML is UTF-8 or other multibyte charset.
+
 2004-06-12  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
 
 	Version 2.8c of WWWOFFLE released.
+
+2004-06-12  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
+
+	* doc/NEWS, src/version.h: Update to version 2.8c.
 
 2004-05-21  Andrew M. Bishop  <amb@gedanken.demon.co.uk>
 

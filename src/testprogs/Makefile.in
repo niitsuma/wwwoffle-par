@@ -40,6 +40,7 @@ LINK=$(LD) $(LDFLAGS)
 compile : test-doc \
 	  test-msg \
 	  test-modify \
+	  test-gif \
 	  test-io
 
 ######## INSTALLATION ########
@@ -49,7 +50,7 @@ install : compile
 ######## CLEAN UP ########
 
 clean :
-	-rm -f test-doc test-msg test-modify test-io
+	-rm -f test-doc test-msg test-modify test-gif test-io
 	-rm -f core *.o *~
 
 ########
@@ -100,6 +101,20 @@ test-modify : $(TEST_MODIFY_OBJ)
 
 ####
 
+TEST_GIF_OBJ=test-gif.o \
+	     ../http.o ../ftp.o ../finger.o ../ssl.o \
+	     ../gifmodify.o \
+	     ../messages.o ../local.o ../cgi.o \
+	     ../parse.o ../spool.o \
+	     ../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
+	     ../io.o ../iopriv.o ../iozlib.o ../iochunk.o \
+	     ../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../md5.o
+
+test-gif : $(TEST_GIF_OBJ)
+	$(LINK) $(TEST_GIF_OBJ) -o $@ $(LIBRARY)
+
+####
+
 TEST_IO_OBJ=test-io.o \
 	    ../http.o ../ftp.o ../finger.o ../ssl.o \
 	    ../messages.o ../local.o ../cgi.o \
@@ -124,6 +139,7 @@ test-io : $(TEST_IO_OBJ)
 test-doc.o    : test-doc.c                  ../io.h ../misc.h ../errors.h ../config.h                         ../document.h
 test-io.o     : test-io.c                   ../io.h           ../errors.h                                                  
 test-modify.o : test-modify.c               ../io.h ../misc.h ../errors.h ../config.h                         ../document.h
+test-gif.o    : test-gif.c                  ../io.h           ../errors.h                                     ../document.h
 test-msg.o    : test-msg.c    ../wwwoffle.h         ../misc.h                                                              
 
 ########

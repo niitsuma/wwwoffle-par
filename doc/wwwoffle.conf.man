@@ -75,15 +75,16 @@ running\.
 Specify the hostname or IP address to bind the HTTP proxy and WWWOFFLE
 control port sockets to using IPv4 (default='0\.0\.0\.0')\.  If 'none' is
 specified then no IPv4 socket is bound\.  If this is changed from the
-default value then the first entry in the LocalHost section may need to
-be changed to match\.
+default value then the first entry in the LocalHost section may need
+to be changed to match\.
 .TP
 .B bind\-ipv6 = (hostname) | (ip\-address) | none
 Specify the hostname or IP address to bind the HTTP proxy and WWWOFFLE
 control port sockets to using IPv6 (default='::')\.  If 'none' is
 specified then no IPv6 socket is bound\.  This requires the IPv6
-compilation option\.  If this is changed from the default value then the
-first entry in the LocalHost section may need to be changed to match\.
+compilation option\.  If this is changed from the default value then
+the first entry in the LocalHost section may need to be changed to
+match\.
 .TP
 .B http\-port = (port)
 An integer specifying the port number for the HTTP proxy to use
@@ -101,13 +102,13 @@ compiled)\.
 .TP
 .B run\-uid = (user) | (uid)
 The username or numeric uid to change to when the WWWOFFLE server is
-started (default=none)\.  This option only works if the server is started
-by the root user on UNIX\-like systems\.
+started (default=none)\.  This option only works if the server is
+started by the root user on UNIX\-like systems\.
 .TP
 .B run\-gid = (group) | (gid)
 The group name or numeric gid to change to when the WWWOFFLE server is
-started (default=none)\.  This option only works if the server is started
-by the root user on UNIX\-like systems\.
+started (default=none)\.  This option only works if the server is
+started by the root user on UNIX\-like systems\.
 .TP
 .B use\-syslog = yes | no
 Whether to use the syslog facility for messages or not (default=yes)\.
@@ -201,8 +202,8 @@ If the replies that are made to the client are to use chunked encoding
 when possible (default=yes)\.
 .TP
 .B exec\-cgi = (pathname)
-Enable the use of CGI scripts for the local pages on the WWWOFFLE server
-that match the wildcard pathname (default=none)\.
+Enable the use of CGI scripts for the local pages on the WWWOFFLE
+server that match the wildcard pathname (default=none)\.
 
 .SH OnlineOptions
 
@@ -254,10 +255,10 @@ HTTP/1\.1 cache validator 'Etag' as well as modification time
 (default=yes)\.
 .TP
 .B [<URL\-SPEC>] try\-without\-password = yes | no
-If a request is made for a page that contains a username and password
-then a request is made for the same page without a username and
+If a request is made for a URL that contains a username and password
+then a request is made for the same URL without a username and
 password specified (default=yes)\.  This allows for requests for the
-page without a password to re\-direct the client to the passworded
+URL without a password to re\-direct the client to the passworded
 version\.
 .TP
 .B [<URL\-SPEC>] intr\-download\-keep = yes | no
@@ -297,14 +298,14 @@ Options that control how WWWOFFLE behaves when it is offline\.
 .TP
 .B [<URL\-SPEC>] pragma\-no\-cache = yes | no
 Whether to request a new copy of a page if the request from the client
-has 'Pragma: no\-cache' (default=yes)\.  This option should be set to 'no'
-if when browsing offline all pages are re\-requested by a 'broken'
+has 'Pragma: no\-cache' (default=yes)\.  This option should be set to
+'no' if when browsing offline all pages are re\-requested by a 'broken'
 browser\.
 .TP
 .B [<URL\-SPEC>] cache\-control\-no\-cache = yes | no
 Whether to request a new copy of a page if the request from the client
-has 'Cache\-Control: no\-cache' (default=yes)\.  This option should be set
-to 'no' if when browsing offline all pages are re\-requested by a
+has 'Cache\-Control: no\-cache' (default=yes)\.  This option should be
+set to 'no' if when browsing offline all pages are re\-requested by a
 'broken' browser\.
 .TP
 .B [<URL\-SPEC>] confirm\-requests = yes | no
@@ -326,9 +327,9 @@ If style sheets are to be fetched (default=no)\.
 If images are to be fetched (default=no)\.
 .TP
 .B [<URL\-SPEC>] webbug\-images = yes | no
-If images that are 1 pixel square are also to be fetched, requires
-the images option to also be selected\. (default=yes)\.  If these images
-are not fetched then the replace\-webbug\-images option in the ModifyHTML
+If images that are 1 pixel square are also to be fetched, requires the
+images option to also be selected\. (default=yes)\.  If these images are
+not fetched then the replace\-webbug\-images option in the ModifyHTML
 section can be used to stop browsers requesting them\.
 .TP
 .B [<URL\-SPEC>] icon\-images = yes | no
@@ -355,8 +356,8 @@ Options that control what is displayed in the indexes\.
 .TP
 .B create\-history\-indexes = yes | no
 Enables creation of the lasttime/prevtime and lastout/prevout indexes
-(default=yes)\.  The cycling of the indexes is always performed and they
-will flush even if this option is disabled\.
+(default=yes)\.  The cycling of the indexes is always performed and
+they will flush even if this option is disabled\.
 .TP
 .B cycle\-indexes\-daily = yes | no
 Cycles the lasttime/prevtime and lastout/prevout indexes daily instead
@@ -432,6 +433,10 @@ Removes all stylesheets and style references (default=no)\.
 Removes the <blink> tag from HTML but does not disable blink in
 stylesheets (default=no)\.
 .TP
+.B [<URL\-SPEC>] disable\-marquee = yes | no
+Removes the <marquee> tag from HTML to stop scrolling text
+(default=no)\.
+.TP
 .B [<URL\-SPEC>] disable\-flash = yes | no
 Removes any Shockwave Flash animations (default=no)\.
 .TP
@@ -465,21 +470,25 @@ of the configuration file (default=/local/dontget/replacement\.gif)\.
 .TP
 .B [<URL\-SPEC>] replace\-webbug\-images = yes | no
 Replaces image URLs that are 1 pixel square with a static URL
-(default=no)\.  The webbug\-images option in the FetchOptions section can
-be used to stop these images from being automatically downloaded\.
+(default=no)\.  The webbug\-images option in the FetchOptions section
+can be used to stop these images from being automatically downloaded\.
 .TP
 .B [<URL\-SPEC>] replacement\-webbug\-image = (URL)
 The replacement image to use for images that are 1 pixel square
 (default=/local/dontget/replacement\.gif)\.
-.TP
-.B [<URL\-SPEC>] disable\-animated\-gif = yes | no
-Disables the animation in animated GIF files (default=no)\.
 .TP
 .B [<URL\-SPEC>] demoronise\-ms\-chars = yes | no
 Replaces strange characters that some Microsoft applications put into
 HTML with character equivalents that most browsers can display
 (default=no)\.  The idea for this comes from the public domain
 Demoroniser perl script\.
+.TP
+.B [<URL\-SPEC>] fix\-mixed\-cyrillic = yes | no
+Replaces punctuation characters in cp\-1251 encoding that are combined
+with text in koi\-8 encoding that appears in some cyrillic web pages\.
+.TP
+.B [<URL\-SPEC>] disable\-animated\-gif = yes | no
+Disables the animation in animated GIF files (default=no)\.
 
 .SH LocalHost
 
@@ -550,8 +559,8 @@ will not be requested if offline\.
 
 .SH DontGet
 
-A list of URLs that are not to be got by WWWOFFLE when it is fetching and not to
-be served from the WWWOFFLE cache even if they exist\.
+A list of URLs that are not to be got by WWWOFFLE when it is fetching and not
+to be served from the WWWOFFLE cache even if they exist\.
 .TP
 .B [!]URL\-SPECIFICATION
 Do not get any URLs that match this\.  The 
@@ -586,12 +595,12 @@ WWWOFFLE (because they are already compressed or not not worth compressing)\.
 Requires zlib compilation option\.
 .TP
 .B mime\-type = (mime\-type)/(subtype)
-The MIME type of a URL that is not to be compressed in the cache or when
-providing compressed pages to clients\.
+The MIME type of a URL that is not to be compressed in the cache or
+when providing compressed pages to clients\.
 .TP
 .B file\-ext = \.(file\-ext)
-The file extension of a URL that is not to be requested compressed from
-a server\.
+The file extension of a URL that is not to be requested compressed
+from a server\.
 
 .SH CensorHeader
 
@@ -623,8 +632,8 @@ referer\-self\.
 Forces a User\-Agent header to be inserted into all requests that are
 made by WWWOFFLE (default=no)\.  This User\-Agent is added only if there
 is not an existing User\-Agent header and is set to the value
-WWWOFFLE/<version\-number>\.  This header is inserted before censoring and
-may be changed by the normal header censoring method\.
+WWWOFFLE/<version\-number>\.  This header is inserted before censoring
+and may be changed by the normal header censoring method\.
 
 .SH FTPOptions
 
@@ -685,8 +694,8 @@ retrieved\.
 A proxy server that should be used for Secure Socket Layer (SSL)
 connections e\.g\. https\.  Note that for the <
 .I URL\-SPEC
-> that only the host
-is checked and that the other parts must be '*' 
+> that only the
+host is checked and that the other parts must be '*' 
 .I WILDCARD
 s\.
 
@@ -718,18 +727,19 @@ The method to use to decide which files to purge, last access time
 .TP
 .B max\-size = (size)
 The maximum size for the cache in MB after purging (default=\-1)\.  A
-maximum cache size of \-1 (or 0 for backwards compatibility) means there
-is no limit to the size\.  If this and the min\-free options are both used
-the smaller cache size is chosen\.  This option take into account the
-URLs that are never purged when measuring the cache size but will not
-purge them\.
+maximum cache size of \-1 (or 0 for backwards compatibility) means
+there is no limit to the size\.  If this and the min\-free options are
+both used the smaller cache size is chosen\.  This option take into
+account the URLs that are never purged when measuring the cache size
+but will not purge them\.
 .TP
 .B min\-free = (size)
-The minimum amount of free disk space in MB after purging (default=\-1)\.
-A minimum disk free of \-1 (or 0) means there is no limit to the free
-space\.  If this and the max\-size options are both used the smaller cache
-size is chosen\.  This option take into account the URLs that are never
-purged when measuring the cache size but will not purge them\.
+The minimum amount of free disk space in MB after purging
+(default=\-1)\.  A minimum disk free of \-1 (or 0) means there is no
+limit to the free space\.  If this and the max\-size options are both
+used the smaller cache size is chosen\.  This option take into account
+the URLs that are never purged when measuring the cache size but will
+not purge them\.
 .TP
 .B use\-url = yes | no
 If true then use the URL to decide on the purge age, otherwise use the
@@ -753,12 +763,13 @@ suffix for weeks, months or years (e\.g\. 2w=14)\.
 .TP
 .B [<URL\-SPEC>] compress\-age = (age)
 The maximum age in the cache for URLs that match this to be stored
-uncompressed (default=\-1)\.  Requires zlib compilation option\.  An age of
-zero means always to compress, negative means never to compress\.  The
+uncompressed (default=\-1)\.  Requires zlib compilation option\.  An age
+of zero means always to compress, negative means never to compress\.
+The 
 .I URL\-SPECIFICATION
-matches only the protocol and host unless use\-url is
-set to true\. Longer times can be specified with a 'w', 'm' or 'y'
-suffix for weeks, months or years (e\.g\. 2w=14)\.
+matches only the protocol and host unless
+use\-url is set to true\. Longer times can be specified with a 'w', 'm'
+or 'y' suffix for weeks, months or years (e\.g\. 2w=14)\.
 
 .SH WILDCARD
 
@@ -837,18 +848,21 @@ Any protocol, Any host, Any port, Named path, Any args
 Any protocol, Named host, Any port, Any path, Any args
 .TP
 .B (proto)://*/*
-Named protocol, Any host, Any port, Any path, Any args
+Named proto, Any host, Any port, Any path, Any args
 .LP
-(proto)://(host)/*  Named protocol, Named host, Any port, Any path, Any args
+(proto)://(host)/*  Named proto, Named host, Any port, Any path, Any args
 .LP
-(proto)://(host):/* Named protocol, Named host, Default port, Any path Any args
+(proto)://(host):/* Named proto, Named host, Default port, Any path, Any args
 .LP
 *://(host):(port)/* Any protocol, Named host, Named port, Any path, Any args
 .LP
 The matching of the host, the path and the args use the 
 .I WILDCARD
 matching that
-is described above\.
+is described above\.  The matching of the path has the special condition that a
+.I WILDCARD
+of '/*/foo' will match '/foo' and '/any/path/foo', in other words it
+matches any path prefix\.
 .LP
 In some sections that accept 
 .I URL\-SPECIFICATION
@@ -867,7 +881,8 @@ In all sections that accept
 .I URL\-SPECIFICATION
 s the comparison can be made case
 insensitive for the path and arguments part by inserting the '~' character
-before it\.  (The host and the protocol comparisons are always case insensitive)\.
+before it\.  (The host and the protocol comparisons are always case
+insensitive)\.
 
 
 .SH EXAMPLE

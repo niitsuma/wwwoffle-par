@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffles.c 2.271 2004/04/17 14:43:08 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffles.c 2.274 2004/09/06 16:24:30 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   A server to fetch the required pages.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -206,6 +206,10 @@ int wwwoffles(int online,int fetching,int client)
        HTMLMessage(client,500,"WWWOFFLE Server Error",NULL,"ServerError",
                    "error",request_head?"Cannot parse the HTTP request":"The HTTP request was empty",
                    NULL);
+    else    
+       if(client!=-1)
+          write_formatted(client,"Cannot fetch %s [%s]\n",Url->name,
+                          request_head?"Cannot parse the HTTP request":"The HTTP request was empty");
     return(1);
    }
 
@@ -432,21 +436,22 @@ int wwwoffles(int online,int fetching,int client)
 
     PrintMessage(Inform,"The URL '%s' matches one in the list not to get.",Url->name);
 
+    if(mode==Fetch)
+      {
+       if(client!=-1)
+          write_formatted(client,"Cannot fetch %s [Not Got]\n",Url->name);
+
+       /*@-mustfreefresh@*/
+       return(0); /* We don't bother to free memory because return() is exit() in child. */
+       /*@=mustfreefresh@*/
+      }
+
     if(!replace)
       {
-       if(mode==Fetch)
-         {
-          /*@-mustfreefresh@*/
-          return(0); /* We don't bother to free memory because return() is exit() in child. */
-          /*@=mustfreefresh@*/
-         }
-       else
-         {
-          HTMLMessage(client,404,"WWWOFFLE Host Not Got",NULL,"HostNotGot",
-                      "url",Url->name,
-                      NULL);
-          mode=InternalPage; goto internalpage;
-         }
+       HTMLMessage(client,404,"WWWOFFLE Host Not Got",NULL,"HostNotGot",
+                   "url",Url->name,
+                   NULL);
+       mode=InternalPage; goto internalpage;
       }
     else
       {
@@ -786,21 +791,22 @@ int wwwoffles(int online,int fetching,int client)
 
        PrintMessage(Inform,"The URL '%s' matches one in the list not to get.",Url->name);
 
+       if(mode==Fetch)
+         {
+          if(client!=-1)
+             write_formatted(client,"Cannot fetch %s [Not Got]\n",Url->name);
+
+          /*@-mustfreefresh@*/
+          return(0); /* We don't bother to free memory because return() is exit() in child. */
+          /*@=mustfreefresh@*/
+         }
+
        if(!replace)
          {
-          if(mode==Fetch)
-            {
-             /*@-mustfreefresh@*/
-             return(0); /* We don't bother to free memory because return() is exit() in child. */
-             /*@=mustfreefresh@*/
-            }
-          else
-            {
-             HTMLMessage(client,404,"WWWOFFLE Host Not Got",NULL,"HostNotGot",
-                         "url",Url->name,
-                         NULL);
-             mode=InternalPage; goto internalpage;
-            }
+          HTMLMessage(client,404,"WWWOFFLE Host Not Got",NULL,"HostNotGot",
+                      "url",Url->name,
+                      NULL);
+          mode=InternalPage; goto internalpage;
          }
        else
          {
@@ -2129,7 +2135,8 @@ passwordagain:
        char *content_encoding;
 
        if(ConfigBooleanURL(EnableHTMLModifications,Url) &&
-          GetHeader2(reply_head,"Content-Type","text/html"))
+          (GetHeader2(reply_head,"Content-Type","text/html") ||
+           GetHeader2(reply_head,"Content-Type","application/xhtml")))
           modify=1;
        else if(ConfigBooleanURL(DisableAnimatedGIF,Url) &&
                GetHeader2(reply_head,"Content-Type","image/gif"))
@@ -2229,7 +2236,9 @@ passwordagain:
 
     if(modify)
       {
-       PrintMessage(Debug,"Modifying page content of type '%s'",GetHeader(reply_head,"Content-Type"));
+       char *content_type=GetHeader(reply_head,"Content-Type");
+
+       PrintMessage(Debug,"Modifying page content of type '%s'",content_type);
 
        modify_Url=Url;
        modify_read_fd=-1;
@@ -2239,7 +2248,7 @@ passwordagain:
        modify_n=0;
 
        if(modify==1)
-          OutputHTMLWithModifications(Url,spool);
+             OutputHTMLWithModifications(Url,spool,content_type);
        else if(modify==2)
           OutputGIFWithModifications();
 
@@ -2569,7 +2578,8 @@ passwordagain:
           char *content_encoding;
 
           if(ConfigBooleanURL(EnableHTMLModifications,Url) &&
-             GetHeader2(reply_head,"Content-Type","text/html"))
+             (GetHeader2(reply_head,"Content-Type","text/html") ||
+              GetHeader2(reply_head,"Content-Type","application/xhtml")))
              modify=1;
           else if(ConfigBooleanURL(DisableAnimatedGIF,Url) &&
                   GetHeader2(reply_head,"Content-Type","image/gif"))
@@ -2644,7 +2654,9 @@ passwordagain:
 
        if(modify)
          {
-          PrintMessage(Debug,"Modifying page content of type '%s'",GetHeader(reply_head,"Content-Type"));
+          char *content_type=GetHeader(reply_head,"Content-Type");
+
+          PrintMessage(Debug,"Modifying page content of type '%s'",content_type);
 
           modify_Url=NULL;
           modify_read_fd=spool;
@@ -2654,7 +2666,7 @@ passwordagain:
           modify_n=0;
 
           if(modify==1)
-             OutputHTMLWithModifications(Url,spool);
+             OutputHTMLWithModifications(Url,spool,content_type);
           else if(modify==2)
              OutputGIFWithModifications();
          }

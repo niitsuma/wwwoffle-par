@@ -1,4 +1,4 @@
-          WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c
+          WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d
           =========================================================
 
 
@@ -130,30 +130,35 @@ Configuration
 Changes
 -------
 
-Since version 2.8b:
+Since version 2.8c:
 
 Bug Fixes:
- Don't hang up when reply-chunked-data is true and doing SSL connections.  Don't
- output WWWOFFLE error page if local CGI output anything.  Fix CGI & search file
- descriptor problem.  Print correct number of bytes read from ftp server.
- Remove memory leak.  Add missing header to FTP redirect and don't crash.  Fix
- upgrade-config.pl script handling of DOS format files.  Use correct name for
- keep-cache-if-not-found option webpage template.  Make '-d 0' and '-d0' work
- the same for wwwoffle.  Fix passworded pages with changing transfer encodings.
- Fix problem with missing spacers when sorting by date changed.  Add
- hints to the web pages on how to monitor a URL with special options.  Fix bad
- spacing in the monitor form.  Make sure that new temporary files and log file
- have sensible permissions.  Remove possible crash using configuration pages
- adding item to empty section.  Clarify some error messages and documentation.
+ The add-cache-info option works for xhtml pages.  Images and stylesheets etc in
+ xhtml pages are fetched.  Info pages show xml/xhtml source.  Disallow invalid
+ characters in hostnames.  Fix log file ownership.  Close file descriptor on log
+ file.  Handle stdin, stderr and stdout properly.  Don't force errors to stderr
+ if previously disabled.  Disable the demoronise-ms-html option if the HTML is
+ UTF-8 etc.  Make sure 'wwwoffle -fetch' lists all outgoing URLs.  The
+ wwwoffle-tools programs return an error code in case of error.  Reset page CSS
+ when using add-cache-info option.  Give warning if unexpected URL argument seen
+ for internal URLs.
+
+New Features:
+ A URL-SPEC path like '/*/foo*' matches '/foo*' and '/*/foo*' as a special case.
+ New GIF modification code, handles GIF87a and GIF89a formats, more robust.
+
+New Options
+ Added an HTMLModify option to fix bad Cyrillic pages (like demoroniser).
+ Added an HTMLModify option to stop marquee scrolling text in HTML.
 
 
 Availability
 ------------
 
-Version 2.8c uploaded, but may not be available yet
+Version 2.8d uploaded, but may not be available yet
 
-FTP  server: ftp://ftp.ibiblio.org/pub/Linux/apps/www/servers/wwwoffle-2.8c.tgz
-HTTP server: http://www.gedanken.demon.co.uk/download-wwwoffle/wwwoffle-2.8c.tgz
+FTP  server: ftp://ftp.ibiblio.org/pub/Linux/apps/www/servers/wwwoffle-2.8d.tgz
+HTTP server: http://www.gedanken.demon.co.uk/download-wwwoffle/wwwoffle-2.8d.tgz
 
 Web page: http://www.gedanken.demon.co.uk/wwwoffle/
 

@@ -196,18 +196,53 @@ DIV.wwwoffle-inline-help  /* default values for body text */
 
 DIV.wwwoffle-addinfo  /* default values */
 {
- /* Fixed colours, not inherited from page */
- background:   white;
- color:        black;
- font-family:  sans-serif;
- font-style:   normal;
- font-variant: normal;
- font-weight:  normal;
- font-stretch: normal;
- font-size:    small;
+ /* Undo any box manipulation CSS inherited from page (CSS 2.0 section 8) */
+ margin:  0;
+ padding: 0;
+ border:  0;
+
+ /* Undo any visual formatting CSS inherited from page (CSS 2.0 section 9) */
+ display:      block;
+ position:     static;
+ float:        none;
+ clear:        none;
+ z-index:      999;
+ direction:    ltr;
+ unicode-bidi: normal;
+
+ /* Undo any visual formatting CSS inherited from page (CSS 2.0 section 10) */
+ width:          auto;
+ height:         auto;
+ line-height:    normal;
+ vertical-align: baseline;
+
+ /* Undo any color manipulation CSS inherited from page (CSS 2.0 section 14) */
+ color:      black;
+ background: white;
+
+ /* Undo any font manipulation CSS inherited from page (CSS 2.0 section 15) */
+ font-family:      sans-serif;
+ font-style:       normal;
+ font-variant:     normal;
+ font-weight:      normal;
+ font-stretch:     normal;
+ font-size:        small;
+ font-size-adjust: none;
+
+ /* Undo any text manipulation CSS inherited from page (CSS 2.0 section 16) */
+ text-indent:     0;
+ text-align:      center;
+ text-decoration: none;
+ text-shadow:     none;
+ letter-spacing:  normal;
+ word-spacing:    normal;
+ text-transform:  none;
+ white-space:     normal;
+
+ /* Undo any user interface manipulation CSS inherited from page (CSS 2.0 section 16) */
+ outline: none;
 
  /* Border to make it stand out */
- text-align: center;
  border:     solid;
  padding:    0.25em;
 
@@ -215,7 +250,7 @@ DIV.wwwoffle-addinfo  /* default values */
 /*
  margin-bottom: 0;
  position: fixed;
- height: 1.5em;
+ height: 2em;
  top: auto;
  right: 0;
  bottom: 0;
@@ -225,8 +260,33 @@ DIV.wwwoffle-addinfo  /* default values */
 
 DIV.wwwoffle-addinfo A  /* Links are always blue */
 {
- background:   white;
- color: blue;
+ /* Undo any box manipulation CSS inherited from page (CSS 2.0 section 8) */
+ margin:  0;
+ padding: 0;
+ border:  0;
+
+ /* Undo any color manipulation CSS inherited from page (CSS 2.0 section 14) */
+ color:      blue;
+ background: white;
+
+ /* Undo any font manipulation CSS inherited from page (CSS 2.0 section 15) */
+ font-family:      sans-serif;
+ font-style:       normal;
+ font-variant:     normal;
+ font-weight:      normal;
+ font-stretch:     normal;
+ font-size:        small;
+ font-size-adjust: none;
+
+ /* Undo any text manipulation CSS inherited from page (CSS 2.0 section 16) */
+ text-indent:     0;
+ text-align:      center;
+ text-decoration: none;
+ text-shadow:     none;
+ letter-spacing:  normal;
+ word-spacing:    normal;
+ text-transform:  none;
+ white-space:     normal;
 }
 
 HR.wwwoffle-addinfo  /* Horizontal rule, not needed, see DIV */

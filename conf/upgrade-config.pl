@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
 #
 # A Perl script to update the configuration file to version 2.8 standard (from version 2.7).
 #
@@ -51,7 +51,9 @@ $urlspec1="([^ \t:<!]+)://([^ \t/=]+)(/?[^ \t=>]*)";
                   );
 
 %new_ModifyHTML=(
-                 "disable-meta-set-cookie *=" , "disable-meta-set-cookie = no"
+                 "disable-marquee *="         , "disable-marquee = no",
+                 "disable-meta-set-cookie *=" , "disable-meta-set-cookie = no",
+                 "fix-mixed-cyrillic *="      , "fix-mixed-cyrillic = no"
                   );
 
 %new_options=(

@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/miscurl.c 2.84 2004/01/17 16:27:51 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/miscurl.c 2.86 2004/09/01 18:02:34 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   Miscellaneous HTTP / HTML Url Handling functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -194,6 +194,17 @@ URL *SplitURL(char *url)
     copyurl=Url->host;
     Url->host=(char*)malloc(strlen(copyurl)+1);
     strcpy(Url->host,copyurl);
+   }
+
+ for(i=0;Url->host[i];i++)
+    if(!isalnum(Url->host[i]) && Url->host[i]!=':' && Url->host[i]!='-' &&
+       Url->host[i]!='.' && Url->host[i]!='[' && Url->host[i]!=']')
+      {Url->host[i]=0;break;}
+
+ if(!Url->host[0])
+   {
+    Url->host=GetLocalHost(1);
+    Url->local=1;
    }
 
  if(*Url->host=='[')

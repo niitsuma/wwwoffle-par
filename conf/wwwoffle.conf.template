@@ -1,5 +1,5 @@
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
 #
 # WWWOFFLE Configuration file CONFDIR/wwwoffle.conf
 #
@@ -159,6 +159,7 @@ ModifyHTML
  disable-style             = no
 
  disable-blink             = no
+ disable-marquee           = no
 
  disable-flash             = no
 
@@ -176,6 +177,7 @@ ModifyHTML
  replacement-webbug-image  = /local/dontget/replacement.gif
 
  demoronise-ms-chars       = no
+ fix-mixed-cyrillic        = no
 
  disable-animated-gif      = no
 }

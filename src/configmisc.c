@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configmisc.c 1.22 2004/01/17 16:24:31 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configmisc.c 1.23 2004/07/03 14:58:08 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   Configuration file data management functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -318,7 +318,8 @@ int MatchUrlSpecification(UrlSpec *spec,char *proto,char *host,char *path,char *
  if((!spec->proto || !strcmp(UrlSpecProto(spec),proto)) &&
     (!spec->host || WildcardMatch(hoststr,UrlSpecHost(spec),0)) &&
     (spec->port==-1 || (!portstr && spec->port==0) || (portstr && atoi(portstr)==spec->port)) &&
-    (!spec->path || WildcardMatch(path,UrlSpecPath(spec),spec->nocase)) &&
+    (!spec->path || WildcardMatch(path,UrlSpecPath(spec),spec->nocase) || 
+     ((!strncmp(UrlSpecPath(spec),"/*/",3) && WildcardMatch(path,UrlSpecPath(spec)+2,spec->nocase)))) &&
     (!spec->args || (args && WildcardMatch(args,UrlSpecArgs(spec),spec->nocase)) || (!args && *UrlSpecArgs(spec)==0)))
    {
     match=(spec->proto?strlen(UrlSpecProto(spec)):0)+

@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/config.h 2.100 2004/01/17 16:22:17 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/config.h 2.102 2004/09/29 18:07:35 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   Configuration file management functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -267,6 +267,9 @@ extern /*@null@*/ ConfigItem DisableHTMLStyle;
 /*+ The option to disable the <blink> tag. +*/
 extern /*@null@*/ ConfigItem DisableHTMLBlink;
 
+/*+ The option to disable the <marquee> tag. +*/
+extern /*@null@*/ ConfigItem DisableHTMLMarquee;
+
 /*+ The option to disable Shockwave Flash animations. +*/
 extern /*@null@*/ ConfigItem DisableHTMLFlash;
 
@@ -299,6 +302,9 @@ extern /*@null@*/ ConfigItem ReplacementHTMLWebbugImage;
 
 /*+ The option to demoronise MS characters. +*/
 extern /*@null@*/ ConfigItem DemoroniseMSChars;
+
+/*+ The option to fix cyrillic pages written in koi8-r mixed with cp1251. +*/
+extern ConfigItem /*@null@*/ FixMixedCyrillic;
 
 /*+ The option to disable animated GIFs. +*/
 extern /*@null@*/ ConfigItem DisableAnimatedGIF;

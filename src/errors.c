@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/errors.c 2.44 2004/05/21 08:50:22 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/errors.c 2.45 2004/06/17 18:19:13 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   Generate error messages in a standard format optionally to syslog and stderr.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -259,12 +259,15 @@ void OpenErrorLog(char *name)
     lseek(log,0,SEEK_END);
 
     if(log!=STDERR_FILENO)
+      {
        if(dup2(log,STDERR_FILENO)==-1)
          {
-          close(log);
           use_stderr=0;
           PrintMessage(Warning,"Cannot put log file on stderr [%!s].");
          }
+
+       close(log);
+      }
    }
 
  last_time=1;

@@ -1,4 +1,4 @@
-          WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b
+          WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d
           =========================================================
 
 
@@ -798,7 +798,7 @@ Ben Winslow <rain@insane.loonybin.net>
         New FTP commands to get file size and modification time.
 
 Ingo Kloecker <kloecker@math.u-bordeaux.fr>
-        Disable animated GIFs.
+        Disable animated GIFs (code now removed and rewritten).
 
 David McNab <david@rebirthing.co.nz>
         Workaround winsock bug for cygwin (now lingering close on all systems).
@@ -818,6 +818,9 @@ Paul A. Rombouts <p.a.rombouts@home.nl>
 Marc Boucher <MarcB@box100.com>
         The patch to perform case insensitive matching of URL-SPECs.
         The patch to handle FTP requests made with a password (like HTTP).
+
+Ilya Dogolazky <ilyad@math.uni-bonn.de>
+        The patch for the fix-mixed-cyrillic option.
 
 
 And Other Useful Contributions From

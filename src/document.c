@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/document.c 1.21 2003/06/30 10:17:20 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/document.c 1.22 2004/08/25 18:22:40 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
   Document parsing functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -110,6 +110,7 @@ static struct {
   DocType doctype;
 } docTypeList[] = {
 	{"text/html",DocHTML},
+	{"application/xhtml+xml",DocHTML},
 	{"text/css",DocCSS},
 	{"application/java",DocJavaClass},
 	{"text/xml",DocXML},

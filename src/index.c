@@ -1,5 +1,5 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/index.c 2.95 2004/04/19 18:14:49 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/index.c 2.96 2004/09/28 16:25:30 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
   Generate an index of the web pages that are cached in the system.
@@ -226,6 +226,8 @@ void IndexPage(int fd,URL *Url)
           confopt=1;
        else if(!strcmp(*a,"info"))
           infoopt=1;
+       else
+          PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",*a,Url->name);
       }
 
     free(args[0]);
