@@ -218,7 +218,7 @@ ITEM disable-style
 Removes all stylesheets and style references (default=no).
 ITEM disable-blink
 [<URL-SPEC>] disable-blink = yes | no
-Removes the &lt;blink&gt; tag (default=no).
+Removes the &lt;blink&gt; tag from HTML but does not disable blink in stylesheets (default=no).
 ITEM disable-flash
 [<URL-SPEC>] disable-flash = yes | no
 Removes any Shockwave Flash animations (default=no).

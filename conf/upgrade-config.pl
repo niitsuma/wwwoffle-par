@@ -42,7 +42,7 @@ $urlspec1="([^ \t\r\n:<!]+)://([^ \t\r\n/=]+)(/?[^ \t\r\n=>]*)";
                     );
 
 %new_IndexOptions=(
-                   "create-history-indexes *=", "create-history-indexes = yes\n"
+                   "create-history-indexes *=", "#create-history-indexes = yes\n"
                   );
 
 %new_MIMETypes=(
