@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffles.c 2.215 2002/08/31 10:26:44 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffles.c 2.216 2002/09/28 07:45:46 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7f.
   A server to fetch the required pages.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -837,10 +837,8 @@ int wwwoffles(int online,int browser,int client)
 
  if(Url->user && ConfigBooleanURL(TryWithoutPassword,Url))
    {
-    URL *new=SplitURL(Url->name);
-
     Urlpw=Url;
-    Url=new;
+    Url=SplitURL(Url->name);
 
     if(!Urlpw->pass)
       {
@@ -1168,7 +1166,8 @@ passwordagain:
  else if(!is_client_searcher && (RefreshForced() ||
                                  (ConfigBooleanURL(PragmaNoCache,Url) && GetHeader2(request_head,"Pragma","no-cache")) ||
                                  (ConfigBooleanURL(CacheControlNoCache,Url) && (GetHeader2(request_head,"Cache-Control","no-cache") ||
-										GetHeader2(request_head,"Cache-Control","max-age=0")))))
+										({char* maxage_val=GetHeader2Val(request_head,"Cache-Control","max-age"); 
+										  maxage_val && atol(maxage_val)==0;})))))
    {
     if(conditional_request_ims)
        RemoveFromHeader(request_head,"If-Modified-Since");
@@ -1884,18 +1883,26 @@ passwordagain:
     /* Check if the HTML modifications are to be performed. */
 
     if(mode==Real &&
+       !is_client_wwwoffle &&
+       !is_client_searcher &&
        ConfigBooleanURL(EnableHTMLModifications,Url) &&
        ConfigBooleanURL(EnableModificationsOnline,Url) &&
-       !GetHeader2(request_head,"Cache-Control","no-transform") &&
-       !is_client_wwwoffle &&
-       !is_client_searcher)
+       !GetHeader2(request_head,"Cache-Control","no-transform"))
       {
+       char *content_encoding;
+
        if(ConfigBooleanURL(EnableHTMLModifications,Url) &&
           GetHeader2(reply_head,"Content-Type","text/html"))
           modify=1;
        else if(ConfigBooleanURL(DisableAnimatedGIF,Url) &&
                GetHeader2(reply_head,"Content-Type","image/gif"))
           modify=2;
+
+       /* If the reply uses compression and we are modifying the content then don't (shouldn't happen). */
+
+       if(modify && (content_encoding=GetHeader(reply_head,"Content-Encoding")))
+          if(WhichCompression(content_encoding))
+             modify=0;
       }
 
     /* Write the header to the cache. */
@@ -2299,17 +2306,25 @@ passwordagain:
 
        /* Decide if we need to modify the content. */
 
-       if(ConfigBooleanURL(EnableHTMLModifications,Url) &&
-          !GetHeader2(request_head,"Cache-Control","no-transform") &&
-          !is_client_wwwoffle &&
-          !is_client_searcher)
+       if(!is_client_wwwoffle &&
+          !is_client_searcher &&
+          ConfigBooleanURL(EnableHTMLModifications,Url) &&
+          !GetHeader2(request_head,"Cache-Control","no-transform"))
          {
+          char *content_encoding;
+
           if(ConfigBooleanURL(EnableHTMLModifications,Url) &&
              GetHeader2(reply_head,"Content-Type","text/html"))
              modify=1;
           else if(ConfigBooleanURL(DisableAnimatedGIF,Url) &&
                   GetHeader2(reply_head,"Content-Type","image/gif"))
              modify=2;
+
+          /* If the spooled page uses compression and we are modifying the content then don't (e.g. very old WWWOFFLE cache). */
+
+          if(modify && (content_encoding=GetHeader(reply_head,"Content-Encoding")))
+             if(WhichCompression(content_encoding))
+                modify=0;
          }
       }
     else

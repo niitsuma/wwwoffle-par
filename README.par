@@ -1,18 +1,18 @@
-	  Alternative WWWOFFLE implementation - version 2.7e-par
+	  Alternative WWWOFFLE implementation - version 2.7f-par
 	  ======================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
 am making available so other people can run it and/or study the source code.
-Present version is 2.7e-par (I've simply appended my initials to the version
+Present version is 2.7f-par (I've simply appended my initials to the version
 number). The first part of this file describes how to patch, compile, install
 and run wwwoffled. The second part lists in more detail the changes I've made to
 AMB's code.
 
 Before compiling and installing WWWOFFLE according to AMB's installation
 instructions described in the INSTALL file you must first apply my patch file
-wwwoffled-2.7e-par.diff.gz using the command:
+wwwoffled-2.7f-par.diff.gz using the command:
 
-gzip -cd <path_to_patch>/wwwoffle-2.7e-par.diff.gz | patch -p2 -N -E
+gzip -cd <path_to_patch>/wwwoffle-2.7f-par.diff.gz | patch -p2 -N -E
 
 Note: because I have used GNU extensions you will need to compile with gcc and
 link with glibc. This will not be a problem with most Linux distributions.
@@ -75,12 +75,23 @@ I've introduced a few extensions to the way WWWOFFLE can be configured:
   compression WWWOFFLE asks for in case there are problems with a particular
   method of compression. For the time being it is probably best to set this
   option to gzip (this emulates the present standard behavior of WWWOFFLE
-  versions 2.7d and 2.7e).
+  versions 2.7d - 2.7f).
 
 
 The rest of this file lists in some detail some other modifications I've made,
 but you don't have to read it if you simply want to run wwwoffled as you're used
 to.
+
+  NEW in version 2.7f:
+
+- I've optimized the way the hash values that are used to construct the spool
+  file names are computed. In stead of re-computing the hash value every time it
+  is needed, a copy is stored in the URL struct the first it is computed. This
+  cached value is used whenever the hash is needed again for the same URL.
+
+
+  The rest of the modifications where also contained in
+  wwwoffle-2.7e-par.diff.gz:
 
 - I've changed the way HTTP headers are parsed and manipulated back to the way
   it was done in version 2.6 of WWWOFFLE. In version 2.7 header lines with the
@@ -88,8 +99,8 @@ to.
   that the RFCs explicitly allow this, I see it as unnecessary and undesirable.
   I prefer a proxy to be as conservative as possible with headers, and I think
   the problems that have occurred with "Set-Cookie:" header-lines prove my
-  point. I didn't simply reintroduce the version 2.6d code, but made sure as
-  much of the semantics as possible of version 2.7 was preserved.
+  point. I didn't simply reintroduce the version 2.6d code, but made sure to
+  match the semantics of version 2.7 as closely as possible.
 
 - I've eliminated the size field of the Header struct. Header sizes are now
   computed using ParseReply() and HeaderString(). This method is much less

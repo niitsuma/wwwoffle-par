@@ -98,6 +98,7 @@ void ReplaceInHeader(Header *head,const char *key,const char *val);  /* Added by
 
 /*@null@*/ /*@observer@*/ char *GetHeader(Header *head,const char* key);
 /*@null@*/ /*@observer@*/ char *GetHeader2(Header *head,const char* key,const char *val);
+/*@null@*/ /*@observer@*/ char *GetHeader2Val(Header *head,const char* key,const char *subkey);
 /*@only@*/ char *GetHeaderCombined(Header *head,const char* key);
 
 /*@only@*/ char *HeaderString(Header *head,int *size);

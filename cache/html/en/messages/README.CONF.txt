@@ -116,13 +116,16 @@ ITEM timeout-download-keep
 [<URL-SPEC>] timeout-download-keep = yes | no
 If the server connection times out while reading then the currently downloaded incomplete page should be kept (default=no).
 ITEM request-compressed-data
-[<URL-SPEC>] request-compressed-data = yes | no
+[<URL-SPEC>] request-compressed-data = yes | no | deflate | gzip
 If the requests that are made to the server are to request compressed data (default=yes).  Requires zlib compilation option.
 SECTION OfflineOptions
 Options that control how WWWOFFLE behaves when it is offline.
 ITEM pragma-no-cache
 [<URL-SPEC>] pragma-no-cache = yes | no
 Whether to request a new copy of a page if the request from the browser has 'Pragma: no-cache' (default=yes).  This option option should be set to 'no' if when browsing offline all pages are re-requested by a 'broken' browser.
+ITEM cache-control-no-cache
+[<URL-SPEC>] cache-control-no-cache = yes | no
+Whether to request a new copy of a page if the request from the browser has 'Cache-Control: no-cache' or 'Cache-Control: max-age=0' (default=yes). This option can be set to 'no' for certain URL-specs to reduce the number of outgoing requests that are generated when hitting the reload button of your browser while WWWOFFLE is offline. This option was added by Paul Rombouts.
 ITEM confirm-requests
 [<URL-SPEC>] confirm-requests = yes | no
 Whether to return a page requiring user confirmation instead of automatically recording requests made while offline (default=no).
@@ -296,11 +299,19 @@ The MIME type of a URL that is not to be compressed in the cache or when providi
 ITEM file-ext
 file-ext = .(file-ext)
 The file extension of a URL that is not to be requested compressed from a server.
-SECTION CensorHeader
-A list of HTTP header lines that are to be removed from the requests sent to web servers and the replies that come back from them.
+SECTION CensorIncomingHeader
+A list of HTTP header lines that are to be removed from the replies that come back from web servers.
 ITEM 
 [<URL-SPEC>] (header) = yes | no | (string)
-A header field name (e.g. From, Cookie, Set-Cookie, User-Agent) and the string to replace the header value with (default=no).  The header is case sensitive, and does not have a ':' at the end.  The value of "no" means that the header is unmodified, "yes" or no string can be used to remove the header or a string can be used to replace the header.  This only replaces headers it finds, it does not add any new ones.  An option for Referer here will take precedence over the referer-self and referer-self-dir options.
+A header field name (e.g. Set-Cookie) and the string to replace the header value with (default=no).  The header is case sensitive, and does not have a ':' at the end.  The value of "no" means that the header is unmodified, "yes" or no string can be used to remove the header or a string can be used to replace the header.  This only replaces headers it finds, it does not add any new ones.  An option for Set-Cookie here will take precedence over the session-cookies-only option.
+ITEM session-cookies-only
+[<URL-SPEC>] session-cookies-only = yes | no
+Choose whether to delete the "expires" field from "Set-Cookie:" server headers (default=no).  Most browsers will not store such cookies permanently and forget them in between sessions. This option was added by Paul Rombouts (who got the idea from Privoxy).
+SECTION CensorOutgoingHeader
+A list of HTTP header lines that are to be removed from the requests sent to web servers.
+ITEM 
+[<URL-SPEC>] (header) = yes | no | (string)
+A header field name (e.g. From, Cookie, User-Agent) and the string to replace the header value with (default=no).  The header is case sensitive, and does not have a ':' at the end.  The value of "no" means that the header is unmodified, "yes" or no string can be used to remove the header or a string can be used to replace the header.  This only replaces headers it finds, it does not add any new ones.  An option for Referer here will take precedence over the referer-self and referer-self-dir options.
 ITEM referer-self
 [<URL-SPEC>] referer-self = yes | no
 Sets the Referer header to the same as the URL being requested (default=no).  This will add the Referer header if none is contained in the original request.

@@ -1,3 +1,22 @@
+Version 2.7f of WWWOFFLE released : Sat Sep 28 20:45:00 2002
+------------------------------------------------------------
+
+Bug Fixes:
+ Fix the Set-Cookie problem again.  Convert German characters with umlauts when
+ generating HTML from text.  Fix for partial decompression of gzipped pages.
+ Close the client socket if the remote end cannot be determined.  Fixed namazu
+ indexing script path error.  Don't attempt to modify HTML if the page is
+ compressed.  Bug fix for allowing URL-SPECs to contain '='.
+
+New Features:
+ Updated German translations (most were in v2.7e also) including README.CONF.
+ Added a new question to the FAQ about startup error/warning messages.
+ Several new items have been added to the contrib directory.
+
+
+*NOTE* See the important notes for version 2.7 listed below.
+
+
 Version 2.7e of WWWOFFLE released : Sat Aug 31 11:30:00 2002
 ------------------------------------------------------------
 

@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/headbody.c 1.16 2002/08/10 13:48:25 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/headbody.c 1.18 2002/09/27 18:00:19 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7f.
   Header and Body handling functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -255,10 +255,9 @@ void RemoveFromHeader2(Header *head,const char* key,const char *val)
       int strlen_val=strlen(val);
 
       for(;;) {
-	for(;;) {
+	for(;;++p) {
 	  if(!*p) goto nexti;
 	  if(!isspace(*p)) break;
-	  ++p;
 	}
 
 	q=p;
@@ -362,13 +361,62 @@ char *GetHeader2(Header *head,const char* key,const char *val)
      char *p=head->line[i].val;
 
      for(;;) {
-       for(;;) {
+       for(;;++p) {
 	 if(!*p) goto nexti;
 	 if(!isspace(*p)) break;
-	 ++p;
        }
 
        if(!strncasecmp(p,val,strlen_val)) return p;
+
+       while(*p!=',') {if(!*++p) goto nexti;}
+       ++p;
+     }
+   }
+ nexti:
+ }
+
+ return NULL;
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Search through a HTTP header for a specified key and sub-key.
+
+  char *GetHeader2Val Returns a pointer to the value for the sub-key or NULL if none.
+
+  Header *head The header to search through.
+
+  char* key The key to look for.
+
+  char *subkey The sub-key to look for (which must be followed by '=' in the headerline).
+  ++++++++++++++++++++++++++++++++++++++*/
+
+char *GetHeader2Val(Header *head,const char* key,const char *subkey)
+{
+ int strlen_subkey=strlen(subkey);
+ int i;
+
+ for(i=0;i<head->n;++i) {
+   if(head->line[i].key && !strcasecmp(head->line[i].key,key)) {
+     char *p=head->line[i].val;
+
+     for(;;) {
+       for(;;++p) {
+	 if(!*p) goto nexti;
+	 if(!isspace(*p)) break;
+       }
+
+       if(!strncasecmp(p,subkey,strlen_subkey)) {
+	 p+=strlen_subkey;
+	 for(;;++p) {
+	   if(!*p) goto nexti;
+	   if(!isspace(*p)) break;
+	 }
+	 if(*p=='=') {
+	   while(*++p && isspace(*p));
+	   return p;
+	 }
+       }
 
        while(*p!=',') {if(!*++p) goto nexti;}
        ++p;

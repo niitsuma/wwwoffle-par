@@ -19,7 +19,7 @@ echo > search/namazu/wwwoffle-namazu.log
 
 # Do the indexing
 
-/home/amb/temp/mknmz-wwwoffle-0.7.0/mknmz-wwwoffle -f search/namazu/conf/mknmzrc \
+mknmz-wwwoffle -f search/namazu/conf/mknmzrc \
                -T search/namazu/conf \
                -O search/namazu/db \
                -V \

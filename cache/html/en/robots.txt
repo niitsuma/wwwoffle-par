@@ -1,7 +1,7 @@
 #
 # WWWOFFLE Version 2.7 - robots exclusion file.
 #
-# See: http://info.webcrawler.com/mak/projects/robots/norobots.html
+# See: http://www.robotstxt.org/wc/norobots.html
 #
 
 User-Agent: *

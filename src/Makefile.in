@@ -284,7 +284,10 @@ messages.c : messages.l
 	$(LEX) $(LEXFLAGS)  -Pmsg_yy messages.l
 	@mv lex.msg_yy.c messages.c
 
+ifneq ($(PERL),)
 miscencdec.c : miscencdec.c.pre
+	@rm -f miscencdec.c
 	$(PERL) make_bitvector.pl miscencdec.c.pre > miscencdec.c
+endif
 
 ########

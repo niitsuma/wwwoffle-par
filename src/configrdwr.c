@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configrdwr.c 1.49 2002/08/22 14:59:09 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configrdwr.c 1.50 2002/09/28 08:18:10 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7f.
   Configuration file reading and writing functions.
   ******************/ /******************
   Written by Andrew M. Bishop

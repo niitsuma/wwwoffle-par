@@ -46,18 +46,14 @@ failed because
 
 <br>
 $reason?=TimeoutReply
-{The remote host failed to send the reply within the timeout period
-$done="yes"}{}
+{The remote host failed to send the reply within the timeout period.}
 $reason?=TimeoutTransfer
-{The remote host failed to send some of the data within the timeout period.
-$done="yes"}{}
+{The remote host failed to send some of the data within the timeout period.}
 $reason?=CompressCorrupt
-{The remote host sent compressed data that could not be uncompressed.
-$done="yes"}{}
+{The remote host sent compressed data that could not be uncompressed.}
 $reason?=ClientClose
-{The client (browser) closed the connection during the transfer
-$done="yes"}{}
-$done?{}{<b>$reason</b>}
+{The client (browser) closed the connection during the transfer.}
+{<b>$reason</b>}
 <br>
 </p>
 

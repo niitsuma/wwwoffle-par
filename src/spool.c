@@ -683,9 +683,9 @@ time_t ExistsWebpageSpoolFile(URL *Url)
 
    *file='D';
    existsD=!stat(file,&buf);
-
-   /* Change dir back. */
  }
+
+ /* Change dir back. */
 
 changedir_back:
  fchdir(fSpoolDir);

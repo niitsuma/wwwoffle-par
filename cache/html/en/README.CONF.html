@@ -225,7 +225,7 @@ continue to download if it is more than this percentage complete
 </h3>
 If the server connection times out while reading then the currently
 downloaded incomplete page should be kept (default=no).
-<h3><a name="OnlineOptions_request-compressed-data"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-compressed-data = yes | no
+<h3><a name="OnlineOptions_request-compressed-data"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-compressed-data = yes | no | deflate | gzip
 </h3>
 If the requests that are made to the server are to request compressed
 data (default=yes).  Requires zlib compilation option.
@@ -237,6 +237,14 @@ Whether to request a new copy of a page if the request from the
 browser has 'Pragma: no-cache' (default=yes).  This option option
 should be set to 'no' if when browsing offline all pages are
 re-requested by a 'broken' browser.
+<h3><a name="OfflineOptions_cache-control-no-cache"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] cache-control-no-cache = yes | no
+</h3>
+Whether to request a new copy of a page if the request from the
+browser has 'Cache-Control: no-cache' or 'Cache-Control: max-age=0'
+(default=yes). This option can be set to 'no' for certain URL-specs to
+reduce the number of outgoing requests that are generated when hitting
+the reload button of your browser while WWWOFFLE is offline.
+This option was added by Paul Rombouts.
 <h3><a name="OfflineOptions_confirm-requests"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] confirm-requests = yes | no
 </h3>
 Whether to return a page requiring user confirmation instead of
@@ -483,12 +491,31 @@ providing compressed pages to browsers.
 </h3>
 The file extension of a URL that is not to be requested compressed from
 a server.
-<h2><a name="CensorHeader"></a>CensorHeader</h2>
-A list of HTTP header lines that are to be removed from the requests sent to
-web servers and the replies that come back from them.
-<h3><a name="CensorHeader_(header)"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] (header) = yes | no | (string)
+<h2><a name="CensorIncomingHeader"></a>CensorIncomingHeader</h2>
+A list of HTTP header lines that are to be removed from the replies that come
+back from web servers.
+<h3><a name="CensorIncomingHeader_(header)"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] (header) = yes | no | (string)
 </h3>
-A header field name (e.g. From, Cookie, Set-Cookie, User-Agent) and
+A header field name (e.g. Set-Cookie) and
+the string to replace the header value with (default=no).  The header
+is case sensitive, and does not have a ':' at the end.  The value of
+"no" means that the header is unmodified, "yes" or no string can be
+used to remove the header or a string can be used to replace the
+header.  This only replaces headers it finds, it does not add any new
+ones.  An option for Set-Cookie here will take precedence over the
+session-cookies-only option.
+<h3><a name="CensorIncomingHeader_session-cookies-only"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] session-cookies-only = yes | no
+</h3>
+Choose whether to delete the "expires" field from "Set-Cookie:" server
+headers (default=no).  Most browsers will not store such cookies
+permanently and forget them in between sessions.
+This option was added by Paul Rombouts (who got the idea from Privoxy).
+<h2><a name="CensorOutgoingHeader"></a>CensorOutgoingHeader</h2>
+A list of HTTP header lines that are to be removed from the requests sent to
+web servers.
+<h3><a name="CensorOutgoingHeader_(header)"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] (header) = yes | no | (string)
+</h3>
+A header field name (e.g. From, Cookie, User-Agent) and
 the string to replace the header value with (default=no).  The header
 is case sensitive, and does not have a ':' at the end.  The value of
 "no" means that the header is unmodified, "yes" or no string can be
@@ -496,12 +523,12 @@ used to remove the header or a string can be used to replace the
 header.  This only replaces headers it finds, it does not add any new
 ones.  An option for Referer here will take precedence over the
 referer-self and referer-self-dir options.
-<h3><a name="CensorHeader_referer-self"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] referer-self = yes | no
+<h3><a name="CensorOutgoingHeader_referer-self"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] referer-self = yes | no
 </h3>
 Sets the Referer header to the same as the URL being requested
 (default=no).  This will add the Referer header if none is contained
 in the original request.
-<h3><a name="CensorHeader_referer-self-dir"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] referer-self-dir = yes | no
+<h3><a name="CensorOutgoingHeader_referer-self-dir"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] referer-self-dir = yes | no
 </h3>
 Sets the Referer header to the directory name of the URL being
 requested (default=no).  This will add the Referer header if none is

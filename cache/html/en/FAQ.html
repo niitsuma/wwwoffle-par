@@ -37,6 +37,7 @@ README documentation is insufficient.
 <p><a href="#Q-3.7">Q 3.7   Why does WWWOFFLE not allow access to certain password protected pages?</a>
 <p><a href="#Q-3.8">Q 3.8   Why does WWWOFFLE ignore some entries in the configuration file?</a>
 <p><a href="#Q-3.9">Q 3.9   Why are connections refused now that I have upgraded WWWOFFLE?</a>
+<p><a href="#Q-3.10">Q 3.10  What do the error messages mean when WWWOFFLE starts?</a>
 <p><b><a href="#Section-4">Section 4 - Applet handling</a></b>
 <p><a href="#Q-4.1">Q 4.1   Why doesn't my Browser start applet XYZ?</a>
 <p><a href="#Q-4.2">Q 4.2   Are unicoded applet names supported?</a>
@@ -586,6 +587,59 @@ IPv6 enabled version is that the entry for '::ff:127.0.0.1' is not listed in the
 configuration file as one of the LocalHost entries.  It is also possible that
 the entries in LocalNet or AllowedConnectHosts will need to be updated if you
 are running a local network of clients that connect to the same WWWOFFLE server.
+</pre>
+<h3><a name="Q-3.10">Q 3.10  What do the error messages mean when WWWOFFLE starts?</a></h3>
+<pre>
+When WWWOFFLE starts it does a number of things during the startup process that
+can cause error messages or warnings to be generated.  These messages will be
+contained in the WWWOFFLE log file (if you started wwwoffled with the '-d'
+option) or in syslog (if enabled).
+
+If there is an error then normally the program will stop and the error message
+will explain what the problem is.  These error messages should be self
+explanatory.
+
+For example:
+
+Fatal: Error in configuration file '/etc/wwwoffle.conf'
+
+There are also a number of warnings that can appear that while they are not
+fatal may be important to try and fix or they may not.
+
+An example of one that should be fixed is:
+
+Warning: Running with root user or group privileges is not recommended.
+
+This warning is telling you that any security related problems with WWWOFFLE
+will have more serious effects.  The WWWOFFLE programs can be run as any user,
+but it is always a good idea to run programs with the least priviledges that
+they require.  In the case of WWWOFFLE there is no need for it to operate as the
+root user.  There are options in the wwwoffle.conf file to operate the program
+as another user.  It would be a good idea to use these options (run-uid and
+run-gid) and start wwwoffled as root or change user before starting wwwoffled.
+
+An example of a less serious warning (with long lines wrapped) is:
+
+Warning: Failed to bind IPv4 server socket to '0.0.0.0' port '8080' [Address \
+         already in use].
+Warning: Cannot create HTTP IPv4 server socket (but the IPv6 one might accept \
+         IPv4 connections).
+Warning: Failed to bind IPv4 server socket to '0.0.0.0' port '8081' [Address \
+         already in use].
+Warning: Cannot create WWWOFFLE IPv4 server socket (but the IPv6 one might \
+         accept IPv4 connections).
+
+These messages will appear if WWWOFFLE is compiled with the IPv6 option and you
+are running it on an operating system where IPv6 sockets will accept IPv4
+connections.  For example Linux users will see this message, but FreeBSD users
+will not.  If the IPv6 compilation option is used then WWWOFFLE will by default
+try to open both an IPv4 socket and IPv6 socket to await connections.  If the
+IPv6 socket will accept IPv4 connections then the IPv4 socket can not be opened
+because the IPv6 one is already open.  This is not a problem, you can remove the
+message by setting 'bind-ipv4 = none' in the configuration file.  Some operating
+systems consider that allowing IPv6 sockets to accept IPv4 connections is a
+security risk and require that separate sockets are opened.  These systems will
+not show the error message.
 </pre>
 <hr>
 <h2><a name="Section-4">Section 4 - Applet handling</a></h2>

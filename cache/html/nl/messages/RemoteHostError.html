@@ -46,20 +46,14 @@ misluke omdat
 
 <br>
 $reason?=TimeoutReply
-{de remote host (de server aan de andere kant) niet binnen de toegestane tijd
-gereageerd heeft
-$done="yes"}{}
+{de remote host (de server aan de andere kant) niet binnen de toegestane tijd gereageerd heeft.}
 $reason?=TimeoutTransfer
-{de remote host (de server aan de andere kant) niet binnen de toegestane tijd
-alle gegevens gestuurd heeft
-$done="yes"}{}
+{de remote host (de server aan de andere kant) niet binnen de toegestane tijd alle gegevens gestuurd heeft.}
 $reason?=CompressCorrupt
-{de remote host (de server aan de andere kant) stuurde gecomprimeerde data dat niet gedecomprimeerd kon worden.
-$done="yes"}{}
+{de remote host (de server aan de andere kant) stuurde gecomprimeerde data dat niet gedecomprimeerd kon worden.}
 $reason?=ClientClose
-{De client (browser) heeft de verbinding gesloten voordat de overdracht compleet was
-$done="yes"}{}
-$done?{}{<b>$reason</b>}
+{De client (browser) heeft de verbinding gesloten voordat de overdracht compleet was.}
+{<b>$reason</b>}
 <br>
 </p>
 

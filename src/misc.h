@@ -53,6 +53,8 @@ typedef struct _URL
 
  char *dir;                     /*+ The directory name for the host to avoid using ':' on Win32 (may point to host). +*/
 
+ char *hash;                    /*+ The hash value used to make the filename for this URL (may be null) +*/
+
  char local;                    /*+ Set to true if the host is the localhost. +*/
 }
 URL;

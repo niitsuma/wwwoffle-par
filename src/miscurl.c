@@ -314,6 +314,8 @@ URL *SplitURL(const char *url)
    }
 #endif
 
+ Url->hash=NULL;
+
  /* end */
 
  return(Url);
@@ -373,6 +375,14 @@ void AddURLPassword(URL *Url,char *user,char *pass)
    *p++='@';
    stpcpy(p,Url->hostp);
  }
+
+ /* Since we have changed the "file" field, a possible cached hash value must 
+    be invalidated */
+
+ if(Url->hash) {
+   free(Url->hash);
+   Url->hash=NULL;
+ }
 }
 
 
@@ -404,6 +414,8 @@ void FreeURL(URL *Url)
 
  if(Url->user)   free(Url->user);
  if(Url->pass)   free(Url->pass);
+
+ if(Url->hash)   free(Url->hash);
 
  free(Url);
 }

@@ -219,7 +219,11 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
       else
 	*p++='?';
 
-      sprintf(p,"!%s:%s.%08lx",(*request_head)->method,MakeHash((*request_body)->content),time(NULL));
+      {
+	char *hash=MakeHash((*request_body)->content);
+	sprintf(p,"!%s:%s.%08lx",(*request_head)->method,hash,time(NULL));
+	free(hash);
+      }
     }
    }
 
@@ -264,15 +268,13 @@ int RequireChanges(int fd,Header *request_head,URL *Url)
 
     if(temp_redirection || ConfigBooleanURL(RequestExpired,Url))
       {
-       char *expires,*cachecontrol,*date;
+       char *expires,*maxage_val,*date;
 
-       if((cachecontrol=GetHeader2(spooled_head,"Cache-Control","max-age=")) &&
+       if((maxage_val=GetHeader2Val(spooled_head,"Cache-Control","max-age")) &&
           (date=GetHeader(spooled_head,"Date")))
           {
            time_t then=DateToTimeT(date);
-           long maxage;
-
-           maxage=atol(cachecontrol+strlitlen("max-age="));
+           long maxage=atol(maxage_val);
 
            if((now-then)>maxage)
              {
@@ -398,10 +400,9 @@ int IsModified(int fd,Header *request_head)
 
 	      for(i=0;i<inm_vals->n;++i)
 		{
-		  if(*inm_vals->item[i].val=='*')
-		    {is_modified=0;check_time=1;}
-		  else if(!strcmp(etag_val,inm_vals->item[i].val))
-		    {is_modified=0;check_time=1;}
+		  char *inm_val=inm_vals->item[i].val;
+		  if((*inm_val=='*' && !*(inm_val+1)) || !strcmp(etag_val,inm_val))
+		    {is_modified=0; check_time=1; break;}
 		}
 
 	      FreeHeaderList(inm_vals);
@@ -424,10 +425,7 @@ int IsModified(int fd,Header *request_head)
             {
              time_t modtime=DateToTimeT(modified);
 
-             if(since>=modtime && modtime)
-                is_modified=0;
-             else
-                is_modified=1;
+             is_modified=(!modtime || modtime>since);
             }
           else
             {
@@ -437,10 +435,7 @@ int IsModified(int fd,Header *request_head)
                {
                 time_t modtime=buf.st_mtime;
 
-                if(since>=modtime)
-                   is_modified=0;
-                else
-                   is_modified=1;
+                is_modified=(modtime>since);
                }
             }
          }
@@ -748,7 +743,7 @@ int SpooledPageStatus(URL *Url)
  int status=0;
  int spool=OpenWebpageSpoolFile(1,Url);
 
- init_buffer(spool);
+ /* init_buffer(spool); */
 
  if(spool!=-1)
    {
