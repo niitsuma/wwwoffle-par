@@ -52,15 +52,15 @@ algemene URL maken met wildcards (jokers), zoals in het formulier hieronder
 getoond.
 
 <p>
-<form action="$configuration/url" method="GET">
+<form action="$configuration/editurl" method="POST">
 
 <p>
 Protocol:
 <select name="proto">
+  <option value="*"      $proto?=*{selected}{}>protocol maakt niet uit</option>
 $proto?=*{}{
   <option value="$proto"              selected>$proto</option>
 }
-  <option value="*"      $proto?=*{selected}{}>protocol maakt niet uit</option>
   <option value="OTHER"                       >specifiek; aangeven --&gt;</option>
 </select>
 [other: <input type="text" value="$proto" size="5" name="proto_other">]
@@ -68,10 +68,10 @@ $proto?=*{}{
 <p>
 Host:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <select name="host">
+  <option value="*"     $host?=*{selected}{}>host maakt niet uit</option>
 $host?=*{}{
   <option value="$host"             selected>$host</option>
 }
-  <option value="*"     $host?=*{selected}{}>host maakt niet uit</option>
   <option value="OTHER"                     >anders (b.v. *.nl of www.*.nl); aangeven --&gt;</option>
 </select>
 [other: <input type="text" value="$host" size="24" name="host_other">]
@@ -79,34 +79,34 @@ $host?=*{}{
 <p>
 Port:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <select name="port">
+  <option value=""       $port?{}{selected}         >port maakt niet uit</option>
+  <option value=":"      $port?=:{selected $port=}{}>Default port voor protocol</option>
 $port?{
-  <option value=":$port" selected          >$port</option>
+  <option value=":$port"          selected          >$port</option>
 }{}
-  <option value=":"                        >Default port voor protocol</option>
-  <option value=""       $port?{}{selected}>port maakt niet uit</option>
-  <option value="OTHER"                    >anders (b.v. port 8080); aangeven --&gt;</option>
+  <option value="OTHER"                             >anders (b.v. port 8080); aangeven --&gt;</option>
 </select>
 [other: <input type="text" value="$port" size="5" name="port_other">]
 
 <p>
 Path:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <select name="path">
-  <option value="$path" $path?=/*{}{selected}>$path</option>
-  <option value="/*"    $path?=/*{selected}{}>path maakt niet uit</option>
+  <option value="/*"     $path?=*{selected}{}>path maakt niet uit</option>
+  <option value="/$path" $path?=*{}{selected}>/$path</option>
   <option value="OTHER"                      >anders (b.v. /foo/* of /*.bar); aangeven --&gt;</option>
 </select>
-[other: <input type="text" value="$path" size="16" name="path_other">]
+[other: <input type="text" value="/$path" size="16" name="path_other">]
 
 <p>
 Parameters:
 <select name="args">
+  <option value="?*"                            >een of meer parameters</option>
+  <option value=""   $args?{}{selected}         >maakt niet uit</option>
+  <option value="?"  $args?=?{selected $args=}{}>geen parameters</option>
 $args?{
-  <option value="?$args"           selected>$args</option>
+  <option value="?$args"      selected          >$args</option>
 }{}
-  <option value="?"                        >geen parameters</option>
-  <option value="?*"                       >een of meer parameters</option>
-  <option value=""       $args?{}{selected}>maakt niet uit</option>
-  <option value="OTHER"                    >anders (specifieke parameters, b.v. ?foo=bar); aangeven --&gt;</option>
+  <option value="OTHER"                         >anders (specifieke parameters, b.v. ?foo=bar); aangeven --&gt;</option>
 </select>
 [other: <input type="text" value="$args" size="16" name="args_other">]
 

@@ -9,9 +9,9 @@ $nallowed?=1{(er is maar &eacute;&eacute;n entry toegestaan voor deze item)}{}.
 <hr width="50%">
 
 <p align=center>
-<a href="$previtem?{$previtem}{no-name}$url?{?url=%encode[url]}{}">&lt;&lt;&lt; $previtem?{$previtem}{<i>no-name</i>} &lt;&lt;&lt;</a>
+<a href="$previtem?{$previtem}{no-name}$url?{?%encode[url]}{}">&lt;&lt;&lt; $previtem?{$previtem}{<i>no-name</i>} &lt;&lt;&lt;</a>
 &nbsp;&nbsp;&nbsp; $item?{$item}{<i>no-name</i>} &nbsp;&nbsp;&nbsp;
-<a href="$nextitem?{$nextitem}{no-name}$url?{?url=%encode[url]}{}">&gt;&gt;&gt; $nextitem?{$nextitem}{<i>no-name</i>} &gt;&gt;&gt;</a>
+<a href="$nextitem?{$nextitem}{no-name}$url?{?%encode[url]}{}">&gt;&gt;&gt; $nextitem?{$nextitem}{<i>no-name</i>} &gt;&gt;&gt;</a>
 </p>
 
 <!-- Standard WWWOFFLE Message Page Bottom Buttons -->
@@ -19,7 +19,11 @@ $nallowed?=1{(er is maar &eacute;&eacute;n entry toegestaan voor deze item)}{}.
 <hr>
 
 <p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Welkomst Pagina</a>|<a href="http://$localhost/README.CONF.html">README.CONF</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+WWWOFFLE - [ \
+<a href="http://$localhost/Welcome.html">Welkomst Pagina</a>| \
+<a href="http://$localhost/README.CONF.html">README.CONF</a>| \
+<a href="http://$localhost/FAQ.html">FAQ</a> \
+] - WWWOFFLE
 </p>
 
 <!-- Standard WWWOFFLE Message Page Bottom Buttons -->

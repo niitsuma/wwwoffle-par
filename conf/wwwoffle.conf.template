@@ -1,5 +1,5 @@
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
 #
 # WWWOFFLE Configuration file CONFDIR/wwwoffle.conf
 #
@@ -81,7 +81,8 @@ OnlineOptions
 
 OfflineOptions
 {
- pragma-no-cache  = yes
+ pragma-no-cache         = yes
+ cache-control-no-cache  = yes
 
  confirm-requests = no
 
@@ -111,7 +112,7 @@ FetchOptions
 
 IndexOptions
 {
- no-lasttime-index    = no
+ create-history-indexes = yes
 
 #### Example ####
 # Don't index any hosts in the barfoo.com domain.
@@ -398,8 +399,8 @@ Purge
 {
  use-mtime     = no
 
- max-size      = 0
- min-free      = 0
+ max-size      = -1
+ min-free      = -1
 
  use-url       = no
 

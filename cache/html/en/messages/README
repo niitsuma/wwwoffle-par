@@ -80,6 +80,8 @@ constructs.
 
 The characters ' and " must be quoted if used within a Class-2 construct.
 
+At the top level (outside of any constructs) whitespaces followed by '\'
+followed by a newline is removed totally to construct a single long line.
 
 ----------
-Andrew M. Bishop March 31st 2000
+Andrew M. Bishop November 3rd 2002

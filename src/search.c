@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/search.c 1.23 2002/06/23 15:07:34 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/search.c 1.24 2002/11/28 18:53:49 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   Handle the interface to the ht://Dig, mnoGoSearch (UdmSearch) and Namazu search engines.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -421,6 +421,8 @@ static void HTSearch(int fd,char *args)
    }
 
  lseek(fd,0,SEEK_SET);
+ init_buffer(fd);
+ ftruncate(fd,0);
 
  HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",
              "error","Problem running ht://Dig htsearch program.",
@@ -478,6 +480,8 @@ static void mnoGoSearch(int fd,char *args)
    }
 
  lseek(fd,0,SEEK_SET);
+ init_buffer(fd);
+ ftruncate(fd,0);
 
  HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",
              "error","Problem running mnoGoSearch search program.",
@@ -535,6 +539,8 @@ static void Namazu(int fd,char *args)
    }
 
  lseek(fd,0,SEEK_SET);
+ init_buffer(fd);
+ ftruncate(fd,0);
 
  HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",
              "error","Problem running Namazu search program.",

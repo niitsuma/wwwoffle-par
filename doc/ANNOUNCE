@@ -1,4 +1,4 @@
-          WWWOFFLE - World Wide Web Offline Explorer - Version 2.7f
+          WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g
           =========================================================
 
 
@@ -70,6 +70,10 @@ Convenience
         - Replace webbug images (images of 1 pixel square).
         - Demoronise HTML character sets.
         - Stop animated GIFs.
+    - Provides information about cached pages
+        - Headers, raw and modified.
+        - Contents, images, links etc.
+        - Source code unmodified by WWWOFFLE.
     - Automatic proxy configuration for Netscape.
     - Searchable cache with the addition of the ht://Dig, mnoGoSearch
       (UdmSearch) or Namazu programs.
@@ -121,28 +125,41 @@ Configuration
 Changes
 -------
 
-Since version 2.7e:
+Since version 2.7f:
 
 Bug Fixes:
- Fix the Set-Cookie problem again.  Convert German characters with umlauts when
- generating HTML from text.  Fix for partial decompression of gzipped pages.
- Close the client socket if the remote end cannot be determined.  Fixed namazu
- indexing script path error.  Don't attempt to modify HTML if the page is
- compressed.  Bug fix for allowing URL-SPECs to contain '='.
+ When modifying HTML links to same page are displayed as cached.  Only censor
+ headers for SSL if using another proxy.  Don't refetch FTP files of the same
+ date as cached one.  Change some HTTP error codes to 500 instead of 200.
+ Insert empty ALT tags when removing images.  Delete zero length cached files
+ when requested offline.  Fix parsing of '-c' option in wwwoffle-tools.
 
 New Features:
- Updated German translations (most were in v2.7e also) including README.CONF.
- Added a new question to the FAQ about startup error/warning messages.
- Several new items have been added to the contrib directory.
+ Added a cache-control-no-cache option which works like pragma-no-cache.
+ Renamed no-lasttime-index to create-history-indexes and reversed its meaning.
+ If a CGI returns a HTTP status line at the top then keep it.
+ Added some web pages that will show the headers and content of cached pages.
+ Allow -1 to be used for max-size and min-free to ignore the options.
+ Write the unmodified header from the server to the cache when online.
+
+
+*NOTE* The URL for the URL specific index has changed.
+       Instead of '/index/url/?xxx' it is '/index/url?xxx'.
+
+*NOTE* The URL for configuration page editing a specific URL has changed.
+       Instead of '/configuration/xxx?url=yyy' it is '/configuration/xxx?yyy'.
+
+*NOTE* A lot of the message pages have been modified, if any of the WWWOFFLE
+       generated HTML pages look different it may be a bug has been introduced.
 
 
 Availability
 ------------
 
-Version 2.7f uploaded, but may not be available yet
+Version 2.7g uploaded, but may not be available yet
 
-FTP server: ftp://ftp.ibiblio.org/pub/Linux/apps/www/servers/wwwoffle-2.7f.tgz
-FTP server: ftp://ftp.demon.co.uk/pub/unix/httpd/wwwoffle-2.7f.tgz
+FTP server: ftp://ftp.ibiblio.org/pub/Linux/apps/www/servers/wwwoffle-2.7g.tgz
+FTP server: ftp://ftp.demon.co.uk/pub/unix/httpd/wwwoffle-2.7g.tgz
 
 Web page: http://www.gedanken.demon.co.uk/wwwoffle/
 

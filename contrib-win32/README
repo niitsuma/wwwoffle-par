@@ -1,4 +1,4 @@
-          WWWOFFLE - World Wide Web Offline Explorer - Version 2.6a
+          WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g
           =========================================================
 
 These files are batch files that I use for the Win32 binary distribution.
@@ -20,20 +20,3 @@ dig-full.bat    Does a full htdig.
 dig-incr.bat    Does an incremental htdig.
 dig-last.bat    Does an htdig of the lasttime directory.
 fuzzy.bat       Creates the fuzzy database for htdig.
-
-
-User friendly self-extracting installation program
---------------------------------------------------
-
-Filenames:   installer/WWWOFFLE_2.6a.sgp
-             installer/inst-patch.c
-Contributed: David McNab <david@rebirthing.co.nz>
-
-The first of these files is a project file for the Setup Generator program
-produced by Gentee Inc.  The program is freeware and can be downloaded from
-http://www.gentee.com/.  This program creates a self-extracting executable that
-will automatically install a program and configure Windows.
-
-The second of these files is a program that is used to set the paths in the
-batch files and wwwoffle.conf file.  It is run by the automatic installer after
-the files have been installed.

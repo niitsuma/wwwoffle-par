@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffled.c 2.57 2002/09/12 18:10:03 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffled.c 2.58 2002/10/20 10:07:57 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7f.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   A demon program to maintain the database and spawn the servers.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -90,7 +90,7 @@ int purge_pid=0;
 /*+ The current status, fetching or not. +*/
 int fetching=0;
 
-/*+ The file descriptor of the sppol directory. +*/
+/*+ The file descriptor of the spool directory. +*/
 int fSpoolDir=-1;
 
 /*+ Set to 1 when the demon is to shutdown. +*/

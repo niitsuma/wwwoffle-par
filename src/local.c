@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/local.c 1.2 2002/06/23 15:08:54 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/local.c 1.4 2002/10/26 11:04:04 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   Serve the local web-pages and handle the language selection.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -152,8 +152,8 @@ void LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
        if(dir[strlen(dir)-1]!='/')
           strcat(dir,"/");
        strcat(dir,"index.html");
-       HTMLMessage(fd,301,"WWWOFFLE Local Dir Redirect",dir,"LocalDirRedirect",
-                   "dir",Url->path,
+       HTMLMessage(fd,302,"WWWOFFLE Local Dir Redirect",dir,"Redirect",
+                   "location",dir,
                    NULL);
 
        free(dir);
@@ -214,7 +214,7 @@ char *FindLanguageFile(char* search)
 
  /* Find the file */
 
- if(!strcmp(search,"local/"))
+ if(!strncmp(search,"local/",sizeof("local")))
     dirn=-1;
 
  while(dirn<(ndirs+2))

@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffles.c 2.216 2002/09/28 07:45:46 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffles.c 2.222 2002/11/28 18:53:19 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7f.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   A server to fetch the required pages.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -288,8 +288,6 @@ int wwwoffles(int online,int browser,int client)
              mode=SpoolInternal; goto spoolinternal;
             }
 
-          ModifyRequest(Url,request_head);
-
           err=SSL_Request(client,Url,request_head);
 
           if(err)
@@ -395,9 +393,8 @@ int wwwoffles(int online,int browser,int client)
     PrintMessage(Debug,"Aliased proto='%s'; host='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
                  newUrl->proto,newUrl->host,newUrl->path,newUrl->args,newUrl->user,newUrl->pass);
 
-    HTMLMessage(tmpclient,302,"WWWOFFLE Alias",newUrl->file,"AliasRedirect",
-                "realurl",Url->name,
-                "aliasurl",newUrl->name,
+    HTMLMessage(tmpclient,302,"WWWOFFLE Alias Redirect",newUrl->file,"Redirect",
+                "location",newUrl->file,
                 NULL);
     mode=SpoolInternal; goto spoolinternal;
    }
@@ -640,6 +637,14 @@ int wwwoffles(int online,int browser,int client)
        mode=SpoolInternal; goto spoolinternal;
       }
 
+    /* The info pages. */
+
+    else if(!strncmp("/info/",Url->path,6))
+      {
+       InfoPage(tmpclient,Url,request_head,request_body);
+       mode=SpoolInternal; goto spoolinternal;
+      }
+
     /* The control pages, deleting and URL replacements for wwwoffle program. */
 
     else if(!strncmp("/control/",Url->path,9))
@@ -793,9 +798,30 @@ int wwwoffles(int online,int browser,int client)
       }
    }
 
+ /* The special case info pages based on the Referer header. */
+
+ else
+   {
+    char *referer=GetHeader(request_head,"Referer");
+
+    if(referer && strstr(referer,"/info/request"))
+      {
+       URL *refUrl=SplitURL(referer);
+
+       if(refUrl->local && !strncmp(refUrl->path,"/info/request",13))
+         {
+          InfoPage(tmpclient,Url,request_head,request_body);
+          FreeURL(refUrl);
+          mode=SpoolInternal; goto spoolinternal;
+         }
+
+       FreeURL(refUrl);
+      }
+   }
+
  /* If not a local request then setup the default Fetch options. */
 
- else if(mode==Fetch)
+ if(mode==Fetch)
     DefaultRecurseOptions(Url);
 
 
@@ -1131,10 +1157,11 @@ passwordagain:
 
  /* If a forced refresh then change to an appropriate mode. */
 
- else if(!is_client_searcher && (RefreshForced() ||
-                                 (ConfigBooleanURL(PragmaNoCache,Url) && GetHeader2(request_head,"Pragma","no-cache")) ||
-                                 GetHeader2(request_head,"Cache-Control","no-cache") ||
-                                 GetHeader2(request_head,"Cache-Control","max-age=0")))
+ else if(!is_client_searcher &&
+         (RefreshForced() ||
+          (ConfigBooleanURL(PragmaNoCache,Url) && GetHeader2(request_head,"Pragma","no-cache")) ||
+          (ConfigBooleanURL(CacheControlNoCache,Url) && GetHeader2(request_head,"Cache-Control","no-cache")) ||
+          GetHeader2(request_head,"Cache-Control","max-age=0")))
    {
     if(conditional_request_ims)
        RemoveFromHeader(request_head,"If-Modified-Since");
@@ -1433,7 +1460,9 @@ passwordagain:
        if(mode==Real || mode==Fetch)
          {
           lseek(spool,0,SEEK_SET);
+          init_buffer(spool);
           ftruncate(spool,0);
+
           HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
                       "url",Url->name,
                       "reason",err,
@@ -1517,7 +1546,9 @@ passwordagain:
        if(mode==Real || mode==Fetch)
          {
           lseek(spool,0,SEEK_SET);
+          init_buffer(spool);
           ftruncate(spool,0);
+
           HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
                       "url",Url->name,
                       "reason",err,
@@ -1613,7 +1644,9 @@ passwordagain:
        if(mode==Real || mode==Fetch)
          {
           lseek(spool,0,SEEK_SET);
+          init_buffer(spool);
           ftruncate(spool,0);
+
           HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
                       "url",Url->name,
                       "reason","TimeoutReply",
@@ -1771,7 +1804,10 @@ passwordagain:
     reply_status=ParseReply(spool,&reply_head);
 
     if(!reply_head)
-       PrintMessage(Warning,"Spooled Reply Head (from cache) is empty.");
+      {
+       PrintMessage(Warning,"Spooled Reply Head (from cache) is empty; deleting it.");
+       DeleteWebpageSpoolFile(Url,0);
+      }
     else
       {
        char *head=HeaderString(reply_head);
@@ -1812,7 +1848,7 @@ passwordagain:
  if(mode==Real || mode==RealNoCache || mode==RealNoPassword)
    {
     char *head;
-    int n=0,err=0,bytes=0;
+    int n=0,err=0,bytes=0,headlen=0;
     int modify=0;
 
     /* Print a message for auditing. */
@@ -1828,10 +1864,6 @@ passwordagain:
        else
           PrintMessage(Inform,"Cache Access Status='Forced Reload'."); /* Used in audit-usage.pl */
       }
-
-    /* Fix up the reply from the server. */
-
-    ModifyReply(Url,reply_head);
 
     /* Check if the HTML modifications are to be performed. */
 
@@ -1858,14 +1890,18 @@ passwordagain:
              modify=0;
       }
 
-    /* Generate the header. */
-
-    head=HeaderString(reply_head);
-
-    /* Write the header to the cache. */
+    /* Generate the header and write it to the cache unmodified. */
 
     if(mode!=RealNoCache)
+      {
+       head=HeaderString(reply_head);
+
        write_string(spool,head);
+
+       headlen=strlen(head);
+
+       free(head);
+      }
 
     /* If the client can use compression and did not just ask for the head and we are not modifying the content ... */
 
@@ -1895,16 +1931,13 @@ passwordagain:
 
     if(server_compression || client_compression)
        RemoveFromHeader(reply_head,"Content-Length");
-
-    /* If the server or client is using compression then we must re-generate the
-       header to send to the client since we have added or removed a header line. */
-
-    if(server_compression || client_compression)
-      {
-       free(head);
-       head=HeaderString(reply_head);
-      }
 #endif
+
+    /* Fix up the reply head from the server before sending to the client. */
+
+    ModifyReply(Url,reply_head);
+
+    head=HeaderString(reply_head);
 
     /* Write the header to the client if not being modified and this is the actual reply. */
 
@@ -1971,9 +2004,11 @@ passwordagain:
 
        if(err==-1 && !ConfigBooleanURL(IntrDownloadKeep,Url))
          {
-          PrintMessage(Warning,"Error writing to client [%!s]; client disconnected?");
           lseek(spool,0,SEEK_SET);
+          init_buffer(spool);
           ftruncate(spool,0);
+
+          PrintMessage(Warning,"Error writing to client [%!s]; client disconnected?");
           HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
                       "url",Url->name,
                       "reason","ClientClose",
@@ -1986,9 +2021,11 @@ passwordagain:
 
        else if(n<0 && !ConfigBooleanURL(TimeoutDownloadKeep,Url))
          {
-          PrintMessage(Warning,"Error reading reply body from remote host [%!s].");
           lseek(spool,0,SEEK_SET);
+          init_buffer(spool);
           ftruncate(spool,0);
+
+          PrintMessage(Warning,"Error reading reply body from remote host [%!s].");
           HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
                       "url",Url->name,
                       "reason",errno==ERRNO_USE_Z_ERRNO?"CompressCorrupt":"TimeoutTransfer",
@@ -2005,12 +2042,16 @@ passwordagain:
 
           if(n<0 || err==-1)
             {
+             reply_status=ParseReply(spool,&reply_head);
+
              reply_head->status=503;
 
              free(head);
              head=HeaderString(reply_head);
 
              lseek(spool,0,SEEK_SET);
+             init_buffer(spool);
+
              write_string(spool,head);
             }
 
@@ -2023,7 +2064,7 @@ passwordagain:
 
           if(modify)
             {
-             lseek(spool,strlen(head),SEEK_SET);
+             lseek(spool,headlen,SEEK_SET);
              init_buffer(spool);
 
              if(modify==1)
@@ -2082,9 +2123,11 @@ passwordagain:
 
     if(n<0 && !ConfigBooleanURL(TimeoutDownloadKeep,Url))
       {
-       PrintMessage(Warning,"Error reading reply body from remote host [%!s].");
        lseek(spool,0,SEEK_SET);
+       init_buffer(spool);
        ftruncate(spool,0);
+
+       PrintMessage(Warning,"Error reading reply body from remote host [%!s].");
        HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
                    "url",Url->name,
                    "reason",errno==ERRNO_USE_Z_ERRNO?"CompressCorrupt":"TimeoutTransfer",
@@ -2290,10 +2333,14 @@ passwordagain:
                       "hash",NULL,
                       NULL);
        else
+         {
+          char *hash=HashOutgoingSpoolFile(Url);
           HTMLMessage(tmpclient,404,"WWWOFFLE Will Get",NULL,"WillGet",
                       "url",Url->name,
-                      "hash",HashOutgoingSpoolFile(Url),
+                      "hash",hash,
                       NULL);
+          free(hash);
+         }
       }
 
     /* Else refuse the request. */
@@ -2310,9 +2357,8 @@ passwordagain:
 
  else if(mode==RealRefresh || mode==SpoolRefresh)
    {
-    HTMLMessage(tmpclient,301,"WWWOFFLE Refresh Redirect",Url->link,"RefreshRedirect",
-                "url",Url->name,
-                "link",Url->link,
+    HTMLMessage(tmpclient,302,"WWWOFFLE Refresh Redirect",Url->link,"Redirect",
+                "location",Url->link,
                 NULL);
 
     mode=SpoolInternal;

@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/ftp.c 1.60 2002/08/11 09:37:02 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/ftp.c 1.62 2002/10/26 11:04:04 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   Functions for getting URLs using FTP.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -427,8 +427,8 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
        bufferhead=CreateHeader("HTTP/1.0 302 FTP is a directory",0);
        AddToHeader(bufferhead,"Location",loc);
 
-       buffer=HTMLMessageBody(-1,"FTPDirRedirect",
-                              "url",Url->link,
+       buffer=HTMLMessageBody(-1,"Redirect",
+                              "location",loc,
                               NULL);
 
        free(loc);
@@ -848,7 +848,7 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
          {
           time_t lastmodtime=DateToTimeT(ims);
 
-          if(modtime<lastmodtime)
+          if(modtime<=lastmodtime)
             {
              bufferhead->status=304;
              RemoveFromHeader(bufferhead,"Content-Length");

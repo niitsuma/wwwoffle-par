@@ -36,7 +36,8 @@ reason    = The reason that the update failed (='$reason')
 <p align=center>
 $reason?=ReadError{
 
-Impossibile aprire il file di configurazione <b><tt>wwwoffle.conf</tt></b> in lettura oppure errore di interpretazione in fase di lettura.
+Impossibile aprire il file di configurazione <b><tt>wwwoffle.conf</tt></b> in
+lettura oppure errore di interpretazione in fase di lettura.
 
 }{}
 $reason?=BadSection{
@@ -61,23 +62,39 @@ Impossibile aprire il file di configurazione <b><tt>wwwoffle.conf</tt></b> in sc
 
 $reason?=ReadError{
 
-Impossibile aprire il file di configurazione oppure pu&ograve; essere aperto ma il contenuto non pu&ograve; essere interpretato. Controlla che il file <tt>wwwoffle.conf</tt> che &egrave; stato usato per avviare il programma <tt>wwwoffled</tt> esista. Deve inoltre essere leggibile dall'utente per il quale &egrave; in esecuzione.
+Impossibile aprire il file di configurazione oppure pu&ograve; essere aperto ma
+il contenuto non pu&ograve; essere interpretato.  Controlla che il file
+<tt>wwwoffle.conf</tt> che &egrave; stato usato per avviare il programma
+<tt>wwwoffled</tt> esista.  Deve inoltre essere leggibile dall'utente per il
+quale &egrave; in esecuzione.
 
 }{}
 $reason?=BadSection{
 
-I moduli nella Pagina di Modifica del File di Configurazione sono gli unici che possono essere usati per aggiornare il file di configurazione. Ogni modulo in quella pagina permette di modificare una delle sezioni del file di configurazione. La richiesta inviata dal tuo browser non coincide con nessuna di queste sezioni. Assicurati di stare usando il modulo corretto per aggiornare l'informazione.
+I moduli nella Pagina di Modifica del File di Configurazione sono gli unici che
+possono essere usati per aggiornare il file di configurazione.  Ogni modulo in
+quella pagina permette di modificare una delle sezioni del file di
+configurazione.  La richiesta inviata dal tuo browser non coincide con nessuna
+di queste sezioni.  Assicurati di stare usando il modulo corretto per aggiornare
+l'informazione.
 
 }{}
 $reason?=BadBody{
 
-Il browser ha inviato una risposta non valida al modulo della Pagina di Modifica del File di Configurazione. Il browser ha inviato una risposta vuota invece dei dati richiesti, c'&egrave; stato un errore di rete nell'invio dei dati, oppure i dati inviati non erano validi. Prova a reinserire i dati nel modulo e a inviarli di nuovo.
+Il browser ha inviato una risposta non valida al modulo della Pagina di Modifica
+del File di Configurazione.  Il browser ha inviato una risposta vuota invece dei
+dati richiesti, c'&egrave; stato un errore di rete nell'invio dei dati, oppure i
+dati inviati non erano validi.  Prova a reinserire i dati nel modulo e a
+inviarli di nuovo.
 
 }{}
 $reason?=WriteError{
 
 Impossibile aprire il file di configurazione in scrittura. 
-Controlla che il file <tt>wwwoffle.conf</tt> che &egrave; stato usato per avviare il programma <tt>wwwoffled</tt> esista. Deve inoltre essere scrivibile dall'utente per il quale &egrave; in esecuzione.
+
+Controlla che il file <tt>wwwoffle.conf</tt> che &egrave; stato usato per
+avviare il programma <tt>wwwoffled</tt> esista.  Deve inoltre essere scrivibile
+dall'utente per il quale &egrave; in esecuzione.
 
 }{}
 
@@ -90,7 +107,10 @@ Controlla che il file <tt>wwwoffle.conf</tt> che &egrave; stato usato per avviar
 <hr>
 
 <p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Pagina di Benvenuto</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+WWWOFFLE - [ \
+<a href="http://$localhost/Welcome.html">Pagina di Benvenuto</a>| \
+<a href="http://$localhost/FAQ.html">FAQ</a> \
+] - WWWOFFLE
 </p>
 
 <!-- Standard WWWOFFLE Message Page Bottom Buttons -->

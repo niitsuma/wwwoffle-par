@@ -9,9 +9,9 @@ FUNC   \%[a-z_0-9]+\[[a-z_0-9]+\]
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/messages.l 1.45 2002/04/07 12:28:19 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/messages.l 1.46 2002/11/03 17:38:15 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   Parse the HTML to create the messages.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -67,7 +67,6 @@ FUNC   \%[a-z_0-9]+\[[a-z_0-9]+\]
 
 extern int msg_yylex(void);
 #define msg_yywrap() 1
-#define YY_NO_UNPUT
 
 
 static void html_message_body(char *template, va_list ap);
@@ -556,10 +555,13 @@ static void strip_trailing_whitespace(char *string)
  int previous=INITIAL;
  int any=0,in;
 
-[^$%?\\\n]+                             { write_or_append_string(msg_yytext); any++; }
+[^$%?\\\n \t]+                          { write_or_append_string(msg_yytext); any++; }
 \n                                      { write_or_append_string(msg_yytext); any=0; }
 \\[\"\'$%?\\{}]                         { write_or_append_string(msg_yytext+1); any++; }
 [$%\\?]                                 { write_or_append_string(msg_yytext); any++; }
+
+[ \t]+                                  { write_or_append_string(msg_yytext); any++; }
+[ \t]*\\\r*\n                           { }
 
 {VAR}                                   { write_or_append_string(get_variable(msg_yytext+1)); }
 {VAR}[ \t]*/=                           { strip_trailing_whitespace(msg_yytext);
@@ -645,7 +647,7 @@ static void strip_trailing_whitespace(char *string)
                                           var=(char*)malloc(strlen(msg_yytext)); strcpy(var,msg_yytext+1);
                                           previous=ALTERNATE_USE_SECOND; val=NULL; BEGIN(ASSIGNMENT_START); }
 <ALTERNATE_USE_SECOND>\}[ \t]*\r*\n     { BEGIN(INITIAL); if(any) write_or_append_string("\n"); any=0; }
-<ALTERNATE_USE_SECOND>\}[ \t]+          { BEGIN(INITIAL); write_or_append_string(" "); }
+<ALTERNATE_USE_SECOND>\}[ \t]+          { BEGIN(INITIAL); unput(' '); }
 <ALTERNATE_USE_SECOND>\}                { BEGIN(INITIAL); }
 
 
@@ -653,7 +655,7 @@ static void strip_trailing_whitespace(char *string)
 <ALTERNATE_SKIP_SECOND>\\\}             { }
 <ALTERNATE_SKIP_SECOND>\\               { }
 <ALTERNATE_SKIP_SECOND>\}[ \t]*\r*\n    { BEGIN(INITIAL); if(any) write_or_append_string("\n"); any=0; }
-<ALTERNATE_SKIP_SECOND>\}[ \t]+         { BEGIN(INITIAL); write_or_append_string(" "); }
+<ALTERNATE_SKIP_SECOND>\}[ \t]+         { BEGIN(INITIAL); unput(' '); }
 <ALTERNATE_SKIP_SECOND>\}               { BEGIN(INITIAL); }
 
 %%

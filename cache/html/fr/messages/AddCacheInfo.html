@@ -16,14 +16,22 @@ $Delete  = http://$localhost/control/delete-url/?url=$encurl
 $Refresh = http://$localhost/refresh/?$encurl
 $Options = http://$localhost/refresh-options/?$encurl
 $Monitor = http://$localhost/monitor-options/?$encurl
-$Index   = http://$localhost/index/url/?$encurl
-$Config  = http://$localhost/configuration/url?url=$encurl
+$Index   = http://$localhost/index/url?$encurl
+$Info    = http://$localhost/info/url?$encurl
+$Config  = http://$localhost/configuration/url?$encurl
 
 -->
 <hr>
 <p align=center>
-WWWOFFLE - $date (depuis $time $unitstr) - 
-[<a href="$Delete">Effacer</a>|<a href="$Refresh">Actualiser</a>:<a href="$Options">Options</a>|<a href="$Monitor">Suivi</a>|<a href="$Index">Index</a>|<a href="$Config">Configure</a>] - WWWOFFLE
+WWWOFFLE - $date (depuis $time $unitstr) - [ \
+<a href="$Delete">Effacer</a>| \
+<a href="$Refresh">Actualiser</a>: \
+<a href="$Options">Options</a>| \
+<a href="$Monitor">Suivi</a>| \
+<a href="$Index">Index</a>| \
+<a href="$Info">Info</a>| \
+<a href="$Config">Configure</a> \
+] - WWWOFFLE
 </p>
 <hr>
 <!-- The previous section added by WWWOFFLE -->

@@ -1,5 +1,5 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/headbody.c 1.18 2002/09/27 18:00:19 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/headbody.c 1.19 2002/10/13 14:42:04 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.7f.
   Header and Body handling functions.
@@ -105,7 +105,7 @@ Header *CreateHeader(char *line,int type)
        p++;
     if(!*p) goto eol_rep;
     status=atoi(p);
-    while(*p && !isspace(*p))   /*             ^                    */
+    while(*p && isdigit(*p))    /*             ^                    */
        p++;
     if(!*p) goto eol_rep;
     *p++=0;

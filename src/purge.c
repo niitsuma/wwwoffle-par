@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/purge.c 2.53 2002/08/04 10:26:06 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/purge.c 2.55 2002/11/03 09:36:02 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   Purge old files from the cache.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -87,7 +87,7 @@
 #endif
 
 
-/*+ The file descriptor of the sppol directory. +*/
+/*+ The file descriptor of the spool directory. +*/
 extern int fSpoolDir;
 
 
@@ -121,6 +121,8 @@ static int pass;
 static unsigned long blocksize;
 
 /*+ The configuraion file options, looked up once then used. +*/
+static int purge_max_size;
+static int purge_min_free;
 static int purge_use_mtime;
 static int purge_use_url;
 static int purge_default_age;
@@ -149,9 +151,11 @@ void PurgeCache(int fd)
  struct STATFS sbuf;
  struct stat buf;
 
- what_purge_compress_age("*","*",NULL,&purge_default_age,&compress_default_age);
+ purge_max_size=ConfigInteger(PurgeMaxSize);
+ purge_min_free=ConfigInteger(PurgeMinFree);
  purge_use_mtime=ConfigBoolean(PurgeUseMTime);
  purge_use_url=ConfigBoolean(PurgeUseURL);
+ what_purge_compress_age("*","*",NULL,&purge_default_age,&compress_default_age);
 
  now=time(NULL)+600;
 
@@ -210,7 +214,7 @@ void PurgeCache(int fd)
 
     write_string(fd,"\n");
 
-    if(ConfigInteger(PurgeCacheSize))
+    if(purge_max_size>0 || purge_min_free>0)
        if(pass==1)
           write_string(fd,"Pass 1: Checking dates and sizes of files:\n");
        else
@@ -220,12 +224,12 @@ void PurgeCache(int fd)
 
     if(pass==1)
       {
-       if(ConfigBoolean(PurgeUseMTime))
+       if(purge_use_mtime)
           write_string(fd,"  (Using modification time.)\n");
        else
           write_string(fd,"  (Using last access time.)\n");
 
-       if(ConfigBoolean(PurgeUseURL))
+       if(purge_use_url)
           write_string(fd,"  (Using the full URL.)\n");
        else
           write_string(fd,"  (Using the hostname and protocol only.)\n");
@@ -454,20 +458,20 @@ void PurgeCache(int fd)
           age_blocks_used+=blocks_by_age[i];
           age_blocks_free-=blocks_by_age[i];
 
-          if(ConfigInteger(PurgeCacheSize) && age_for_size<0 &&
-             Blocks_to_kB(age_blocks_used)>(1024*ConfigInteger(PurgeCacheSize)))
+          if(purge_max_size>0 && age_for_size<0 &&
+             Blocks_to_kB(age_blocks_used)>(1024*purge_max_size))
             {
              age_for_size=i;
 
-             write_formatted(fd,"Cutoff Age is %2d days for %3d MB cache size\n",age_for_size,ConfigInteger(PurgeCacheSize));
+             write_formatted(fd,"Cutoff Age is %2d days for %3d MB cache size\n",age_for_size,purge_max_size);
             }
 
-          if(ConfigInteger(PurgeDiskFree) && diskfree && age_for_free<0 &&
-             Blocks_to_kB(age_blocks_free)<(1024*ConfigInteger(PurgeDiskFree)))
+          if(purge_min_free>0 && diskfree && age_for_free<0 &&
+             Blocks_to_kB(age_blocks_free)<(1024*purge_min_free))
             {
              age_for_free=i;
 
-             write_formatted(fd,"Cutoff Age is %2d days for %3d MB disk free\n",age_for_free,ConfigInteger(PurgeDiskFree));
+             write_formatted(fd,"Cutoff Age is %2d days for %3d MB disk free\n",age_for_free,purge_min_free);
             }
 
           if(i==purge_default_age)

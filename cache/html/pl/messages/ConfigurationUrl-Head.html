@@ -52,15 +52,15 @@ Mo¿esz u¿yæ URL'a wylistowanego powy¿ej lub mo¿esz utworzyæ URL bardziej ogólnie
 przy u¿yciu opcji wyra¿eñ regularnych, tak jak pokazano w poni¿szym formularzu.
 
 <p>
-<form action="$configuration/url" method="GET">
+<form action="$configuration/editurl" method="POST">
 
 <p>
 Protokó³:
 <select name="proto">
+  <option value="*"      $proto?=*{selected}{}>Dowolny Protokó³</option>
 $proto?=*{}{
   <option value="$proto"              selected>$proto</option>
 }
-  <option value="*"      $proto?=*{selected}{}>Dowolny Protokó³</option>
   <option value="OTHER"                       >Inny; okre¶l --&gt;</option>
 </select>
 [inny: <input type="text" value="$proto" size="5" name="proto_other">]
@@ -68,10 +68,10 @@ $proto?=*{}{
 <p>
 Serwer:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <select name="host">
+  <option value="*"     $host?=*{selected}{}>Dowolny serwer</option>
 $host?=*{}{
   <option value="$host"             selected>$host</option>
 }
-  <option value="*"     $host?=*{selected}{}>Dowolny serwer</option>
   <option value="OTHER"                     >Inny (tj. *.com lub www.*.com); okre¶l --&gt;</option>
 </select>
 [inny: <input type="text" value="$host" size="24" name="host_other">]
@@ -79,34 +79,34 @@ $host?=*{}{
 <p>
 Port:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <select name="port">
+  <option value=""       $port?{}{selected}         >Dowolny port</option>
+  <option value=":"      $port?=:{selected $port=}{}>Domy¶lny port protoko³u</option>
 $port?{
-  <option value=":$port" selected          >$port</option>
+  <option value=":$port"          selected          >$port</option>
 }{}
-  <option value=":"                        >Domy¶lny port protoko³u</option>
-  <option value=""       $port?{}{selected}>Dowolny port</option>
-  <option value="OTHER"                    >Inny (tj. port 8080); okre¶l --&gt;</option>
+  <option value="OTHER"                             >Inny (tj. port 8080); okre¶l --&gt;</option>
 </select>
 [inny: <input type="text" value="$port" size="5" name="port_other">]
 
 <p>
 ¦cie¿ka:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 <select name="path">
-  <option value="$path" $path?=/*{}{selected}>$path</option>
-  <option value="/*"    $path?=/*{selected}{}>Dowolna ¶cie¿ka</option>
+  <option value="/*"     $path?=*{selected}{}>Dowolna ¶cie¿ka</option>
+  <option value="/$path" $path?=*{}{selected}>/$path</option>
   <option value="OTHER"                      >Inna (tj. /foo/* lub /*.bar); okre¶l --&gt;</option>
 </select>
-[inna: <input type="text" value="$path" size="16" name="path_other">]
+[inna: <input type="text" value="/$path" size="16" name="path_other">]
 
 <p>
 Argumenty:
 <select name="args">
+  <option value="?*"                                >Dowolne argumenty</option>
+  <option value=""       $args?{}{selected}         >Dowolny lub brak</option>
+  <option value="?"      $args?=?{selected $args=}{}>Brak argumentów</option>
 $args?{
-  <option value="?$args"           selected>$args</option>
+  <option value="?$args"          selected          >$args</option>
 }{}
-  <option value="?"                        >Brak argumentów</option>
-  <option value="?*"                       >Dowolne argumenty</option>
-  <option value=""       $args?{}{selected}>Dowolny lub brak</option>
-  <option value="OTHER"                    >Inny (tj. ?foo=bar); okre¶l --&gt;</option>
+  <option value="OTHER"                             >Inny (tj. ?foo=bar); okre¶l --&gt;</option>
 </select>
 [inny: <input type="text" value="$args" size="16" name="args_other">]
 

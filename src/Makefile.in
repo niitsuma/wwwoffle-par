@@ -1,6 +1,6 @@
-# $Header: /home/amb/wwwoffle/src/RCS/Makefile.in 1.17 2002/05/05 16:25:53 amb Exp $
+# $Header: /home/amb/wwwoffle/src/RCS/Makefile.in 1.18 2002/10/27 13:33:11 amb Exp $
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.7c.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
 #
 # Source Makefile.
 #
@@ -146,7 +146,7 @@ WWWOFFLED_OBJ=wwwoffled.o wwwoffles.o \
 	      http.o ftp.o finger.o ssl.o \
 	      document.o html.o xml.o vrml.o javaclass.o \
 	      gifmodify.o htmlmodify.o \
-	      connect.o control.o controledit.o search.o index.o monitor.o \
+	      connect.o control.o controledit.o search.o index.o info.o monitor.o \
               messages.o local.o cgi.o \
               parse.o purge.o refresh.o spool.o \
 	      configrdwr.o configmisc.o configdata.o configfunc.o configedit.o \
@@ -235,6 +235,7 @@ control.o          : control.c          autoconfig.h wwwoffle.h misc.h errors.h 
 controledit.o      : controledit.c      autoconfig.h wwwoffle.h misc.h errors.h config.h
 search.o           : search.c           autoconfig.h wwwoffle.h misc.h errors.h config.h           proto.h
 index.o            : index.c            autoconfig.h wwwoffle.h misc.h errors.h config.h           proto.h
+info.o             : info.c             autoconfig.h wwwoffle.h misc.h errors.h config.h           proto.h document.h
 monitor.o          : monitor.c          autoconfig.h wwwoffle.h misc.h errors.h config.h
 refresh.o          : refresh.c          autoconfig.h wwwoffle.h misc.h errors.h config.h sockets.h         document.h
 

@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configrdwr.c 1.50 2002/09/28 08:18:10 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configrdwr.c 1.51 2002/11/03 09:35:59 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7f.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   Configuration file reading and writing functions.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -1156,7 +1156,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
     else
       {
        pointer->integer=atoi(text);
-       if(pointer->integer<0)
+       if(pointer->integer<-1)
          {errmsg=(char*)malloc(48);sprintf(errmsg,"Invalid cache size %d.",pointer->integer);}
       }
     break;

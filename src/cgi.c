@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/cgi.c 1.5 2002/08/04 10:24:43 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/cgi.c 1.8 2002/11/28 18:53:49 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.7g.
   CGI Execution functions.
   ******************/ /******************
   Written by Paul A. Rombouts
@@ -62,7 +62,7 @@
      for this variable.
 
  In the final implementation of the code I have made the following additional
- change:
+ restriction:
 
   - The Location: header returned from the CGI is not used to send the specified
     URL to the browser in place of the CGI output but is sent to the browser to
@@ -76,10 +76,6 @@
 static int putenv_request(char *file, Header *request_head, /*@null@*/ Body *request_body);
 static int exec_cgi(int fd, char *file, Header *request_head, /*@null@*/ Body *request_body);
 static void handle_cgi_headers(int fd_in,int fd_out);
-
-
-/* in case the function stpcpy is not available on this platform */
-#define stpcpy(dst,src) strchr(strcpy(dst,src),0)
 
 
 /* Some global variables used to pass on information about remote client */
@@ -133,6 +129,8 @@ void LocalCGI(int fd,URL *Url,char *file,Header *request_head,Body *request_body
  if(!exec_success)
    {
     lseek(fd,0,SEEK_SET);
+    init_buffer(fd);
+    ftruncate(fd,0);
 
     HTMLMessage(fd,500,"WWWOFFLE Local Program Execution Error",NULL,"ExecCGIFailed",
                 "url",Url->path,
@@ -141,12 +139,14 @@ void LocalCGI(int fd,URL *Url,char *file,Header *request_head,Body *request_body
 }
 
 
-/* First a macro definition that makes life a little easier. */
-#define putenv_var_val(varname,value,failaction) \
+/* A macro definition that makes environment variable setting a little easier. */
+#define putenv_var_val(variable,value) \
 { \
-  char *envstr = (char *)malloc(sizeof(varname "=")+strlen(value)); \
-  strcpy(stpcpy(envstr,varname "="),value); \
-  if(putenv(envstr) == -1) failaction; \
+  char *envstr = (char *)malloc(sizeof(variable "=")+strlen(value)); \
+  strcpy(envstr,variable "="); \
+  strcpy(envstr+sizeof(variable),value); \
+  if(putenv(envstr) == -1) \
+     return(-1); \
 }
 
 
@@ -160,112 +160,104 @@ void LocalCGI(int fd,URL *Url,char *file,Header *request_head,Body *request_body
   Header *request_head The head of the request that was made for this page.
 
   Body *request_body The body of the request (only if POST or PUT).
+
+  This function is called after forking and just before execing the CGI, so make
+  the implementation neater by not freeing memory and using same macro for each.
   ++++++++++++++++++++++++++++++++++++++*/
 
 static int putenv_request(char *file, Header *request_head, Body *request_body)
 {
- int retval=0;
+ int i;
+ char portstr[12];
+ URL *Url;
 
- if(putenv("SERVER_SOFTWARE=WWWOFFLE/" WWWOFFLE_VERSION) == -1) return -1;
+ putenv_var_val("SERVER_SOFTWARE","WWWOFFLE/" WWWOFFLE_VERSION);
 
-    {
-     char *localhost=GetLocalHost(0);
-     putenv_var_val("SERVER_NAME",localhost, retval=-1);
-     free(localhost);
-     if(retval) return retval;
-    }
+ putenv_var_val("SERVER_NAME",GetLocalHost(0));
 
- if(putenv("GATEWAY_INTERFACE=CGI/1.1") == -1) return -1;
+ putenv_var_val("GATEWAY_INTERFACE","CGI/1.1");
 
- putenv_var_val("SERVER_PROTOCOL",request_head->version, return -1);
+ putenv_var_val("SERVER_PROTOCOL",request_head->version);
 
-    {
-     char portstr[12];
-     sprintf(portstr,"%d",ConfigInteger(HTTP_Port));
-     putenv_var_val("SERVER_PORT",portstr, return -1);
-    }
+ sprintf(portstr,"%d",ConfigInteger(HTTP_Port));
+ putenv_var_val("SERVER_PORT",portstr);
 
- putenv_var_val("REQUEST_METHOD",request_head->method, return -1);
+ putenv_var_val("REQUEST_METHOD",request_head->method);
 
- putenv_var_val("REQUEST_URI",request_head->url, return -1);
+ putenv_var_val("REQUEST_URI",request_head->url);
 
-    {    
-     URL *Url=SplitURL(request_head->url);
+ Url=SplitURL(request_head->url);
 
-     if(!GetHeader(request_head,"Host"))
-        putenv_var_val("HTTP_HOST",Url->host, {retval=-1; goto cleanupURL;});
+ if(!GetHeader(request_head,"Host"))
+    putenv_var_val("HTTP_HOST",Url->host);
 
-     putenv_var_val("PATH_INFO",Url->path, {retval=-1; goto cleanupURL;});
+ putenv_var_val("PATH_INFO",Url->path);
 
-     if (Url->args)
-        putenv_var_val("QUERY_STRING",Url->args, retval=-1);
+ if(Url->args)
+    putenv_var_val("QUERY_STRING",Url->args);
 
-     putenv_var_val("SCRIPT_NAME",Url->path, return -1);
+ putenv_var_val("SCRIPT_NAME",Url->path);
 
-    cleanupURL:
-     FreeURL(Url);
-     if(retval) return retval;
-    }
+ FreeURL(Url);
 
- putenv_var_val("PATH_TRANSLATED",file, return -1);
+ putenv_var_val("PATH_TRANSLATED",file);
 
  if(client_hostname && client_ip && strcmp(client_ip,client_hostname))
-    putenv_var_val("REMOTE_HOST",client_hostname, return -1);
+    putenv_var_val("REMOTE_HOST",client_hostname);
 
  if(client_ip)
-    putenv_var_val("REMOTE_ADDR",client_ip, return -1);
+    putenv_var_val("REMOTE_ADDR",client_ip);
 
-    {
-     int i, n = request_head->n; char **key = request_head->key, **val = request_head->val;
+ for(i=0;i<request_head->n;++i)
+   {
+    if(request_head->key[i] &&
+       strcasecmp(request_head->key[i],"Content-Length") &&
+       strcasecmp(request_head->key[i],"Proxy-Authorization"))
+      {
+       char *envstr,*p,*q;
 
-     for(i=0;i<n;++i)
-       {
-        if(key[i] && strcasecmp(key[i],"Content-Length") && strcasecmp(key[i],"Proxy-Authorization"))
-          {
-           char *envstr, *p,*q;
+       if(!strcasecmp(request_head->key[i],"Content-Type"))
+         {
+          envstr=(char*)malloc(strlen(request_head->key[i])+strlen(request_head->val[i])+sizeof("=")+1);
+          p=envstr;
+         }
+       else
+         {
+          envstr=(char*)malloc(strlen(request_head->key[i])+strlen(request_head->val[i])+sizeof("HTTP_=")+1);
+          strcpy(envstr,"HTTP_");
+          p=envstr+sizeof("HTTP_")-1;
+         }
 
-           if(!strcasecmp(key[i],"Content-Type"))
-             {
-              envstr = (char *)malloc(strlen(key[i])+strlen(val[i])+sizeof("=")+1);
-              p = envstr;
-             }
-           else
-             {
-              envstr = (char *)malloc(strlen(key[i])+strlen(val[i])+sizeof("HTTP_=")+1);
-              p = stpcpy(envstr, "HTTP_");
-             }
+       for(q = request_head->key[i]; *q; ++p,++q)
+         {
+          if(isupper(*q) || isdigit(*q) || *q == '_')
+             *p = *q;
+          else if (islower(*q))
+             *p = toupper(*q);
+          else if(*q == '-')
+             *p = '_';
+          else
+            {
+             /* key contains illegal character, ignore key */
+             free(envstr);
+             continue;
+            }
+         }
 
-           for(q = key[i]; *q; ++p,++q)
-             {
-              if(isupper(*q) || isdigit(*q) || *q == '_')
-                 *p = *q;
-              else if (islower(*q))
-                 *p = toupper(*q);
-              else if(*q == '-')
-                 *p = '_';
-              else
-                {
-                 /* key contains illegal character, ignore key */
-                 free(envstr);
-                 goto nexti;
-                }
-             }
+       *p++ = '=';
+       strcpy(p, request_head->val[i]);
 
-           *p++ = '=';
-           strcpy(p, val[i]);
+       if(putenv(envstr) == -1)
+          return(-1);
+      }
 
-           if(putenv(envstr) == -1) return -1;
-          }
-       nexti:
-        ;
-       }
-    }
+   }
 
  if(request_body)
    {
     char length[12];
     sprintf(length,"%d",request_body->length);
-    putenv_var_val("CONTENT_LENGTH",length, return -1);
+    putenv_var_val("CONTENT_LENGTH",length);
    }
 
  return(0);
@@ -304,6 +296,7 @@ static int exec_cgi(int fd, char *file, Header *request_head, Body *request_body
     if(!strcmp(request_head->method,"POST") || !strcmp(request_head->method,"PUT"))
       {
        int cgi_in=CreateTempSpoolFile();
+       init_buffer(cgi_in);
 
        if(cgi_in==-1)
          {
@@ -315,6 +308,7 @@ static int exec_cgi(int fd, char *file, Header *request_head, Body *request_body
           PrintMessage(Warning, "Failed to write data to local CGI program '%s' [%!s].", file);
 
        lseek(cgi_in,0,SEEK_SET);
+       init_buffer(cgi_in);
 
        if(cgi_in!=0)
          {
@@ -392,7 +386,15 @@ static void handle_cgi_headers(int fd_in,int fd_out)
  char buffer[READ_BUFFER_SIZE];
  int n;
 
- cgi_head=CreateHeader("HTTP/1.0 200 WWWOFFLE CGI output",0);
+ line=read_line(fd_in,line);
+
+ if(!strncmp(line,"HTTP/",sizeof("HTTP")))
+    cgi_head=CreateHeader(line,0);
+ else
+   {
+    cgi_head=CreateHeader("HTTP/1.0 200 WWWOFFLE CGI output",0);
+    AddToHeaderRaw(cgi_head,line);
+   }
 
  while((line=read_line(fd_in,line)))
     if(!AddToHeaderRaw(cgi_head,line))
@@ -403,7 +405,7 @@ static void handle_cgi_headers(int fd_in,int fd_out)
     int status=atoi(val);
 
     cgi_head->status=(status>0)?(status%1000):0;
-    while(*val && !isspace(*val)) ++val;  /* skip status code */
+    while(*val && isdigit(*val)) ++val;   /* skip status code */
     while(*val && isspace(*val)) ++val;   /* skip whitespace */
 
     ChangeNoteInHeader(cgi_head,val);

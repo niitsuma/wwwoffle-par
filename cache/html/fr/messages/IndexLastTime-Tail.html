@@ -6,23 +6,14 @@
 
 WWWOFFLE : Variables disponibles (mettre le prefixe '$').
 
-number     = Version de la page, lasttime='', prevtime='0'-'5' (='$number').
 total      = Le nombre total de pages sur cet index (='$total').
 indexed    = Le nombre de pages index&eacute;es(='$indexed').
 notindexed = Le nombre de pages non indexees (='$notindexed').
-sort       = La methode de tri demandee (='$sort').
-             Possibilites: none, mtime, atime, dated, alpha, type
-delete     = Indique si les boutons de suppression doivent etre affiches (='$delete').
-refresh    = Indique si les boutons d'actualisation doivent etre affiches (='$refresh').
-monitor    = Indique si les boutons de suivi doivent etre affiches (='$monitor').
-all        = Indique si les fichiers specifies dans la section DontIndex doivent aussi
-             etre affiches (='$all').
-config     = Indique si on affiche le lien vers la page de configuration (='$config').
 
 -->
 
 $notindexed?=0{$anynotindexed=0}{$anynotindexed=$total}
-$anynotindexed?=0{}{<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor;all$config"><i>$notindexed pages non index&eacute;es</i></a>}
+$anynotindexed?=0{}{<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor;all$config$info"><i>$notindexed pages non index&eacute;es</i></a>}
 
 $delete?{$totaldelete=$total}{$totaldelete=0}
 $totaldelete?=0{}
@@ -33,15 +24,15 @@ $totaldelete?=0{}
 }
 
 <p align=center>
-[$number?{<a href="/index/lasttime/?sort=$sort$delete$refresh$monitor$all$config">Derni&egrave;re Connexion</a>}{Derni&egrave;re Connexion}]
+[$number?{<a href="/index/lasttime/?sort=$sort$delete$refresh$monitor$all$config$info">Derni&egrave;re Connexion</a>}{Derni&egrave;re Connexion}]
 [Avant-Derni&egrave;re
-$number?=1{(1)}{<a href="/index/prevtime1/?sort=$sort$delete$refresh$monitor$all$config">(1)</a>}
-$number?=2{(2)}{<a href="/index/prevtime2/?sort=$sort$delete$refresh$monitor$all$config">(2)</a>}
-$number?=3{(3)}{<a href="/index/prevtime3/?sort=$sort$delete$refresh$monitor$all$config">(3)</a>}
-$number?=4{(4)}{<a href="/index/prevtime4/?sort=$sort$delete$refresh$monitor$all$config">(4)</a>}
-$number?=5{(5)}{<a href="/index/prevtime5/?sort=$sort$delete$refresh$monitor$all$config">(5)</a>}
-$number?=6{(6)}{<a href="/index/prevtime6/?sort=$sort$delete$refresh$monitor$all$config">(6)</a>}
-$number?=7{(7)}{<a href="/index/prevtime7/?sort=$sort$delete$refresh$monitor$all$config">(7)</a>}
+$number?=1{(1)}{<a href="/index/prevtime1/?sort=$sort$delete$refresh$monitor$all$config$info">(1)</a>}
+$number?=2{(2)}{<a href="/index/prevtime2/?sort=$sort$delete$refresh$monitor$all$config$info">(2)</a>}
+$number?=3{(3)}{<a href="/index/prevtime3/?sort=$sort$delete$refresh$monitor$all$config$info">(3)</a>}
+$number?=4{(4)}{<a href="/index/prevtime4/?sort=$sort$delete$refresh$monitor$all$config$info">(4)</a>}
+$number?=5{(5)}{<a href="/index/prevtime5/?sort=$sort$delete$refresh$monitor$all$config$info">(5)</a>}
+$number?=6{(6)}{<a href="/index/prevtime6/?sort=$sort$delete$refresh$monitor$all$config$info">(6)</a>}
+$number?=7{(7)}{<a href="/index/prevtime7/?sort=$sort$delete$refresh$monitor$all$config$info">(7)</a>}
 ]
 </p>
 

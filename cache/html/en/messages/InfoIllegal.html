@@ -6,14 +6,14 @@
 Available WWWOFFLE Variables (all with a '$' prefix).
 
 localhost = The hostname of the server running wwwoffled (='$localhost').
-url       = The directory that was asked for (='$url').
+url       = The URL that was asked for (='$url').
 
 $decurl=%decode[url]
 
 -->
 
 <HEAD>
-<TITLE>WWWOFFLE - Ridirezione Directory FTP</TITLE>
+<TITLE>WWWOFFLE - Illegal Info Page</TITLE>
 </HEAD>
 
 <BODY>
@@ -28,17 +28,23 @@ $decurl=%decode[url]
 
 <!-- Standard WWWOFFLE Message Page Top Banner -->
 
-<H1 align=center>WWWOFFLE Directory FTP</H1>
+<H1 align=center>WWWOFFLE Illegal Info Page</H1>
 
 <p align=center>
-La tua richiesta per l'URL
-
+Your request for the informational URL
 <br>
 <b><tt>$decurl</tt></b>
 <br>
+is illegal.
+</p>
 
-&egrave; una directory, questo richiede un '/' alla fine del collegamento seguente <a href="$url/">$decurl/</a>.
+<h2>Help</h2>
 
+There was an error with a link that you followed to get to this page.  The link
+below is for the main informational page.
+
+<p align=center>
+[<a href="http://$localhost/info/">Information</a>]
 </p>
 
 <!-- Standard WWWOFFLE Message Page Bottom Buttons -->
@@ -46,7 +52,7 @@ La tua richiesta per l'URL
 <hr>
 
 <p align=center>
-WWWOFFLE - [<a href="http://$localhost/Welcome.html">Pagina di Benvenuto</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
+WWWOFFLE - [<a href="http://$localhost/Welcome.html">Welcome Page</a>|<a href="http://$localhost/FAQ.html">FAQ</a>] - WWWOFFLE
 </p>
 
 <!-- Standard WWWOFFLE Message Page Bottom Buttons -->

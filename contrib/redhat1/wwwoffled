@@ -15,6 +15,9 @@
 #	Richard Zidlicky	rz@linux-m68k.org
 #
 # Revision History:
+#	30-OCT-2002	Marc	Fixed the missing "-c $CONFIG" from the
+#				command-line when calling $WWWOFFLED and
+#				$EXECWWWOFFLE
 #       18-AUG-2002     rz      Updated to latest defaults.
 #	05-OCT-2001	viki	Added online, offline, fetch, purge and did
 #                               some optimisation.
@@ -95,7 +98,7 @@ reload() {
 	# neither does option -config.
 	# killproc $PROG -HUP
 	# So I do this >>>>>>
-	if [ -n "`$EXECWWWOFFLE -config|grep "Read Configuration"`" ]; then 
+	if [ -n "`$EXECWWWOFFLE -config -c $CONFIG|grep "Read Configuration"`" ]; then 
 		RETVAL=0
 	 else
 	 	RETVAL=1
@@ -132,14 +135,14 @@ online() {
 	STATUS=`echo $?`
 
 	if [ $STATUS -eq 0 ]; then
-		$EXECWWWOFFLE -online &> /dev/null
+		$EXECWWWOFFLE -online -c $CONFIG &> /dev/null
 	 else
 	 	start &> /dev/null
 		status $PROG &> /dev/null
 		STATUS=`echo $?`
 	
 		if [ $STATUS -eq 0 ]; then
-			$EXECWWWOFFLE -online &> /dev/null
+			$EXECWWWOFFLE -online -c $CONFIG &> /dev/null
 		 else
 		 	RETVAL=1
 		fi
@@ -160,7 +163,7 @@ offline() {
 	STATUS=`echo $?`
 
 	if [ $STATUS -eq 0 ]; then
-		$EXECWWWOFFLE -offline &> /dev/null
+		$EXECWWWOFFLE -offline -c $CONFIG &> /dev/null
 	 else
 		RETVAL=1
 	fi
@@ -181,7 +184,7 @@ purge() {
 
 	if [ $STATUS -eq 0 ]; then
 		# First reload to sync any changes in the config.
-  		reload &>/dev/null && $EXECWWWOFFLE -purge &> /dev/null
+  		reload &>/dev/null && $EXECWWWOFFLE -purge -c $CONFIG &> /dev/null
 		RETVAL=$?
 	 else
 		RETVAL=1
@@ -204,11 +207,11 @@ fetch() {
 	STATUS=`echo $?`
 
 	if [ $STATUS -eq 0 ]; then
-		if [ -n "`$EXECWWWOFFLE -online|grep "Already Online"$`" ]; then
-			nohup $EXECWWWOFFLE -fetch &> /dev/null &
+		if [ -n "`$EXECWWWOFFLE -online -c $CONFIG|grep "Already Online"$`" ]; then
+			nohup $EXECWWWOFFLE -fetch -c $CONFIG &> /dev/null &
 		 else
-			$EXECWWWOFFLE -online &> /dev/null
-			nohup $EXECWWWOFFLE -fetch &> /dev/null &
+			$EXECWWWOFFLE -online -c $CONFIG &> /dev/null
+			nohup $EXECWWWOFFLE -fetch -c $CONFIG &> /dev/null &
 		fi
 	 else
 	 	start
@@ -216,8 +219,8 @@ fetch() {
 		STATUS=`echo $?`
 	
 		if [ $STATUS -eq 0 ]; then
-			$EXECWWWOFFLE -online &> /dev/null
-			nohup $EXECWWWOFFLE -fetch &> /dev/null &
+			$EXECWWWOFFLE -online -c $CONFIG &> /dev/null
+			nohup $EXECWWWOFFLE -fetch -c $CONFIG &> /dev/null &
 		 else
 		 	RETVAL=1
 		fi
