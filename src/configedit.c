@@ -50,6 +50,7 @@ static ConfigItem *URLConfigItems[]={
  &IntrDownloadPercent,
  &TimeoutDownloadKeep,
  &RequestCompressedData,
+ &KeepCacheIfNotFound,
 
  /* OfflineOptions */
 

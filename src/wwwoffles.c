@@ -56,6 +56,12 @@ extern char* proxy_user;
 
 static void uninstall_sighandlers(void);
 
+inline static int is_wwwoffle_error_message(Header *head)
+{
+  return(head->note && (!strcasecmp(head->note,"WWWOFFLE Remote Host Error") ||
+			!strcasecmp(head->note,"WWWOFFLE Requested Resource Gone")));
+}
+
 
 /*+ The mode of operation of the server. +*/
 typedef enum _Mode
@@ -991,8 +997,8 @@ passwordagain:
 
     /* Don't do anything if a refresh URL. */
 
-    else if(mode==SpoolGet)
-       ;
+    /* else if(mode==SpoolGet)
+       ; */
 
     /* Give an error if in fetch mode. */
 
@@ -1204,47 +1210,47 @@ passwordagain:
     if(conditional_request_inm)
        RemoveFromHeader(request_head,"If-None-Match");
 
-    spool=-1;
-
     /* If there is already a cached version then open it. */
 
     if(spool_exists)
       {
-       spool=OpenWebpageSpoolFile(1,Url);
-       /* init_buffer(spool); */
-      }
+	spool=OpenWebpageSpoolFile(1,Url);
+	/* init_buffer(spool); */
 
-    /* if not cached or not openable then don't do anything else. */
+	if(spool!=-1)
+	  {
 
-    if(spool==-1)
-       ;
+	    /* If changes are needed then get them and add the conditional headers. */
 
-    /* If changes are needed then get them and add the conditional headers. */
+	    if(RequireChanges(spool,request_head,Url))
+	      TouchWebpageSpoolFile(Url,0);
 
-    else if(RequireChanges(spool,request_head,Url))
-       TouchWebpageSpoolFile(Url,0);
+	    /* If no change is needed but is a recursive request, parse the document and fetch the images / links. */
 
-    /* If no change is needed but is a recursive request, parse the document and fetch the images / links. */
+	    else if(fetch_again)
+	      {
+		lseek(spool,0,SEEK_SET);
+		init_buffer(spool);
 
-    else if(fetch_again)
-      {
-       lseek(spool,0,SEEK_SET);
-       init_buffer(spool);
+		if(ParseDocument(spool,Url))
+		  RecurseFetch(Url,0);
 
-       if(ParseDocument(spool,Url))
-          RecurseFetch(Url,0);
+		close(spool);
 
-       close(spool);
+		exit(4);
+	      }
 
-       exit(4);
-      }
+	    /* Otherwise just exit. */
 
-    /* Otherwise just exit. */
+	    else
+	      {
+		close(spool);
+		exit(0);
+	      }
 
-    else
-      {
-       close(spool);
-       exit(0);
+	    close(spool);
+	    spool=-1;
+	  }
       }
    }
 
@@ -1257,33 +1263,30 @@ passwordagain:
     if(conditional_request_inm)
        RemoveFromHeader(request_head,"If-None-Match");
 
-    spool=-1;
-
     /* If there is already a cached version then open it. */
 
     if(spool_exists)
       {
-       spool=OpenWebpageSpoolFile(1,Url);
-       /* init_buffer(spool); */
+	spool=OpenWebpageSpoolFile(1,Url);
+	/* init_buffer(spool); */
+
+	if(spool!=-1)
+	  {
+
+	    /* If changes are needed then get them and add the conditional headers. */
+
+	    if(RequireChanges(spool,request_head,Url))
+	      TouchWebpageSpoolFile(Url,0);
+
+	    /* Otherwise just use the spooled version. */
+
+	    else
+	      mode=Spool;
+
+	    close(spool);
+	    spool=-1;
+	  }
       }
-
-    /* if not cached or not openable then don't do anything else. */
-
-    if(spool==-1)
-       ;
-
-    /* If changes are needed then get them and add the conditional headers. */
-
-    else if(RequireChanges(spool,request_head,Url))
-       TouchWebpageSpoolFile(Url,0);
-
-    /* Otherwise just use the spooled version. */
-
-    else
-       mode=Spool;
-
-    if(spool!=-1)
-       close(spool);
    }
 
  /* If in autodial mode when not a forced refresh. */
@@ -1334,6 +1337,7 @@ passwordagain:
             }
 
           close(spool);
+	  spool=-1;
          }
       }
 
@@ -1477,6 +1481,7 @@ passwordagain:
                       NULL);
           DeleteLockWebpageSpoolFile(Url);
           close(spool);
+	  spool=-1;
          }
 
        /* In Fetch mode print message and exit. */
@@ -1564,6 +1569,7 @@ passwordagain:
                       NULL);
           DeleteLockWebpageSpoolFile(Url);
           close(spool);
+	  spool=-1;
          }
 
        /* In Fetch mode print message and exit. */
@@ -1664,13 +1670,15 @@ passwordagain:
                       "backup",spool_exists?"yes":NULL,
                       NULL);
           DeleteLockWebpageSpoolFile(Url);
+          close(spool);
+	  spool=-1;
          }
 
        /* In Fetch mode print message and exit. */
 
        if(mode==Fetch)
          {
-          if(mode==Fetch && client!=-1)
+          if(client!=-1)
              write_formatted(client,"Fetch Failure %s [Server Reply Error]\n",Url->name);
           exit(1);
          }
@@ -1745,7 +1753,7 @@ passwordagain:
 
        if(mode==Fetch || mode==Real)
          {
-          close(spool);
+	  close(spool); spool=-1;
           DeleteLockWebpageSpoolFile(Url);
           RestoreBackupWebpageSpoolFile(Url);
           if(!lasttime_exists)
@@ -1807,6 +1815,37 @@ passwordagain:
     else if(mode==Real && reply_status==401 && Urlpw)
       {
        mode=RealNoPassword;
+      }
+    else if((mode==Fetch || mode==Real) && reply_status>=300 && spool_exists && ConfigBooleanURL(KeepCacheIfNotFound,Url) && SpooledBackupStatus(Url)==200)
+      {
+	PrintMessage(Debug,"Reply status of '%s' was %d, keeping backup spool file.",Url->name,reply_status);
+
+	lseek(spool,0,SEEK_SET);
+	ftruncate(spool,0);
+	{
+	  char status[12];
+
+	  sprintf(status,"%d",reply_status);
+	  HTMLMessage(spool,410,"WWWOFFLE Requested Resource Gone",NULL,"KeepingCache",
+		      "url",Url->name,
+		      "replystatus",status,
+		      "replynote",reply_head->note,
+		      "cache","yes",
+		      "backup","yes",
+		      NULL);
+	}
+	DeleteLockWebpageSpoolFile(Url);
+	close(spool);
+	spool=-1;
+
+	if(mode==Fetch)
+	  {
+	    if(client!=-1)
+	      write_formatted(client,"Not fetching %s [Keeping cached version]\n",Url->name);
+	    exit(1);
+	  }
+	else /* if(mode==Real) */
+	  mode=RealNoCache;
       }
    }
 
@@ -2223,7 +2262,6 @@ passwordagain:
  else if(mode==Spool || mode==SpoolPragma)
    {
     struct stat buf;
-    char *remote_error_note="WWWOFFLE Remote Host Error";
     int modify=0;
 #if USE_ZLIB
     int spool_compression=0;
@@ -2280,7 +2318,7 @@ passwordagain:
 
        /* If the page is a previous error message then delete the cached one and restore the backup. */
 
-       if((reply_head->note && !strcmp(reply_head->note,remote_error_note)) || (!fstat(spool,&buf) && buf.st_size==0))
+       if(is_wwwoffle_error_message(reply_head) || (!fstat(spool,&buf) && buf.st_size==0))
          {
           DeleteWebpageSpoolFile(Url,0);
           RestoreBackupWebpageSpoolFile(Url);

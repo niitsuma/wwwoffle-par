@@ -1691,3 +1691,55 @@ int fchdir(int fd)
 }
 
 #endif
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Find the status of a spooled backup page.
+
+  int SpooledBackupStatus Returns the status number.
+
+  URL *Url The URL to check.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+int SpooledBackupStatus(URL *Url)
+{
+ int status=0;
+
+ /* Change to the spool directory. */
+
+ if(chdir(Url->proto))
+   return(0);
+
+ if(chdir(Url->dir))
+   goto changedir_back;
+
+ {
+   local_URLToFileName(Url,file)
+
+   *file='D';
+   strcat(file,"~");
+   {
+     int spool=open(file,O_RDONLY|O_BINARY);
+
+     init_buffer(spool);
+     if(spool!=-1)
+       {
+	 char *reply=read_line(spool,NULL);
+
+	 if(reply)
+	   {
+	     sscanf(reply,"%*s %d",&status);
+	     free(reply);
+	   }
+	 close(spool);
+       }
+   }
+ }
+
+ /* Change dir back. */
+
+changedir_back:
+ fchdir(fSpoolDir);
+
+ return(status);
+}

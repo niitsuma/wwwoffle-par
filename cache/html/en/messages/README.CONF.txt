@@ -118,6 +118,9 @@ If the server connection times out while reading then the currently downloaded i
 ITEM request-compressed-data
 [<URL-SPEC>] request-compressed-data = yes | no | deflate | gzip
 If the requests that are made to the server are to request compressed data (default=yes).  Requires zlib compilation option.
+ITEM keep-cache-if-not-found
+[<URL-SPEC>] keep-cache-if-not-found = yes | no
+If the remote server replies with an error message or a redirection while there is a cached version with status 200 the previously cached  version should be kept (default=no). This option was added by Paul Rombouts.
 SECTION OfflineOptions
 Options that control how WWWOFFLE behaves when it is offline.
 ITEM pragma-no-cache

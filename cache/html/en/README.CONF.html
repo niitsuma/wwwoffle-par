@@ -229,6 +229,12 @@ downloaded incomplete page should be kept (default=no).
 </h3>
 If the requests that are made to the server are to request compressed
 data (default=yes).  Requires zlib compilation option.
+<h3><a name="OnlineOptions_keep-cache-if-not-found"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] keep-cache-if-not-found = yes | no
+</h3>
+If the remote server replies with an error message or a redirection
+while there is a cached version with status 200 the previously cached 
+version should be kept (default=no).
+This option was added by Paul Rombouts.
 <h2><a name="OfflineOptions"></a>OfflineOptions</h2>
 Options that control how WWWOFFLE behaves when it is offline.
 <h3><a name="OfflineOptions_pragma-no-cache"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] pragma-no-cache = yes | no

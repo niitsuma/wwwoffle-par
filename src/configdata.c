@@ -185,6 +185,10 @@ ConfigItem TimeoutDownloadKeep;
 /*+ The option to request compressed content encoding. +*/
 ConfigItem RequestCompressedData;
 
+/*+ The option to keep previously cached pages instead of overwriting
+    them with an error message from the remote server. +*/
+ConfigItem KeepCacheIfNotFound;
+
 /*+ The item definitions in the OnlineOptions section. +*/
 static ConfigItemDef onlineoptions_itemdefs[]={
  {"request-changed"        ,&RequestChanged       ,1,0,Fixed,TimeSecs  ,"10m"},
@@ -197,7 +201,8 @@ static ConfigItemDef onlineoptions_itemdefs[]={
  {"intr-download-size"     ,&IntrDownloadSize     ,1,0,Fixed,FileSize  ,"1"  },
  {"intr-download-percent"  ,&IntrDownloadPercent  ,1,0,Fixed,Percentage,"80" },
  {"timeout-download-keep"  ,&TimeoutDownloadKeep  ,1,0,Fixed,Boolean   ,"no" },
- {"request-compressed-data",&RequestCompressedData,1,0,Fixed,CompressSpec,"yes"}
+ {"request-compressed-data",&RequestCompressedData,1,0,Fixed,CompressSpec,"yes"},
+ {"keep-cache-if-not-found",&KeepCacheIfNotFound  ,1,0,Fixed,Boolean   ,"no" }
 };
 
 /*+ OnlineOptions section. +*/

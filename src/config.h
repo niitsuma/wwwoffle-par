@@ -156,6 +156,10 @@ extern /*@null@*/ ConfigItem TimeoutDownloadKeep;
 /*+ The option to request compressed content encoding. +*/
 extern /*@null@*/ ConfigItem RequestCompressedData;
 
+/*+ The option to keep previously cached pages instead of overwriting
+    them with an error message from the remote server. +*/
+extern /*@null@*/ ConfigItem KeepCacheIfNotFound;
+
 
 /* OfflineOptions section */
 

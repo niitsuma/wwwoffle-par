@@ -74,6 +74,7 @@ void CloseTempSpoolFile(int fd);
 
 char *FileNameToURL(char *file);
 
+int SpooledBackupStatus(URL *Url);
 
 /*++++++++++++++++++++++++++++++++++++++
   A macro to Convert a URL to a filename.

@@ -1,4 +1,4 @@
-	  Alternative WWWOFFLE implementation - version 2.7f-par
+	  Alternative WWWOFFLE implementation - version 2.7f-par-2
 	  ======================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
@@ -12,7 +12,7 @@ Before compiling and installing WWWOFFLE according to AMB's installation
 instructions described in the INSTALL file you must first apply my patch file
 wwwoffled-2.7f-par.diff.gz using the command:
 
-gzip -cd <path_to_patch>/wwwoffle-2.7f-par.diff.gz | patch -p2 -N -E
+gzip -cd <path_to_patch>/wwwoffle-2.7f-par-2.diff.gz | patch -p2 -N -E
 
 Note: because I have used GNU extensions you will need to compile with gcc and
 link with glibc. This will not be a problem with most Linux distributions.
@@ -40,6 +40,19 @@ will not display correctly.
 
 
 I've introduced a few extensions to the way WWWOFFLE can be configured:
+
+  NEW in version 2.7f:
+
+- I've added a new option to the OnlineOptions section called
+  keep-cache-if-not-found. When this option is enabled for a certain URL, then
+  if WWWOFFLE online and the remote server returns a status code >=300, and
+  there is a previously cached version for this URL with status code 200,
+  WWWOFFLE will write a warning message to the cache and keep the previously
+  cached page as a backup. This is useful for preventing old cached versions of
+  pages being overwritten by error messages from a web server.
+
+  The other configuration enhancements where also contained in
+  wwwoffle-2.7e-par.diff.gz.
 
 - I've added an option to the CensorIncomingHeader section called
   session-cookies-only. When enabled, WWWOFFLE strips the "expires" field from
