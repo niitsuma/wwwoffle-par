@@ -46,23 +46,24 @@
 static const char hexstring[16]={'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
 
 /*+ For conversion from hex string to integer. +*/
-static const unsigned char unhexstring[256]={ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x00-0x0f "                " */
-					      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x10-0x1f "                " */
-					      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x20-0x2f " !"#$%&'()*+,-./" */
-					      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0,  /* 0x30-0x3f "0123456789:;<=>?" */
-					      0,10,11,12,13,14,15, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x40-0x4f "@ABCDEFGHIJKLMNO" */
-					      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x50-0x5f "PQRSTUVWXYZ[\]^_" */
-					      0,10,11,12,13,14,15, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x60-0x6f "`abcdefghijklmno" */
-					      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x70-0x7f "pqrstuvwxyz{|}~ " */
-					      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x80-0x8f "                " */
-					      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x90-0x9f "                " */
-					      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0xa0-0xaf "                " */
-					      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0xb0-0xbf "                " */
-					      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0xc0-0xcf "                " */
-					      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0xd0-0xdf "                " */
-					      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0xe0-0xef "                " */
-					      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; /* 0xf0-0xff "                " */
-
+static const unsigned char unhexstring[256]={
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  0,  0,  0,  0,  0,  0,
+    0, 10, 11, 12, 13, 14, 15,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0, 10, 11, 12, 13, 14, 15,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0
+};
 
 /* Added by Paul Rombouts */
 inline static unsigned char test_bit(const unsigned char *bvec, unsigned char c)
@@ -161,7 +162,7 @@ char *URLRecodeFormArgs(const char *str)
    The unencoded character "?" on the input is left unencoded on the output to handle broken servers.
  */
 
- static const unsigned char allowed[]= {
+ static const unsigned char allowed[256/8]= {
    0x00,0x00,0x00,0x00  /*                                */
   ,0x12,0xf7,0xff,0x07  /* !  $   ()* ,-./0123456789:     */
   ,0xfe,0xff,0xff,0x87  /* ABCDEFGHIJKLMNOPQRSTUVWXYZ    _*/
@@ -249,7 +250,7 @@ char *URLEncodePath(const char *str)
    I disallow "'" because it may lead to confusion.
  */
 
- static const unsigned char allowed[]= {
+ static const unsigned char allowed[256/8]= {
    0x00,0x00,0x00,0x00  /*                                */
   ,0x12,0xff,0xff,0x27  /* !  $   ()*+,-./0123456789:  =  */
   ,0xfe,0xff,0xff,0x87  /* ABCDEFGHIJKLMNOPQRSTUVWXYZ    _*/
@@ -308,7 +309,7 @@ char *URLEncodeFormArgs(const char *str)
    I disallow ""'\`" because they may lead to confusion.
  */
 
- static const unsigned char allowed[]= {
+ static const unsigned char allowed[256/8]= {
    0x00,0x00,0x00,0x00  /*                                */
   ,0x12,0xf7,0xff,0x07  /* !  $   ()* ,-./0123456789:     */
   ,0xfe,0xff,0xff,0x87  /* ABCDEFGHIJKLMNOPQRSTUVWXYZ    _*/
@@ -369,7 +370,7 @@ char *URLEncodePassword(const char *str)
    I disallow "'()" because they may lead to confusion.
  */
 
- static const unsigned char allowed[]= {
+ static const unsigned char allowed[256/8]= {
    0x00,0x00,0x00,0x00  /*                                */
   ,0x12,0x7c,0xff,0x23  /* !  $     *+,-. 0123456789   =  */
   ,0xfe,0xff,0xff,0x87  /* ABCDEFGHIJKLMNOPQRSTUVWXYZ    _*/
@@ -470,36 +471,40 @@ char *TrimArgs(char *str)
 /*++++++++++++++++++++++++++++++++++++++
   Generate a hash value for a string.
 
-  char *MakeHash Returns a string that can be used as the hashed string.
+  MakeHash Returns a binary hash that can be converted to a string with hashbase64encode().
 
   const char *args The arguments.
+  md5hash_t *h  The computed hash value.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *MakeHash(const char *args)
+void MakeHash(const unsigned char *args, md5hash_t *h)
 {
- char md5[17];
- char *hash,*p;
  struct MD5Context ctx;
 
  /* Initialize the computation context.  */
  MD5Init (&ctx);
 
  /* Process whole buffer but last len % 64 bytes.  */
- MD5Update (&ctx, (const unsigned char*)args, strlen(args));
+ MD5Update (&ctx, args, strlen(args));
 
  /* Put result in desired memory area.  */
- MD5Final ((unsigned char *)md5, &ctx);
+ MD5Final ((unsigned char *)h, &ctx);
+}
 
- md5[16]=0;
 
- hash=Base64Encode(md5,16);
+char *hashbase64encode(md5hash_t *h, unsigned char *buf, unsigned buflen)
+{
+ char *hash,*p;
 
- for(p=hash;*p;p++)
-    if(*p=='/')
+ hash=Base64Encode((unsigned char *)h,sizeof(md5hash_t),buf,buflen);
+
+ if(hash) {
+   for(p=hash;*p;p++)
+     if(*p=='/')
        *p='-';
-    else if(*p=='=')
+     else if(*p=='=')
        *p=0;
-
+ }
  return(hash);
 }
 
@@ -695,50 +700,87 @@ void DurationToString_r(const long duration,char *buf)
 
 
 /*+ The conversion from a 6 bit value to an ASCII character. +*/
-static const char base64[64]={'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P',
-			      'Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f',
-			      'g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v',
-			      'w','x','y','z','0','1','2','3','4','5','6','7','8','9','+','/'};
+static const unsigned char base64[64]={
+  'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P',
+  'Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f',
+  'g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v',
+  'w','x','y','z','0','1','2','3','4','5','6','7','8','9','+','/'
+};
+
+/*+ The conversion from an ASCII character to a 6 bit value. +*/
+static const unsigned char invbase64[256]={
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 62,  0, 63,  0, 63,
+   52, 53, 54, 55, 56, 57, 58, 59, 60, 61,  0,  0,  0,  0,  0,  0,
+    0,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14,
+   15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,  0,  0,  0,  0,  0,
+    0, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+   41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0
+};
 
 /*++++++++++++++++++++++++++++++++++++++
   Decode a base 64 string.
 
-  char *Base64Decode Return a malloced string containing the decoded version.
+  unsigned char *Base64Decode Return a string containing the decoded version.
 
   const char *str The string to be decoded.
 
-  int *l Returns the length of the decoded string.
+  int *lp Returns the length of the decoded string.
+
+  unsigned char *buf  If buf is not null, the result is stored in buf,
+                      otherwise an malloced buffer is used.
+
+  unsigned buflen  The size of buf.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *Base64Decode(const char *str,int *l)
+unsigned char *Base64Decode(const unsigned char *str,unsigned *lp, unsigned char *buf, unsigned buflen)
 {
- int le=strlen(str);
- char *decoded=(char*)malloc(le+1);
- int i,j,k;
+ unsigned l,le=strlen(str);
+ unsigned char *decoded;
+ unsigned i,j,k;
 
- while(str[le-1]=='=')
-    le--;
+ while(--le>=0 && str[le]=='=');
 
- *l=3*(le/4)+(le%4)-1+!(le%4);
+ ++le;
 
- for(j=0;j<le;j++)
-    for(k=0;k<64;k++)
-       if(base64[k]==str[j])
-         {decoded[j]=k;break;}
+ l= (3*le)/4;  /* floor((3./4.)*le) */
+ if(lp) *lp=l;
 
- for(i=j=0;j<(le+4);i+=3,j+=4)
+ if(buf) {
+   if(l>=buflen) return NULL;
+   decoded=buf;
+ }
+ else {
+   decoded=(unsigned char *)malloc(l+1);
+   if(!decoded) return NULL;
+ }
+
+ for(i=j=0; j<le; i+=3,j+=4)
    {
     unsigned long s=0;
+    unsigned klim;
+    int off;
 
-    for(k=0;k<4;k++)
-       if((j+k)<le)
-          s|=((unsigned long)decoded[j+k]&0xff)<<(18-6*k);
+    klim=j+4;
+    if(klim>le) klim=le;
+    for(k=j,off=24; k<klim; k++)
+      s|=((unsigned long)invbase64[str[k]&0xff])<<(off-=6);
 
-    for(k=0;k<3;k++)
-       if((i+k)<*l)
-          decoded[i+k]=(char)((s>>(16-8*k))&0xff);
+    klim=i+3;
+    if(klim>l) klim=l;
+    for(k=i,off=24; k<klim; k++)
+      decoded[k]= (s>>(off-=8))&0xff;
    }
- decoded[*l]=0;
+ decoded[l]=0;
 
  return(decoded);
 }
@@ -747,36 +789,56 @@ char *Base64Decode(const char *str,int *l)
 /*++++++++++++++++++++++++++++++++++++++
   Encode a string into base 64.
 
-  char *Base64Encode Return a malloced string containing the encoded version.
+  unsigned char *Base64Encode Return a string containing the encoded version.
 
   const char *str The string to be encoded.
 
   int l The length of the string to be encoded.
+
+  unsigned char *buf  If buf is not null, the result is stored in buf,
+                      otherwise an malloced buffer is used.
+
+  unsigned buflen  The size of buf.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *Base64Encode(const char *str,int l)
+unsigned char *Base64Encode(const unsigned char *str,unsigned l, unsigned char *buf, unsigned buflen)
 {
- int le=4*(l/3)+(l%3)+!!(l%3);
- char *encoded=(char*)malloc(4*(le/4)+4*!!(le%4)+1);
- int i,j,k;
+ unsigned le=(4*l+2)/3;  /* ceil((4./3.)*l) */
+ unsigned char *encoded;
+ unsigned i,j,k;
 
- for(i=j=0;i<(l+3);i+=3,j+=4)
+ {
+   unsigned reslen=4*((le+3)/4);
+   if(buf) {
+     if(reslen>=buflen) return NULL;
+     encoded=buf;
+   }
+   else {
+     encoded=(unsigned char *)malloc(reslen+1);
+     if(!encoded) return NULL;
+   }
+ }
+
+ for(i=j=0; i<l; i+=3,j+=4)
    {
     unsigned long s=0;
+    unsigned klim;
+    int off;
 
-    for(k=0;k<3;k++)
-       if((i+k)<l)
-          s|=((unsigned long)str[i+k]&0xff)<<(16-8*k);
+    klim=i+3;
+    if(klim>l) klim=l;
+    for(k=i,off=24; k<klim; k++)
+      s|=((unsigned long)(str[k]&0xff))<<(off-=8);
 
-    for(k=0;k<4;k++)
-       if((j+k)<le)
-          encoded[j+k]=(char)((s>>(18-6*k))&0x3f);
+    klim=j+4;
+    if(klim>le) klim=le;
+    for(k=j,off=24; k<klim; k++)
+      encoded[k]=base64[(s>>(off-=6))&0x3f];
    }
 
- for(j=0;j<le;j++)
-    encoded[j]=base64[(int)encoded[j]];
- for(;j%4;j++)
+ for(j=le; j%4; j++)
     encoded[j]='=';
+
  encoded[j]=0;
 
  return(encoded);

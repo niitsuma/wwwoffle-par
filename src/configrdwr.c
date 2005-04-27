@@ -1386,7 +1386,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
     else if(!strchr(text,':'))
       {errmsg=x_asprintf("Expecting a username and password, got '%s'.",text);}
     else
-       pointer->string=Base64Encode(text,strlen(text));
+       pointer->string=Base64Encode(text,strlen(text),NULL,0);
     break;
 
    case Url:

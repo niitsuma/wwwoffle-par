@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/spool.c 2.81 2004/02/14 14:03:18 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/spool.c 2.82 2004/10/23 11:23:39 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
   Handle all of the spooling of files in the spool directory.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -53,8 +53,14 @@
 
 #include <fcntl.h>
 #include <errno.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/sem.h>
+#include <stddef.h>             /* for offsetof*/
 
 #include "wwwoffle.h"
+#include "urlhash.h"
 #include "io.h"
 #include "misc.h"
 #include "errors.h"
@@ -77,6 +83,32 @@ static char* sSpoolDir=NULL;
 /*+ The file descriptor of the spool directory. +*/
 static int fSpoolDir=-1;
 
+#endif
+
+
+/* The file descriptor of the url hash table */
+static int urlhash_fd=-1;
+
+/*+ The starting address of the url hash table +*/
+void *urlhash_start;
+
+/*+ The smallest valid offset in the url hash table +*/
+unsigned urlhash_minsize;
+
+/*+ The semaphore set identifier. +*/
+static int urlhash_semid=-1;
+
+#if defined(__GNU_LIBRARY__) && !defined(_SEM_SEMUN_UNDEFINED)
+/* union semun is defined by including <sys/sem.h> */
+#else
+/* according to X/OPEN we have to define it ourselves */
+union semun {
+     int val;                  /* value for SETVAL */
+     struct semid_ds *buf;     /* buffer for IPC_STAT, IPC_SET */
+     unsigned short *array;    /* array for GETALL, SETALL */
+			       /* Linux specific part: */
+     struct seminfo *__buf;    /* buffer for IPC_INFO */
+};
 #endif
 
 
@@ -143,8 +175,8 @@ int OpenOutgoingSpoolFile(int rw)
                 PrintMessage(Inform,"Cannot open file 'outgoing/%s' to read [%!s]; race condition?",name);
              else
                {
-                *ent->d_name='U';
-                unlink(ent->d_name);
+                /* *ent->d_name='U'; */
+                /* unlink(ent->d_name); */
                 unlink(name);
                 break;
                }
@@ -185,7 +217,6 @@ changedir_back:
 void CloseOutgoingSpoolFile(int fd,URL *Url)
 {
  char oldname[sizeof("tmp.")+10];
- int ufd;
 
  /* finish_io(fd) not called since fd was returned */
  close(fd);
@@ -200,25 +231,11 @@ void CloseOutgoingSpoolFile(int fd,URL *Url)
  sprintf(oldname,"tmp.%u",(unsigned)getpid());
 
  if(Url) {
-   local_URLToFileName(Url,newname)
-   *newname='U';
-
-   ufd=open(newname,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,(mode_t)ConfigInteger(FilePerm));
-
-   if(ufd!=-1)
-     {
-       if(write_all(ufd,Url->file,strlen(Url->file))<0)
-	 {
-	   PrintMessage(Warning,"Cannot write to file 'outgoing/%s' [%!s]; disk full?",newname);
-	   unlink(newname);
-	 }
-
-       close(ufd);
-     }
-
-   *newname='O';
+   local_URLToFileName(Url,'O',newname)
    if(rename(oldname,newname))
      {PrintMessage(Warning,"Cannot rename 'outgoing/%s' to 'outgoing/%s' [%!s].",oldname,newname);unlink(oldname);}
+   else
+     urlhash_add(Url->file,geturlhash(Url));
  }
  else if(unlink(oldname))
    PrintMessage(Warning,"Cannot unlink temporary outgoing file 'outgoing/%s' [%!s].",oldname);
@@ -240,7 +257,7 @@ void CloseOutgoingSpoolFile(int fd,URL *Url)
 int ExistsOutgoingSpoolFile(URL *Url)
 {
  struct stat buf;
- int existsO,existsU;
+ int existsO;
 
  if(chdir("outgoing"))
    {PrintMessage(Warning,"Cannot change to directory 'outgoing' [%!s].");return(0);}
@@ -248,20 +265,19 @@ int ExistsOutgoingSpoolFile(URL *Url)
  /* Stat the outgoing file */
 
  {
-   local_URLToFileName(Url,name)
+   local_URLToFileName(Url,'O',name)
 
-   *name='O';
    existsO=!stat(name,&buf);
 
-   *name='U';
-   existsU=!stat(name,&buf);
+   /* *name='U'; */
+   /* existsU=!stat(name,&buf); */
  }
 
  /* Change dir back. */
 
  ChangeBackToSpoolDir();
 
- return(existsO && existsU);
+ return(existsO);
 }
 
 
@@ -286,8 +302,7 @@ char *HashOutgoingSpoolFile(URL *Url)
  /* Read the outgoing file */
 
  {
-   local_URLToFileName(Url,name)
-   *name='O';
+   local_URLToFileName(Url,'O',name)
 
    fd=open(name,O_RDONLY|O_BINARY);
 
@@ -307,8 +322,10 @@ char *HashOutgoingSpoolFile(URL *Url)
 
    if(req) {
      if(read_all(fd,req,req_size)==req_size) {
+       md5hash_t h;
        req[req_size]=0;
-       hash=MakeHash(req);
+       MakeHash(req,&h);
+       hash=hashbase64encode(&h,NULL,0);
      }
      else {
        PrintMessage(Warning,"Cannot read from outgoing request 'outgoing/%s' to create hash [%!s].",name);
@@ -352,14 +369,13 @@ char *DeleteOutgoingSpoolFile(URL *Url)
 
  if(Url)
    {
-    local_URLToFileName(Url,name)
-    *name='O';
+    local_URLToFileName(Url,'O',name)
 
     if(unlink(name))
        err=GetPrintMessage(Warning,"Cannot unlink outgoing request 'outgoing/%s' [%!s].",name);
 
-    *name='U';
-    unlink(name);
+    /* *name='U'; */
+    /* unlink(name); */
    }
  else
    {
@@ -379,7 +395,7 @@ char *DeleteOutgoingSpoolFile(URL *Url)
        if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
           continue; /* skip . & .. */
 
-       if(*ent->d_name=='U' || *ent->d_name=='O')
+       if(/* *ent->d_name=='U' ||  */ *ent->d_name=='O')
           if(unlink(ent->d_name))
             {
              any++;
@@ -449,42 +465,24 @@ int OpenWebpageSpoolFile(int rw,URL *Url)
  /* Open the file for the web page. */
 
  {
-   local_URLToFileName(Url,file)
+   local_URLToFileName(Url,'D',file)
 
-   *file='D';
    if(rw)
      fd=open(file,O_RDONLY|O_BINARY);
    else
      fd=open(file,O_RDWR|O_CREAT|O_TRUNC|O_BINARY,(mode_t)ConfigInteger(FilePerm));
-
-   /* init_io(fd) not called since fd is returned */
-
-   if(!rw && fd!=-1)
-     {
-       int ufd;
-
-       *file='U';
-       ufd=open(file,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,(mode_t)ConfigInteger(FilePerm));
-
-       if(ufd!=-1)
-	 {
-	   if(write_all(ufd,Url->file,strlen(Url->file))<0)
-	     {
-	       PrintMessage(Warning,"Cannot write to file '%s/%s/%s' [%!s]; disk full?",Url->proto,Url->dir,file);
-	       unlink(file);
-	       close(fd);
-	       fd=-1;
-	     }
-
-	   close(ufd);
-	 }
-       else
-	 {
-	   close(fd);
-	   fd=-1;
-	 }
-     }
  }
+
+ /* init_io(fd) not called since fd is returned */
+
+ if(!rw && fd!=-1)
+   {
+     if(!urlhash_add(Url->file,geturlhash(Url)))
+      {
+       close(fd);
+       fd=-1;
+      }
+   }
 
  /* Change the modification time on the directory. */
 
@@ -550,24 +548,15 @@ char *DeleteWebpageSpoolFile(URL *Url,int all)
 
        if(*ent->d_name=='D')
          {
-          char *delurl;
-
-          if((delurl=FileNameToURL(ent->d_name)))
-            {
              char *err;
-             URL *delUrl=SplitURL(delurl);
 
              ChangeBackToSpoolDir();
 
-             err=DeleteLastTimeSpoolFile(delUrl);
+             err=DeleteLastTimeSpoolFile(ent->d_name);
              if(err) free(err);
 
              chdir(Url->proto);
              chdir(Url->dir);
-
-             free(delurl);
-             FreeURL(delUrl);
-            }
          }
 
        if(unlink(ent->d_name)) {
@@ -593,20 +582,19 @@ char *DeleteWebpageSpoolFile(URL *Url,int all)
  else
    {
     struct stat buf;
-    int didstat=1;
-    local_URLToFileName(Url,file)
+    int didstat=0;
+    local_URLToFileName(Url,'D',file)
 
     if(stat(".",&buf))
        PrintMessage(Warning,"Cannot stat directory '%s/%s' [%!s].",Url->proto,Url->dir);
     else
        didstat=1;
 
-    *file='D';
     if(unlink(file))
        err=GetPrintMessage(Warning,"Cannot unlink cached file '%s/%s/%s' [%!s].",Url->proto,Url->dir,file);
 
-    *file='U';
-    unlink(file);
+    /* *file='U'; */
+    /* unlink(file); */
 
     if(didstat)
       {
@@ -619,7 +607,7 @@ char *DeleteWebpageSpoolFile(URL *Url,int all)
 
     ChangeBackToSpoolDir();
 
-    {char *err=DeleteLastTimeSpoolFile(Url); if(err) free(err);}
+    {char *err=DeleteLastTimeSpoolFile(file); if(err) free(err);}
    }
 
  return(err);
@@ -647,9 +635,7 @@ void TouchWebpageSpoolFile(URL *Url,time_t when)
  /* Touch the file for the web page. */
 
  {
-   local_URLToFileName(Url,file)
-
-   *file='D';
+   local_URLToFileName(Url,'D',file)
 
    if(when)
      {
@@ -689,7 +675,7 @@ changedir_back:
 time_t ExistsWebpageSpoolFile(URL *Url)
 {
  struct stat buf;
- int existsD=0,existsU=0;
+ int existsD=0;
 
  /* Change to the spool directory. */
 
@@ -702,12 +688,12 @@ time_t ExistsWebpageSpoolFile(URL *Url)
  /* Stat the file for the web page. */
 
  {
-   local_URLToFileName(Url,file)
+   local_URLToFileName(Url,'D',file)
 
-   *file='U';
-   existsU=!stat(file,&buf);
+   /* *file='U'; */
+   /* existsU=!stat(file,&buf); */
 
-   *file='D';
+   /* *file='D'; */
    existsD=!stat(file,&buf);
  }
 
@@ -716,7 +702,7 @@ time_t ExistsWebpageSpoolFile(URL *Url)
 changedir_back:
  ChangeBackToSpoolDir();
 
- if(existsU&&existsD)
+ if(existsD)
     return(buf.st_atime);
  else
     return(0);
@@ -745,8 +731,7 @@ void CreateBackupWebpageSpoolFile(URL *Url, int overwrite)
  /* Create the filenames and rename the files. */
 
  {
-   local_URLToFileName(Url,orgfile)
-   *orgfile='D';
+   local_URLToFileName(Url,'D',orgfile)
 
    {
      size_t org_len=strlen(orgfile);
@@ -759,10 +744,10 @@ void CreateBackupWebpageSpoolFile(URL *Url, int overwrite)
      else
        {
 	 if(rename(orgfile,bakfile))
-	   PrintMessage(Warning,"Cannot rename backup cached file '%s/%s/%s' to %s [%!s].",Url->proto,Url->dir,bakfile,orgfile);
+	   PrintMessage(Warning,"Cannot rename backup cached file '%s/%s/%s' to %s [%!s].",Url->proto,Url->dir,orgfile,bakfile);
 
-	 *bakfile=*orgfile='U';
-	 rename(orgfile,bakfile);
+	 /* *bakfile=*orgfile='U'; */
+	 /* rename(orgfile,bakfile); */
        }
    }
  }
@@ -795,8 +780,7 @@ void RestoreBackupWebpageSpoolFile(URL *Url)
  /* Create the filenames and rename the files. */
 
  {
-   local_URLToFileName(Url,orgfile)
-   *orgfile='D';
+   local_URLToFileName(Url,'D',orgfile)
 
    {
      size_t org_len=strlen(orgfile);
@@ -809,8 +793,8 @@ void RestoreBackupWebpageSpoolFile(URL *Url)
 	 if(rename(bakfile,orgfile))
 	   PrintMessage(Warning,"Cannot rename backup cached file '%s/%s/%s' to %s [%!s].",Url->proto,Url->dir,bakfile,orgfile);
 
-	 *bakfile=*orgfile='U';
-	 rename(bakfile,orgfile);
+	 /* *bakfile=*orgfile='U'; */
+	 /* rename(bakfile,orgfile); */
        }
    }
  }
@@ -844,9 +828,8 @@ int OpenBackupWebpageSpoolFile(URL *Url)
 
  /* Open the file for the web page. */
  {
-   local_URLToFileName(Url,bakfile);
+   local_URLToFileName(Url,'D',bakfile);
 
-   *bakfile='D';
    strcat(bakfile,"~");
 
    fd=open(bakfile,O_RDONLY|O_BINARY);
@@ -880,9 +863,8 @@ void DeleteBackupWebpageSpoolFile(URL *Url)
  /* Delete the file for the backup web page. */
 
  {
-   local_URLToFileName(Url,bakfile)
+   local_URLToFileName(Url,'D',bakfile)
 
-   *bakfile='D';
    strcat(bakfile,"~");
 
    /* It might seem strange to touch a file just before deleting it, but there is
@@ -896,8 +878,8 @@ void DeleteBackupWebpageSpoolFile(URL *Url)
    if(unlink(bakfile))
      PrintMessage(Warning,"Cannot unlink backup cached file '%s/%s/%s' [%!s].",Url->proto,Url->dir,bakfile);
 
-   *bakfile='U';
-   unlink(bakfile);
+   /* *bakfile='U'; */
+   /* unlink(bakfile); */
  }
 
  /* Change dir back. */
@@ -956,9 +938,7 @@ int CreateLockWebpageSpoolFile(URL *Url)
  /* Create the lock file for the web page. */
 
  {
-   local_URLToFileName(Url,lockfile)
-
-   *lockfile='L';
+   local_URLToFileName(Url,'L',lockfile)
 
    if(!stat(lockfile,&buf))
      {
@@ -1020,9 +1000,8 @@ int ExistsLockWebpageSpoolFile(URL *Url)
  /* Stat the file for the web page. */
 
  {
-   local_URLToFileName(Url,file)
+   local_URLToFileName(Url,'L',file)
 
-   *file='L';
    existsL=!stat(file,&buf);
  }
 
@@ -1059,9 +1038,7 @@ void DeleteLockWebpageSpoolFile(URL *Url)
  /* Delete the file for the backup web page. */
 
  {
-   local_URLToFileName(Url,lockfile);
-
-   *lockfile='L';
+   local_URLToFileName(Url,'L',lockfile);
 
    if(unlink(lockfile))
      PrintMessage(Inform,"Cannot unlink lock file '%s/%s/%s' [%!s].",Url->proto,Url->dir,lockfile);
@@ -1097,8 +1074,7 @@ int CreateLastTimeSpoolFile(URL *Url)
  /* Create the file. */
 
  {
-   char *hash=GetHash(Url);
-   char name[strlen(Url->proto)+strlen(Url->dir)+strlen(hash)+7];
+   char name[strlen(Url->proto)+strlen(Url->dir)+base64enclen(sizeof(md5hash_t))+sizeof("..///D")];
    char *file,*p;
 
    p=stpcpy(stpcpy(name,"../"),Url->proto);
@@ -1107,7 +1083,7 @@ int CreateLastTimeSpoolFile(URL *Url)
    *p++='/';
    file=p;
    *p++='D';
-   p=stpcpy(p,hash);
+   GetHash(Url,p,base64enclen(sizeof(md5hash_t))+1);
 
    if(unlink(file) && errno!=ENOENT)
      PrintMessage(Warning,"Cannot remove file 'lasttime/%s' [%!s].",file);
@@ -1116,19 +1092,7 @@ int CreateLastTimeSpoolFile(URL *Url)
        if(link(name,file))
 	 PrintMessage(Warning,"Cannot create file 'lasttime/%s' [%!s].",file);
        else
-	 {
-	   *file='U';
-
-	   if(unlink(file) && errno!=ENOENT)
-	     PrintMessage(Warning,"Cannot remove file 'lasttime/%s' [%!s].",file);
-	   else
-	     {
-	       if(link(name,file))
-		 PrintMessage(Warning,"Cannot create file 'lasttime/%s' [%!s].",file);
-	       else
-		 retval=1;
-	     }
-	 }
+	 retval=1;
      }
  }
 
@@ -1141,19 +1105,18 @@ int CreateLastTimeSpoolFile(URL *Url)
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Delete a specified URL from the lasttime directory.
+  Delete a specified file from the lasttime directories.
 
   char *DeleteLastTimeSpoolFile Returns NULL if OK else error message.
 
-  URL *Url The URL to delete or NULL for all of them.
+  char *name The filename to delete from each of the lasttime directories.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *DeleteLastTimeSpoolFile(URL *Url)
+char *DeleteLastTimeSpoolFile(char *name)
 {
  struct stat buf;
  char *err=NULL;
  int i;
- local_URLToFileName(Url,name)
 
  for(i=0;i<=NUM_PREVTIME_DIR;i++)
    {
@@ -1170,7 +1133,7 @@ char *DeleteLastTimeSpoolFile(URL *Url)
       {PrintMessage(Warning,"Cannot change to directory '%s' [%!s].",lasttime);}
     else
       {
-       *name='D';
+       /* *name='D'; */
 
        if(!stat(name,&buf))
          {
@@ -1179,8 +1142,8 @@ char *DeleteLastTimeSpoolFile(URL *Url)
              err=GetPrintMessage(Warning,"Cannot unlink lasttime request '%s/%s' [%!s].",lasttime,name);
 	   }
 
-          *name='U';
-          unlink(name);
+	   /* *name='U'; */
+	   /* unlink(name); */
          }
 
        ChangeBackToSpoolDir();
@@ -1426,7 +1389,7 @@ link_outgoing:
              if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
                 continue; /* skip . & .. */
 
-             if(*ent->d_name=='U' || *ent->d_name=='O')
+             if(/* *ent->d_name=='U' || */ *ent->d_name=='O')
                {
 		char newname[sizeof("../lastout/")+strlen(ent->d_name)];
 
@@ -1487,9 +1450,7 @@ int CreateMonitorSpoolFile(URL *Url,char MofY[13],char DofM[32],char DofW[8],cha
  /* Open the monitor file */
 
  {
-   local_URLToFileName(Url,file)
-
-   *file='O';
+   local_URLToFileName(Url,'O',file)
 
    fd=open(file,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,(mode_t)ConfigInteger(FilePerm));
 
@@ -1497,35 +1458,14 @@ int CreateMonitorSpoolFile(URL *Url,char MofY[13],char DofM[32],char DofW[8],cha
      {PrintMessage(Warning,"Cannot create file 'monitor/%s' [%!s].",file);}
    else
      {
-       int ufd,mfd;
+       int mfd;
 
        /* init_io(fd) not called since fd is returned */
 
-       *file='U';
-       ufd=open(file,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,(mode_t)ConfigInteger(FilePerm));
-
-       if(ufd!=-1)
-	 {
-	   if(write_all(ufd,Url->file,strlen(Url->file))<0)
-	     {
-	       PrintMessage(Warning,"Cannot write to file 'monitor/%s' [%!s]; disk full?",file);
-	       unlink(file);
-	       close(fd);
-	       fd=-1;
-	     }
-
-	   close(ufd);
-	 }
-       else
-	 {
-	   close(fd);
-	   fd=-1;
-	 }
-
        *file='M';
-       mfd=open(file,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,(mode_t)ConfigInteger(FilePerm));
 
-       if(mfd!=-1)
+       if(urlhash_add(Url->file,geturlhash(Url)) &&
+	  (mfd=open(file,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,(mode_t)ConfigInteger(FilePerm)))!=-1)
 	 {
 	   init_io(mfd);
 
@@ -1592,8 +1532,7 @@ long ReadMonitorTimesSpoolFile(URL *Url,char MofY[13],char DofM[32],char DofW[8]
    {PrintMessage(Warning,"Cannot change to directory 'monitor' [%!s].");return(0);}
 
  {
-   local_URLToFileName(Url,file)
-   *file='M';
+   local_URLToFileName(Url,'M',file)
 
    /* Check for 'M*' file, missing or in the old format. */
 
@@ -1601,7 +1540,9 @@ long ReadMonitorTimesSpoolFile(URL *Url,char MofY[13],char DofM[32],char DofW[8]
      {
        /* file missing. */
 
-       PrintMessage(Warning,"Monitor time file is missing for %s.",Url->name);
+       *file='O';
+       if(!stat(file,&buf))
+	 PrintMessage(Warning,"Monitor time file is missing for %s.",Url->name);
 
        /* force fetching again. */
 
@@ -1668,14 +1609,13 @@ char *DeleteMonitorSpoolFile(URL *Url)
 
  if(Url)
    {
-    local_URLToFileName(Url,name)
-    *name='O';
+    local_URLToFileName(Url,'O',name)
 
     if(unlink(name))
        err=GetPrintMessage(Warning,"Cannot unlink monitor request 'monitor/%s' [%!s].",name);
 
-    *name='U';
-    unlink(name);
+    /* *name='U'; */
+    /* unlink(name); */
 
     *name='M';
     unlink(name);
@@ -1697,7 +1637,7 @@ char *DeleteMonitorSpoolFile(URL *Url)
        if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
           continue; /* skip . & .. */
 
-       if(*ent->d_name=='U' || *ent->d_name=='O' || *ent->d_name=='M')
+       if(/* *ent->d_name=='U' || */ *ent->d_name=='O' || *ent->d_name=='M')
 	 if(unlink(ent->d_name)) {
 	   if(err) free(err);
 	   err=GetPrintMessage(Warning,"Cannot unlink monitor request 'monitor/%s' [%!s].",ent->d_name);
@@ -1784,45 +1724,30 @@ void CloseTempSpoolFile(int fd)
   char *file The file name.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *FileNameToURL(char *file)
+char *FileNameToURL(const char *file)
 {
- char *path=NULL,*copy;
- size_t path_len;
- int ufd;
- struct stat buf;
+ char *path=NULL;
+ md5hash_t *md5hash;
+ unsigned hlen;
+ unsigned char buf[sizeof(md5hash_t)+1];
 
- if(!file || !*file)
-    return(NULL);
+ if(!file)
+   return NULL;
 
- copy=strdupa(file);
+ /* remove a trailing '~' */
+ {unsigned len=strlen(file); if(len && file[--len]=='~') file=strndupa(file,len);}
 
- *copy='U';
+ if(!*file)
+   return NULL;
 
- ufd=open(copy,O_RDONLY|O_BINARY);
-
- if(ufd==-1)
-   return(NULL);
-
- if(fstat(ufd,&buf)==-1) {
-   goto close_return;
+ md5hash=(md5hash_t *)Base64Decode(file+1,&hlen,buf,sizeof(buf));
+ if(md5hash && hlen==sizeof(md5hash_t)) {
+   path=urlhash_lookup(md5hash);
+   if(!path)
+     PrintMessage(Inform,"urlhash_lookup failed for file '%s'.",file);
  }
 
- path_len=buf.st_size;
-
- path=malloc(path_len+1);
-
- if(path) {
-   if(read_all(ufd,path,path_len)==path_len)
-     path[path_len]=0;
-   else {
-     free(path); path=NULL;
-   }
- }
-
-close_return:
- close(ufd);
-
- return(path);
+ return path;
 }
 
 
@@ -1896,3 +1821,511 @@ int CloseSpoolDir()
 
   return err;
 }
+
+
+int urlhash_open()
+{
+ struct stat buf;
+
+ urlhash_fd=open(urlhash_filename,O_RDWR|O_CREAT|O_BINARY,(mode_t)ConfigInteger(FilePerm));
+
+ if(urlhash_fd==-1) {
+   PrintMessage(Warning,"Cannot open the url hash file '%s' [%!s].",urlhash_filename);
+   return 0;
+ }
+
+ if(fstat(urlhash_fd,&buf)==-1) {
+   PrintMessage(Warning,"Cannot stat the url hash file '%s' [%!s].",urlhash_filename);
+   return 0;
+ }
+
+ if(!buf.st_size) {
+   /* Create an empty hash table */
+   unsigned u,i;
+
+   PrintMessage(Inform,"The url hash file '%s' is empty or does not exist; creating one.",urlhash_filename);
+   /* cursize */
+   u=sizeof(urlhash_info)+NUMURLHASHBUCKETS*sizeof(unsigned);
+   if(write(urlhash_fd,&u,sizeof(u))!=sizeof(u))
+     goto write_hash_table_failed;
+   /* numbuckets */
+   u=NUMURLHASHBUCKETS;
+   if(write(urlhash_fd,&u,sizeof(u))!=sizeof(u))
+     goto write_hash_table_failed;
+
+   u=0;
+   for(i=0;i<NUMURLHASHBUCKETS;++i)
+     if(write(urlhash_fd,&u,sizeof(u))!=sizeof(u))
+       goto write_hash_table_failed;
+
+   goto extend_urlhash_table;
+ }
+ else if(buf.st_size<sizeof(urlhash_info))
+   goto urlhash_toosmall;
+ else if(buf.st_size<urlhash_maxsize) {
+   PrintMessage(Inform,"Extending the size of the url hash file '%s' to %u bytes.",urlhash_filename,urlhash_maxsize);
+
+ extend_urlhash_table:
+   if(lseek(urlhash_fd,urlhash_maxsize-1,SEEK_SET)==(off_t)-1) {
+     PrintMessage(Warning,"Cannot lseek the url hash file to position %u [%!s].",urlhash_maxsize-1);
+     return 0;
+   }
+
+   if(write(urlhash_fd,"",1)!=1)
+     goto write_hash_table_failed;
+
+   lseek(urlhash_fd,0,SEEK_SET);
+ }
+
+ urlhash_start= mmap(NULL, urlhash_maxsize,PROT_READ|PROT_WRITE,
+		     MAP_SHARED, urlhash_fd, 0);
+
+ if(urlhash_start == (void *)-1) {
+   PrintMessage(Warning,"Cannot mmap the url hash file '%s' [%!s].",urlhash_filename);
+   return 0;
+ }
+
+#if 0
+ /* Optimize memory map for random access. */
+ if(madvise (urlhash_start, urlhash_maxsize, MADV_RANDOM) == -1)
+   PrintMessage(Warning,"madvise on the url hash table failed [%!s].");
+#endif
+
+ if(urlhash_info_p->cursize<sizeof(urlhash_info))
+   goto urlhash_invalid;
+
+ {
+   unsigned i=urlhash_info_p->numbuckets;
+
+   while(i && !(i&1)) i >>= 1;
+   if(i!=1)
+     goto urlhash_invalid2;
+ }
+
+ urlhash_minsize=sizeof(urlhash_info)+(urlhash_info_p->numbuckets)*sizeof(unsigned);
+
+ if(buf.st_size && buf.st_size<urlhash_minsize)
+   goto urlhash_toosmall;
+
+ if(urlhash_info_p->cursize<urlhash_minsize || urlhash_info_p->cursize>urlhash_maxsize)
+   goto urlhash_invalid;
+
+ return 1;
+
+write_hash_table_failed:
+ PrintMessage(Warning,"Cannot write to the url hash file '%s' [%!s].",urlhash_filename);
+ return 0;
+
+urlhash_toosmall:
+ PrintMessage(Warning,"The url hash file '%s' is too small to contain the table; probably corrupted.",urlhash_filename);
+ return 0;
+
+urlhash_invalid:
+ PrintMessage(Warning,"The url hash file '%s' contains invalid data; probably corrupted.",urlhash_filename);
+ return 0;
+
+urlhash_invalid2:
+ PrintMessage(Warning,"The url hash file '%s' contains invalid data; "
+	      "number of hashbuckets must be a power of two.",urlhash_filename);
+ return 0;
+}
+
+void urlhash_close()
+{
+ if(msync(urlhash_start,urlhash_maxsize,MS_SYNC) == -1)
+   PrintMessage(Warning,"Cannot msync url hash file '%s' [%!s]; file may be corrupted.",urlhash_filename);
+ if(munmap(urlhash_start,urlhash_maxsize) == -1)
+   PrintMessage(Warning,"Cannot munmap url hash file '%s' [%!s].",urlhash_filename);
+
+ close(urlhash_fd);
+ urlhash_fd=-1;
+}
+
+inline static unsigned md5hash_ifun(md5hash_t *h)
+{
+  return h->elem[0] & (urlhash_info_p->numbuckets - 1);
+}
+
+
+char *urlhash_lookup(md5hash_t *h)
+{
+  unsigned i=urlhash_info_p->hashtable[md5hash_ifun(h)];
+
+  /* PrintMessage(Debug,"urlhash_lookup: arg is %08x%08x%08x%08x",h->elem[0],h->elem[1],h->elem[2],h->elem[3]); */
+  while(i) {
+    if(i<urlhash_minsize || i>=urlhash_info_p->cursize) {
+      PrintMessage(Warning,"urlhash_lookup: illegal offset in url hash table; the table is corrupted.");
+      return NULL;
+    }
+    {
+      urlhash_node *np= (urlhash_node *)(((unsigned char*)urlhash_start)+i);
+      /* PrintMessage(Debug,"urlhash_lookup: comparing with %08x%08x%08x%08x",np->h.elem[0],np->h.elem[1],np->h.elem[2],np->h.elem[3]); */
+      int cmp=md5_cmp(h,&np->h);
+      if(cmp<0)
+	break;
+      if(cmp==0)
+	return np->url;
+      i=np->next;
+    }
+  }
+
+  return NULL;
+}
+
+
+/* Allocate sz bytes of shared memory.
+   void *urlhash_malloc returns a (word aligned) offset w.r.t. urlhash_start
+   if successful, otherwise NULL.
+   Call with read/write locks on shared memory applied.
+*/
+
+static size_t urlhash_malloc(size_t sz)
+{
+  size_t cursize=urlhash_info_p->cursize;
+  size_t newcursize= cursize + urlhash_align(sz);
+
+  if(newcursize > urlhash_maxsize)
+    return 0;
+
+  urlhash_info_p->cursize = newcursize;
+
+  return cursize;
+}
+
+
+int urlhash_add(const unsigned char *url,md5hash_t *h)
+{
+  int retval=0;
+  volatile unsigned *p;
+  unsigned i;
+
+  if(!urlhash_lock_rw()) return 0;
+
+  p= &urlhash_info_p->hashtable[md5hash_ifun(h)];
+
+  while((i= *p)) {
+    if(i<urlhash_minsize || i>=urlhash_info_p->cursize) {
+      PrintMessage(Warning,"urlhash_add: illegal offset in url hash table; the table is corrupted.");
+      goto unlock;
+    }
+    {
+      urlhash_node *np= (urlhash_node *)(((unsigned char*)urlhash_start)+i);
+      int cmp=md5_cmp(h,&np->h);
+      if(cmp<0)
+	break;
+      if(cmp==0) {
+	int cmp2=strcmp(url,np->url);
+	if(cmp2==0) {
+	  np->used=1;
+	  goto return_success;
+	}
+	PrintMessage(Warning,"Hash collision between '%s' and '%s'.",url,np->url);
+	if(cmp2<0)
+	  break;
+      }
+      p= &np->next;
+    }
+  }
+
+  {
+    size_t urlsize=strlen(url)+1;
+    unsigned offset=urlhash_malloc(offsetof(urlhash_node,url)+urlsize);
+    urlhash_node *new;
+    if(!offset) {
+      PrintMessage(Warning,"Cannot store url '%s' in urlhash table; hash table probably needs to be purged.",url);
+      goto unlock;
+    }
+    new= (urlhash_node *)(((unsigned char*)urlhash_start)+offset);
+    new->next=i;
+    new->h= *h;
+    memcpy(new->url,url,urlsize);
+    new->used=1;
+    *p=offset;
+  }
+
+ return_success:
+  retval=1;
+ unlock:
+  urlhash_unlock_rw();
+  return retval;
+}
+
+
+int urlhash_clearmarks()
+{
+  unsigned i,nb= urlhash_info_p->numbuckets;
+
+  for(i=0; i<nb; ++i) {
+    unsigned j= urlhash_info_p->hashtable[i];
+
+    while(j) {
+      if(j<urlhash_minsize || j>=urlhash_info_p->cursize) {
+	PrintMessage(Warning,"urlhash_clearmarks: illegal offset in url hash table; the table is corrupted.");
+	return 0;
+      }
+      {
+	urlhash_node *np= (urlhash_node *)(((unsigned char*)urlhash_start)+j);
+	np->used=0;
+	j=np->next;
+      }
+    }
+  }
+
+  return 1;
+}
+
+
+int urlhash_markhash(md5hash_t *h)
+{
+  int found=0;
+  unsigned i=urlhash_info_p->hashtable[md5hash_ifun(h)];
+
+  while(i) {
+    if(i<urlhash_minsize || i>=urlhash_info_p->cursize) {
+      PrintMessage(Warning,"urlhash_markhash: illegal offset in url hash table; the table is corrupted.");
+      break;
+    }
+    {
+      urlhash_node *np= (urlhash_node *)(((unsigned char*)urlhash_start)+i);
+      int cmp=md5_cmp(h,&np->h);
+      if(cmp<0)
+	break;
+      if(cmp==0) {
+	np->used=1;
+	++found;
+      }
+      i=np->next;
+    }
+  }
+
+  return found;
+}
+
+
+int FileMarkHash(const char *file)
+{
+ md5hash_t *md5hash;
+ unsigned hlen;
+ unsigned char buf[sizeof(md5hash_t)+1];
+
+ if(!file)
+   return 0;
+
+ /* remove a trailing '~' */
+ {unsigned len=strlen(file); if(len && file[--len]=='~') file=strndupa(file,len);}
+
+ if(!*file)
+   return 0;
+
+ md5hash=(md5hash_t *)Base64Decode(file+1,&hlen,buf,sizeof(buf));
+ if(md5hash && hlen==sizeof(md5hash_t)) {
+   return urlhash_markhash(md5hash);
+ }
+
+ return 0;
+}
+
+/* Write a new url hash file containing only the hashes
+   that have been marked "in use", and, if successful,
+   switch to the new file.
+*/
+int urlhash_copycompact()
+{
+  int retval=1;
+  urlhash_info *hinfo;
+  unsigned hinfosize,cursize;
+  unsigned i,nb,fd;
+
+  /* This may free disk space we can use. */
+  if(unlink(urlhash_filename_old) && errno!=ENOENT)
+    PrintMessage(Warning,"urlhash_copycompact: cannot remove old url hash backup file '%s' [%!s].",urlhash_filename_old);
+
+  nb=urlhash_info_p->numbuckets;
+  hinfosize=sizeof(urlhash_info)+nb*sizeof(unsigned);
+  hinfo=(urlhash_info *)malloc(hinfosize);
+  if(!hinfo) {
+    PrintMessage(Warning,"urlhash_copycompact: cannot allocate space for new url hash table.");
+    return 0;
+  }
+
+  hinfo->numbuckets=nb;
+
+  /* Pass 1: compute the new offsets of the hash buckets */
+  cursize=hinfosize;
+  for(i=0; i<nb; ++i) {
+    unsigned j,nn=0;
+
+    hinfo->hashtable[i]=0;
+    j= urlhash_info_p->hashtable[i];
+    while(j) {
+      if(j<urlhash_minsize || j>=urlhash_info_p->cursize) {
+	PrintMessage(Warning,"urlhash_copycompact: illegal offset in url hash table; the table is corrupted.");
+	goto free_return_failed;
+      }
+      {
+	urlhash_node *np= (urlhash_node *)(((unsigned char*)urlhash_start)+j);
+	if(np->used) {
+	  if(!nn++) hinfo->hashtable[i]=cursize;
+	  cursize += urlhash_align(offsetof(urlhash_node,url)+strlen(np->url)+1);
+	}
+	j=np->next;
+      }
+    }
+  }
+
+  hinfo->cursize=cursize;
+
+  fd=open(urlhash_filename_new,O_WRONLY|O_CREAT|O_EXCL|O_BINARY,(mode_t)ConfigInteger(FilePerm));
+  if(fd==-1) {
+    PrintMessage(Warning,"urlhash_copycompact: cannot open file '%s' to write [%!s]",urlhash_filename_new);
+    goto free_return_failed;
+  }
+
+  if(write_all(fd,(unsigned char*)hinfo,hinfosize)!=hinfosize) {
+    PrintMessage(Warning,"urlhash_copycompact: cannot write to file '%s' [%!s]",urlhash_filename_new);
+    goto close_free_return_failed;
+  }
+
+  /* Pass 2: write the contents of the hash buckets */
+  cursize=hinfosize;
+  for(i=0; i<nb; ++i) {
+    urlhash_node *prev=NULL;
+    unsigned j= urlhash_info_p->hashtable[i];
+
+    while(j || prev) {
+      if(j && (j<urlhash_minsize || j>=urlhash_info_p->cursize)) {
+	PrintMessage(Warning,"urlhash_copycompact: illegal offset in url hash table; the table is corrupted.");
+	goto close_free_return_failed;
+      }
+      {
+	urlhash_node *np= NULL;
+	if(j) np= (urlhash_node *)(((unsigned char*)urlhash_start)+j);
+	if(!np || np->used) {
+	  if(prev) {
+	    unsigned prevsize=urlhash_align(offsetof(urlhash_node,url)+strlen(prev->url)+1);
+	    unsigned next=0;
+	    unsigned remsize=prevsize-sizeof(next);
+	    cursize += prevsize;
+	    if(np) next=cursize;
+	    if(write_all(fd,(unsigned char*)&next,sizeof(next))!=sizeof(next) ||
+	       write_all(fd,((unsigned char*)prev)+sizeof(next),remsize)!=remsize) {
+	      PrintMessage(Warning,"urlhash_copycompact: cannot write to file '%s' [%!s]",urlhash_filename_new);
+	      goto close_free_return_failed;
+	    }
+	  }
+	  else if(cursize!=hinfo->hashtable[i])
+	    goto table_mutated;
+
+	  prev=np;
+	}
+	if(np) j=np->next;
+      }
+    }
+  }
+
+  if(cursize!=hinfo->cursize)
+    goto table_mutated;
+
+  if(close(fd)==-1)
+    PrintMessage(Warning,"urlhash_copycompact: closing file '%s' failed [%!s]",urlhash_filename_new);
+
+  free(hinfo);
+
+  /* switch to new url hash table */
+
+  urlhash_close();
+
+  if(rename(urlhash_filename,urlhash_filename_old))
+    PrintMessage(Warning,"urlhash_copycompact: cannot rename '%s' to '%s' [%!s].",urlhash_filename,urlhash_filename_old);
+
+  if(rename(urlhash_filename_new,urlhash_filename)) {
+    PrintMessage(Warning,"urlhash_copycompact: cannot rename '%s' to '%s' [%!s].",urlhash_filename_new,urlhash_filename);
+    retval=0;
+  }
+
+  if(!urlhash_open()) {
+    urlhash_lock_destroy();
+    PrintMessage(Fatal,"urlhash_copycompact: cannot open new url hash file.");
+    /* Shouldn't get here */
+    retval=0;
+  }
+
+  return retval;
+
+ table_mutated:
+  PrintMessage(Warning,"urlhash_copycompact: the sizes of the url hash rows changed between passes; is another process changing the table?");
+
+close_free_return_failed:
+  close(fd);
+  unlink(urlhash_filename_new);
+free_return_failed:
+  free(hinfo);
+  return 0;
+}
+
+int urlhash_lock_create()
+{
+  union semun s_un;
+
+  urlhash_semid = semget(IPC_PRIVATE,1,0600);
+  if(urlhash_semid == -1) return 0;
+
+  /* initialize the semaphore value */
+  s_un.val = 1;
+  if(semctl(urlhash_semid,0,SETVAL,s_un) == -1) {
+    int save_errno=errno;
+    urlhash_lock_destroy();
+    errno=save_errno;
+    return 0;
+  }
+
+  return 1;
+}
+
+void urlhash_lock_destroy()
+{
+  if(urlhash_semid == -1)
+    return;
+
+  if(semctl(urlhash_semid,0,IPC_RMID) == -1)
+    PrintMessage(Warning,"Failed to delete url hash semaphore [%!s].");
+
+  urlhash_semid=-1;
+}
+
+int urlhash_lock_rw()
+{
+  struct sembuf s_buf;
+
+  if(urlhash_semid == -1) return 1;
+
+  s_buf.sem_num = 0;
+  s_buf.sem_op = -1; /* decrement semaphore value */
+  s_buf.sem_flg = SEM_UNDO;
+  while(semop(urlhash_semid,&s_buf,1) == -1)
+    if(errno != EINTR) {
+      PrintMessage(Warning,"Cannot lock url hash table [%!s].");
+      return 0;
+    }
+
+  return 1;
+}
+
+int urlhash_unlock_rw()
+{
+  struct sembuf s_buf;
+
+  if(urlhash_semid == -1) return 1;
+
+  s_buf.sem_num = 0;
+  s_buf.sem_op = 1; /* increment semaphore value */
+  s_buf.sem_flg = SEM_UNDO;
+  while(semop(urlhash_semid,&s_buf,1) == -1)
+    if(errno != EINTR) {
+      PrintMessage(Warning,"Cannot unlock url hash table [%!s].");
+      return 0;
+    }
+
+  return 1;
+}
+

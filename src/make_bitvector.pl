@@ -12,6 +12,7 @@
 #
 
 use strict;
+use integer;
 
 print "/*
    This file was generated using $0.
@@ -37,6 +38,31 @@ while(<>) {
 	    }
 	    print "  /*$orig_text*/\n";
 	}
+    }
+    elsif(/^__INV(CASE)?CHARMAP__$/) {
+	my $caseins=$1;
+	my $line='';
+	while(<>) {
+	    if($_ eq "\n") {last}
+	    $line .= $_;
+	}
+	my @map=(eval "($line)");
+	my %invmap=();
+	for(my $i=0; $i<@map; ++$i) {
+	    foreach my $c (split //,$map[$i]) {
+		$invmap{$c}=$i;
+		if($caseins) {
+		    $invmap{lc($c)}=$i;
+		    $invmap{uc($c)}=$i;
+		}
+	    }
+	}
+	for(my $i=0; $i<256; ++$i) {
+	    print($i==0?"  ":($i % 16)?",":",\n  ");
+	    my $val=$invmap{chr($i)};
+	    printf("%3d",defined($val)?$val:0);
+	}
+	print "\n";
     }
     else {print}    
 }

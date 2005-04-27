@@ -341,7 +341,7 @@ static void SearchIndexHost(int fd,char *proto,char *host)
           out_err=write_formatted(fd,"<a href=\"/%s/%s\"> </a>\n",Url->proto,Url->hostp);
 
        FreeURL(Url);
-       free(url);
+       /* free(url); */
        if(out_err==-1) break;
       }
    }
@@ -396,7 +396,7 @@ static void SearchIndexLastTime(int fd)
           out_err=write_formatted(fd,"<a href=\"/%s/%s\"> </a>\n",Url->proto,Url->hostp);
 
        FreeURL(Url);
-       free(url);
+       /* free(url); */
        if(out_err==-1) break;
       }
    }

@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
 #
 # A Perl script to update the configuration file to version 2.8 standard (from version 2.7).
 #
@@ -36,11 +36,16 @@ $urlspec1="([^ \t:<!]+)://([^ \t/=]+)(/?[^ \t=>]*)";
 %new_OnlineOptions=(
                     "pragma-no-cache *="        , "pragma-no-cache = yes",
                     "cache-control-no-cache *=" , "cache-control-no-cache = yes",
+                    "cache-control-max-age-0 *=", "cache-control-max-age-0 = yes",
                     "request-conditional *="    , "request-conditional = yes",
                     "validate-with-etag *="     , "validate-with-etag = yes",
                     "keep-cache-if-not-found *=", "keep-cache-if-not-found = no",
                     "request-chunked-data *="   , "request-chunked-data = yes"
                    );
+
+%new_OfflineOptions=(
+                     "cache-control-max-age-0 *=", "cache-control-max-age-0 = yes"
+                    );
 
 %new_FetchOptions=(
                    "icon-images *=" , "icon-images = no"
@@ -59,6 +64,7 @@ $urlspec1="([^ \t:<!]+)://([^ \t/=]+)(/?[^ \t=>]*)";
 %new_options=(
               "Options"        , \%new_Options,
               "OnlineOptions"  , \%new_OnlineOptions,
+              "OfflineOptions" , \%new_OfflineOptions,
               "FetchOptions"   , \%new_FetchOptions,
               "CensorHeader"   , \%new_CensorHeader,
               "ModifyHTML"     , \%new_ModifyHTML

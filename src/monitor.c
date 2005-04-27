@@ -457,16 +457,15 @@ void RequestMonitoredPages(void)
 
  do
    {
-    struct stat buf;
+     struct stat buf; char *url;
 
     if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
        continue; /* skip . & .. */
 
     if(stat(ent->d_name,&buf))
       {PrintMessage(Inform,"Cannot stat file 'monitor/%s'; [%!s] race condition?",ent->d_name);return;}
-    else if(S_ISREG(buf.st_mode) && *ent->d_name=='O')
+    else if(S_ISREG(buf.st_mode) && *ent->d_name=='O' && (url=FileNameToURL(ent->d_name)))
       {
-       char *url=FileNameToURL(ent->d_name);
        URL *Url=SplitURL(url);
        int last,next;
 
@@ -522,15 +521,13 @@ void RequestMonitoredPages(void)
              close(ifd);
 
 	     {
-	       local_URLToFileName(Url,file)
-	       *file='M';
+	       local_URLToFileName(Url,'M',file)
 	       utime(file,NULL);
 	     }
             }
          }
 
-       if(url)
-          free(url);
+       /* free(url); */
        FreeURL(Url);
       }
    }

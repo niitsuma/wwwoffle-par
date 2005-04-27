@@ -196,7 +196,7 @@ ErrorLevel SyslogLevel=Important, /*+ in the config file for syslog. +*/
 /*++++++++++++++++++++++++++++++++++++++
   Initialise the error handler, get the program name and pid.
 
-  char *name The name of the program.
+  char *name The name of the program (or NULL to remain unchanged).
 
   int syslogable Set to true if the errors are allowed to go to syslog (or -1 to remain unchanged).
 
@@ -205,26 +205,28 @@ ErrorLevel SyslogLevel=Important, /*+ in the config file for syslog. +*/
 
 void InitErrorHandler(char *name,int syslogable,int stderrable)
 {
- if(use_syslog && program!=unknown_program)
-    closelog();
+ if(name) {
+   if(use_syslog && program!=unknown_program)
+     closelog();
 
- program=name;
- if(syslogable!=-1)
-    use_syslog=syslogable;
- if(stderrable!=-1)
-    use_stderr=stderrable;
+   program=name;
+   if(syslogable!=-1)
+     use_syslog=syslogable;
+   if(stderrable!=-1)
+     use_stderr=stderrable;
 
- if(use_syslog)
-   {
+   if(use_syslog)
+     {
 #if defined(__CYGWIN__)
-    openlog(program);
+       openlog(program);
 #elif defined(__ultrix__)
-    openlog(program,LOG_PID);
+       openlog(program,LOG_PID);
 #else
-    openlog(program,LOG_CONS|LOG_PID,LOG_DAEMON);
+       openlog(program,LOG_CONS|LOG_PID,LOG_DAEMON);
 #endif
-    atexit(closelog);
-   }
+       atexit(closelog);
+     }
+ }
 
  pid=getpid();
 
@@ -443,14 +445,7 @@ static char *print_message(ErrorLevel errlev,const char* fmt,va_list ap)
      fmt_len+=1;
    }
 
-   if(q==fmt || *(q-1)!='\n') {
-     fmt_len+=1;
-     goto make_new_fmt;
-   }
-
-   if(strerr || strerrno)
-   make_new_fmt:
-   {
+   if(strerr || strerrno) {
      new_fmt= p= (char*)alloca(fmt_len+1);
 
      for(q=fmt; *q; ++q) {
@@ -472,8 +467,6 @@ static char *print_message(ErrorLevel errlev,const char* fmt,va_list ap)
 
        *p++=*q;
      }
-
-     if(q==fmt || *(q-1)!='\n') *p++='\n';
 
      *p=0;
    }

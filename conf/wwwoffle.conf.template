@@ -1,5 +1,5 @@
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
 #
 # WWWOFFLE Configuration file CONFDIR/wwwoffle.conf
 #
@@ -58,8 +58,9 @@ Options
 
 OnlineOptions
 {
- pragma-no-cache       = yes
- cache-control-no-cache= yes
+ pragma-no-cache         = yes
+ cache-control-no-cache  = yes
+ cache-control-max-age-0 = yes
 
  request-changed       = 10m
 
@@ -94,6 +95,7 @@ OfflineOptions
 {
  pragma-no-cache         = yes
  cache-control-no-cache  = yes
+ cache-control-max-age-0 = yes
 
  confirm-requests = no
 

@@ -2,12 +2,12 @@
 <HTML>
 
 <HEAD>
-<TITLE>WWWOFFLE - Configuration File - Version 2.8d</TITLE>
+<TITLE>WWWOFFLE - Configuration File - Version 2.8e</TITLE>
 </HEAD>
 
 <BODY>
 
-<h1>WWWOFFLE - Configuration File - Version 2.8d</h1>
+<h1>WWWOFFLE - Configuration File - Version 2.8e</h1>
 
 
 <h2><a name="Introduction"></a>Introduction</h2>
@@ -257,6 +257,12 @@ has 'Pragma: no-cache' (default=yes).
 Whether to request a new copy of a page if the request from the client
 has 'Cache-Control: no-cache' (default=yes).
 
+<h3><a name="OnlineOptions_cache-control-max-age-0"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] cache-control-max-age-0 = yes | no</h3>
+
+<p>
+Whether to request a new copy of a page if the request from the client
+has 'Cache-Control: max-age=0' (default=yes).
+
 <h3><a name="OnlineOptions_request-changed"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-changed = (time)</h3>
 
 <p>
@@ -380,6 +386,14 @@ browser.
 <p>
 Whether to request a new copy of a page if the request from the client
 has 'Cache-Control: no-cache' (default=yes).  This option should be
+set to 'no' if when browsing offline all pages are re-requested by a
+'broken' browser.
+
+<h3><a name="OfflineOptions_cache-control-max-age-0"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] cache-control-max-age-0 = yes | no</h3>
+
+<p>
+Whether to request a new copy of a page if the request from the client
+has 'Cache-Control: max-age=0' (default=yes).  This option should be
 set to 'no' if when browsing offline all pages are re-requested by a
 'broken' browser.
 
@@ -523,16 +537,16 @@ the specified HTML inserted at the end (default="").
 <h3><a name="ModifyHTML_anchor-requested-begin"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] anchor-requested-begin = (HTML code) | </h3>
 
 <p>
-Anchors (links) in the spooled page that have been requested for
-download are to have the specified HTML inserted at the beginning
-(default="").
+Anchors (links) in the spooled page that are not in the cache but have
+been requested for download are to have the specified HTML inserted at
+the beginning (default="").
 
 <h3><a name="ModifyHTML_anchor-requested-end"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] anchor-requested-end = (HTML code) | </h3>
 
 <p>
-Anchors (links) in the spooled page that have been requested for
-download are to have the specified HTML inserted at the end
-(default="").
+Anchors (links) in the spooled page that are not in the cache but have
+been requested for download are to have the specified HTML inserted at
+the end (default="").
 
 <h3><a name="ModifyHTML_anchor-not-cached-begin"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] anchor-not-cached-begin = (HTML code) | </h3>
 

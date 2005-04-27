@@ -1,4 +1,4 @@
-          WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d
+          WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e
           =========================================================
 
 
@@ -66,19 +66,21 @@ Convenience
         - Remove shockwave flash animations.
         - Indicate cached and uncached links.
         - Remove the blink tag.
+        - Remove the marquee tag.
         - Remove refresh tags.
         - Remove links to pages that are in the DontGet list.
         - Remove inline frames (iframes) that are in the DontGet list.
         - Replace images that are in the DontGet list.
         - Replace webbug images (images of 1 pixel square).
         - Demoronise HTML character sets.
+        - Fix mixed Cyrillic character sets.
         - Stop animated GIFs.
         - Remove Cookies in meta tags.
     - Provides information about cached pages
         - Headers, raw and modified.
         - Contents, images, links etc.
         - Source code unmodified by WWWOFFLE.
-    - Automatic proxy configuration for Netscape.
+    - Automatic proxy configuration with Proxy Auto-Config file.
     - Searchable cache with the addition of the ht://Dig, mnoGoSearch
       (UdmSearch) or Namazu programs.
     - Built in simple web-server for local pages.
@@ -125,6 +127,7 @@ Configuration
     - All options controlled using a configuration file.
     - Interactive web page to allow editing of the configuration file.
     - User customisable error and information pages.
+    - Log file or syslog reporting with user specified error level.
 
 
 Configuring A Web Browser
@@ -650,10 +653,11 @@ wwwoffle-rm     - Delete the URL that is specified on the command line.
                   To delete all URLs from a host it is easier to use
                   'rm -r http/foo' than use this.
 
-wwwoffle-mv     - To rename a host directory in the spool to another name.
+wwwoffle-mv     - To rename URLs under one path in the spool to another path.
                   Because the URL is encoded in the filename just renaming the
-                  directory will not work.  Instead of 'mv http/foo http/bar'
-                  use 'wwwoffle-mv http/foo http/bar'.
+                  files or the directory will not work.  Instead of 'mv http/foo
+                  http/bar' use 'wwwoffle-mv http/foo http/bar'.  Also works for
+                  complex cases: 'wwwoffle-mv http://foo/bar http:///bar/foo'.
 
 wwwoffle-ls     - To list the files in the directory in the style of 'ls -l'.
                   For example use 'wwwoffle-ls http/foo' to list the URLs cached

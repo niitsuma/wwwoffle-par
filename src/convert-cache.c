@@ -298,7 +298,7 @@ static void ConvertHost(char *proto,char *host)
          {
           URL *Url=SplitURL(url);
           char *oldname=ent->d_name;
-          local_URLToFileName(Url,newname)
+          local_URLToFileName(Url,'D',newname)
 
           if(strcmp(oldname+1,newname+1) || strcmp(url,Url->file))
             {
@@ -327,7 +327,7 @@ static void ConvertHost(char *proto,char *host)
             }
 
           FreeURL(Url);
-          free(url);
+          /* free(url); */
          }
       }
    }
@@ -375,7 +375,7 @@ static void ConvertSpecial(char *special)
          {
           URL *Url=SplitURL(url);
           char *oldname=ent->d_name;
-          local_URLToFileName(Url,newname)
+          local_URLToFileName(Url,'D',newname)
 
           if(strcmp(oldname+1,newname+1) || strcmp(url,Url->file))
             {
@@ -408,7 +408,7 @@ static void ConvertSpecial(char *special)
             }
 
           FreeURL(Url);
-          free(url);
+          /* free(url); */
          }
       }
    }

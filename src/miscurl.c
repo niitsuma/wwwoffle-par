@@ -315,7 +315,7 @@ URL *SplitURL(const char *url)
    }
 #endif
 
- Url->hash=NULL;
+ Url->hashvalid=0;
 
  /* end */
 
@@ -386,10 +386,7 @@ void ChangeURLPassword(URL *Url,char *user,char *pass)
  /* Since we have changed the "file" field, a possible cached hash value must 
     be invalidated */
 
- if(Url->hash) {
-   free(Url->hash);
-   Url->hash=NULL;
- }
+ Url->hashvalid=0;
 }
 
 
@@ -429,7 +426,8 @@ URL *CopyURL(URL *Url)
 
   copy->dir=(Url->dir!=Url->hostport)?strdup(Url->dir):copy->hostport;
 
-  copy->hash=(Url->hash)?strdup(Url->hash):NULL;
+  copy->hash=Url->hash;
+  copy->hashvalid=Url->hashvalid;
 
   copy->local=Url->local;
 
@@ -466,7 +464,7 @@ void FreeURL(URL *Url)
  if(Url->user)   free(Url->user);
  if(Url->pass)   free(Url->pass);
 
- if(Url->hash)   free(Url->hash);
+ /* if(Url->hash)   free(Url->hash); */
 
  free(Url);
 }

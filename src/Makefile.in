@@ -69,6 +69,9 @@ compile :: wwwoffled \
 	   wwwoffle \
 	   wwwoffle-tools \
 	   convert-cache \
+	   make_urlhash_file \
+	   conv_urlhash_file \
+	   restore_Ufiles \
 	   uncompress-cache
 
 compile :: local_test.o
@@ -114,7 +117,7 @@ install-win32 :
 ######## CLEAN UP ########
 
 clean ::
-	-rm -f wwwoffle wwwoffled wwwoffle-tools convert-cache uncompress-cache
+	-rm -f wwwoffle wwwoffled wwwoffle-tools convert-cache make_urlhash_file conv_urlhash_file restore_Ufiles uncompress-cache
 	-rm -f css.c html.c htmlmodify.c messages.c xml.c vrml.c miscencdec.c
 	-rm -f core *.o
 
@@ -182,6 +185,14 @@ CONVERT_OBJ=convert-cache.o \
 convert-cache : $(CONVERT_OBJ)
 	$(LINK) $(CONVERT_OBJ) -o $@ $(LIBRARY)
 
+URLHASHFILE_OBJ= \
+	    configrdwr.o configmisc.o configdata.o configfunc.o \
+	    io.o iopriv.o iozlib.o iochunk.o \
+	    errors.o miscurl.o miscencdec.o proto_client.o sockets.o spool.o md5.o
+
+make_urlhash_file conv_urlhash_file restore_Ufiles: %: %.o $(URLHASHFILE_OBJ)
+	$(LINK) $^ -o $@ $(LIBRARY)
+
 ####
 
 UNCOMPRESS_OBJ=uncompress-cache.o \
@@ -196,7 +207,7 @@ uncompress-cache : $(UNCOMPRESS_OBJ)
 ######## OBJECT FILES ########
 
 
-wwwoffle.o $(WWWOFFLED_OBJ) wwwoffle-tools.o convert-cache.o uncompress-cache.o: %.o : %.c
+wwwoffle.o $(WWWOFFLED_OBJ) wwwoffle-tools.o convert-cache.o make_urlhash_file.o conv_urlhash_file.o restore_Ufiles.o uncompress-cache.o: %.o : %.c
 	$(COMPILE) $< -o $@ $(INCLUDE)
 
 %_client.o: %.c
@@ -214,6 +225,9 @@ wwwoffles.o        : wwwoffles.c        autoconfig.h wwwoffle.h io.h misc.h head
 wwwoffle-tools.o   : wwwoffle-tools.c   autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h                              version.h
 
 convert-cache.o    : convert-cache.c    autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h                              version.h
+make_urlhash_file.o: make_urlhash_file.c autoconfig.h wwwoffle.h io.h misc.h           errors.h config.h           proto.h            version.h
+conv_urlhash_file.o: conv_urlhash_file.c autoconfig.h wwwoffle.h io.h misc.h           errors.h config.h           proto.h            version.h
+restore_Ufiles.o   : restore_Ufiles.c   autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h           proto.h            version.h
 
 uncompress-cache.o : uncompress-cache.c autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h                              version.h
 
@@ -270,6 +284,8 @@ sockets.o          : sockets.c          autoconfig.h            io.h misc.h     
                      sockets4.c sockets6.c
 
 md5.o              : md5.c                                                                                                                                            md5.h
+
+connect.o conv_urlhash_file.o make_urlhash_file.o purge.o restore_Ufiles.o spool.o wwwoffled.o: urlhash.h
 
 ######## SOURCE FILES ########
 

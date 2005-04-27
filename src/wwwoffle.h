@@ -39,7 +39,7 @@ void ForkServer(int fd);
 
 /* In purge.c */
 
-void PurgeCache(int fd);
+int PurgeCache(int fd);
 
 
 /* In spool.c */
@@ -65,7 +65,7 @@ void DeleteLockWebpageSpoolFile(URL *Url);
 int ExistsLockWebpageSpoolFile(URL *Url);
 
 int CreateLastTimeSpoolFile(URL *Url);
-char /*@only@*/ /*@null@*/ *DeleteLastTimeSpoolFile(URL *Url);
+char /*@only@*/ /*@null@*/ *DeleteLastTimeSpoolFile(char *name);
 void CycleLastTimeSpoolFile(void);
 void CycleLastOutSpoolFile(void);
 
@@ -76,21 +76,20 @@ char /*@only@*/ /*@null@*/ *DeleteMonitorSpoolFile(/*@null@*/ URL *Url);
 int CreateTempSpoolFile(void);
 void CloseTempSpoolFile(int fd);
 
-char *FileNameToURL(char *file);
+char *FileNameToURL(const char *file);
+int FileMarkHash(const char *file);
 
 /*++++++++++++++++++++++++++++++++++++++
   A macro to Convert a URL to a filename.
-  local_URLToFileName declares filename as a variable length array
+  local_URLToFileName declares filename as an array of char
   and fills it with the file name corresponding to Url.
   Written by Paul Rombouts as a replacement for the function URLToFileName().
   ++++++++++++++++++++++++++++++++++++++*/
 
-#define local_URLToFileName(Url,filename) \
- char *_hash=GetHash(Url); \
- size_t _hash_size=strlen(_hash)+1; \
- char filename[_hash_size+2]; \
- *(filename)='X'; \
- memcpy((filename)+1,_hash,_hash_size);
+#define local_URLToFileName(Url,c,filename)		\
+ char filename[base64enclen(sizeof(md5hash_t))+3];	\
+ *(filename)=(c);					\
+ GetHash(Url,(filename)+1,sizeof(filename)-1);
 
 
 int ChangeToSpoolDir(char *dir);

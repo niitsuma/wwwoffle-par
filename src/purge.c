@@ -75,6 +75,7 @@
 #endif
 
 #include "wwwoffle.h"
+#include "urlhash.h"
 #include "io.h"
 #include "misc.h"
 #include "headbody.h"
@@ -96,6 +97,9 @@ static void what_purge_compress_age(char *proto,char *hostport,/*@null@*/ char *
 #if USE_ZLIB
 static unsigned long compress_file(char *proto,char *host,char *file);
 #endif
+static void MarkProto(char *proto);
+static void MarkHost(char *proto,char *host);
+static void MarkDir(char *dirname);
 
 /*+ Set this to 0 for debugging so that nothing is deleted. +*/
 #define DO_DELETE 1
@@ -143,7 +147,7 @@ static int purge_max_size,      /*+ maximum cache size. +*/
   int fd the file descriptor of the wwwoffle client.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void PurgeCache(int fd)
+int PurgeCache(int fd)
 {
  int i,p;
  struct STATFS sbuf;
@@ -245,7 +249,7 @@ void PurgeCache(int fd)
        /* Open the spool directory. */
 
        if(stat(proto,&buf))
-         {PrintMessage(Inform,"Cannot stat directory '%s' [%!s]; not purged",proto);continue;}
+         {PrintMessage(Inform,"Cannot stat directory '%s' [%!s]; not purged.",proto);continue;}
 
        dir_blocks=Bytes_to_Blocks(buf.st_size);
 
@@ -281,7 +285,13 @@ void PurgeCache(int fd)
 
              what_purge_compress_age(proto,ent->d_name,NULL,&purge_age,&compress_age);
 
-             PurgeFiles(proto,ent->d_name,purge_age,compress_age,&file_blocks,&del_blocks,&compress_blocks);
+	     if(chdir(ent->d_name))
+	       {PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s]; not purged.",proto,ent->d_name);}
+	     else {
+	       PurgeFiles(proto,ent->d_name,purge_age,compress_age,&file_blocks,&del_blocks,&compress_blocks);
+	       if(fchdir(dirfd(dir)) && (ChangeBackToSpoolDir() || chdir(proto)))
+		 {PrintMessage(Warning,"Cannot change back to protocol directory '%s' [%!s].",proto);break;}
+	     }
 
              dir_blocks=Bytes_to_Blocks(buf.st_size);
 
@@ -504,133 +514,124 @@ void PurgeCache(int fd)
 
  free(blocks_by_age);
 
- /* Purge the tmp.* files in outgoing. */
+ /* Purge the tmp.* files in outgoing and temp. */
 
- if(chdir("outgoing"))
-    PrintMessage(Warning,"Cannot change to directory 'outgoing' [%!s]; not purged.");
- else
+ for (i=0; i<2; ++i) {
+   static char *dirnames[2]={"outgoing","temp"};
+   char *dirname=dirnames[i];
+
+   if(chdir(dirname))
+     PrintMessage(Warning,"Cannot change to directory '%s' [%!s]; not purged.",dirname);
+   else
+     {
+       DIR *dir;
+       struct dirent* ent;
+       int count=0;
+
+       dir=opendir(".");
+       if(!dir)
+	 PrintMessage(Warning,"Cannot open directory '%s' [%!s]; not purged.",dirname);
+       else
+	 {
+	   ent=readdir(dir);
+	   if(!ent)
+	     PrintMessage(Warning,"Cannot read directory '%s' [%!s]; not purged.",dirname);
+	   else
+	     {
+	       do
+		 {
+		   if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+		     continue; /* skip . & .. */
+
+		   if(!strcmp_litbeg(ent->d_name,"tmp."))
+		     {
+		       struct stat buf;
+
+		       if(!stat(ent->d_name,&buf) && buf.st_mtime<(now-60))
+			 {
+#if DO_DELETE
+			   if(unlink(ent->d_name))
+			     PrintMessage(Warning,"Cannot unlink file '%s/%s' [%!s]; race condition?",dirname,ent->d_name);
+#else
+			   PrintMessage(Debug,"unlink(%s/%s).",dirname,ent->d_name);
+#endif
+			   count++;
+			 }
+		     }
+		 }
+	       while((ent=readdir(dir)));
+	     }
+
+	   closedir(dir);
+	 }
+
+       if(count)
+	 write_formatted(fd,"\nDeleted %d temporary files from directory '%s'.\n\n",count,dirname);
+     }
+
+   ChangeBackToSpoolDir();
+ }
+
+ /* Mark the hashes of the remaining spool files so that we can clean up the url hash table. */
+
+ if(!urlhash_clearmarks()) {
+   PrintMessage(Warning,"Clearing of the marks in the url hash table failed; cannot compact the table.");
+   return 0;
+ }
+
+ for(p=0;p<NProtocols;p++)
    {
-    DIR *dir;
-    struct dirent* ent;
-    int count1=0,count2=0;
+    char *proto=Protocols[p].name;
 
-    dir=opendir(".");
-    if(!dir)
-      PrintMessage(Warning,"Cannot open directory 'outgoing' [%!s]; not purged.");
+    if(stat(proto,&buf))
+       PrintMessage(Inform,"Cannot stat directory '%s' [%!s]; not marked.",proto);
     else
       {
-       ent=readdir(dir);
-       if(!ent)
-          PrintMessage(Warning,"Cannot read directory 'outgoing' [%!s]; not purged.");
+       if(chdir(proto))
+          PrintMessage(Warning,"Cannot change to directory '%s' [%!s]; not marked.",proto);
        else
          {
-          do
-            {
-             struct stat buf;
+          MarkProto(proto);
 
-             if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
-                continue; /* skip . & .. */
-
-             if(*ent->d_name=='U' || *ent->d_name=='O')
-               {
-                int s;
-
-                *ent->d_name^='U'^'O';
-                s=stat(ent->d_name,&buf);
-                *ent->d_name^='U'^'O';
-
-                if(s)
-                  {
-                   PrintMessage(Inform,"Outgoing file 'outgoing/%s' is not complete (U* and O* files); deleting it.",ent->d_name);
-#if DO_DELETE
-                   if(unlink(ent->d_name))
-                      PrintMessage(Warning,"Cannot unlink file 'outgoing/%s' [%!s]; race condition?",ent->d_name);
-#else
-                   PrintMessage(Debug,"unlink(outgoing/%s).",ent->d_name);
-#endif
-                   count1++;
-                  }
-               }
-             else if(!strcmp_litbeg(ent->d_name,"tmp."))
-               {
-                if(!stat(ent->d_name,&buf) && buf.st_mtime<(now-60))
-                  {
-#if DO_DELETE
-                   if(unlink(ent->d_name))
-                      PrintMessage(Warning,"Cannot unlink file 'outgoing/%s' [%!s]; race condition?",ent->d_name);
-#else
-                   PrintMessage(Debug,"unlink(outgoing/%s).",ent->d_name);
-#endif
-                   count2++;
-                  }
-               }
-            }
-          while((ent=readdir(dir)));
+          ChangeBackToSpoolDir();
          }
-
-       closedir(dir);
       }
-
-    if(count1)
-       write_formatted(fd,"\nDeleted %d unmatched files (missing O* or U*) from directory 'outgoing'\n\n",count1);
-    if(count2)
-       write_formatted(fd,"\nDeleted %d temporary files from directory 'outgoing'\n\n",count2);
    }
 
- ChangeBackToSpoolDir();
-
- /* Purge the tmp.* files in temp. */
-
- if(chdir("temp"))
-    PrintMessage(Warning,"Cannot change to directory 'temp' [%!s]; not purged.");
- else
+#define nspecial 6
+ for(i=0;i<nspecial;i++)
    {
-    DIR *dir;
-    struct dirent* ent;
-    int count=0;
+    static char *special[nspecial]={"monitor","outgoing","lastout","prevout","lasttime","prevtime"};
+    char *dirname=special[i];
+    int j,n=0;
 
-    dir=opendir(".");
-    if(!dir)
-      PrintMessage(Warning,"Cannot open directory 'temp' [%!s]; not purged.");
-    else
-      {
-       ent=readdir(dir);
-       if(!ent)
-          PrintMessage(Warning,"Cannot read directory 'temp' [%!s]; not purged.");
-       else
-         {
-          do
-            {
-             if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
-                continue; /* skip . & .. */
+    if(!strcmp_litbeg(special[i],"prev")) n=NUM_PREVTIME_DIR;
 
-             if(!strcmp_litbeg(ent->d_name,"tmp."))
-               {
-                struct stat buf;
+    for(j=1; j<=(n?n:1); ++j) {
+      char dbuf[sizeof("prevtime")+10];
 
-                if(!stat(ent->d_name,&buf) && buf.st_mtime<(now-60))
-                  {
-#if DO_DELETE
-                   if(unlink(ent->d_name))
-                      PrintMessage(Warning,"Cannot unlink file 'temp/%s' [%!s]; race condition?",ent->d_name);
-#else
-                   PrintMessage(Debug,"unlink(temp/%s).",ent->d_name);
-#endif
-                   count++;
-                  }
-               }
-            }
-          while((ent=readdir(dir)));
-         }
-
-       closedir(dir);
+      if(n) {
+	sprintf(dbuf,"%s%u",special[i],(unsigned)j);
+	dirname=dbuf;
       }
 
-    if(count)
-       write_formatted(fd,"\nDeleted %d temporary files from directory 'temp'.\n\n",count);
+      if(stat(dirname,&buf))
+	PrintMessage(Inform,"Cannot stat directory '%s' [%!s]; not marked.",dirname);
+      else
+	{
+	  if(chdir(dirname))
+	    PrintMessage(Warning,"Cannot change to directory '%s' [%!s]; not marked.",dirname);
+	  else
+	    {
+	      MarkDir(dirname);
+
+	      ChangeBackToSpoolDir();
+	    }
+	}
+    }
    }
 
- ChangeBackToSpoolDir();
+ return 1;
 }
 
 
@@ -663,22 +664,19 @@ static void PurgeFiles(char *proto,char *host,int def_purge_age,int def_compress
 
  /* Open the spool subdirectory. */
 
- if(chdir(host))
-   {PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s]; not purged.",proto,host);return;}
-
  dir=opendir(".");
  if(!dir)
-   {PrintMessage(Warning,"Cannot open directory '%s/%s' [%!s]; not purged.",proto,host);ChangeBackToSpoolDir();chdir(proto);return;}
+   {PrintMessage(Warning,"Cannot open directory '%s/%s' [%!s]; not purged.",proto,host);return;}
 
  ent=readdir(dir);
  if(!ent)
-   {PrintMessage(Warning,"Cannot read directory '%s/%s' [%!s]; not purged.",proto,host);closedir(dir);ChangeBackToSpoolDir();chdir(proto);return;}
+   {PrintMessage(Warning,"Cannot read directory '%s/%s' [%!s]; not purged.",proto,host);goto closedir_return;}
 
  /* Check all of the files for age, and delete as needed. */
 
  do
    {
-    struct stat buf,buf2;
+    struct stat buf;
 
     if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
        continue; /* skip . & .. */
@@ -704,22 +702,9 @@ static void PurgeFiles(char *proto,char *host,int def_purge_age,int def_compress
 #endif
          }
 
-       if(*ent->d_name=='U' || *ent->d_name=='D')
+       if(*ent->d_name=='D')
          {
-          int s;
-
-          *ent->d_name^='U'^'D';
-          s=stat(ent->d_name,&buf2);
-          *ent->d_name^='U'^'D';
-
-          if(s)
-            {
-             PrintMessage(Inform,"Cached file '%s/%s/%s' is not complete (U* and D* files); deleting it.",proto,host,ent->d_name);
-             purge_age=0;compress_age=0;
-            }
-          else if(*ent->d_name=='U')
-             continue;
-          else if(purge_use_url)
+          if(purge_use_url)
              what_purge_compress_age(proto,host,ent->d_name,&purge_age,&compress_age);
           else
             {purge_age=def_purge_age;compress_age=def_compress_age;}
@@ -731,7 +716,7 @@ static void PurgeFiles(char *proto,char *host,int def_purge_age,int def_compress
          }
        else
          {
-          PrintMessage(Inform,"Cached file '%s/%s/%s' is not valid (U* or D* file); deleting it.",proto,host,ent->d_name);
+          PrintMessage(Inform,"Cached file '%s/%s/%s' is not valid (D* file); deleting it.",proto,host,ent->d_name);
           purge_age=0;compress_age=0;
          }
 
@@ -755,7 +740,7 @@ static void PurgeFiles(char *proto,char *host,int def_purge_age,int def_compress
             }
 #endif
 
-          size=Bytes_to_Blocks(buf.st_size)+Bytes_to_Blocks(buf2.st_size);
+          size=Bytes_to_Blocks(buf.st_size);
 
           *remain+=size;
 
@@ -784,28 +769,13 @@ static void PurgeFiles(char *proto,char *host,int def_purge_age,int def_compress
           PrintMessage(Debug,"unlink(%s/%s/%s).",proto,host,ent->d_name);
 #endif
 
-          if(*ent->d_name=='U' || *ent->d_name=='D')
-            {
-             *ent->d_name^='U'^'D';
-
-             if(!stat(ent->d_name,&buf))
-                *deleted+=Bytes_to_Blocks(buf.st_size);
-
-#if DO_DELETE
-             if(unlink(ent->d_name))
-                PrintMessage(Warning,"Cannot unlink file '%s/%s/%s' (2) [%!s]; race condition?",proto,host,ent->d_name);
-#else
-             PrintMessage(Debug,"unlink(%s/%s/%s).",proto,host,ent->d_name);
-#endif
-            }
          }
       }
    }
  while((ent=readdir(dir)));
 
+closedir_return:
  closedir(dir);
- ChangeBackToSpoolDir();
- chdir(proto);
 }
 
 
@@ -841,7 +811,7 @@ static void what_purge_compress_age(char *proto,char *hostport,char *file,int *p
        return;
 
     Url=SplitURL(url);
-    free(url);
+    /* free(url); */
    }
 
  if(purge_age)
@@ -986,3 +956,115 @@ static unsigned long compress_file(char *proto,char *host,char *file)
     return(0);                  /* pathological file, larger when compressed. */
 }
 #endif
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Mark the hashes of all the files in a complete protocol directory.
+
+  char *proto The protocol of the spool directory we are in.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+static void MarkProto(char *proto)
+{
+ DIR *dir;
+ struct dirent* ent;
+ struct stat buf;
+
+ /* Open the spool directory. */
+
+ dir=opendir(".");
+ if(!dir)
+   {PrintMessage(Warning,"Cannot open directory '%s' [%!s]; not marked.",proto);return;}
+
+ ent=readdir(dir);
+ if(!ent)
+   {PrintMessage(Warning,"Cannot read directory '%s' [%!s]; not marked.",proto);goto close_return;}
+
+ /* Go through each entry. */
+
+ do
+   {
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
+    if(stat(ent->d_name,&buf))
+       PrintMessage(Warning,"Cannot stat file '%s/%s' [%!s]; not marked.",proto,ent->d_name);
+    else if(S_ISDIR(buf.st_mode))
+      {
+       if(chdir(ent->d_name))
+          PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s]; not marked.",proto,ent->d_name);
+       else
+         {
+          MarkHost(proto,ent->d_name);
+
+          if(fchdir(dirfd(dir)) && (ChangeBackToSpoolDir() || chdir(proto))) {
+	    PrintMessage(Warning,"Cannot change back to protocol directory '%s' [%!s].",proto);
+	    break;
+	  }
+         }
+      }
+   }
+ while((ent=readdir(dir)));
+
+close_return:
+ closedir(dir);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Mark the hashes of all the files in a host directory.
+
+  char *proto The protocol of the spool directory we are in.
+
+  char *host The hostname of the spool directory we are in.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+static void MarkHost(char *proto,char *host)
+{
+  char dir[strlen(proto)+strlen(host)+sizeof("/")];
+
+  sprintf(dir,"%s/%s",proto,host);
+  MarkDir(dir);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Mark the hashes of all the files in a directory.
+
+  char *dir The name of the directory.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+static void MarkDir(char *dirname)
+{
+ DIR *dir;
+ struct dirent* ent;
+ struct stat buf;
+
+ /* Open the spool directory. */
+
+ dir=opendir(".");
+ if(!dir)
+   {PrintMessage(Warning,"Cannot open directory '%s' [%!s]; not marked.",dirname);return;}
+
+ ent=readdir(dir);
+ if(!ent)
+   {PrintMessage(Warning,"Cannot read directory '%s' [%!s]; not marked.",dirname);goto close_return;}
+
+ /* Go through each entry. */
+
+ do
+   {
+    if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
+       continue; /* skip . & .. */
+
+    if(!stat(ent->d_name,&buf) && S_ISREG(buf.st_mode) &&
+       (*ent->d_name=='D' || *ent->d_name=='O' || *ent->d_name=='M'))
+      {
+	FileMarkHash(ent->d_name);
+      }
+   }
+ while((ent=readdir(dir)));
+
+close_return:
+ closedir(dir);
+}

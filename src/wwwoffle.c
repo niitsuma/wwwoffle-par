@@ -508,6 +508,9 @@ int main(int argc, char** argv)
           exitval=1;
        else if(action==Config && !strcmp_litbeg(line,"Configuration file syntax error"))
           exitval=1;
+       else if(action==Purge && (!strcmp_litbeg(line,"WWWOFFLE Already Purging") ||
+				 !strcmp_litbeg(line,"WWWOFFLE Purge prematurely aborted")))
+          exitval=1;
       }
 
     finish_io(socket);
@@ -584,7 +587,7 @@ int main(int argc, char** argv)
              char *userpass1=(char*)(malloc(strlen(Url->user)+(Url->pass?strlen(Url->pass):1)+3)),*userpass2;
 
              sprintf(userpass1,"%s:%s",Url->user,Url->pass?Url->pass:"");
-             userpass2=Base64Encode(userpass1,strlen(userpass1));
+             userpass2=Base64Encode(userpass1,strlen(userpass1),NULL,0);
 
              if(refresh)
                 write_formatted(socket,"HEAD %s HTTP/1.0\r\n"
@@ -768,7 +771,7 @@ int main(int argc, char** argv)
        char *userpass1=(char*)(malloc(strlen(Url->user)+(Url->pass?strlen(Url->pass):1)+3)),*userpass2;
 
        sprintf(userpass1,"%s:%s",Url->user,Url->pass?Url->pass:"");
-       userpass2=Base64Encode(userpass1,strlen(userpass1));
+       userpass2=Base64Encode(userpass1,strlen(userpass1),NULL,0);
 
        if(action==Post)
           write_formatted(socket,"POST %s HTTP/1.0\r\n"
@@ -858,7 +861,7 @@ int main(int argc, char** argv)
        char *userpass1=(char*)(malloc(strlen(Url->user)+(Url->pass?strlen(Url->pass):1)+3)),*userpass2;
 
        sprintf(userpass1,"%s:%s",Url->user,Url->pass?Url->pass:"");
-       userpass2=Base64Encode(userpass1,strlen(userpass1));
+       userpass2=Base64Encode(userpass1,strlen(userpass1),NULL,0);
 
        write_formatted(socket,"GET %s HTTP/1.0\r\n"
                               "Authorization: Basic %s\r\n"

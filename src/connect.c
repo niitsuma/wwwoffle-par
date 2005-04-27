@@ -35,6 +35,7 @@
 #include <signal.h>
 
 #include "wwwoffle.h"
+#include "urlhash.h"
 #include "io.h"
 #include "misc.h"
 #include "errors.h"
@@ -130,7 +131,7 @@ void CommandConnect(int client)
     if(strcmp_litbeg(line,"WWWOFFLE "))
       {
        PrintMessage(Warning,"WWWOFFLE Not a command."); /* Used in audit-usage.pl */
-       return;
+       goto cleanup_return;
       }
    }
 
@@ -240,13 +241,28 @@ void CommandConnect(int client)
        write_string(client,"WWWOFFLE Purge Starting.\n");
        PrintMessage(Important,"WWWOFFLE Purge."); /* Used in audit-usage.pl */
 
-       PurgeCache(client);
+       if(PurgeCache(client)) {
+	 PrintMessage(Important,"WWWOFFLE Purge finished.");
 
-       write_string(client,"WWWOFFLE Purge Finished.\n");
-       PrintMessage(Important,"WWWOFFLE Purge finished.");
+	 /* We haven't forked any server child processes, so it should be safe to compact the url hash table. */
+	 if(urlhash_copycompact()) {
+	   PrintMessage(Important,"Copy compacting of url hash table succeeded.");
+	   write_string(client,"WWWOFFLE Purge Finished.\n");
+	 }
+	 else {
+	   PrintMessage(Warning,"Copy compacting of url hash table failed.");
+	   write_string(client,"WWWOFFLE Purge Finished, but compaction of url hash table failed.\n");
+	 }
+       }
+       else {
+	 PrintMessage(Important,"WWWOFFLE Purge prematurely aborted.");
+	 write_string(client,"WWWOFFLE Purge prematurely aborted.\n");
+       }
       }
+    else if(purging)
+      {write_string(client,"WWWOFFLE Already Purging.\n");}
     else if((pid=fork())==-1)
-      {PrintMessage(Warning,"Cannot fork to do a purge [%!s].");return;}
+      {PrintMessage(Warning,"Cannot fork to do a purge [%!s].");goto cleanup_return;}
     else if(pid)
       {
        purging=1;
@@ -254,6 +270,10 @@ void CommandConnect(int client)
       }
     else
       {
+       int purge_ok;
+
+       InitErrorHandler(NULL,-1,-1);  /* Change nothing except pid */
+
        if(fetch_fd!=-1)
          {
           finish_io(fetch_fd);
@@ -271,15 +291,20 @@ void CommandConnect(int client)
        write_string(client,"WWWOFFLE Purge Starting.\n");
        PrintMessage(Important,"WWWOFFLE Purge."); /* Used in audit-usage.pl */
 
-       PurgeCache(client);
+       purge_ok=PurgeCache(client);
 
-       write_string(client,"WWWOFFLE Purge Finished.\n");
-       PrintMessage(Important,"WWWOFFLE Purge finished.");
-
+       if(purge_ok) {
+	 PrintMessage(Important,"WWWOFFLE Purge finished.");
+	 write_string(client,"WWWOFFLE Purge Finished.\n");
+       }
+       else {
+	 PrintMessage(Important,"WWWOFFLE Purge prematurely aborted.");
+	 write_string(client,"WWWOFFLE Purge prematurely aborted.\n");
+       }
        finish_io(client);
        CloseSocket(client);
 
-       exit(0);
+       exit(!purge_ok);
       }
    }
  else if(!strcmp_litbeg(&line[9],"STATUS"))
@@ -344,6 +369,7 @@ void CommandConnect(int client)
     PrintMessage(Warning,"WWWOFFLE Unknown control command '%s'.",line); /* Used in audit-usage.pl */
    }
 
+cleanup_return:
  if(line)
     free(line);
 }
@@ -420,7 +446,7 @@ void ForkServer(int fd)
 
  if(nofork)
     wwwoffles(online,fetcher,fd);
- else if(!nofork && (pid=fork())==-1)
+ else if((pid=fork())==-1)
     PrintMessage(Warning,"Cannot fork a server [%!s].");
  else if(pid) /* The parent */
    {

@@ -157,10 +157,10 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
     if(*p)
       {
 	char *userpass,*user,*pass;
-	int l;
+
 	URL *Url=SplitURL(url);
 
-	pass=user=userpass=Base64Decode(p,&l);
+	pass=user=userpass=Base64Decode(p,NULL,NULL,0);
 	while(*pass && *pass!=':') ++pass;
 
 	if(*pass) *pass++=0; else pass=NULL;
@@ -253,9 +253,10 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
 	*p++='?';
 
       {
-	char *hash=MakeHash((*request_body)->content);
-	sprintf(p,"!%s:%s.%08lx",(*request_head)->method,hash,time(NULL));
-	free(hash);
+	md5hash_t h;
+	unsigned char buf[base64enclen(sizeof(md5hash_t))+1];
+	MakeHash((*request_body)->content,&h);
+	sprintf(p,"!%s:%s.%08lx",(*request_head)->method,hashbase64encode(&h,buf,sizeof(buf)),time(NULL));
       }
     }
    }
@@ -554,7 +555,7 @@ Header *RequestURL(URL *Url,char *referer)
        if(Url->pass) stpcpy(p,Url->pass); else *p=0;
      }
      {
-       char *encoded_userpass= Base64Encode(userpass,userpasslen);
+       char *encoded_userpass= Base64Encode(userpass,userpasslen,NULL,0);
        char auth[sizeof("Basic ")+strlen(encoded_userpass)];
        stpcpy(stpcpy(auth,"Basic "),encoded_userpass);
        free(encoded_userpass);
@@ -633,7 +634,7 @@ void ModifyRequest(URL *Url,Header *request_head)
        if(Url->pass) stpcpy(p,Url->pass); else *p=0;
      }
      {
-       char *encoded_userpass= Base64Encode(userpass,userpasslen);
+       char *encoded_userpass= Base64Encode(userpass,userpasslen,NULL,0);
        char auth[sizeof("Basic ")+strlen(encoded_userpass)];
        stpcpy(stpcpy(auth,"Basic "),encoded_userpass);
        free(encoded_userpass);
@@ -716,7 +717,7 @@ void MakeRequestProxyAuthorised(char *proxy,Header *request_head)
 
        {char *p=stpcpy(userpass,user); *p++=':'; stpcpy(p,pass); }
        {
-	 char *encoded_userpass= Base64Encode(userpass,userpasslen);
+	 char *encoded_userpass= Base64Encode(userpass,userpasslen,NULL,0);
 	 char auth[sizeof("Basic ")+strlen(encoded_userpass)];
 	 stpcpy(stpcpy(auth,"Basic "),encoded_userpass);
 	 free(encoded_userpass);

@@ -50,6 +50,7 @@ int setresgid(gid_t rgid, gid_t egid, gid_t sgid);
 #include <grp.h>
 
 #include "wwwoffle.h"
+#include "urlhash.h"
 #include "io.h"
 #include "misc.h"
 #include "errors.h"
@@ -99,6 +100,9 @@ int purge_pid=0;
 /*+ The current status, fetching or not. +*/
 int fetching=0;
 
+/*+ Flag indicating whether we are preparing to exit. +*/
+static int exiting=0;
+
 /*+ Set when the demon is to shutdown due to a sigexit. +*/
 static sig_atomic_t got_sigexit=0;
 
@@ -121,6 +125,7 @@ int nofork=0;
 /* static char saved_hostname[max_hostname_len],saved_ip[ipaddr_strlen]; */
 char *client_hostname=NULL, *client_ip=NULL;
 #define save_client_hostname_ip(host,ip) {client_hostname=host; client_ip=ip;}
+
 
 /*++++++++++++++++++++++++++++++++++++++
   The main program.
@@ -417,6 +422,11 @@ int main(int argc, char** argv)
  if(err==-1)
     PrintMessage(Fatal,"Cannot change to spool directory %s [%!s].",ConfigString(SpoolDir));
 
+ /* Open url hash table */
+
+ if(!urlhash_open())
+   PrintMessage(Fatal,"Opening url hash file '%s' failed.\n",urlhash_filename);
+
  /* Detach from terminal */
 
  if(detached)
@@ -439,12 +449,16 @@ int main(int argc, char** argv)
 
  install_sighandlers();
 
+ if(!urlhash_lock_create())
+   PrintMessage(Fatal,"Cannot create semaphore for locking the url hash table [%!s].");
+
  max_servers=ConfigInteger(MaxServers);
  max_fetch_servers=ConfigInteger(MaxFetchServers);
 
  /* Loop around waiting for connections. */
 
- do
+ main_server_loop:
+ while(!got_sigexit)
    {
     struct timeval tv;
     fd_set readfd;
@@ -561,8 +575,7 @@ int main(int argc, char** argv)
 
                 if(nofork)
                    got_sigexit=1;
-
-                if(!nofork)
+                else
                   {
                    finish_io(client);
                    CloseSocket(client);
@@ -597,7 +610,6 @@ int main(int argc, char** argv)
 
     if(got_sigchld)
       {
-       int pid, status;
        int isserver=0;
 
        /* To avoid race conditions, reset the flag before fetching the status */
@@ -605,6 +617,7 @@ int main(int argc, char** argv)
        got_sigchld=0;
 
        {
+	 int pid, status;
 	 int maxexitval=0;
 
 	 while((pid=waitpid(-1,&status,WNOHANG))>0)
@@ -619,17 +632,6 @@ int main(int argc, char** argv)
 	     }
 	     else if(WIFSIGNALED(status))
 	       exitval=-WTERMSIG(status);
-
-	     if(purging)
-	       if(purge_pid==pid)
-		 {
-		   if(exitval>=0)
-		     PrintMessage(Inform,"Purge process exited with status %d (pid=%d).",exitval,pid);
-		   else
-		     PrintMessage(Important,"Purge process terminated by signal %d (pid=%d).",-exitval,pid);
-
-		   purging=0;
-		 }
 
 	     for(i=0;i<max_servers;i++)
 	       if(server_pids[i]==pid)
@@ -655,15 +657,26 @@ int main(int argc, char** argv)
 		   fetch_pids[i]=0;
 		   break;
 		 }
+
+	     if(purging>0)
+	       if(purge_pid==pid)
+		 {
+		   if(exitval>=0)
+		     PrintMessage(Inform,"Purge process exited with status %d (pid=%d).",exitval,pid);
+		   else
+		     PrintMessage(Important,"Purge process terminated by signal %d (pid=%d).",-exitval,pid);
+
+		   purging=(exitval?0:-1);
+		 }
 	   }
 
-	 if(maxexitval==3)
+	 if(online!=1)
+	   fetching=0;
+	 else if(maxexitval==3)
 	   fetching=0;
 	 else if(maxexitval==4)
 	   fetching=1;
 
-	 if(online!=1)
-	   fetching=0;
        }
 
        if(isserver)
@@ -688,34 +701,42 @@ int main(int argc, char** argv)
 
        ForkRunModeScript(ConfigString(RunFetch),"fetch","stop",-1);
       }
-   }
- while(!got_sigexit);
 
- /* Close down and exit. */
-
- /* These four sockets don't need finish_io() calling because they never
-    had init_io() called, they are just bound to a port listening. */
-
- if(http_fd[0]!=-1) CloseSocket(http_fd[0]);
- if(http_fd[1]!=-1) CloseSocket(http_fd[1]);
- if(wwwoffle_fd[0]!=-1) CloseSocket(wwwoffle_fd[0]);
- if(wwwoffle_fd[1]!=-1) CloseSocket(wwwoffle_fd[1]);
-
- if(!nofork)
-   {
-    if(n_servers)
-       PrintMessage(Important,"Exit signalled - waiting for %d child wwwoffles servers.",n_servers);
-    else
-       PrintMessage(Important,"Exit signalled.");
+    if(purging<0 && n_fetch_servers==0)
+      break;
    }
 
- while(n_servers)
+ if(got_sigexit && !exiting) {
+   /* Prepare to close down and exit. */
+   exiting=1;
+
+   /* These four sockets don't need finish_io() calling because they never
+      had init_io() called, they are just bound to a port listening. */
+
+   if(http_fd[0]!=-1) CloseSocket(http_fd[0]);
+   if(http_fd[1]!=-1) CloseSocket(http_fd[1]);
+   if(wwwoffle_fd[0]!=-1) CloseSocket(wwwoffle_fd[0]);
+   if(wwwoffle_fd[1]!=-1) CloseSocket(wwwoffle_fd[1]);
+
+   if(!nofork)
+     {
+       if(n_servers)
+	 PrintMessage(Important,"Exit signalled - waiting for %d child wwwoffles servers.",n_servers);
+       else
+	 PrintMessage(Important,"Exit signalled.");
+     }
+ }
+
+ /* Wait for the child processes to finish */
+ while(n_servers || purging>0)
    {
-    int i;
-    int pid,status,exitval=0;
+    int pid,status;
 
     while((pid=waitpid(-1,&status,0))>0)
       {
+       int i;
+       int exitval=0;
+
        if(WIFEXITED(status))
           exitval=WEXITSTATUS(status);
        else if(WIFSIGNALED(status))
@@ -735,20 +756,35 @@ int main(int argc, char** argv)
              break;
             }
 
-       if(purging)
+       if(purging>0)
           if(purge_pid==pid)
             {
-             if(exitval>=0)
-                PrintMessage(Inform,"Purge process exited with status %d (pid=%d).",exitval,pid);
-             else
-                PrintMessage(Important,"Purge process terminated by signal %d (pid=%d).",-exitval,pid);
+	     if(exitval>=0)
+	       PrintMessage(Inform,"Purge process exited with status %d (pid=%d).",exitval,pid);
+	     else
+	       PrintMessage(Important,"Purge process terminated by signal %d (pid=%d).",-exitval,pid);
 
-             purging=0;
+	     purging=(exitval?0:-1);
             }
       }
    }
 
+ if(purging<0) {
+   /* All the child server processes have exited, so it should be safe to compact the url hash table. */
+   if(urlhash_copycompact()) {
+     PrintMessage(Important,"Copy compacting of the url hash table succeeded.");
+     purging=0;
+     if(!exiting) goto main_server_loop;
+   }
+   else
+     PrintMessage(Warning,"Copy compacting of the url hash table failed, exiting.");
+ }
+
  PrintMessage(Important,"Exiting.");
+
+ urlhash_close();
+
+ urlhash_lock_destroy();
 
  FinishConfigurationFile();
 

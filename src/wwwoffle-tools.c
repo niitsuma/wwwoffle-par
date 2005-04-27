@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle-tools.c 1.45 2004/09/08 18:15:22 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle-tools.c 1.47 2005/01/26 18:57:30 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
   Tools for use in the cache for version 2.x.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -40,6 +40,7 @@ int setresgid(gid_t rgid, gid_t egid, gid_t sgid);
 # endif
 #endif
 
+#include <utime.h>
 #include <sys/stat.h>
 
 #if HAVE_DIRENT_H
@@ -413,9 +414,8 @@ static int wwwoffle_ls(URL *Url)
 
  if(strcmp(Url->path,"/"))
    {
-    local_URLToFileName(Url,name)
+    local_URLToFileName(Url,'D',name)
 
-    *name='D';
     retval+=ls(name);
    }
  else
@@ -527,7 +527,7 @@ static int ls(char *file)
        else
           printf("%s %7ld %3s %2d %2d:%02d %s\n",file,(long)buf.st_size,month,tim->tm_mday,tim->tm_hour,tim->tm_min,url);
 
-       free(url);
+       /* free(url); */
       }
    }
 
@@ -574,7 +574,7 @@ static int wwwoffle_mv(URL *Url1,URL *Url2)
       {
        char *url1=FileNameToURL(ent->d_name);
 
-       if(url1)
+       if(url1 && !strncmp(Url1->name,url1,strlen(Url1->name)))
          {
           char *url2;
           URL *Url;
@@ -582,15 +582,15 @@ static int wwwoffle_mv(URL *Url1,URL *Url2)
           int fd2;
 
           Url=SplitURL(url1);
-          url2=(char*)malloc(strlen(Url->pathp)+strlen(Url2->dir)+strlen(Url2->proto)+8);
-          sprintf(url2,"%s://%s%s",Url2->proto,Url2->dir,Url->pathp);
+          url2=(char*)malloc(strlen(Url2->proto)+strlen(Url2->host)+strlen(Url->pathp)+strlen(Url2->pathp)+8);
+          sprintf(url2,"%s://%s%s%s",Url2->proto,Url2->host,Url2->path,Url->pathp+strlen(Url1->path));
           FreeURL(Url);
 
           name1=ent->d_name;
 
           Url=SplitURL(url2);
           {
-	    local_URLToFileName(Url,name2)
+	    local_URLToFileName(Url,'D',name2)
 
 	    path2=(char*)malloc(strlen(Url2->proto)+strlen(Url2->dir)+strlen(name2)+16);
 
@@ -609,14 +609,25 @@ static int wwwoffle_mv(URL *Url1,URL *Url2)
 	    fd2=open(path2,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,DEF_FILE_PERM);
 	    if(fd2!=-1)
 	      {
+		struct stat buf;
+		struct utimbuf utbuf;
+
 		init_io(fd2);
 		write_string(fd2,Url->name);
 		finish_io(fd2);
 		close(fd2);
-		unlink(name2);
+
+		if(!stat(name1,&buf))
+		  {
+		    utbuf.actime=time(NULL);
+		    utbuf.modtime=buf.st_mtime;
+		    utime(path2,&utbuf);
+		  }
+
+		unlink(name1);
 	      }
 	  }
-          free(url1);
+          /* free(url1); */
           free(url2);
           free(path2);
           FreeURL(Url);
@@ -740,7 +751,7 @@ static int wwwoffle_write(URL *Url)
 
 static int wwwoffle_hash(URL *Url)
 {
- local_URLToFileName(Url,name)
+ local_URLToFileName(Url,'D',name)
 
  printf("%s\n",name+1);
 

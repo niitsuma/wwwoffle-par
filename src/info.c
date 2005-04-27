@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/info.c 1.16 2004/08/25 18:22:21 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/info.c 1.17 2004/11/29 19:11:46 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
   Generate information about the contents of the web pages that are cached in the system.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -296,16 +296,16 @@ static void output_content(int fd,char *type,char **url)
  for(i=0;i<count;i++)
    {
     URL *Url=SplitURL(url[i]);
-    int dontget,cached;
+    int dontget,cached,outgoing;
 
     dontget=ConfigBooleanMatchURL(DontGet,Url);
     cached=ExistsWebpageSpoolFile(Url);
+    outgoing=ExistsOutgoingSpoolFile(Url);
 
     HTMLMessageBody(fd,"InfoContents-Body",
                     "type",type,
                     "refurl",url[i],
-                    "dontget",dontget?"yes":"",
-                    "cached",cached?"yes":"",
+                    "status",dontget?"X":cached?"+":outgoing?"~":"-",
                     NULL);
 
     FreeURL(Url);

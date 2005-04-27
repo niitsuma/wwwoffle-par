@@ -1,21 +1,27 @@
-	  Alternative WWWOFFLE implementation - version 2.8d-par-3
+	  Alternative WWWOFFLE implementation - version 2.8e-par
                              by Paul Rombouts
 	  ========================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
 am making available so other people can run it and/or study the source code.
-Present version is 2.8d-par-3 (I've simply appended my initials to the version
-number). The first part of this file describes how to patch, compile, install
-and run wwwoffled. The second part lists in more detail the changes I've made to
-AMB's code.
+Present version is 2.8e-par (I've simply appended my initials to the version
+number). This version introduces an important efficiency improvement: the number
+of files in the spool directory are reduced by nearly 50% by using a single
+compact database file to remember the URLs belonging to the cached webpages.
+
+The first part of this file describes how to patch, compile, install and run
+wwwoffled. Please note that if you wish to use an existing WWWOFFLE spool
+directory the files in the cache (those beginning with 'U') must be converted
+into a database file before you can start wwwoffled. The second part lists in
+more detail the changes I've made to AMB's code.
 
 Before compiling and installing WWWOFFLE according to AMB's installation
 instructions described in the INSTALL file you must first apply my patch file
-wwwoffled-2.8d-par.diff.gz. Use a freshly untarred copy of Andrew Bishop's
-original version 2.8d source, cd into the source directory wwwoffle-2.8d and
+wwwoffled-2.8e-par.diff.gz. Use a freshly untarred copy of Andrew Bishop's
+original version 2.8e source, cd into the source directory wwwoffle-2.8e and
 apply the command:
 
-gzip -cd <path_to_patch>/wwwoffle-2.8d-par-3.diff.gz | patch -p2 -N -E
+gzip -cd <path_to_patch>/wwwoffle-2.8e-par.diff.gz | patch -p2 -N -E
 
 Note: because I have used GNU extensions you will need to compile with gcc and
 link with glibc. This will not be a problem with most Linux distributions.
@@ -26,25 +32,48 @@ after running the command (assuming you use a bash shell):
   export LANG=${LANG%%.*}
 
 If you want to use an existing WWWOFFLE configuration file then you must make
-the following change to the configuration file before you can actually run
-wwwoffled: split section CensorHeader into two sections called
-CensorIncomingHeader and CensorOutgoingHeader. These sections should contain
-only options that apply to the censoring of reply headers coming back from
-servers and request headers sent to servers, respectively. The
-referer-self(-dir) options go into the CensorOutgoingHeader section.
-Alternatively, if you're not using the CensorHeader section at all it's easier
-to simply delete it in its entirety.
+the following change to the configuration file before you can run wwwoffled:
+split section CensorHeader into two sections called CensorIncomingHeader and
+CensorOutgoingHeader. These sections should contain only options that apply to
+the censoring of reply headers coming back from servers and request headers sent
+to servers, respectively. The referer-self(-dir) options go into the
+CensorOutgoingHeader section.  Alternatively, if you're not using the
+CensorHeader section at all it is easier to simply delete it in its entirety.
 
-That's it! You should now be able to run wwwoffled.
+Important: If you want to use an existing WWWOFFLE spool directory you must
+convert the information in the U* files in the cache to a new database file
+called "urlhashtable". You need to execute the following steps as root:
+- First it is recommended that you make a backup copy of your spool directory
+  (don't worry, the conversion is reversible, this is just a precaution).
+- Change to the wwwoffle-2.8e/src directory and run "./make_urlhash_file" .
+- The U* files are no longer needed and just waste disk space. You can run the
+  script "rm_Ufiles.sh" to remove them immediately; otherwise they will
+  removed the next time you run "wwwoffle -purge".
 
-Note to users of languages besides English and Dutch: I've modified some of the
-WWWOFFLE message templates for the English and Dutch languages. If you want to
-use a different language you will have to look at the modifications in the
-templates that have been patched and apply these changes to the template files
-of your own language. Alternatively you could simply delete the non-English
-template files so that the English language versions are used instead. wwwoffled
-will still run without these changes, but then some of the configuration pages
-will not display correctly.
+That's it! You should now be able to run wwwoffled and enjoy the improved
+performance. You should be able to notice that WWWOFFLE accesses the hard disk
+less often and that especially the cache index pages are generated much
+faster. To give you an idea of the speedup: on my system the time to do a
+complete "wwwoffle -purge" with "use-url = yes" has been reduced by a factor
+of 4.
+
+Note: should you want to go back to using AMB's original version, you will have
+to restore the U* files first by running the "restore_Ufiles" utility in the
+wwwoffle-2.8e/src directory.
+
+Note: my patch unfortunately breaks the functionality of the wwwoffle-tools
+(wwwoffle-hash wwwoffle-ls wwwoffle-mv wwwoffle-read wwwoffle-rm
+wwwoffle-write). Since I do not use them myself, I have no immediate plans for
+fixing them. However, if I receive enough requests, I will reconsider.
+
+Note to users of languages besides English: I've modified some of the WWWOFFLE
+message templates for the English. If you want to use a different language you
+will have to look at the modifications in the templates that have been patched
+and apply these changes to the template files of your own language.
+Alternatively you could simply delete the non-English template files so that the
+English language versions are used instead. wwwoffled will still run without
+these changes, but then some of the configuration pages will not display
+correctly.
 
 
 I've introduced a few extensions to the way WWWOFFLE can be configured:
@@ -143,6 +172,21 @@ The rest of this file lists in some detail some other modifications I've made,
 but you don't have to read it if you simply want to run wwwoffled as you're used
 to.
 
+- New in version 2.8e: The URLs of the cached webpages are stored in a single
+  compact database file called "urlhashtable" instead of the many small U*
+  files. This reduces the number of files in the WWWOFFLE cache by almost
+  50%. Having many small files is quite inefficient. For example, on my system
+  each U* file occupies 4K of disk space. With 78587 U* files that is 307MB of
+  occupied disk space. My "urlhashtable" file uses less than 7MB! If you run
+   "ls -l /var/spool/wwwoffle" the file "urlhashtable" may appear to be quite
+  large, but in fact it is a so-called sparse file. The real size of the file
+  (in bytes) can be found by running the command
+   "od -t u4 -N 4 /var/spool/wwwoffle/urlhashtable".
+  To find out how much disk space it actually occupies, use the "du" utility.
+  New entries are appended to the end of the url-hash file, so the file will
+  keep growing until it is compacted at the end of a WWWOFFLE purge. During this
+  compaction WWWOFFLE may be unresponsive for a few seconds.
+
 - New in version 2.8d: AMB's version of the code never includes a Context-Length
   header line in replies to clients. I choose to use a Context-Length header when
   when the size of the page is known in advance. This also eliminates the need
@@ -212,7 +256,7 @@ to.
 
 - I've eliminated the size field of the Header struct. Header sizes are now
   computed using ParseReply() and HeaderString(). This method is much less
-  error-prone bacause it eliminates the need for re-adjusting the size field
+  error-prone because it eliminates the need for re-adjusting the size field
   each time something is changed in a header. It also makes it possible to get
   the correct size of headers that use a different syntax than usual,
   e.g. header lines returned from CGI-scripts may end in LF instead of CR-LF.

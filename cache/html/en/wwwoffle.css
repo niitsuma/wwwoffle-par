@@ -205,7 +205,7 @@ DIV.wwwoffle-addinfo  /* default values */
  display:      block;
  position:     static;
  float:        none;
- clear:        none;
+ clear:        both;
  z-index:      999;
  direction:    ltr;
  unicode-bidi: normal;

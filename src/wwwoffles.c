@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffles.c 2.274 2004/09/06 16:24:30 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffles.c 2.278 2004/11/28 16:12:52 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
   A server to fetch the required pages.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -218,11 +218,12 @@ int wwwoffles(int online,int fetching,int client)
  if(!url)
    {
     PrintMessage(Warning,"Could not parse HTTP request (%s).",request_head?"Parse error":"Empty request"); /* Used in audit-usage.pl */
+
     if(mode!=Fetch)
        HTMLMessage(client,500,"WWWOFFLE Server Error",NULL,"ServerError",
                    "error",request_head?"Cannot parse the HTTP request":"The HTTP request was empty",
                    NULL);
-    else    
+    else  /* mode==Fetch */
        if(client!=-1)
           write_formatted(client,"Cannot fetch %s [%s]\n",Url->name,
                           request_head?"Cannot parse the HTTP request":"The HTTP request was empty");
@@ -288,13 +289,24 @@ int wwwoffles(int online,int fetching,int client)
    if(!proxy_user)
      {
        PrintMessage(Inform,"HTTP Proxy connection rejected from unauthenticated user."); /* Used in audit-usage.pl */
-       HTMLMessageHead(client,407,"WWWOFFLE Proxy Authentication Required",
-		       "Proxy-Authenticate","Basic realm=\"wwwoffle-proxy\"",
-		       NULL);
-       if(out_err!=-1 && !head_only)
-	 HTMLMessageBody(client,"ProxyAuthFail",
-			 NULL);
-       mode=InternalPage; goto internalpage;
+
+       if(mode==Fetch)
+	 {
+	   if(client!=-1)
+	     write_formatted(client,"Cannot fetch %s [HTTP request had unauthenticated user]\n",Url->name);
+
+	   exitval=1; goto clean_up;
+	 }
+       else /* mode!=Fetch */
+	 {
+	   HTMLMessageHead(client,407,"WWWOFFLE Proxy Authentication Required",
+			   "Proxy-Authenticate","Basic realm=\"wwwoffle-proxy\"",
+			   NULL);
+	   if(out_err!=-1 && !head_only)
+	     HTMLMessageBody(client,"ProxyAuthFail",
+			     NULL);
+	   mode=InternalPage; goto internalpage;
+	 }
      }
    else if(proxy_auth)
      PrintMessage(Inform,"HTTP Proxy connection from user '%s'.",proxy_user); /* Used in audit-usage.pl */
@@ -376,16 +388,17 @@ int wwwoffles(int online,int fetching,int client)
           exitval=0; goto clean_up;
          }
       }
-    else /* mode==Fetch || mode==Spool */
+    else /* mode==Fetch || (mode==Spool && !IsLocalNetHost(Url->host)) */
       {
        PrintMessage(Warning,"A SSL proxy connection for %s was received but wwwoffles is in wrong mode.",Url->hostport);
+
        if(mode==Fetch)
          {
           if(client!=-1)
              write_formatted(client,"Cannot fetch %s [HTTP method 'CONNECT' not supported in this mode]\n",Url->name);
           exitval=1; goto clean_up;
          }
-       else
+       else /* mode!=Fetch */
          {
           HTMLMessage(client,500,"WWWOFFLE Server Error",NULL,"ServerError",
                       "error","SSL proxy connection while offline is not allowed.",
@@ -396,7 +409,9 @@ int wwwoffles(int online,int fetching,int client)
    }
  else if(!strcmp(request_head->method,"HEAD"))
    {
-    strcpy(request_head->method,"GET");
+    if(mode==Fetch)
+       strcpy(request_head->method,"GET");
+
     head_only=1;
    }
  else if(strcmp(request_head->method,"GET") &&
@@ -404,13 +419,14 @@ int wwwoffles(int online,int fetching,int client)
          strcmp(request_head->method,"PUT"))
    {
     PrintMessage(Warning,"The requested method '%s' is not supported.",request_head->method); /* Used in audit-usage.pl */
+
     if(mode==Fetch)
       {
        if(client!=-1)
           write_formatted(client,"Cannot fetch %s [The %s method is not supported]\n",Url->name,request_head->method);
        exitval=1; goto clean_up;
       }
-    else
+    else /* mode!=Fetch */
       {
        HTMLMessage(client,501,"WWWOFFLE Method Unsupported",NULL,"MethodUnsupported",
                    "method",request_head->method,
@@ -438,32 +454,42 @@ int wwwoffles(int online,int fetching,int client)
 
    if(IsAliased(Url->proto,Url->hostport,Url->path,&aliasProto,&aliasHostPort,&aliasPath))
      {
-      URL *newUrl;
-      char *newurl=(char*)malloc(sizeof("://")+
-				 strlen(aliasProto)+
-				 strlen(aliasHostPort)+
-				 strlen(aliasPath)+
-				 strlen(Url->pathendp));
+       URL *newUrl;
+       char *newurl=(char*)malloc(sizeof("://")+
+				  strlen(aliasProto)+
+				  strlen(aliasHostPort)+
+				  strlen(aliasPath)+
+				  strlen(Url->pathendp));
 
-      sprintf(newurl,"%s://%s%s%s",aliasProto,aliasHostPort,aliasPath,Url->pathendp);
+       sprintf(newurl,"%s://%s%s%s",aliasProto,aliasHostPort,aliasPath,Url->pathendp);
 
-      free(aliasProto); free(aliasHostPort); free(aliasPath);
-      newUrl=SplitURL(newurl);
+       free(aliasProto); free(aliasHostPort); free(aliasPath);
+       newUrl=SplitURL(newurl);
 
-      if(Url->user)
+       if(Url->user)
 	 ChangeURLPassword(newUrl,Url->user,Url->pass);
 
-      PrintMessage(Inform,"Aliased URL='%s'%s.",newUrl->name,newUrl->user?" (With username/password)":"");
-      PrintMessage(Debug,"Aliased proto='%s'; host='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
-		   newUrl->proto,newUrl->hostport,newUrl->path,newUrl->args,newUrl->user,newUrl->pass);
+       PrintMessage(Inform,"Aliased URL='%s'%s.",newUrl->name,newUrl->user?" (With username/password)":"");
+       PrintMessage(Debug,"Aliased proto='%s'; host='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
+		    newUrl->proto,newUrl->hostport,newUrl->path,newUrl->args,newUrl->user,newUrl->pass);
 
-      HTMLMessage(client,302,"WWWOFFLE Alias Redirect",newUrl->file,"Redirect",
-		  "location",newUrl->file,
-		  NULL);
+       if(mode==Fetch)
+	 {
+	   free(newurl);
+	   FreeURL(Url);
+	   Url=newUrl;
+	   ChangeURLInHeader(request_head,Url->file);
+	 }
+       else /* mode!=Fetch */
+	 {
+	   HTMLMessage(client,302,"WWWOFFLE Alias Redirect",newUrl->file,"Redirect",
+		       "location",newUrl->file,
+		       NULL);
 
-      free(newurl);
-      FreeURL(newUrl);
-      mode=InternalPage; goto internalpage;
+	   free(newurl);
+	   FreeURL(newUrl);
+	   mode=InternalPage; goto internalpage;
+	 }
      }
  }
 
@@ -472,8 +498,6 @@ int wwwoffles(int online,int fetching,int client)
 
  if(ConfigBooleanMatchURL(DontGet,Url))
    {
-    char *replace=ConfigStringURL(DontGetReplacementURL,Url);
-
     PrintMessage(Inform,"The URL '%s' matches one in the list not to get.",Url->name);
 
     if(mode==Fetch)
@@ -483,24 +507,28 @@ int wwwoffles(int online,int fetching,int client)
 
        exitval=0; goto clean_up;
       }
-
-    if(!replace)
+    else /* mode!=Fetch */
       {
-       HTMLMessage(client,404,"WWWOFFLE Host Not Got",NULL,"HostNotGot",
-                   "url",Url->name,
-                   NULL);
-       mode=InternalPage; goto internalpage;
-      }
-    else
-      {
-       free(url);
-       FreeURL(Url);
-       url=strdup(replace);
-       Url=SplitURL(replace);
+	char *replace=ConfigStringURL(DontGetReplacementURL,Url);
 
-       PrintMessage(Inform,"Replaced URL='%s'%s.",Url->name,Url->user?" (With username/password)":"");
-       PrintMessage(Debug,"Replaced proto='%s'; host='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
-                    Url->proto,Url->hostport,Url->path,Url->args,Url->user,Url->pass);
+	if(!replace)
+	  {
+	    HTMLMessage(client,404,"WWWOFFLE Host Not Got",NULL,"HostNotGot",
+			"url",Url->name,
+			NULL);
+	    mode=InternalPage; goto internalpage;
+	  }
+	else
+	  {
+	    free(url);
+	    FreeURL(Url);
+	    url=strdup(replace);
+	    Url=SplitURL(replace);
+
+	    PrintMessage(Inform,"Replaced URL='%s'%s.",Url->name,Url->user?" (With username/password)":"");
+	    PrintMessage(Debug,"Replaced proto='%s'; host='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
+			 Url->proto,Url->hostport,Url->path,Url->args,Url->user,Url->pass);
+	  }
       }
    }
 
@@ -509,13 +537,14 @@ int wwwoffles(int online,int fetching,int client)
  if(!Url->Protocol)
    {
     PrintMessage(Inform,"The protocol '%s' is not available.",Url->proto);
+
     if(mode==Fetch)
       {
        if(client!=-1)
           write_formatted(client,"Cannot fetch %s [Protocol not available]\n",Url->name);
        exitval=1; goto clean_up;
       }
-    else
+    else /* mode!=Fetch */
       {
        HTMLMessage(client,404,"WWWOFFLE Illegal Protocol",NULL,"IllegalProtocol",
                    "url",Url->name,
@@ -531,13 +560,14 @@ int wwwoffles(int online,int fetching,int client)
     (!strcmp(request_head->method,"PUT") && !Url->Protocol->putable))
    {
     PrintMessage(Warning,"The requested method '%s' is not supported for the %s protocol.",request_head->method,Url->Protocol->name);
+
     if(mode==Fetch)
       {
        if(client!=-1)
           write_formatted(client,"Cannot fetch %s [The %s method is not supported for %s]\n",Url->name,request_head->method,Url->Protocol->name);
        exitval=1; goto clean_up;
       }
-    else
+    else /* mode!=Fetch */
       {
        HTMLMessage(client,501,"WWWOFFLE Method Unsupported",NULL,"MethodUnsupported",
                    "method",request_head->method,
@@ -582,7 +612,7 @@ int wwwoffles(int online,int fetching,int client)
                 write_formatted(client,"Cannot fetch %s [Error with refresh URL]\n",Url->name);
              exitval=1; goto clean_up;
             }
-          else
+          else /* mode!=Fetch */
             {
              mode=InternalPage; goto internalpage;
             }
@@ -601,13 +631,14 @@ int wwwoffles(int online,int fetching,int client)
        if(newUrl->args && *newUrl->args=='!')
          {
           PrintMessage(Inform,"It is not possible to refresh a URL that used the POST/PUT method.");
+
           if(mode==Fetch)
             {
              if(client!=-1)
                 write_formatted(client,"Cannot fetch %s [Reply from a POST/PUT method]\n",Url->name);
              exitval=1; goto clean_up;
             }
-          else
+          else /* mode!=Fetch */
             {
              HTMLMessage(client,404,"WWWOFFLE Cant Refresh POST/PUT",NULL,"CantRefreshPosted",
                          "url",newUrl->name,
@@ -616,26 +647,24 @@ int wwwoffles(int online,int fetching,int client)
             }
          }
 
-       /* A recursive URL ( /refresh-recurse/ ) in Fetch mode is fetched. */
-
-       if(recurse==1 && mode==Fetch)
+       if(recurse==1)
          {
-          fetch_again=1;
-         }
+	   fetch_again=1;
 
-       /* A recursive URL ( /refresh-recurse/ ) in other modes is unchanged. */
+	   if(mode==Fetch)
+	     /* A recursive URL ( /refresh-recurse/ ) in Fetch mode is fetched. */
+	     ;
+	   else /* mode!=Fetch */
+	     {
+	       /* A recursive URL ( /refresh-recurse/ ) in other modes is unchanged. */
+	       mode=SpoolGet;
 
-       else if(recurse==1)
-         {
-          fetch_again=1;
-
-          mode=SpoolGet;
-
-          free(newurl);
-          FreeURL(newUrl);
-          newurl=url;
-          newUrl=Url;
-         }
+	       free(newurl);
+	       FreeURL(newUrl);
+	       newurl=url;
+	       newUrl=Url;
+	     }
+	 }
 
        /* A recursive URL ( /refresh-request/ ) in other modes is requested. */
 
@@ -716,7 +745,7 @@ int wwwoffles(int online,int fetching,int client)
 
     /* The index pages. */
 
-    else if(!strcmp_litbeg(Url->path,"/index/"))
+    else if(!strcmp_litbeg(Url->path,"/index/")) /* mode!=Fetch */
       {
        IndexPage(client,Url);
        mode=InternalPage; goto internalpage;
@@ -724,7 +753,7 @@ int wwwoffles(int online,int fetching,int client)
 
     /* The info pages. */
 
-    else if(!strcmp_litbeg(Url->path,"/info/"))
+    else if(!strcmp_litbeg(Url->path,"/info/")) /* mode!=Fetch */
       {
        InfoPage(client,Url,request_head,request_body);
        mode=InternalPage; goto internalpage;
@@ -732,7 +761,7 @@ int wwwoffles(int online,int fetching,int client)
 
     /* The control pages, deleting and URL replacements for wwwoffle program. */
 
-    else if(!strcmp_litbeg(Url->path,"/control/"))
+    else if(!strcmp_litbeg(Url->path,"/control/")) /* mode!=Fetch */
       {
        ControlPage(client,Url,request_body);
        mode=InternalPage; goto internalpage;
@@ -740,7 +769,7 @@ int wwwoffles(int online,int fetching,int client)
 
     /* The configuration editing pages. */
 
-    else if(!strcmp_litbeg(Url->path,"/configuration/"))
+    else if(!strcmp_litbeg(Url->path,"/configuration/")) /* mode!=Fetch */
       {
        ConfigurationPage(client,Url,request_body);
        mode=InternalPage; goto internalpage;
@@ -748,7 +777,7 @@ int wwwoffles(int online,int fetching,int client)
 
     /* The monitor request and options pages, (note that there is no trailing '/'). */
 
-    else if(!strcmp_litbeg(Url->path,"/monitor"))
+    else if(!strcmp_litbeg(Url->path,"/monitor")) /* mode!=Fetch */
       {
        MonitorPage(client,Url,request_body);
        mode=InternalPage; goto internalpage;
@@ -756,7 +785,7 @@ int wwwoffles(int online,int fetching,int client)
 
     /* The search pages. */
 
-    else if(!strcmp_litbeg(Url->path,"/search/"))
+    else if(!strcmp_litbeg(Url->path,"/search/")) /* mode!=Fetch */
       {
 	if((tmpclient=SearchPage(client,Url,request_head,request_body))==-1)
 	  {mode=InternalPage; goto internalpage;}
@@ -766,7 +795,7 @@ int wwwoffles(int online,int fetching,int client)
 
     /* The local pages in the root or local directories. */
 
-    else if(!strchr(Url->path+1,'/') || !strcmp_litbeg(Url->path,"/local/"))
+    else if(!strchr(Url->path+1,'/') || !strcmp_litbeg(Url->path,"/local/")) /* mode!=Fetch */
       {
 	if((tmpclient=LocalPage(client,Url,request_head,request_body))==-1)
 	  {mode=InternalPage; goto internalpage;}
@@ -776,7 +805,7 @@ int wwwoffles(int online,int fetching,int client)
 
     /* Check for pages like '/http/www.foo/bar.html' and transform to 'http://www.foo/bar.html'. */
 
-    else
+    else /* mode!=Fetch */
       {
        int i;
 
@@ -810,8 +839,6 @@ int wwwoffles(int online,int fetching,int client)
 
     if(ConfigBooleanMatchURL(DontGet,Url))
       {
-       char *replace=ConfigStringURL(DontGetReplacementURL,Url);
-
        PrintMessage(Inform,"The URL '%s' matches one in the list not to get.",Url->name);
 
        if(mode==Fetch)
@@ -821,25 +848,29 @@ int wwwoffles(int online,int fetching,int client)
 
 	  exitval=0; goto clean_up;
          }
+       else /* mode!=Fetch */
+	 {
+	   char *replace=ConfigStringURL(DontGetReplacementURL,Url);
 
-       if(!replace)
-         {
-          HTMLMessage(client,404,"WWWOFFLE Host Not Got",NULL,"HostNotGot",
-                      "url",Url->name,
-                      NULL);
-          mode=InternalPage; goto internalpage;
-         }
-       else
-         {
-          free(url);
-          FreeURL(Url);
-          url=strdup(replace);
-          Url=SplitURL(replace);
+	   if(!replace)
+	     {
+	       HTMLMessage(client,404,"WWWOFFLE Host Not Got",NULL,"HostNotGot",
+			   "url",Url->name,
+			   NULL);
+	       mode=InternalPage; goto internalpage;
+	     }
+	   else
+	     {
+	       free(url);
+	       FreeURL(Url);
+	       url=strdup(replace);
+	       Url=SplitURL(replace);
 
-          PrintMessage(Inform,"Replaced URL='%s'%s.",Url->name,Url->user?" (With username/password)":"");
-          PrintMessage(Debug,"Replaced proto='%s'; host='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
-                       Url->proto,Url->hostport,Url->path,Url->args,Url->user,Url->pass);
-         }
+	       PrintMessage(Inform,"Replaced URL='%s'%s.",Url->name,Url->user?" (With username/password)":"");
+	       PrintMessage(Debug,"Replaced proto='%s'; host='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
+			    Url->proto,Url->hostport,Url->path,Url->args,Url->user,Url->pass);
+	     }
+	 }
       }
 
     /* Is the specified protocol valid? (duplicated code from above.) */
@@ -847,13 +878,14 @@ int wwwoffles(int online,int fetching,int client)
     if(!Url->Protocol)
       {
        PrintMessage(Inform,"The protocol '%s' is not available.",Url->proto);
+
        if(mode==Fetch)
          {
           if(client!=-1)
              write_formatted(client,"Cannot fetch %s [Protocol not available]\n",Url->name);
           exitval=1; goto clean_up;
          }
-       else
+       else /* mode!=Fetch */
          {
           HTMLMessage(client,404,"WWWOFFLE Illegal Protocol",NULL,"IllegalProtocol",
                       "url",Url->name,
@@ -869,13 +901,14 @@ int wwwoffles(int online,int fetching,int client)
        (!strcmp(request_head->method,"PUT") && !Url->Protocol->putable))
       {
        PrintMessage(Warning,"The requested method '%s' is not supported for the %s protocol.",request_head->method,Url->Protocol->name);
+
        if(mode==Fetch)
          {
           if(client!=-1)
              write_formatted(client,"Cannot fetch %s [The %s method is not supported for %s]\n",Url->name,request_head->method,Url->Protocol->name);
           exitval=1; goto clean_up;
          }
-       else
+       else /* mode!=Fetch */
          {
           HTMLMessage(client,501,"WWWOFFLE Method Unsupported",NULL,"MethodUnsupported",
                       "method",request_head->method,
@@ -888,7 +921,7 @@ int wwwoffles(int online,int fetching,int client)
 
  /* The special case info pages based on the Referer header. */
 
- else
+ else if(mode!=Fetch) /* !Url->local */
    {
     char *referer=GetHeader(request_head,"Referer");
 
@@ -927,7 +960,7 @@ int wwwoffles(int online,int fetching,int client)
           FreeURL(Urlpw);
           Urlpw=NULL;
          }
-       else
+       else /* mode!=Fetch */
          {
           HTMLMessage(client,403,"WWWOFFLE Username Needs Password",NULL,"UserNeedsPass",
                       "url",Urlpw->name,
@@ -1144,6 +1177,13 @@ passwordagain:
        ; */
    }
 
+ /* If a HEAD request when online then don't cache */
+
+ if((mode==Real || mode==RealRefresh) && head_only)
+   {
+    mode=RealNoCache;
+   }
+
  /* If not caching then only use the password version. */
 
  if(mode==RealNoCache && Urlpw)
@@ -1191,7 +1231,7 @@ passwordagain:
 
     /* If they don't already exist then they can't be requested. */
 
-    else if(!spool_exists && !outgoing_exists)
+    else if(!spool_exists && !outgoing_exists) /* mode!=Fetch */
       {
        PrintMessage(Inform,"It is not possible to request a URL that used the POST/PUT method.");
        HTMLMessage(client,404,"WWWOFFLE Cant Refresh POST/PUT",NULL,"CantRefreshPosted",
@@ -1202,7 +1242,7 @@ passwordagain:
 
     /* In all other cases they must be requests for a cached reply. */
 
-    else
+    else /* mode!=Fetch */
        mode=Spool;
    }
 
@@ -1275,9 +1315,10 @@ passwordagain:
 	  (ConfigBooleanURL(online?PragmaNoCacheOnline:PragmaNoCacheOffline,Url) &&
 	   GetHeader2(request_head,"Pragma","no-cache")) ||
 	  (ConfigBooleanURL(online?CacheControlNoCacheOnline:CacheControlNoCacheOffline,Url) &&
-	   (GetHeader2(request_head,"Cache-Control","no-cache") ||
+	   GetHeader2(request_head,"Cache-Control","no-cache")) ||
+	  (ConfigBooleanURL(online?CacheControlMaxAge0Online:CacheControlMaxAge0Offline,Url) && 
 	    ({char* maxage_val=GetHeader2Val(request_head,"Cache-Control","max-age"); 
-	      maxage_val && atol(maxage_val)==0;})))))
+	      maxage_val && atol(maxage_val)==0;}))))
    {
     if(conditional_request_ims)
        RemoveFromHeader(request_head,"If-Modified-Since");
@@ -1297,7 +1338,12 @@ passwordagain:
     /* In autodial mode we need to make a real request. */
 
     else if(mode==SpoolOrReal)
-       mode=Real;
+      {
+       if(head_only)
+          mode=RealNoCache;
+       else
+          mode=Real;
+      }
 
     /* In real or fetch or nocache or refresh modes make no other changes. */
 
@@ -1472,7 +1518,12 @@ passwordagain:
 	 /* If not then use Real mode. */
 
 	 else
-	   mode=Real;
+	   {
+	     if(head_only)
+	       mode=RealNoCache;
+	     else
+	       mode=Real;
+	   }
        }
 
      /* If in Spool mode when not a forced refresh. */
@@ -1524,6 +1575,12 @@ passwordagain:
  /* else if(mode==RealNoCache)
    ; */
 
+ /* If offline but making a request then change HEAD to GET. */
+
+ if(mode==SpoolGet && head_only)
+   {
+    strcpy(request_head->method,"GET");
+   }
 
  /*----------------------------------------
    mode = Spool, SpoolGet, SpoolPragma, SpoolRefresh, Real, RealRefresh, RealNoCache or Fetch
@@ -1543,21 +1600,22 @@ passwordagain:
     if(spool==-1)
       {
        char *errmsg=GetPrintMessage(Warning,"Cannot open the spooled web page to write [%!s].");
+       DeleteLockWebpageSpoolFile(Url);
 
-       if(mode==Real)
+       if(mode==Fetch)
+         {
+          if(client!=-1)
+             write_formatted(client,"Internal Error %s [Cannot open spool file]\n",Url->name);
+	  free(errmsg);
+          exitval=1; goto clean_up;
+         }
+       else /* mode!=Fetch */
          {
           HTMLMessage(client,500,"WWWOFFLE Server Error",NULL,"ServerError",
                       "error",errmsg,
                       NULL);
 	  free(errmsg);
           mode=InternalPage; goto internalpage;
-         }
-       else /* mode==Fetch */
-         {
-          if(client!=-1)
-             write_formatted(client,"Internal Error %s [Cannot open spool file]\n",Url->name);
-	  free(errmsg);
-          exitval=1; goto clean_up;
          }
       }
 
@@ -2141,7 +2199,7 @@ passwordagain:
 
     if(mode==RealNoCache)
        PrintMessage(Inform,"Cache Access Status='Not Cached'."); /* Used in audit-usage.pl */
-    else
+    else /* mode==Real || mode==RealNoPassword */
       {
        if(!spool_exists)
           PrintMessage(Inform,"Cache Access Status='New Page'."); /* Used in audit-usage.pl */
@@ -2888,7 +2946,7 @@ passwordagain:
 
  /* If the request is for a refresh page when online or offline the redirect the client. */
 
- else if(mode==RealRefresh || mode==SpoolRefresh)
+ else /* if(mode==RealRefresh || mode==SpoolRefresh) */
    {
     HTMLMessage(client,302,"WWWOFFLE Refresh Redirect",Url->link,"Redirect",
                 "location",Url->link,
@@ -3269,7 +3327,7 @@ close_client:
        finish_io(client);
        CloseSocket(client);
       }
-    else
+    else /* mode!=Fetch */
       {
        unsigned long r,w;
 

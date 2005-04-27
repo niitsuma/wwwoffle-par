@@ -21,9 +21,15 @@
 #include <alloca.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdint.h>
 
 /*+ A forward definition of the protocol type. +*/
 typedef struct _Protocol *ProtocolP;
+
+typedef struct {
+  uint32_t elem[4];
+}
+md5hash_t;
 
 
 /*+ A URL data type. +*/
@@ -55,7 +61,8 @@ typedef struct _URL
 
  char *dir;                     /*+ The directory name for the host to avoid using ':' on Win32 (may point to host). +*/
 
- char *hash;                    /*+ The hash value used to make the filename for this URL (may be null) +*/
+ md5hash_t hash;                /*+ The (binary) hash value used to make the filename for this URL +*/
+ char hashvalid;                /*+ Set to true if the hash field contains the correct hash value. +*/
 
  char local;                    /*+ Set to true if the host is the localhost. +*/
 }
@@ -143,14 +150,43 @@ char /*@only@*/ **SplitFormArgs(char *str);
 
 char *TrimArgs(/*@returned@*/ char *str);
 
-char /*@only@*/ *MakeHash(const char *args);
+inline static int md5_cmp(md5hash_t *a, md5hash_t *b)
+{
+  if(a->elem[0] < b->elem[0]) return -1;
+  if(a->elem[0] > b->elem[0]) return 1;
+  if(a->elem[1] < b->elem[1]) return -1;
+  if(a->elem[1] > b->elem[1]) return 1;
+  if(a->elem[2] < b->elem[2]) return -1;
+  if(a->elem[2] > b->elem[2]) return 1;
+  if(a->elem[3] < b->elem[3]) return -1;
+  if(a->elem[3] > b->elem[3]) return 1;
+
+  return 0;
+}
+
+void MakeHash(const unsigned char *args, /*@out@*/ md5hash_t *h);
+char *hashbase64encode(md5hash_t *h, unsigned char *buf, unsigned buflen);
 
 /* Added by Paul Rombouts:
-   The following function can be used as a mnemonic version of MakeHash. */
-inline static char *GetHash(URL *Url)
+   Get the binary hash value of a URL. */
+inline static md5hash_t *geturlhash(URL *Url)
 {
-  if(!(Url->hash)) Url->hash=MakeHash(Url->file);
-  return Url->hash;
+  if(!(Url->hashvalid)) {
+    MakeHash(Url->file,&Url->hash);
+    Url->hashvalid=1;
+  }
+  return &Url->hash;
+}
+
+/* Added by Paul Rombouts:
+   Get the base64 encoded string version of the URL hash. */
+inline static char *GetHash(URL *Url,unsigned char *buf, unsigned buflen)
+{
+  if(!(Url->hashvalid)) {
+    MakeHash(Url->file,&Url->hash);
+    Url->hashvalid=1;
+  }
+  return hashbase64encode(&Url->hash,buf,buflen);
 }
 
 #define MAXDATESIZE 32
@@ -160,8 +196,9 @@ char /*@observer@*/ *RFC822Date(time_t t,int utc);
 time_t DateToTimeT(const char *date);
 void DurationToString_r(const long duration,char *buf);
 
-char /*@only@*/ *Base64Decode(const char *str,/*@out@*/ int *l);
-char /*@only@*/ *Base64Encode(const char *str,int l);
+unsigned char /*@only@*/ *Base64Decode(const unsigned char *str,/*@out@*/ unsigned *lp, unsigned char *buf, unsigned buflen);
+unsigned char /*@only@*/ *Base64Encode(const unsigned char *str,unsigned l, unsigned char *buf, unsigned buflen);
+#define base64enclen(n) ((((n)+2)/3)*4)
 
 void URLReplaceAmp(char *string);
 

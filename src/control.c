@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/control.c 2.61 2004/09/28 16:25:30 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/control.c 2.62 2004/11/06 13:47:26 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
   The HTML interactive control pages.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02,03 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -77,7 +77,7 @@ void ControlPage(int fd,URL *Url,Body *request_body)
  char *newpath=Url->path+strlitlen("/control/");  /* remove the '/control/' */
 
  /* remove trailing '/' */
- {char *p=strchrnul(newpath,0)-1; if(p>=newpath && *p=='/') newpath=STRDUPA2(newpath,p); }
+ {unsigned len=strlen(newpath); if(len && newpath[--len]=='/') newpath=strndupa(newpath,len); }
 
  /* Determine the action. */
 
@@ -451,25 +451,24 @@ static void DeleteMultipleControlPages(int fd,URL *Url,Body *request_body)
        else if(!strcmp_litbeg(*argsp,"password="))
           password=&(*argsp)[strlitlen("password=")];
        else
-          PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",*argsp,Url->name);
-      }
-
-    for(argsp=args;*argsp;argsp++)
-      {
-       char *equal=strchr(*argsp,'=');
-
-       if(!strcmp_litbeg(*argsp,"url") && equal)
          {
-          char *page=URLDecodeFormArgs(equal+1);
+          char *equal=strchr(*argsp,'=');
 
-          if(req)
-             delete_req(fd,page,0,username,password,1+(argsp-args));
-          else if(mon)
-             delete_mon(fd,page,0,username,password,1+(argsp-args));
-          else if(url)
-             delete_url(fd,page,0,username,password,1+(argsp-args));
+          if(!strncmp(*argsp,"url",3) && equal)
+            {
+             char *page=URLDecodeFormArgs(equal+1);
 
-          free(page);
+             if(req)
+                delete_req(fd,page,0,username,password,1+(argsp-args));
+             else if(mon)
+                delete_mon(fd,page,0,username,password,1+(argsp-args));
+             else if(url)
+                delete_url(fd,page,0,username,password,1+(argsp-args));
+
+             free(page);
+            }
+          else
+             PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",*argsp,Url->name);
          }
       }
 
