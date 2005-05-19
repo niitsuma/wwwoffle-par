@@ -64,14 +64,22 @@
 /*+ A type to contain the information required to sort the files. +*/
 typedef struct _FileIndex
 {
+ struct _FileIndex *next;	/*+ Pointer to the next item in the list. +*/
  URL *url;                      /*+ The URL of the file. +*/
  char *name;                    /*+ The name of the URL. +*/
  char *host;                    /*+ The host of the URL. +*/
  char *type;                    /*+ The type (file extension) of the URL. +*/
- long time;                     /*+ The time of the file (access or modification as appropriate). +*/
+ time_t time;                   /*+ The time of the file (access or modification as appropriate). +*/
  int random;                    /*+ Number generated from the file name (used for random sort). +*/
 }
 FileIndex;
+
+typedef struct {
+  FileIndex *first;
+  FileIndex **last;
+  int n;
+}
+filelist_t;
 
 /*+ The method of sorting used. +*/
 static char *sorttype[]={"none"  ,
@@ -162,12 +170,6 @@ static ConfigItem *indexlistconf[]= {
 };
 
 
-/*+ The list of files. +*/
-static /*@null@*/ /*@only@*/ FileIndex **files=NULL;
-
-/*+ The number of files. +*/
-static int nfiles=0;
-
 /*+ The current time. +*/
 static time_t now;
 
@@ -177,16 +179,17 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
 
 static int is_indexed(URL *Url,ConfigItem config);
 
-static void add_dir(char *name,SortMode mode);
-static void add_file(char *name,SortMode mode);
+static void add_dir(filelist_t *l,char *name,SortMode mode);
+static void add_file(filelist_t *l,char *name,SortMode mode);
 
-static void dated_separator(int fd,int file,int *lastdays,int *lasthours);
+static void dated_separator(int fd,FileIndex *fi,int *lastdays,int *lasthours);
 
-static int sort_alpha(FileIndex **a,FileIndex **b);
-static int sort_type(FileIndex **a,FileIndex **b);
-static int sort_domain(FileIndex **a,FileIndex **b);
-static int sort_time(FileIndex **a,FileIndex **b);
-static int sort_random(FileIndex **a,FileIndex **b);
+static int sort_alpha(FileIndex *a,FileIndex *b);
+static int sort_type(FileIndex *a,FileIndex *b);
+static int sort_domain(FileIndex *a,FileIndex *b);
+static int sort_time(FileIndex *a,FileIndex *b);
+static int sort_random(FileIndex *a,FileIndex *b);
+static void listsort(FileIndex **l, int (*cmp)(FileIndex *,FileIndex *));
 static char *webpagetitle(URL *Url);
 
 
@@ -303,9 +306,6 @@ void IndexPage(int fd,URL *Url)
     free(args);
    }
 
- files=NULL;
- nfiles=0;
-
  now=time(NULL);
 
  if((*host && (strchr(host,'/') || !strcmp(host,"..") || !strcmp(host,"."))) ||
@@ -404,9 +404,9 @@ static void IndexProtocol(int fd,char *proto,SortMode mode,/*@unused@*/ int allo
 {
  DIR *dir;
  struct dirent* ent;
- int i;
  char total[12],indexed[12],notindexed[12];
  int lastdays=0,lasthours=0;
+ filelist_t l; FileIndex *p;
 
  /* Open the spool directory. */
 
@@ -426,12 +426,16 @@ static void IndexProtocol(int fd,char *proto,SortMode mode,/*@unused@*/ int allo
 
  /* Get all of the host sub-directories. */
 
+ l.first= NULL;
+ l.last= &l.first;
+ l.n= 0;
+
  do
    {
     if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
        continue; /* skip . & .. */
 
-    add_dir(ent->d_name,mode);
+    add_dir(&l,ent->d_name,mode);
    }
  while((ent=readdir(dir)));
 
@@ -441,64 +445,60 @@ static void IndexProtocol(int fd,char *proto,SortMode mode,/*@unused@*/ int allo
 
  /* Sort the files. */
 
- if(files)
-   {
-     int (*sortfun)(FileIndex **a,FileIndex **b);
+ {
+   int (*sortfun)(FileIndex *,FileIndex *);
 
-     switch (mode) {
-     case MTime:
-     case ATime:
-     case Dated:  sortfun=sort_time;   break;
-     case Alpha:
-     case Type:   sortfun=sort_alpha;  break;
-     case Domain: sortfun=sort_domain; break;
-     case Random: sortfun=sort_random; break;
-     default:     sortfun=NULL;
-     }
-
-     if(sortfun) qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sortfun);
+   switch (mode) {
+   case MTime:
+   case ATime:
+   case Dated:  sortfun=sort_time;   break;
+   case Alpha:
+   case Type:   sortfun=sort_alpha;  break;
+   case Domain: sortfun=sort_domain; break;
+   case Random: sortfun=sort_random; break;
+   default:     sortfun=NULL;
    }
+
+   if(sortfun) listsort(&l.first,sortfun);
+ }
 
  /* Output the page. */
 
- sprintf(total,"%d",nfiles);
+ sprintf(total,"%d",l.n);
 
  HTMLMessageBody(fd,"IndexProtocol-Head",
                  "proto",proto,
                  "total",total,
                  NULL);
 
- for(i=0;i<nfiles;i++)
+ p=l.first;
+ while(p)
    {
+    FileIndex *next;
+
     if(out_err!=-1) {
       if(mode==Dated)
-	dated_separator(fd,i,&lastdays,&lasthours);
+	dated_separator(fd,p,&lastdays,&lasthours);
 
       HTMLMessageBody(fd,"IndexProtocol-Body",
-		      "host",files[i]->name,
+		      "host",p->name,
 		      NULL);
     }
-    free(files[i]->name);
-    free(files[i]);
+    free(p->name);
+    next=p->next;
+    free(p);
+    p=next;
    }
 
- if(out_err==-1) goto free_return;
+ if(out_err==-1) return;
 
- sprintf(indexed   ,"%d",nfiles);
+ sprintf(indexed   ,"%d",l.n);
  sprintf(notindexed,"%d",0);
 
  HTMLMessageBody(fd,"IndexProtocol-Tail",
                  "indexed",indexed,
                  "notindexed",notindexed,
                  NULL);
-
- /* Tidy up and exit */
-
-free_return:
- if(files)
-    free(files);
- files=NULL;
- nfiles=0;
 }
 
 
@@ -527,6 +527,7 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
  char total[12],indexed[12],notindexed[12],date[MAXDATESIZE];
  int lastdays=0,lasthours=0;
  struct stat buf;
+ filelist_t l; FileIndex *p;
 
  /* Change to the protocol directory. */
 
@@ -578,12 +579,16 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
 
  /* Add all of the file names. */
 
+ l.first= NULL;
+ l.last= &l.first;
+ l.n= 0;
+
  do
    {
     if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
        continue; /* skip . & .. */
 
-    add_file(ent->d_name,mode);
+    add_file(&l,ent->d_name,mode);
    }
  while((ent=readdir(dir)));
 
@@ -593,27 +598,26 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
 
  /* Sort the files. */
 
- if(files)
-   {
-     int (*sortfun)(FileIndex **a,FileIndex **b);
+ {
+   int (*sortfun)(FileIndex *,FileIndex *);
 
-     switch (mode) {
-     case MTime:
-     case ATime:
-     case Dated:  sortfun=sort_time;   break;
-     case Alpha:  sortfun=sort_alpha;  break;
-     case Type:   sortfun=sort_type;   break;
-     case Domain: sortfun=(indextype==indexhost?sort_alpha:sort_domain); break;
-     case Random: sortfun=sort_random; break;
-     default:     sortfun=NULL;
-     }
-
-     if(sortfun) qsort(files,nfiles,sizeof(FileIndex*),(int (*)(const void*,const void*))sortfun);
+   switch (mode) {
+   case MTime:
+   case ATime:
+   case Dated:  sortfun=sort_time;   break;
+   case Alpha:  sortfun=sort_alpha;  break;
+   case Type:   sortfun=sort_type;   break;
+   case Domain: sortfun=(indextype==indexhost?sort_alpha:sort_domain); break;
+   case Random: sortfun=sort_random; break;
+   default:     sortfun=NULL;
    }
+
+   if(sortfun) listsort(&l.first,sortfun);
+ }
 
  /* Output the page. */
 
- sprintf(total,"%d",nfiles);
+ sprintf(total,"%d",l.n);
 
  switch (indextype) {
  case indexhost:
@@ -644,9 +648,12 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
  default:;
  }
 
- for(i=0;i<nfiles;i++)
+ p=l.first; i=0;
+ while(p)
    {
-     if(out_err!=-1 && (allopt || is_indexed(files[i]->url,*indexlistconf[indextype])))
+     FileIndex *next;
+
+     if(out_err!=-1 && (allopt || is_indexed(p->url,*indexlistconf[indextype])))
       {
        int last,next;
        char laststr[12],nextstr[12];
@@ -655,7 +662,7 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
        sprintf(count,"%d",i);
 
        if(indextype==indexmonitor) {
-	 MonitorTimes(files[i]->url,&last,&next);
+	 MonitorTimes(p->url,&last,&next);
 
 	 if(last>=(366*24))
 	   sprintf(laststr,"365+");
@@ -668,19 +675,19 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
        }
 
        if(mode==Dated)
-          dated_separator(fd,i,&lastdays,&lasthours);
+          dated_separator(fd,p,&lastdays,&lasthours);
 
        {
 	 char *item=NULL;
 
-	 if(titleopt) item=webpagetitle(files[i]->url);
-	 if(!item)    item=HTML_url(indextype==indexhost?files[i]->url->pathp:files[i]->url->name);
+	 if(titleopt) item=webpagetitle(p->url);
+	 if(!item)    item=HTML_url(indextype==indexhost?p->url->pathp:p->url->name);
 
 	 if(indextype==indexmonitor)
 	   HTMLMessageBody(fd,index_body[indextype],
 			   "count",count,
-			   "url",files[i]->url->name,
-			   "link",files[i]->url->link,
+			   "url",p->url->name,
+			   "link",p->url->link,
 			   "item",item,
 			   "last",laststr,
 			   "next",nextstr,
@@ -688,8 +695,8 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
 	 else
 	   HTMLMessageBody(fd,index_body[indextype],
 			   "count",count,
-			   "url",files[i]->url->name,
-			   "link",files[i]->url->link,
+			   "url",p->url->name,
+			   "link",p->url->link,
 			   "item",item,
 			   NULL);
 
@@ -699,27 +706,22 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
        nindexed++;
       }
 
-    FreeURL(files[i]->url);
-    free(files[i]);
+    FreeURL(p->url);
+    next=p->next;
+    free(p);
+    p=next;
+    ++i;
    }
 
- if(out_err==-1) goto free_return;
+ if(out_err==-1) return;
 
  sprintf(indexed   ,"%d",nindexed);
- sprintf(notindexed,"%d",nfiles-nindexed);
+ sprintf(notindexed,"%d",l.n-nindexed);
 
  HTMLMessageBody(fd,index_tail[indextype],
                  "indexed",indexed,
                  "notindexed",notindexed,
                  NULL);
-
- /* Tidy up and exit */
-
-free_return:
- if(files)
-    free(files);
- files=NULL;
- nfiles=0;
 }
 
 
@@ -739,69 +741,73 @@ static int is_indexed(URL *Url,ConfigItem config)
 }
 
 
-#  define allocincr 256
-
-
 /*++++++++++++++++++++++++++++++++++++++
   Add a directory to the list.
+
+  filelist_t *l The list to add to.
 
   char *name The name of the directory.
 
   SortMode mode The sort mode.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void add_dir(char *name,SortMode mode)
+static void add_dir(filelist_t *l,char *name,SortMode mode)
 {
  struct stat buf;
+ FileIndex *new;
 
  if(stat(name,&buf))
    {PrintMessage(Inform,"Cannot stat directory '%s' [%!s]; race condition?",name);return;}
- else if(S_ISDIR(buf.st_mode))
-   {
-    if(!(nfiles%allocincr))
-      {
-       files=(FileIndex**)realloc(files,(nfiles+allocincr)*sizeof(FileIndex*));
-      }
-    files[nfiles]=(FileIndex*)malloc(sizeof(FileIndex));
+
+ if(!S_ISDIR(buf.st_mode))
+   return;
+
+ new=(FileIndex*)malloc(sizeof(FileIndex));
+
+ new->next=NULL;
+ new->url=NULL;
+ new->name=strdup(name);
 
 #if defined(__CYGWIN__)
-    {
-      char *p;
-      for(p=name;*p;++p)
-	if(*p=='!')
-	  *p=':';
-    }
+ {
+   char *p;
+   for(p=new->name;*p;++p)
+     if(*p=='!')
+       *p=':';
+ }
 #endif
 
-    files[nfiles]->name=strdup(name);
+ if(mode==Domain)
+   new->host=new->name;
+ else if(mode==Type)
+   new->type="";
+ else if(mode==MTime || mode==Dated)
+   new->time=buf.st_mtime;
+ else if(mode==ATime)
+   new->time=buf.st_atime;
 
-    if(mode==Domain)
-       files[nfiles]->host=files[nfiles]->name;
-    else if(mode==Type)
-       files[nfiles]->type="";
-    else if(mode==MTime || mode==Dated)
-       files[nfiles]->time=buf.st_mtime;
-    else if(mode==ATime)
-       files[nfiles]->time=buf.st_atime;
-
-    nfiles++;
-   }
+ *(l->last)=new;
+ l->last= &(new->next);
+ ++(l->n);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Add a file to the list.
 
+  filelist_t *l The list to add to.
+
   char *name The name of the file.
 
   SortMode mode The sort mode.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void add_file(char *name,SortMode mode)
+static void add_file(filelist_t *l,char *name,SortMode mode)
 {
  char *url=NULL;
  URL *Url;
  struct stat buf;
+ FileIndex *new;
 
  if(!*name || (*name!='D' && *name!='O') || name[strlen(name)-1]=='~')
     return;
@@ -817,37 +823,36 @@ static void add_file(char *name,SortMode mode)
  if(!url)
     return;
 
- if(!(nfiles%allocincr))
-   {
-     files=(FileIndex**)realloc(files,(nfiles+allocincr)*sizeof(FileIndex*));
-   }
- files[nfiles]=(FileIndex*)malloc(sizeof(FileIndex));
+ new=(FileIndex*)malloc(sizeof(FileIndex));
 
- files[nfiles]->url=Url=SplitURL(url);
- files[nfiles]->name=Url->name;
+ new->next=NULL;
+ new->url=Url=SplitURL(url);
+ new->name=Url->name;
 
  if(mode==Domain)
-   files[nfiles]->host=Url->hostport;
+   new->host=Url->host;
  else if(mode==Type)
    {
      char *p=strchrnul(Url->path,0);
 
-     files[nfiles]->type="";
+     new->type="";
 
      while(--p>=Url->path && *p!='/')
        if(*p=='.') {
-	 files[nfiles]->type=p;
+	 new->type=p;
 	 break;
        }
    }
  else if(mode==MTime || mode==Dated)
-   files[nfiles]->time=buf.st_mtime;
+   new->time=buf.st_mtime;
  else if(mode==ATime)
-   files[nfiles]->time=buf.st_atime;
+   new->time=buf.st_atime;
  else if(mode==Random)
-   files[nfiles]->random=name[1]+256*(int)name[2]+65536*(int)name[3]+16777216*(int)name[4];
+   new->random=name[1]+256*(int)name[2]+65536*(int)name[3]+16777216*(int)name[4];
 
- nfiles++;
+ *(l->last)=new;
+ l->last= &(new->next);
+ ++(l->n);
 
  /* free(url); */
 }
@@ -865,14 +870,14 @@ static void add_file(char *name,SortMode mode)
   int *lasthours The age of the previous file in hours.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void dated_separator(int fd,int file,int *lastdays,int *lasthours)
+static void dated_separator(int fd,FileIndex *fi,int *lastdays,int *lasthours)
 {
- long days=(now-files[file]->time)/(24*3600),hours=(now-files[file]->time)/3600;
+ int days=(now-fi->time)/(24*3600),hours=(now-fi->time)/3600;
 
  if(*lastdays!=-1 && *lastdays<days)
    {
-    char daystr[24];
-    sprintf(daystr,"%ld",days-*lastdays);
+    char daystr[12];
+    sprintf(daystr,"%d",days-*lastdays);
 
     HTMLMessageBody(fd,"IndexSeparator-Body",
                     "days",daystr,
@@ -885,8 +890,8 @@ static void dated_separator(int fd,int file,int *lastdays,int *lasthours)
                     NULL);
    }
 
- *lastdays=(int)days;
- *lasthours=(int)hours;
+ *lastdays=days;
+ *lasthours=hours;
 }
 
 
@@ -895,15 +900,15 @@ static void dated_separator(int fd,int file,int *lastdays,int *lasthours)
 
   int sort_alpha Returns the comparison of the pointers to strings.
 
-  FileIndex **a The first FileIndex.
+  FileIndex *a The first FileIndex.
 
-  FileIndex **b The second FileIndex.
+  FileIndex *b The second FileIndex.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int sort_alpha(FileIndex **a,FileIndex **b)
+static int sort_alpha(FileIndex *a,FileIndex *b)
 {
- char *an=(*a)->name;
- char *bn=(*b)->name;
+ char *an=(a)->name;
+ char *bn=(b)->name;
 
  return(strcmp(an,bn));
 }
@@ -914,27 +919,24 @@ static int sort_alpha(FileIndex **a,FileIndex **b)
 
   int sort_type Returns the comparison of the pointers to strings.
 
-  FileIndex **a The first FileIndex.
+  FileIndex *a The first FileIndex.
 
-  FileIndex **b The second FileIndex.
+  FileIndex *b The second FileIndex.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int sort_type(FileIndex **a,FileIndex **b)
+static int sort_type(FileIndex *a,FileIndex *b)
 {
- char *at=(*a)->type;
- char *bt=(*b)->type;
+ char *at=(a)->type;
+ char *bt=(b)->type;
  int chosen;
 
  /* Compare the type */
 
- chosen=strcasecmp(at,bt);
+ if((chosen=strcasecmp(at,bt))) return chosen;
 
  /* Fallback to alphabetical */
 
- if(!chosen)
-    chosen=sort_alpha(a,b);
-
- return(chosen);
+ return(sort_alpha(a,b));
 }
 
 
@@ -943,39 +945,30 @@ static int sort_type(FileIndex **a,FileIndex **b)
 
   int sort_domain Returns the comparison of the pointers to strings.
 
-  FileIndex **a The first FileIndex.
+  FileIndex *a The first FileIndex.
 
-  FileIndex **b The second FileIndex.
+  FileIndex *b The second FileIndex.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int sort_domain(FileIndex **a,FileIndex **b)
+static int sort_domain(FileIndex *a,FileIndex *b)
 {
- char *ap=strchrnul((*a)->host,0);
- char *bp=strchrnul((*b)->host,0);
- int chosen=0;
+ char *ap=strchrnul((a)->host,0);
+ char *bp=strchrnul((b)->host,0);
+ int chosen;
 
  /* Compare longer and longer domain parts */
 
- do
-   {
-    ap--;
-    bp--;
+ do {
+   while(--ap>=(a)->host && *ap!='.' && *ap!='/');
+   while(--bp>=(b)->host && *bp!='.' && *bp!='/');
 
-    while(ap>(*a)->host && *ap!='.' && *ap!='/')
-       ap--;
-    while(bp>(*b)->host && *bp!='.' && *bp!='/')
-       bp--;
-
-    chosen=strcmp(ap,bp);
-   }
- while(!chosen && ap>(*a)->host && bp>(*b)->host);
+   if((chosen=strcmp(ap+1,bp+1))) return chosen;
+ }
+ while(ap>=(a)->host && bp>=(b)->host);
 
  /* Fallback to alphabetical */
 
- if(!chosen)
-    chosen=sort_alpha(a,b);
-
- return(chosen);
+ return(sort_alpha(a,b));
 }
 
 
@@ -984,27 +977,19 @@ static int sort_domain(FileIndex **a,FileIndex **b)
 
   int sort_time Returns the comparison of the times.
 
-  FileIndex **a The first FileIndex.
+  FileIndex *a The first FileIndex.
 
-  FileIndex **b The second FileIndex.
+  FileIndex *b The second FileIndex.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int sort_time(FileIndex **a,FileIndex **b)
+static int sort_time(FileIndex *a,FileIndex *b)
 {
- long at=(*a)->time;
- long bt=(*b)->time;
- long chosen;
+ time_t at=(a)->time;
+ time_t bt=(b)->time;
 
- /* Compare the time stamps */
+ /* Compare the time stamps or fallback to alphabetical */
 
- chosen=bt-at;
-
- /* Fallback to alphabetical */
-
- if(!chosen)
-    chosen=sort_alpha(a,b);
-
- return((int)chosen);
+ return(at<bt?1:at>bt?-1:sort_alpha(a,b));
 }
 
 
@@ -1013,24 +998,83 @@ static int sort_time(FileIndex **a,FileIndex **b)
 
   int sort_random Returns the comparison of the random numbers generated from the file name.
 
-  FileIndex **a The first FileIndex.
+  FileIndex *a The first FileIndex.
 
-  FileIndex **b The second FileIndex.
+  FileIndex *b The second FileIndex.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int sort_random(FileIndex **a,FileIndex **b)
+static int sort_random(FileIndex *a,FileIndex *b)
 {
- int ar=(*a)->random;
- int br=(*b)->random;
- int chosen;
+ int ar=(a)->random;
+ int br=(b)->random;
 
- chosen=br-ar;
-
- return(chosen);
+ return(br-ar);
 }
 
 
 /* Added by Paul Rombouts */
+
+/*++++++++++++++++++++++++++++++++++++++
+  Sort a list using a merge sort algorithm.
+
+  FileIndex **l The list to sort.
+
+  int (*cmp)(FileIndex *a,FileIndex *b)  The comparison function to use.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+static void listsort(FileIndex **l, int (*cmp)(FileIndex *,FileIndex *))
+{
+  if(*l) {
+    unsigned int m;
+
+    for(m=1;; m *= 2) {
+      unsigned int nmerge=0,i,j;
+      FileIndex *p,*q=*l,**s= l, **t;
+
+      do {
+	++nmerge;
+	p=q;
+	i=m;
+	do {
+	  t= &q->next;
+	  q= *t;
+	} while(--i && q);
+
+	if(!q) break;
+      
+	i=j=m;
+	for(;;) {
+	  if(cmp(p,q) <= 0) {
+	    *s= p;
+	    s= &p->next;
+	    p= *s;
+	    --i;
+	    if(!i) {
+	      *s= q;
+	      do {s= &q->next; q= *s;} while(--j && q);
+	      break;
+	    }
+	  }
+	  else { /* cmp(p,q) > 0 */
+	    *s= q;
+	    s= &q->next;
+	    q= *s;
+	    --j;
+	    if(!j || !q) {
+	      *s= p;
+	      *t= q;
+	      s= t;
+	      break;
+	    }
+	  }
+	}
+      } while(q);
+
+      if(nmerge<=1) break;
+    }
+  }
+}
+
 
 /*+ Need this for Win32 to use binary mode +*/
 #ifndef O_BINARY

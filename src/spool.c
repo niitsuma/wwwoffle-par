@@ -112,6 +112,53 @@ union semun {
 #endif
 
 
+/* Create a directory if it does not yet exist. */
+
+static int createdir(char *base,char *dir)
+{
+  struct stat buf;
+
+  if(stat(dir,&buf))
+    {
+      PrintMessage(Inform,"Directory '%s%s%s' does not exist [%!s]; creating one.",base?base:"",base?"/":"",dir);
+      if(mkdir(dir,(mode_t)ConfigInteger(DirPerm))==0)
+	return 1;
+      else {
+	/* Error may be caused by a race condition, so try to stat dir again. */
+	if(errno==EEXIST && stat(dir,&buf)==0)
+	  PrintMessage(Inform,"Directory '%s%s%s' appears to have been created by another process.",
+		       base?base:"",base?"/":"",dir);
+	else {
+	  PrintMessage(Warning,"Cannot create directory '%s%s%s' [%!s].",base?base:"",base?"/":"",dir);
+	  return 0;
+	}
+      }
+    }
+
+  if(!S_ISDIR(buf.st_mode)) {
+    PrintMessage(Warning,"The file '%s%s%s' is not a directory.",base?base:"",base?"/":"",dir);
+    return 0;
+  }
+
+  return 1;
+}
+
+/* Create a directory if necessary and change to it. */
+
+static int createchangedir(char *base,char *dir)
+{
+  if(!createdir(base,dir))
+    return 0;
+
+  if(chdir(dir)) {
+    PrintMessage(Warning,"Cannot change to directory '%s%s%s' [%!s].",base?base:"",base?"/":"",dir);
+    return 0;
+  }
+
+  return 1;
+}
+
+
 /*++++++++++++++++++++++++++++++++++++++
   Open a file in the outgoing directory to write into / read from.
 
@@ -122,7 +169,6 @@ union semun {
 
 int OpenOutgoingSpoolFile(int rw)
 {
- struct stat buf;
  int fd=-1;
  char name[sizeof("tmp.")+10];
 
@@ -130,18 +176,8 @@ int OpenOutgoingSpoolFile(int rw)
 
  /* Create the outgoing directory if needed and change to it */
 
- if(stat("outgoing",&buf))
-   {
-    PrintMessage(Inform,"Directory 'outgoing' does not exist [%!s]; creating one.");
-    if(mkdir("outgoing",(mode_t)ConfigInteger(DirPerm)))
-      {PrintMessage(Warning,"Cannot create directory 'outgoing' [%!s].");return(-1);}
-   }
- else
-    if(!S_ISDIR(buf.st_mode))
-      {PrintMessage(Warning,"The file 'outgoing' is not a directory.");return(-1);}
-
- if(chdir("outgoing"))
-   {PrintMessage(Warning,"Cannot change to directory 'outgoing' [%!s].");return(-1);}
+ if(!createchangedir(NULL,"outgoing"))
+   return(-1);
 
  /* Open the outgoing file */
 
@@ -431,36 +467,15 @@ changedir_back:
 
 int OpenWebpageSpoolFile(int rw,URL *Url)
 {
- struct stat buf;
  int fd=-1;
 
  /* Create the spool directory if needed and change to it. */
 
- if(stat(Url->proto,&buf))
-   {
-    PrintMessage(Inform,"Directory '%s' does not exist [%!s]; creating one.",Url->proto);
-    if(mkdir(Url->proto,(mode_t)ConfigInteger(DirPerm)))
-      {PrintMessage(Warning,"Cannot create directory '%s' [%!s].",Url->proto);return(-1);}
-   }
- else
-    if(!S_ISDIR(buf.st_mode))
-      {PrintMessage(Warning,"The file '%s' is not a directory.",Url->proto);return(-1);}
+ if(!createchangedir(NULL,Url->proto))
+   return(-1);
 
- if(chdir(Url->proto))
-   {PrintMessage(Warning,"Cannot change to directory '%s' [%!s].",Url->proto);return(-1);}
-
- if(stat(Url->dir,&buf))
-   {
-    PrintMessage(Inform,"Directory '%s/%s' does not exist [%!s]; creating one.",Url->proto,Url->dir);
-    if(mkdir(Url->dir,(mode_t)ConfigInteger(DirPerm)))
-      {PrintMessage(Warning,"Cannot create directory '%s/%s' [%!s].",Url->proto,Url->dir);goto changedir_back;}
-   }
- else
-    if(!S_ISDIR(buf.st_mode))
-      {PrintMessage(Warning,"The file '%s/%s' is not a directory.",Url->proto,Url->dir);goto changedir_back;}
-
- if(chdir(Url->dir))
-   {PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s].",Url->proto,Url->dir);goto changedir_back;}
+ if(!createchangedir(Url->proto,Url->dir))
+   goto changedir_back;
 
  /* Open the file for the web page. */
 
@@ -892,7 +907,8 @@ changedir_back:
 /*++++++++++++++++++++++++++++++++++++++
   Create a lock file in a spool subdirectory.
 
-  int CreateLockWebpageSpoolFile Returns 1 if created OK or 0 in case of error.
+  int CreateLockWebpageSpoolFile Returns 1 if created OK,
+  0 in case the lockfile already exists, -1 in case of error.
 
   URL *Url The URL to lock.
   ++++++++++++++++++++++++++++++++++++++*/
@@ -900,7 +916,7 @@ changedir_back:
 int CreateLockWebpageSpoolFile(URL *Url)
 {
  struct stat buf;
- int retval=1;
+ int retval=-1;
 
  /* Check for configuration file option. */
 
@@ -909,31 +925,11 @@ int CreateLockWebpageSpoolFile(URL *Url)
 
  /* Create the spool directory if needed and change to it. */
 
- if(stat(Url->proto,&buf))
-   {
-    PrintMessage(Inform,"Directory '%s' does not exist [%!s]; creating one.",Url->proto);
-    if(mkdir(Url->proto,(mode_t)ConfigInteger(DirPerm)))
-      {PrintMessage(Warning,"Cannot create directory '%s' [%!s].",Url->proto);return(0);}
-   }
- else
-    if(!S_ISDIR(buf.st_mode))
-      {PrintMessage(Warning,"The file '%s' is not a directory.",Url->proto);return(0);}
+ if(!createchangedir(NULL,Url->proto))
+   return(-1);
 
- if(chdir(Url->proto))
-   {PrintMessage(Warning,"Cannot change to directory '%s' [%!s].",Url->proto);return(0);}
-
- if(stat(Url->dir,&buf))
-   {
-    PrintMessage(Inform,"Directory '%s/%s' does not exist [%!s]; creating one.",Url->proto,Url->dir);
-    if(mkdir(Url->dir,(mode_t)ConfigInteger(DirPerm)))
-      {PrintMessage(Warning,"Cannot create directory '%s/%s' [%!s].",Url->proto,Url->dir);retval=0;goto changedir_back;}
-   }
- else
-    if(!S_ISDIR(buf.st_mode))
-      {PrintMessage(Warning,"The file '%s/%s' is not a directory.",Url->proto,Url->dir);retval=0;goto changedir_back;}
-
- if(chdir(Url->dir))
-   {PrintMessage(Warning,"Cannot change to directory '%s/%s' [%!s].",Url->proto,Url->dir);retval=0;goto changedir_back;}
+ if(!createchangedir(Url->proto,Url->dir))
+   goto changedir_back;
 
  /* Create the lock file for the web page. */
 
@@ -956,11 +952,17 @@ int CreateLockWebpageSpoolFile(URL *Url)
 
        if(fd==-1)
 	 {
-	   PrintMessage(Warning,"Cannot make a lock file for '%s/%s/%s' [%!s].",Url->proto,Url->dir,lockfile);
-	   retval=0;
+	   if(errno==EEXIST) {
+	     PrintMessage(Inform,"Lock file already exists for '%s'.",Url->name);
+	     retval=0;
+	   }
+	   else
+	     PrintMessage(Warning,"Cannot make a lock file for '%s/%s/%s' [%!s].",Url->proto,Url->dir,lockfile);
 	 }
-       else
+       else {
 	 close(fd);
+	 retval=1;
+       }
      }
  }
 
@@ -1193,15 +1195,7 @@ void CycleLastTimeSpoolFile(void)
 
     /* Create it if it does not exist. */
 
-    if(stat(lasttime,&buf))
-      {
-       PrintMessage(Inform,"Directory '%s' does not exist [%!s]; creating one.",lasttime);
-       if(mkdir(lasttime,(mode_t)ConfigInteger(DirPerm)))
-          PrintMessage(Warning,"Cannot create directory '%s' [%!s].",lasttime);
-      }
-    else
-       if(!S_ISDIR(buf.st_mode))
-          PrintMessage(Warning,"The file '%s' is not a directory.",lasttime);
+    createdir(NULL,lasttime);
 
     /* Delete the contents of the oldest one, rename the newer ones. */
 
@@ -1297,15 +1291,7 @@ void CycleLastOutSpoolFile(void)
 
     /* Create it if it does not exist. */
 
-    if(stat(lastout,&buf))
-      {
-       PrintMessage(Inform,"Directory '%s' does not exist [%!s]; creating one.",lastout);
-       if(mkdir(lastout,(mode_t)ConfigInteger(DirPerm)))
-          PrintMessage(Warning,"Cannot create directory '%s' [%!s].",lastout);
-      }
-    else
-       if(!S_ISDIR(buf.st_mode))
-          PrintMessage(Warning,"The file '%s' is not a directory.",lastout);
+    createdir(NULL,lastout);
 
     /* Delete the contents of the oldest one, rename the newer ones. */
 
@@ -1429,23 +1415,12 @@ link_outgoing:
 
 int CreateMonitorSpoolFile(URL *Url,char MofY[13],char DofM[32],char DofW[8],char HofD[25])
 {
- struct stat buf;
  int fd=-1;
 
  /* Create the monitor directory if needed and change to it */
 
- if(stat("monitor",&buf))
-   {
-    PrintMessage(Inform,"Directory 'monitor' does not exist [%!s]; creating one.");
-    if(mkdir("monitor",(mode_t)ConfigInteger(DirPerm)))
-      {PrintMessage(Warning,"Cannot create directory 'monitor' [%!s].");return(-1);}
-   }
- else
-    if(!S_ISDIR(buf.st_mode))
-      {PrintMessage(Warning,"The file 'monitor' is not a directory.");return(-1);}
-
- if(chdir("monitor"))
-   {PrintMessage(Warning,"Cannot change to directory 'monitor' [%!s].");return(-1);}
+ if(!createchangedir(NULL,"monitor"))
+   return(-1);
 
  /* Open the monitor file */
 
@@ -1666,20 +1641,12 @@ changedir_back:
 int CreateTempSpoolFile(void)
 {
  char name[sizeof("temp/tmp.")+10];
- struct stat buf;
  int fd;
 
- /* Create the outgoing directory if needed and change to it */
+ /* Create the temp directory if needed. */
 
- if(stat("temp",&buf))
-   {
-    PrintMessage(Inform,"Directory 'temp' does not exist [%!s]; creating one.");
-    if(mkdir("temp",(mode_t)ConfigInteger(DirPerm)))
-      {PrintMessage(Warning,"Cannot create directory 'temp' [%!s].");return(-1);}
-   }
- else
-    if(!S_ISDIR(buf.st_mode))
-      {PrintMessage(Warning,"The file 'temp' is not a directory.");return(-1);}
+ if(!createdir(NULL,"temp"))
+    return(-1);
 
  /* Open the file */
 

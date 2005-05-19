@@ -151,18 +151,19 @@ char *GetLocalHost(int port)
 
 int IsLocalHostPort(char *hostport)
 {
- char *hoststr,*portstr;
- int hostlen;
-
- SplitHostPort(hostport,&hoststr,&hostlen,&portstr);
-
  if(LocalHost) {
-   int i;
-   for(i=0;i<LocalHost->nentries;++i) {
-     char *localhost=LocalHost->key[i].string;
-     if(!strncasecmp(localhost,hoststr,hostlen) && !localhost[hostlen])
-       return(portstr?atoi(portstr)==ConfigInteger(HTTP_Port):
-	              ConfigInteger(HTTP_Port)==80);
+   char *hoststr,*portstr;
+   int hostlen;
+
+   SplitHostPort(hostport,&hoststr,&hostlen,&portstr);
+
+   if((portstr?atoi(portstr):80)==ConfigInteger(HTTP_Port)) {
+     int i;
+     for(i=0;i<LocalHost->nentries;++i) {
+       char *localhost=LocalHost->key[i].string;
+       if(!strncasecmp(localhost,hoststr,hostlen) && !localhost[hostlen])
+	 return 1;
+     }
    }
  }
 

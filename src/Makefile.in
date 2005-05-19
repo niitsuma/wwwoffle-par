@@ -280,7 +280,7 @@ miscencdec.o       : miscencdec.c       autoconfig.h                 misc.h     
 miscurl.o          : miscurl.c          autoconfig.h                 misc.h                     config.h           proto.h
 proto.o proto_client.o: proto.c         autoconfig.h                 misc.h                                        proto.h
 
-sockets.o          : sockets.c          autoconfig.h            io.h misc.h            errors.h          sockets.h                                                         \
+sockets.o          : sockets.c          autoconfig.h            io.h misc.h            errors.h config.h sockets.h                              configpriv.h               \
                      sockets4.c sockets6.c
 
 md5.o              : md5.c                                                                                                                                            md5.h

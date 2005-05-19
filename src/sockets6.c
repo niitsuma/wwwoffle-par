@@ -254,6 +254,7 @@ int SocketRemoteName(int socket,char **name,char **ipname,int *port)
 }
 
 
+#if 0
 /*++++++++++++++++++++++++++++++++++++++
   Determines the hostname and port number used for a socket on this end.
 
@@ -288,6 +289,7 @@ int SocketLocalName(int socket,char **name,char **ipname,int *port)
 
  return(retval);
 }
+#endif
 
 
 /*++++++++++++++++++++++++++++++++++++++

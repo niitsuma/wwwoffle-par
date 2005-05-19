@@ -184,6 +184,8 @@ void HTMLMessageHead(int fd,int status_val,char *status_str, ...)
  va_list ap;
  Header *header;
  int content_type=0;
+ int compression=client_compression, chunked=client_chunked;
+
 
 #ifdef __STDC__
  va_start(ap,status_str);
@@ -222,13 +224,13 @@ void HTMLMessageHead(int fd,int status_val,char *status_str, ...)
  /* Set up compression header for the client if available and required. */
 
 #if USE_ZLIB
- if(client_compression && !head_only)
+ if(compression && !head_only)
    {
     /* If it is not to be compressed then don't */
     char *len;
     if(NotCompressed(GetHeader(header,"Content-Type"),NULL) ||
        ((len=GetHeader(header,"Content-Length")) && atol(len)<=MINCOMPRSIZE))
-       client_compression=0;
+       compression=0;
 
     /* Add the compression header for the client. */
 
@@ -236,28 +238,33 @@ void HTMLMessageHead(int fd,int status_val,char *status_str, ...)
       {
        RemoveFromHeader(header,"Content-Length");
 
-       AddToHeader(header,"Content-Encoding",(client_compression==1)?"deflate":"gzip");
+       AddToHeader(header,"Content-Encoding",(compression==1)?"deflate":"gzip");
 
        PrintMessage(Debug,"Using 'Content-Encoding: %s' for the client.",
-                    client_compression==1?"deflate":"gzip");
+                    compression==1?"deflate":"gzip");
       }
    }
 #endif
 
  /* Set up chunked encoding header for the client if required. */
 
- if(client_chunked && !head_only)
+ if(chunked && !head_only)
    {
      /* If the length is already known don't bother with chunked encoding */
      if(GetHeader(header,"Content-Length"))
-       client_chunked=0;
-     else
-       {
+       chunked=0;
+     else {
+       struct stat buf;
+       if(!fstat(fd,&buf) && S_ISREG(buf.st_mode))
+	 /* Don't write chunked encoded to a spool file. */
+	 chunked=0;
+       else {
 	 ChangeVersionInHeader(header,"HTTP/1.1");
 	 AddToHeader(header,"Transfer-Encoding","chunked");
 
 	 PrintMessage(Debug,"Using 'Transfer-Encoding: chunked' for the client.");
        }
+     }
    }
 
  /* The end of the header. */
@@ -283,13 +290,13 @@ void HTMLMessageHead(int fd,int status_val,char *status_str, ...)
    /* Initialise the client compression. */
 
 #if USE_ZLIB
-   if(client_compression)
-     configure_io_write(fd,-1,client_compression,-1);
+   if(compression)
+     configure_io_write(fd,-1,compression,-1);
 #endif
 
    /* Initialise the client chunked encoding. */
 
-   if(client_chunked)
+   if(chunked)
      configure_io_write(fd,-1,-1,1);
  }
 }

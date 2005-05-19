@@ -24,8 +24,9 @@ int OpenServerSocket(char* host,int port);
 int AcceptConnect(int socket);
 
 int SocketRemoteName(int socket,/*@out@*/ /*@null@*/ char **name,/*@out@*/ /*@null@*/ char **ipname,/*@out@*/ /*@null@*/ int *port);
+#if 0
 int SocketLocalName(int socket,/*@out@*/ /*@null@*/ char **name,/*@out@*/ /*@null@*/ char **ipname,/*@out@*/ /*@null@*/ int *port);
-
+#endif
 int /*@alt void@*/ CloseSocket(int socket);
 int /*@alt void@*/ ShutdownSocket(int socket);
 

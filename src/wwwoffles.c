@@ -1291,20 +1291,36 @@ passwordagain:
  conditional_request_ims=(GetHeader(request_head,"If-Modified-Since")!=NULL);
  conditional_request_inm=(GetHeader(request_head,"If-None-Match")!=NULL);
 
+ {
+   int lockcreated;
+
  /* If in Real mode and there is a lockfile (cannot create new one) then just spool the cache version. */
 
- if((mode==Real || mode==SpoolOrReal) && !CreateLockWebpageSpoolFile(Url))
+ if((mode==Real || mode==SpoolOrReal) && (lockcreated=CreateLockWebpageSpoolFile(Url))<=0)
    {
-    mode=Spool;
+     if(lockcreated<0) {
+       char *errmsg=GetPrintMessage(Warning,"Cannot create a lock file in the spool directory [%!s].");
+       HTMLMessage(client,500,"WWWOFFLE Server Error",NULL,"ServerError",
+                   "error",errmsg,
+                   NULL);
+       free(errmsg);
+       mode=InternalPage; goto internalpage;
+     }
+     else
+       mode=Spool;
    }
 
  /* If in Fetch mode and there is a lockfile (cannot create new one) then we don't need to fetch again. */
 
- else if(mode==Fetch && !CreateLockWebpageSpoolFile(Url))
+ else if(mode==Fetch && (lockcreated=CreateLockWebpageSpoolFile(Url))<=0)
    {
-    PrintMessage(Debug,"Already fetching URL.");
+     if(lockcreated==0)
+       PrintMessage(Debug,"Already fetching URL.");
     if(client!=-1)
-       write_formatted(client,"Cannot fetch %s [Already fetching]\n",Url->name);
+       write_formatted(client,
+		       lockcreated<0?"Cannot fetch %s [Creating lockfile failed]\n":
+		                     "Cannot fetch %s [Already fetching]\n",
+		       Url->name);
     exitval=(fetch_again?4:0); goto clean_up;
    }
 
@@ -1574,6 +1590,8 @@ passwordagain:
 
  /* else if(mode==RealNoCache)
    ; */
+
+ }
 
  /* If offline but making a request then change HEAD to GET. */
 

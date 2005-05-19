@@ -48,6 +48,8 @@
 #include "errors.h"
 #include "misc.h"
 #include "io.h"
+#include "configpriv.h"
+#include "config.h"
 #include "sockets.h"
 
 
@@ -67,6 +69,7 @@ static void sigalarm(int signum);
 static struct hostent /*@null@*/ *gethostbyname_or_timeout(char *name);
 static struct hostent /*@null@*/ *gethostbyaddr_or_timeout(char *addr,int len,int type);
 static int connect_or_timeout(int sockfd,struct sockaddr *serv_addr,int addrlen);
+static int IsLocalAddrPort(struct in_addr a, int port);
 
 /* Local variables */
 
@@ -124,6 +127,13 @@ int OpenClientSocket(char* host,int port, char *shost,int sport,char *shost_ipbu
  if(shost_ipbuf && !shost)
    strcpy(shost_ipbuf,inet_ntoa(server.sin_addr));
 
+ /* Try not to connect to our own HTTP port. */
+ if(IsLocalAddrPort(server.sin_addr,port)) {
+   PrintMessage(Warning,"Not connecting to '%s:%d': IP address %s matches that of localhost.",host,port,inet_ntoa(server.sin_addr));
+   errno=EPERM;
+   return -1;
+ }
+
  s=socket(PF_INET,SOCK_STREAM,0);
  if(s==-1)
    {
@@ -161,14 +171,22 @@ int OpenClientSocket(char* host,int port, char *shost,int sport,char *shost_ipbu
       }
 
    if(hp->h_addrtype!=AF_INET || hp->h_length!=sizeof(a)) {
-     close(s);
      PrintMessage(Warning,"Cannot connect to '%s': unexpected address type.",shost);
+     close(s);
      errno=EAFNOSUPPORT;
      return -1;
    }
    memcpy(&a,hp->h_addr,sizeof(a));
    if(shost_ipbuf)
      strcpy(shost_ipbuf,inet_ntoa(a));
+
+   /* Try not to connect to our own HTTP port. */
+   if(IsLocalAddrPort(a,sport)) {
+     PrintMessage(Warning,"Not connecting to '%s:%d': IP address %s matches that of localhost.",shost,sport,inet_ntoa(a));
+     close(s);
+     errno=EPERM;
+     return -1;
+   }
 
    {
      uid_t uid;
@@ -227,6 +245,31 @@ int OpenClientSocket(char* host,int port, char *shost,int sport,char *shost_ipbu
  }
 
  return(s);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Check if the specified IP address is the localhost.
+
+  int IsLocalPort Return true if the address is the local host, and the port is our http port.
+
+  struct in_addr a The address of the host to be checked.
+  int port         The port number to be checked.
+
+  ++++++++++++++++++++++++++++++++++++++*/
+
+static int IsLocalAddrPort(struct in_addr a, int port)
+{
+ if(LocalHost && port==ConfigInteger(HTTP_Port)) {
+   int i;
+   for(i=0;i<LocalHost->nentries;++i) {
+     struct in_addr b;
+     if(inet_aton(LocalHost->key[i].string,&b) && b.s_addr==a.s_addr)
+       return 1;
+   }
+ }
+
+ return 0;
 }
 
 
@@ -377,6 +420,7 @@ int SocketRemoteName(int socket,char **name,char **ipname,int *port)
 }
 
 
+#if 0
 /*++++++++++++++++++++++++++++++++++++++
   Determines the hostname and port number used for a socket on this end.
 
@@ -425,6 +469,7 @@ int SocketLocalName(int socket,char **name,char **ipname,int *port)
 
  return(retval);
 }
+#endif
 
 
 /*++++++++++++++++++++++++++++++++++++++
