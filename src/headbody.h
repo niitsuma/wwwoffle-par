@@ -4,12 +4,13 @@
 #define HEADBODY_H    /* To prevent multiple inclusions. */
 
 /*+ A header line. +*/
-typedef struct _KeyValuePair
+typedef struct _KeyValueNode
 {
- char *key;                    /*+ The name of the header line. +*/
- char *val;                    /*+ The value of the header line. +*/
+ struct _KeyValueNode *next;    /*+ Pointer to the next header line. +*/
+ char *val;                     /*+ The value of the header line. +*/
+ char key[0];                   /*+ The name of the header line. +*/
 }
-KeyValuePair;
+KeyValueNode;
 
 /*+ A request or reply header type. +*/
 struct _Header
@@ -22,8 +23,9 @@ struct _Header
  char *note;                    /*+ The reply string. +*/
  char *version;                 /*+ The HTTP version. +*/
 
- int n;                         /*+ The number of header entries. +*/
- KeyValuePair *line;            /*+ The header lines +*/
+ /* int n; */                   /*+ The number of header entries. +*/
+ KeyValueNode *line;            /*+ Pointer to the first node in the list of header lines +*/
+ KeyValueNode *last;            /*+ Pointer to the last node in the list of header lines +*/
 };
 
 
@@ -86,21 +88,7 @@ inline static void RemovePlingFromUrl(char *url)
 void RemoveFromHeader(Header *head,const char* key);
 void RemoveFromHeader2(Header *head,const char* key,const char *val);
 
-/* Added by Paul Rombouts */
-/*++++++++++++++++++++++++++++++++++++++
-  Remove the specified key and its values.
-  Header *head The header to remove from.
-  int index: The index of the key to remove.
-  ++++++++++++++++++++++++++++++++++++++*/
-inline static void RemoveFromHeaderIndexed(Header *head,int index)
-{
- free(head->line[index].key);
- head->line[index].key=NULL;
- free(head->line[index].val);
- head->line[index].val=NULL;
-}
-
-void ReplaceInHeader(Header *head,const char *key,const char *val);  /* Added by Paul Rombouts */
+void ReplaceOrAddInHeader(Header *head,const char *key,const char *val);  /* Added by Paul Rombouts */
 
 /*@null@*/ /*@observer@*/ char *GetHeader(Header *head,const char* key);
 /*@null@*/ /*@observer@*/ char *GetHeader2(Header *head,const char* key,const char *val);
@@ -110,6 +98,31 @@ void ReplaceInHeader(Header *head,const char *key,const char *val);  /* Added by
 /*@only@*/ char *HeaderString(Header *head,int *size);
 
 void FreeHeader(/*@only@*/ Header *head);
+
+inline static void FreeKeyValueNode(KeyValueNode *p)
+{
+  free(p->val);
+  free(p);
+}
+
+/* RemoveLineFromHeader removes a key-value node from a header list.
+   head: pointer to the header.
+   line: pointer to the node to be removed.
+   prev: pointer to the previous node in the list, or NULL if there is no previous one.
+   Return value: pointer to the next node in the list.
+*/
+inline static KeyValueNode *RemoveLineFromHeader(Header *head,KeyValueNode *line,KeyValueNode *prev)
+{
+  KeyValueNode *next=line->next;
+  if(!prev)
+    head->line=next;
+  else
+    prev->next=next;
+  if(!next)
+    head->last=prev;
+  FreeKeyValueNode(line);
+  return next;
+}
 
 inline static /*@only@*/ Body *CreateBody(int length)
 {

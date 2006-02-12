@@ -56,8 +56,9 @@ int CreateHeader(const char *line,int type,Header **head)
  new->note=NULL;
  new->version=NULL;
 
- new->n=0;
+ /* new->n=0; */
  new->line=NULL;
+ new->last=NULL;
 
  /*trim the line*/
  end=strchrnul(line,0);
@@ -124,23 +125,28 @@ int CreateHeader(const char *line,int type,Header **head)
 
   Header *head The header structure to add to.
 
-  char *key The key to addL.
+  char *key The key to add.
 
   char *val The value to add.
   ++++++++++++++++++++++++++++++++++++++*/
 
 void AddToHeader(Header *head,const char *key,const char *val)
 {
-  int k = head->n++;
+  KeyValueNode *new;
+  size_t key_sz;
 
-  /* To reduce the number of realloc calls, expand key and val arrays in steps of 8 */
-  if((k&7) == 0)  /* k&7 == k mod 8 */
-    {
-      head->line=(KeyValuePair *)realloc((void*)head->line,sizeof(KeyValuePair)*(k+8));
-    }
+  key_sz=strlen(key)+1;
+  new=malloc(sizeof(KeyValueNode)+key_sz);
+  new->next=NULL;
+  new->val=strdup(val);
+  memcpy(new->key,key,key_sz);
+ 
+  if(!head->line)
+      head->line=new;
+  else
+      head->last->next=new;
 
-  head->line[k].key=strdup(key);
-  head->line[k].val=strdup(val);
+  head->last=new;
 }
 
 
@@ -179,33 +185,38 @@ int AddToHeaderRaw(Header *head,const char *line)
  /* Add to the header */
 
  {
-   int strlen_val=end-val;
+   size_t strlen_val=end-val;
 
    if(key)
      {
-       int k = head->n++;
+       KeyValueNode *new;
+       size_t strlen_key=keyend-key;
 
-       /* To reduce the number of realloc calls, expand key and val arrays in steps of 8 */
-       if((k&7) == 0)  /* k&7 == k mod 8 */
-	 {
-	   head->line=(KeyValuePair *)realloc((void*)head->line,sizeof(KeyValuePair)*(k+8));
-	 }
+       new=malloc(sizeof(KeyValueNode)+strlen_key+1);
+       new->next=NULL;
+       new->val=strndup(val,strlen_val);
+       *((char*)mempcpy(new->key,key,strlen_key))=0;
+ 
+       if(!head->line)
+	 head->line=new;
+       else
+	 head->last->next=new;
 
-       head->line[k].key=STRDUP2(key,keyend);
-       head->line[k].val=strndup(val,strlen_val);
+       head->last=new;
      }
    else
      {
        /* Append text to the last header line */
+       KeyValueNode *last=head->last;
 
-       if(head->n==0 || !head->line[head->n-1].key)
+       if(!last)
 	 return -1; /* weird: there must be a last header... */
 
        {
-	 int strlen_last=strlen(head->line[head->n-1].val);
+	 size_t strlen_last=strlen(last->val);
 	 char *p;
-	 head->line[head->n-1].val=(char*)realloc((void*)head->line[head->n-1].val,strlen_last+strlen_val+2);
-	 p= head->line[head->n-1].val + strlen_last;
+	 last->val=(char*)realloc((void*)last->val,strlen_last+strlen_val+2);
+	 p= last->val + strlen_last;
 	 if(strlen_last) *p++=' ';
 	 p=mempcpy(p,val,strlen_val);
 	 *p=0;
@@ -227,11 +238,21 @@ int AddToHeaderRaw(Header *head,const char *line)
 
 void RemoveFromHeader(Header *head,const char* key)
 {
- int i;
+  KeyValueNode *prev,*line;
 
- for(i=0;i<head->n;++i)
-   if(head->line[i].key && !strcasecmp(head->line[i].key,key))
-     RemoveFromHeaderIndexed(head,i);
+  prev=NULL;
+  line=head->line;
+
+  while(line) {
+    if(!strcasecmp(line->key,key)) {
+      /* Remove key-value node from list */
+      line=RemoveLineFromHeader(head,line,prev);
+    }
+    else {
+      prev=line;
+      line=line->next;
+    }
+  }
 }
 
 
@@ -247,16 +268,19 @@ void RemoveFromHeader(Header *head,const char* key)
 
 void RemoveFromHeader2(Header *head,const char* key,const char *val)
 {
-  int i;
+  KeyValueNode *prev,*line;
 
-  for(i=0;i<head->n;++i) {
-    if(head->line[i].key && !strcasecmp(head->line[i].key,key)) {
-      char *str=head->line[i].val,*p=str,*q,*r=str;
-      int strlen_val=strlen(val);
+  prev=NULL;
+  line=head->line;
+
+  while(line) {
+    if(!strcasecmp(line->key,key)) {
+      char *str=line->val,*p=str,*q,*r=str;
+      size_t strlen_val=strlen(val);
 
       for(;;) {
 	for(;;++p) {
-	  if(!*p) goto nexti;
+	  if(!*p) goto nextline;
 	  if(!isspace(*p)) break;
 	}
 
@@ -269,7 +293,7 @@ void RemoveFromHeader2(Header *head,const char* key,const char *val)
 	if(q!=p)
 	  {char *t=p; while((*t++=*q++));}
 	  
-	while(*p!=',') {if(!*++p) goto nexti;}
+	while(*p!=',') {if(!*++p) goto nextline;}
 
 	r=p++;  /* remember ending of previous item */
       }
@@ -277,43 +301,58 @@ void RemoveFromHeader2(Header *head,const char* key,const char *val)
     chop_line:
       do {
 	if(--r<str) {
-	  RemoveFromHeaderIndexed(head,i);
-	  goto nexti;
+	  /* Remove key-value node from list */
+	  line=RemoveLineFromHeader(head,line,prev);
+	  goto skipline;
 	}
       } while(isspace(*r));
       *++r=0;
     }
-  nexti: ;
+
+  nextline:
+    prev=line;
+    line=line->next;
+  skipline: ;
   }
 }
 
 
 /* Added by Paul Rombouts */
 /*++++++++++++++++++++++++++++++++++++++
-  Repace the value of an existing key with a new one, or add a new key and value combination.
+  Replace the value of an existing key with a new one, or add a new key and value combination.
   Header *head The header structure to modify.
   char *key The key.
   char *val The replacement value.
   ++++++++++++++++++++++++++++++++++++++*/
-void ReplaceInHeader(Header *head,const char *key,const char *val)
+void ReplaceOrAddInHeader(Header *head,const char *key,const char *val)
 {
- int i;
+ KeyValueNode *prev,*line;
 
- for(i=0;i<head->n;++i)
-   if(head->line[i].key && !strcasecmp(head->line[i].key,key))
+ line=head->line;
+ while(line) {
+   if(!strcasecmp(line->key,key))
      goto found;
+   line=line->next;
+ }
 
  AddToHeader(head,key,val);
  return;
 
 found:
- free(head->line[i].val);
- head->line[i].val=strdup(val);
- /* remove any remaining values with the same key */
- ++i;
- for(;i<head->n;++i)
-   if(head->line[i].key && !strcasecmp(head->line[i].key,key))
-     RemoveFromHeaderIndexed(head,i);
+ free(line->val);
+ line->val=strdup(val);
+ /* remove any remaining lines with the same key */
+ prev=line;
+ line=line->next;
+ while(line) {
+   if(!strcasecmp(line->key,key)) {
+     line=RemoveLineFromHeader(head,line,prev);
+   }
+   else {
+     prev=line;
+     line=line->next;
+   }
+ }
 }
 
 
@@ -329,11 +368,11 @@ found:
 
 char *GetHeader(Header *head,const char* key)
 {
- int i;
+ KeyValueNode *line;
 
- for(i=0;i<head->n;++i)
-    if(head->line[i].key && !strcasecmp(head->line[i].key,key))
-       return(head->line[i].val);
+ for(line=head->line; line; line=line->next)
+    if(!strcasecmp(line->key,key))
+       return(line->val);
 
  return(NULL);
 }
@@ -353,26 +392,26 @@ char *GetHeader(Header *head,const char* key)
 
 char *GetHeader2(Header *head,const char* key,const char *val)
 {
- int strlen_val=strlen(val);
- int i;
+ size_t strlen_val=strlen(val);
+ KeyValueNode *line;
 
- for(i=0;i<head->n;++i) {
-   if(head->line[i].key && !strcasecmp(head->line[i].key,key)) {
-     char *p=head->line[i].val;
+ for(line=head->line; line; line=line->next) {
+   if(!strcasecmp(line->key,key)) {
+     char *p=line->val;
 
      for(;;) {
        for(;;++p) {
-	 if(!*p) goto nexti;
+	 if(!*p) goto nextline;
 	 if(!isspace(*p)) break;
        }
 
        if(!strncasecmp(p,val,strlen_val)) return p;
 
-       while(*p!=',') {if(!*++p) goto nexti;}
+       while(*p!=',') {if(!*++p) goto nextline;}
        ++p;
      }
    }
- nexti: ;
+ nextline: ;
  }
 
  return NULL;
@@ -393,23 +432,23 @@ char *GetHeader2(Header *head,const char* key,const char *val)
 
 char *GetHeader2Val(Header *head,const char* key,const char *subkey)
 {
- int strlen_subkey=strlen(subkey);
- int i;
+ size_t strlen_subkey=strlen(subkey);
+ KeyValueNode *line;
 
- for(i=0;i<head->n;++i) {
-   if(head->line[i].key && !strcasecmp(head->line[i].key,key)) {
-     char *p=head->line[i].val;
+ for(line=head->line; line; line=line->next) {
+   if(!strcasecmp(line->key,key)) {
+     char *p=line->val;
 
      for(;;) {
        for(;;++p) {
-	 if(!*p) goto nexti;
+	 if(!*p) goto nextline;
 	 if(!isspace(*p)) break;
        }
 
        if(!strncasecmp(p,subkey,strlen_subkey)) {
 	 p+=strlen_subkey;
 	 for(;;++p) {
-	   if(!*p) goto nexti;
+	   if(!*p) goto nextline;
 	   if(!isspace(*p)) break;
 	 }
 	 if(*p=='=') {
@@ -418,11 +457,11 @@ char *GetHeader2Val(Header *head,const char* key,const char *subkey)
 	 }
        }
 
-       while(*p!=',') {if(!*++p) goto nexti;}
+       while(*p!=',') {if(!*++p) goto nextline;}
        ++p;
      }
    }
- nexti: ;
+ nextline: ;
  }
 
  return NULL;
@@ -441,12 +480,13 @@ char *GetHeader2Val(Header *head,const char* key,const char *subkey)
 
 char *GetHeaderCombined(Header *head,const char* key)
 {
-  int i,length=-1;
+  ssize_t length=-1;
+  KeyValueNode *line;
   char *p,*val;
 
-  for(i=0;i<head->n;++i)
-    if(head->line[i].key && !strcasecmp(head->line[i].key,key)) {
-      length+=1+strlen(head->line[i].val);
+  for(line=head->line; line; line=line->next)
+    if(!strcasecmp(line->key,key)) {
+      length+=1+strlen(line->val);
     }
 
   if(length==-1) return NULL;
@@ -454,13 +494,13 @@ char *GetHeaderCombined(Header *head,const char* key)
   val=(char *)malloc(length+1);
 
   p=val-1;
-  for(i=0;i<head->n;++i)
-    if(head->line[i].key && !strcasecmp(head->line[i].key,key)) {
+  for(line=head->line; line; line=line->next)
+    if(!strcasecmp(line->key,key)) {
       if(p<val)
 	p=val;
       else
 	*p++=',';
-      p=stpcpy(p,head->line[i].val);
+      p=stpcpy(p,line->val);
     }
 
   return val;
@@ -479,7 +519,8 @@ char *GetHeaderCombined(Header *head,const char* key)
 char *HeaderString(Header *head, int *size)
 {
   char *str,*p;
-  int str_len,i;
+  size_t str_len;
+  KeyValueNode *line;
 
   if(head->type==1) {  /* request head */
     str_len=4;   /* "\r\n\r\n" */
@@ -496,9 +537,8 @@ char *HeaderString(Header *head, int *size)
     if(head->note) str_len+=strlen(head->note);
   }
 
-  for(i=0;i<head->n;++i)
-    if(head->line[i].key)
-      str_len += strlen(head->line[i].key) + strlen(head->line[i].val) + 4;
+  for(line=head->line; line; line=line->next)
+    str_len += strlen(line->key) + strlen(line->val) + 4;
 
   if(size) *size= str_len;
   str=p=(char*)malloc(str_len+1);
@@ -530,9 +570,8 @@ char *HeaderString(Header *head, int *size)
 
   p= stpcpy(p,"\r\n");
 
-  for(i=0;i<head->n;++i)
-    if(head->line[i].key)
-      p= stpcpy(stpcpy(stpcpy(stpcpy(p,head->line[i].key),": "),head->line[i].val),"\r\n");
+  for(line=head->line; line; line=line->next)
+    p= stpcpy(stpcpy(stpcpy(stpcpy(p,line->key),": "),line->val),"\r\n");
 
   stpcpy(p,"\r\n");
 
@@ -548,21 +587,19 @@ char *HeaderString(Header *head, int *size)
 
 void FreeHeader(Header *head)
 {
- int i;
+  KeyValueNode *line,*next;
 
  if(head->method)  free(head->method);
  if(head->url)     free(head->url);
  if(head->note)    free(head->note);
  if(head->version) free(head->version);
 
- for(i=0;i<head->n;++i)
-   if(head->line[i].key)
-     {
-       free(head->line[i].key);
-       free(head->line[i].val);
-     }
-
- if(head->line) free(head->line);
+ line=head->line;
+ while (line) {
+   next=line->next;
+   FreeKeyValueNode(line);
+   line=next;
+ }
 
  free(head);
 }
@@ -616,14 +653,15 @@ void FreeBody(Body *body)
 HeaderList *GetHeaderList(Header *head,const char* key)
 {
   HeaderList *list;
-  int i,nitems=0;
+  int nitems=0;
+  KeyValueNode *line;
   const char *p;
 
-  for(i=0;i<head->n;++i)
-    if(head->line[i].key && !strcasecmp(head->line[i].key,key))
+  for(line=head->line; line; line=line->next)
+    if(!strcasecmp(line->key,key))
       {
 	++nitems;
-	for(p=head->line[i].val; *p; ++p) if(*p==',') ++nitems;
+	for(p=line->val; *p; ++p) if(*p==',') ++nitems;
       }
 	
   if(nitems==0) return NULL;
@@ -631,10 +669,10 @@ HeaderList *GetHeaderList(Header *head,const char* key)
   list=(HeaderList*)malloc(sizeof(HeaderList)+sizeof(HeaderListItem)*nitems);
 
   nitems=0;
-  for(i=0;i<head->n;++i)
-    if(head->line[i].key && !strcasecmp(head->line[i].key,key))
+  for(line=head->line; line; line=line->next)
+    if(!strcasecmp(line->key,key))
       {
-	p=head->line[i].val;
+	p=line->val;
 	for(;;)
 	  {
 	    const char *q,*r;

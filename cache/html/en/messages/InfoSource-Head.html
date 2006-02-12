@@ -33,14 +33,14 @@ text      = A flag to indicate if the file is plain text (='$text').
 <H1 align="center">WWWOFFLE Cached Page Source</H1>
 
 $cached?{}{
-The page for the URL <b><tt><a href="%html[url]">$url</a></tt></b> is not
+The page for the URL <b><tt><a href="%html[url]">%decode[url]</a></tt></b> is not
 available in the WWWOFFLE cache.
 $text=
 }
 
 $text?=yes{
 This page contains an unmodified version of the web page source code for the URL
-<b><tt><a href="%html[url]">$url</a></tt></b> that is available in the WWWOFFLE
+<b><tt><a href="%html[url]">%decode[url]</a></tt></b> that is available in the WWWOFFLE
 cache.
 
 <h2>Page Source Code</h2>
@@ -48,6 +48,6 @@ cache.
 <pre>
 }{}
 $text?=no{
-The web page for the URL <b><tt><a href="%html[url]">$url</a></tt></b> is not
+The web page for the URL <b><tt><a href="%html[url]">%decode[url]</a></tt></b> is not
 HTML or any other plain text format that can be displayed.
 }{}

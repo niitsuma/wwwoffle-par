@@ -62,6 +62,6 @@ $htmlurl=%html[refurl]
 [<a href="http://$localhost/index/url?$encurl">Index</a>] \
 [<tt>$status</tt>] \
 &nbsp; \
-$status?=X{$refurl}{<a href="$htmlurl">$refurl</a>}
+$status?=X{%decode[refurl]}{<a href="$htmlurl">%decode[refurl]</a>}
 $status?=+{}{$type=}
 $type?=Image{<br>&nbsp;&nbsp;&nbsp;&nbsp;<a href="$htmlurl"><img src="$htmlurl" alt="$htmlurl"></a>}{}

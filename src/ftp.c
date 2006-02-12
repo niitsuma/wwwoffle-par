@@ -767,7 +767,7 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
           if(modtime<=lastmodtime)
             {
              bufferhead->status=304;
-             ReplaceInHeader(bufferhead,"Content-Length","0");
+             ReplaceOrAddInHeader(bufferhead,"Content-Length","0");
 
              goto near_end;
             }

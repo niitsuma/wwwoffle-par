@@ -1,10 +1,10 @@
-	  Alternative WWWOFFLE implementation - version 2.8e-par-2
+	  Alternative WWWOFFLE implementation - version 2.8e-par-3
                              by Paul Rombouts
 	  ========================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
 am making available so other people can run it and/or study the source code.
-Present version is 2.8e-par-2 (I've simply appended my initials to the version
+Present version is 2.8e-par-3 (I've simply appended my initials to the version
 number). This version introduces an important efficiency improvement: the number
 of files in the spool directory are reduced by nearly 50% by using a single
 compact database file to remember the URLs belonging to the cached webpages.
@@ -17,11 +17,11 @@ more detail the changes I've made to AMB's code.
 
 Before compiling and installing WWWOFFLE according to AMB's installation
 instructions described in the INSTALL file you must first apply my patch file
-wwwoffled-2.8e-par-2.diff.gz. Use a freshly untarred copy of Andrew Bishop's
+wwwoffled-2.8e-par-3.diff.gz. Use a freshly untarred copy of Andrew Bishop's
 original version 2.8e source, cd into the source directory wwwoffle-2.8e and
 apply the command:
 
-gzip -cd <path_to_patch>/wwwoffle-2.8e-par-2.diff.gz | patch -p2 -N -E
+gzip -cd <path_to_patch>/wwwoffle-2.8e-par-3.diff.gz | patch -p2 -N -E
 
 Note: because I have used GNU extensions you will need to compile with gcc and
 link with glibc. This will not be a problem with most Linux distributions.

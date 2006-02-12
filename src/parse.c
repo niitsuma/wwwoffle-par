@@ -306,7 +306,7 @@ int RequireChanges(int fd,URL *Url,char **ims,char **inm)
  else
    {
     time_t now=time(NULL);
-    int temp_redirection = ((status==302 || status==303 || status==307) && ConfigBooleanURL(RequestRedirection,Url));
+    int temp_redirection = ((status==301 || status==302 || status==303 || status==307) && ConfigBooleanURL(RequestRedirection,Url));
 
     if(temp_redirection || ConfigBooleanURL(RequestExpired,Url))
       {
@@ -395,7 +395,10 @@ int RequireChanges(int fd,URL *Url,char **ims,char **inm)
 	     }
 
 	   if(ims)
-	     *ims=strdup(lastmodified?lastmodified:RFC822Date(buf.st_mtime,1));
+	     *ims=strdup(lastmodified?lastmodified:
+			 (date=GetHeader(spooled_head,"Date"))?date:
+			 (date=GetHeader(spooled_head,"wwwoffle-cache-date"))?date:
+			 RFC822Date(buf.st_mtime,1));
 
 	   retval=1;
          }
@@ -467,6 +470,12 @@ int IsModified(int fd,Header *request_head)
           time_t since=DateToTimeT(ims_val);
           char *modified=GetHeader(spooled_head,"Last-Modified");
 
+	  if(!modified) {
+	    modified=GetHeader(spooled_head,"Date");
+	    if(!modified)
+	      modified=GetHeader(spooled_head,"wwwoffle-cache-date");
+	  }
+
           if(modified)
             {
              time_t modtime=DateToTimeT(modified);
@@ -537,7 +546,7 @@ char *MovedLocation(URL *Url,Header *reply_head)
 Header *RequestURL(URL *Url,char *referer)
 {
  Header *new;
- int i;
+ KeyValueNode *line;
 
  {
    char top[sizeof("GET  HTTP/1.0")+strlen(Url->name)];
@@ -566,9 +575,9 @@ Header *RequestURL(URL *Url,char *referer)
  if(referer)
     AddToHeader(new,"Referer",referer);
 
- if(reusable_header && reusable_header->n)
-    for(i=0;i<reusable_header->n;++i)
-       AddToHeader(new,reusable_header->line[i].key,reusable_header->line[i].val);
+ if(reusable_header)
+   for(line=reusable_header->line; line; line=line->next)
+       AddToHeader(new,line->key,line->val);
 
  return(new);
 }
@@ -615,12 +624,12 @@ void ModifyRequest(URL *Url,Header *request_head)
 
  /* Add a host header */
 
- ReplaceInHeader(request_head,"Host",Url->hostport);
+ ReplaceOrAddInHeader(request_head,"Host",Url->hostport);
 
  /* Add a Connection / Proxy-Connection header */
 
- ReplaceInHeader(request_head,"Connection","close");
- ReplaceInHeader(request_head,"Proxy-Connection","close");
+ ReplaceOrAddInHeader(request_head,"Connection","close");
+ ReplaceOrAddInHeader(request_head,"Proxy-Connection","close");
 
  /* Check the authorisation header. */
 
@@ -638,7 +647,7 @@ void ModifyRequest(URL *Url,Header *request_head)
        char auth[sizeof("Basic ")+strlen(encoded_userpass)];
        stpcpy(stpcpy(auth,"Basic "),encoded_userpass);
        free(encoded_userpass);
-       ReplaceInHeader(request_head,"Authorization",auth);
+       ReplaceOrAddInHeader(request_head,"Authorization",auth);
      }
    }
  else
@@ -675,7 +684,7 @@ void ModifyRequest(URL *Url,Header *request_head)
      goto dontrefertoself;
 
    PrintMessage(Debug,"CensorRequestHeader (%s) replaced '%s' by '%s'.",optionname,referer?referer:"(none)",newval);
-   ReplaceInHeader(request_head,"Referer",newval);
+   ReplaceOrAddInHeader(request_head,"Referer",newval);
  dontrefertoself: ;
  }
 
@@ -721,7 +730,7 @@ void MakeRequestProxyAuthorised(char *proxy,Header *request_head)
 	 char auth[sizeof("Basic ")+strlen(encoded_userpass)];
 	 stpcpy(stpcpy(auth,"Basic "),encoded_userpass);
 	 free(encoded_userpass);
-	 ReplaceInHeader(request_head,"Proxy-Authorization",auth);
+	 ReplaceOrAddInHeader(request_head,"Proxy-Authorization",auth);
        }
        return;
       }
@@ -903,8 +912,8 @@ void ModifyReply(URL *Url,Header *reply_head)
 
  /* Add a Connection / Proxy-Connection header */
 
- ReplaceInHeader(reply_head,"Connection","close");
- ReplaceInHeader(reply_head,"Proxy-Connection","close");
+ ReplaceOrAddInHeader(reply_head,"Connection","close");
+ ReplaceOrAddInHeader(reply_head,"Proxy-Connection","close");
 
  /* Send errors instead when we see Location headers that send the client to a blocked page. */
  
@@ -932,19 +941,19 @@ void ModifyReply(URL *Url,Header *reply_head)
     to delete cookies and we don't want to prevent that */
 
  if(!Url->local && ConfigBooleanURL(SessionCookiesOnly,Url)) {
-   int i;
-   for(i=0;i<reply_head->n;++i) {
-     if(reply_head->line[i].key && !strcasecmp(reply_head->line[i].key,"Set-Cookie")) {
-       char *str=reply_head->line[i].val,*p,*q;
+   KeyValueNode *line;
+   for(line=reply_head->line; line; line=line->next) {
+     if(!strcasecmp(line->key,"Set-Cookie")) {
+       char *str=line->val,*p,*q;
 
        for(p=str;;) {
-	 for(;;++p) {if(!*p) goto nexti; if(*p==';') break;}
+	 for(;;++p) {if(!*p) goto nextline; if(*p==';') break;}
 	 q=p;
-	 do {if(!*++p) goto nexti;} while(isspace(*p));
+	 do {if(!*++p) goto nextline;} while(isspace(*p));
 	 if(!strcasecmp_litbeg(p,"expires")) {
 	   int comma=0;
 	   p+=strlitlen("expires");
-	   for(;;++p) {if(!*p) goto nexti; if(!isspace(*p)) break;}
+	   for(;;++p) {if(!*p) goto nextline; if(!isspace(*p)) break;}
 	   if(*p!='=') continue;
 	   do {if(!*++p) goto chop_line;} while(isspace(*p));
 	   {
@@ -962,9 +971,13 @@ void ModifyReply(URL *Url,Header *reply_head)
        *++q=0;
 
      }
-   nexti: ;
+   nextline: ;
    }
  }
+
+ /* Remove headers used by WWWOFFLE for internal use only. */
+
+ RemoveFromHeader(reply_head,"wwwoffle-cache-date");
 
  /* Censor the header */
 
@@ -981,41 +994,51 @@ void ModifyReply(URL *Url,Header *reply_head)
 
 static void censor_header(ConfigItem confitem,URL *Url,Header *head)
 {
- int i,j;
+ KeyValueNode *prev,*line,*p,*l;
+ int j;
  char *censor;
 
- for(i=0;i<head->n;++i)
+ prev=NULL;
+ line=head->line;
+ while(line)
    {
-    if(!head->line[i].key)
-       goto next_i;
-
     for(j=0;j<sizeof(non_censored_headers)/sizeof(char*);++j)
-       if(!strcasecmp(non_censored_headers[j],head->line[i].key))
-          goto next_i;
+       if(!strcasecmp(non_censored_headers[j],line->key))
+          goto nextline;
 
-    if((censor=CensoredHeader(confitem,Url,head->line[i].key,head->line[i].val)))
+    if((censor=CensoredHeader(confitem,Url,line->key,line->val)))
       {
-       if(censor!=head->line[i].val)
+       if(censor!=line->val)
          {
-          PrintMessage(Debug,"CensorHeader replaced '%s: %s' by '%s: %s'.",head->line[i].key,head->line[i].val,head->line[i].key,censor);
-          free(head->line[i].val);
-          head->line[i].val=censor;
+          PrintMessage(Debug,"CensorHeader replaced '%s: %s' by '%s: %s'.",line->key,line->val,line->key,censor);
+          free(line->val);
+          line->val=censor;
 
 	  /* remove any remaining values with the same key */
-	  for(j=i+1;j<head->n;++j)
-	    if(head->line[j].key && !strcasecmp(head->line[j].key,head->line[i].key))
-	      {
-		PrintMessage(Debug,"CensorHeader removed '%s: %s'.",head->line[j].key,head->line[j].val);
-		RemoveFromHeaderIndexed(head,j);
-	      }
-         }
+	  p= line;
+	  l= line->next;
+	  while(l) {
+	    if(!strcasecmp(l->key,line->key)) {
+	      PrintMessage(Debug,"CensorHeader removed '%s: %s'.",l->key,l->val);
+	      l=RemoveLineFromHeader(head,l,p);
+	    }
+	    else {
+	      p= l;
+	      l= l->next;
+	    }
+	  }
+	 }
       }
     else
       {
-       PrintMessage(Debug,"CensorHeader removed '%s: %s'.",head->line[i].key,head->line[i].val);
-       RemoveFromHeaderIndexed(head,i);
+       PrintMessage(Debug,"CensorHeader removed '%s: %s'.",line->key,line->val);
+       line=RemoveLineFromHeader(head,line,prev);
+       goto skipline;
       }
-   next_i: ;
+   nextline:
+    prev=line;
+    line=line->next;
+   skipline: ;
    }
 }
 #endif

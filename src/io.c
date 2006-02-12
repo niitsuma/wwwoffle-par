@@ -435,8 +435,11 @@ int read_data(int fd,char *buffer,int n)
  if(!context->r_zlib_context) {
    if(!context->r_chunk_context)
      {
-       nr=io_read_with_timeout(fd,&iobuffer,context->r_timeout);
-       if(nr>0) context->r_raw_bytes+=nr;
+       err=io_read_with_timeout(fd,&iobuffer,context->r_timeout);
+       if(err>=0) {
+	 nr=err;
+	 context->r_raw_bytes+=nr;
+       }
      }
    else /* context->r_chunk_context && !context->r_zlib_context */
      {
@@ -469,12 +472,16 @@ int read_data(int fd,char *buffer,int n)
    else /* context->r_chunk_context && context->r_zlib_context */
      {
        do
+	 read_again:
 	 {
+	   int nread;
 	   err=io_read_with_timeout(fd,context->r_file_data,context->r_timeout);
 	   if(err<0) break;
+	   nread=err;
 	   context->r_raw_bytes+=err;
 	   err=io_chunk_decode(context->r_file_data,context->r_chunk_context,context->r_zlch_data);
 	   if(err<0) break;
+	   if(nread>0 && iobuf_isempty(context->r_zlch_data)) goto read_again;
 	   err=io_zlib_uncompress(context->r_zlch_data,context->r_zlib_context,&iobuffer);
 	   if(err) break;
 	 }

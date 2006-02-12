@@ -280,7 +280,7 @@ int PurgeCache(int fd)
              PrintMessage(Inform,"Cannot stat directory '%s/%s' [%!s]; race condition?",proto,ent->d_name);
           else if(S_ISDIR(buf.st_mode))
             {
-             unsigned long file_blocks,del_blocks,compress_blocks;
+             unsigned long file_blocks=0,del_blocks=0,compress_blocks=0;
              int purge_age,compress_age;
 
              what_purge_compress_age(proto,ent->d_name,NULL,&purge_age,&compress_age);

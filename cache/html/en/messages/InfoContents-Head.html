@@ -33,7 +33,7 @@ cached    = A flag to indicate if the file is cached (='$cached').
 
 $cached?{
 This page details the contents of the page for the URL
-<b><tt><a href="%html[url]">$url</a></tt></b> that is available in the WWWOFFLE
+<b><tt><a href="%html[url]">%decode[url]</a></tt></b> that is available in the WWWOFFLE
 cache.
 <p>
 For each of the URLs that are referenced by this web page there are options to
@@ -44,6 +44,6 @@ configuration file, '+' if the URL is in the cache, '~' if it has been requested
 and '-' if it is not cached.
 $shownocontents=1
 }{
-The page for the URL <b><tt><a href="%html[url]">$url</a></tt></b> is not
+The page for the URL <b><tt><a href="%html[url]">%decode[url]</a></tt></b> is not
 available in the WWWOFFLE cache.
 }

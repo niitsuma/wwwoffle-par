@@ -177,22 +177,22 @@ static int putenv_request(char *file, URL *Url, Header *request_head, /*@null@*/
   }
 
   {
-    int i=0, n = request_head->n; KeyValuePair *line = request_head->line;
+    KeyValueNode *line = request_head->line, *next;
 
-    while(i<n) {
-      int j=i+1;
+    while(line) {
+      next=line->next;
 
-      if(line[i].key && strcasecmp(line[i].key,"Content-Length") && strcasecmp(line[i].key,"Proxy-Authorization")) {
+      if(strcasecmp(line->key,"Content-Length") && strcasecmp(line->key,"Proxy-Authorization")) {
 	char *envstr, *p,*q;
-	int key_val_len = strlen(line[i].key)+strlen(line[i].val);
+	size_t key_val_len = strlen(line->key)+strlen(line->val);
 
 	/* first look for a run of identical keys */
-	for (; j<n; ++j) {
-	  if(strcasecmp(line[j].key,line[i].key)) break;
-	  key_val_len += strlen(line[j].val)+2;  /* extra room for ", " */
+	for (; next; next=next->next) {
+	  if(strcasecmp(next->key,line->key)) break;
+	  key_val_len += strlen(next->val)+2;  /* extra room for ", " */
 	}
 
- 	if(!strcasecmp(line[i].key,"Content-Type")) {
+ 	if(!strcasecmp(line->key,"Content-Type")) {
 	  envstr = (char *)malloc(key_val_len+sizeof("="));
 	  p = envstr;
 	}
@@ -201,30 +201,30 @@ static int putenv_request(char *file, URL *Url, Header *request_head, /*@null@*/
 	  p = stpcpy(envstr, "HTTP_");
 	}
 
-	for(q = line[i].key; *q; ++p,++q) {
+	for(q = line->key; *q; ++p,++q) {
 	  if(isupper(*q) || isdigit(*q) || *q == '_') *p = *q;
 	  else if (islower(*q)) *p = toupper(*q);
 	  else if(*q == '-') *p = '_';
 	  else {
 	    /* key contains illegal character, ignore key */
 	    free(envstr);
-	    goto nexti;
+	    goto nextline;
 	  }
 	}
 
 	*p++ = '=';
-	p = stpcpy(p, line[i].val);
+	p = stpcpy(p, line->val);
 
 	{
-	  int l;
-	  for(l=i+1; l<j; ++l)
-	    p = stpcpy(stpcpy(p, ", "), line[l].val);
+	  KeyValueNode *l;
+	  for(l=line->next; l!=next; l=l->next)
+	    p = stpcpy(stpcpy(p, ", "), l->val);
 	}
 
  	putenv_string(envstr);
       }
-    nexti:
-      i=j;
+    nextline:
+      line=next;
     }
   }
 

@@ -69,6 +69,14 @@ FUNC   \%[a-z_0-9]+\[[a-z_0-9]+\]
 #define O_BINARY 0
 #endif
 
+typedef struct _VarValueNode
+{
+ struct _VarValueNode *next;    /*+ Pointer to the next node in the list. +*/
+ char *value;                   /*+ Pointer to the value of the variable. +*/
+ char variable[0];              /*+ The name of the variable. +*/
+}
+VarValueNode;
+
 
 extern int msg_yylex(void);
 
@@ -97,14 +105,8 @@ int out_err=0;
 static char *out_str=NULL;
 static size_t out_len=0;
 
-/*+ The list of variables. +*/
-static char **variables=NULL;
-
-/*+ The list of values. +*/
-static char **values=NULL;
-
-/*+ The number of variables. +*/
-static int nvariables=0;
+/*+ The list of variables and their values. +*/
+static VarValueNode *varvaluelist=NULL;
 
 /*+ The option to use compression or chunked encoding for the reply. +*/
 static int client_compression=0,client_chunked=0;
@@ -211,7 +213,7 @@ void HTMLMessageHead(int fd,int status_val,char *status_str, ...)
      {
        val=va_arg(ap,char*);
 
-       if(!strcmp(var,"Content-Type"))
+       if(!strcasecmp(var,"Content-Type"))
 	 content_type=1;
 
        if(val)
@@ -393,7 +395,7 @@ static char *html_message_body(int fd,char *template,va_list ap)
  if(fd==-1)
     delete_variables();
 
- if(nvariables==0)
+ if(varvaluelist==NULL)
    {
     char *localhost=GetLocalHost(1);
     add_variable("localhost",localhost);
@@ -472,9 +474,11 @@ static void write_or_append_string(char *str)
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Add a new variable.
+  Add a new variable and value combination.
+  The list of variable-value pairs is kept ordered so that on average
+  we need to compare with only half the names in the list.
 
-  char *add_variable Returns the newly allocated variable.
+  char *add_variable Returns the newly allocated value.
 
   char *var The variable to add.
 
@@ -483,27 +487,29 @@ static void write_or_append_string(char *str)
 
 static char *add_variable(char *var,char *val)
 {
- int i;
+  VarValueNode *p,**q,*new;
+  int cmp;
+  size_t var_sz;
 
- for(i=0;i<nvariables;i++)
-    if(!strcmp(var,variables[i]))
-      {
-       if(values[i]!=empty)
-          free(values[i]);
+  q= &varvaluelist;
 
-       return(values[i]=(val?strdup(val):empty));
-      }
+  while((p= *q) && (cmp=strcmp(p->variable,var))<=0) {
+    if(cmp==0) {
+      if(p->value!=empty)
+          free(p->value);
+      return(p->value=(val?strdup(val):empty));
+    }
+    q= &p->next;
+  }
 
- i=nvariables++;
- if(i%8==0)
-   {
-    variables=(char**)realloc((void*)variables,(i+8)*sizeof(char*));
-    values   =(char**)realloc((void*)values   ,(i+8)*sizeof(char*));
-   }
+  var_sz= strlen(var)+1;
+  new= malloc(sizeof(VarValueNode)+var_sz);
+  new->next= p;
+  new->value= (val?strdup(val):empty);
+  memcpy(new->variable,var,var_sz);
+  *q= new;
 
- variables[i]=strdup(var);
-
- return(values[i]=(val?strdup(val):empty));
+  return(new->value);
 }
 
 
@@ -513,28 +519,25 @@ static char *add_variable(char *var,char *val)
 
 static void delete_variables(void)
 {
- int i;
+  VarValueNode *p=varvaluelist;
 
- for(i=0;i<nvariables;i++)
-   {
-    free(variables[i]);
-    if(values[i]!=empty)
-       free(values[i]);
-   }
+  while(p) {
+    VarValueNode *next=p->next;
+    if(p->value!=empty)
+      free(p->value);
+    free(p);
+    p=next;
+  }
 
- if(nvariables)
-   {
-    free(variables);
-    free(values);
-    nvariables=0;
-    variables=NULL;
-    values=NULL;
-   }
+  varvaluelist=NULL;
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Get the value of the named variable.
+  The list of variable-value pairs is kept ordered so it is
+  not necessary to check every name in the list to conclude that
+  the variable is not defined.
 
   char *get_variable Return the value of the variable or an empty string.
 
@@ -543,13 +546,16 @@ static void delete_variables(void)
 
 static char *get_variable(char *var)
 {
- int i;
+  VarValueNode *p=varvaluelist;
+  int cmp;
 
- for(i=0;i<nvariables;i++)
-    if(!strcmp(var,variables[i]))
-       return(values[i]);
+  while(p && (cmp=strcmp(p->variable,var))<=0) {
+    if(cmp==0)
+      return(p->value);
+    p=p->next;
+  }
 
- return(empty);
+  return(empty);
 }
 
 

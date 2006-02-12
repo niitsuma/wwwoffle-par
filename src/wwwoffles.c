@@ -123,7 +123,7 @@ int wwwoffles(int online,int fetching,int client)
  Mode mode=None;
  int outgoing_exists=0,outgoing_exists_pw=0,createlasttimespoolfile=0;
  time_t spool_exists=0,spool_exists_pw=0;
- int conditional_request_ims=0,conditional_request_inm=0;
+ int conditional_request_ims=0,conditional_request_inm=0,not_modified_spool=0;
  int offline_request=1;
  int is_client_wwwoffle=0;
  int is_client_searcher=0;
@@ -1464,6 +1464,22 @@ passwordagain:
 
 	 if(RequireChanges(spool,Url,&ims,&inm))
 	   {
+	     if(conditional_request_ims || conditional_request_inm) {
+	       lseek(spool,0,SEEK_SET);
+	       reinit_io(spool);
+
+	       /* We may want to send a not-modified header to the client when the
+		  server also replies "Not Modified".
+		  Check this with the present request_head, because the
+		  original conditional request headers from the client
+		  are going to be replaced.
+	       */
+
+	       not_modified_spool= !IsModified(spool,request_head);
+	     }
+	     
+	     /* Remove the conditional headers only after calling IsModified(). */
+
 	     if(conditional_request_ims)
 	       RemoveFromHeader(request_head,"If-Modified-Since");
 	     if(conditional_request_inm)
@@ -2085,7 +2101,7 @@ passwordagain:
 
        else if(mode==Real)
          {
-          if(conditional_request_ims || conditional_request_inm)
+          if(not_modified_spool)
             {
              HTMLMessageHead(client,304,"WWWOFFLE Not Modified",
 			     "Content-Length","0",
@@ -2231,7 +2247,10 @@ passwordagain:
 
     if(mode!=RealNoCache) {
       int headlen;
-      char *head=HeaderString(reply_head,&headlen);
+      char *head;
+      /* Add a WWWOFFLE timestamp */
+      /* AddToHeader(reply_head,"wwwoffle-cache-date",RFC822Date(time(NULL),1)); */
+      head=HeaderString(reply_head,&headlen);
       if((spool_err=write_data(spool,head,headlen))<0)
 	PrintMessage(Warning,"Cannot write to cache file [%!s]; disk full?");
       free(head);
@@ -2544,8 +2563,10 @@ passwordagain:
 
     {
       int reply_head_size;
-      char *head=HeaderString(reply_head,&reply_head_size);
-
+      char *head;
+      /* Add a WWWOFFLE timestamp */
+      /* AddToHeader(reply_head,"wwwoffle-cache-date",RFC822Date(time(NULL),1)); */
+      head=HeaderString(reply_head,&reply_head_size);
       if((spool_err=write_data(spool,head,reply_head_size))<0)
 	PrintMessage(Warning,"Cannot write to cache file [%!s]; disk full?");
       free(head);
@@ -2816,7 +2837,7 @@ passwordagain:
        if(size && !spool_compression && !modify && !client_compression) {
 	   char length[24];
 	   sprintf(length,"%lu",content_length);
-	   ReplaceInHeader(reply_head,"Content-Length",length);
+	   ReplaceOrAddInHeader(reply_head,"Content-Length",length);
        }
        else
 	 RemoveFromHeader(reply_head,"Content-Length");
@@ -3158,7 +3179,7 @@ passwordagain:
        if(!client_compression) {
 	   char length[24];
 	   sprintf(length,"%lu",content_length);
-	   ReplaceInHeader(reply_head,"Content-Length",length);
+	   ReplaceOrAddInHeader(reply_head,"Content-Length",length);
        }
        else
 	 RemoveFromHeader(reply_head,"Content-Length");

@@ -17,6 +17,7 @@ params    = The URL params (= '$params').
 args      = The URL args (= '$args').
 
 $htmlurl=%html[url]
+$decurl=%decode[url]
 $htmlproto=%html[proto]
 $htmlhost=%html[host]
 $htmlport=%html[port]
@@ -26,7 +27,7 @@ $htmlargs=%html[args]
 -->
 
 <HEAD>
-<TITLE>WWWOFFLE - Interactive Configuration Page - URL $htmlurl</TITLE>
+<TITLE>WWWOFFLE - Interactive Configuration Page - URL $decurl</TITLE>
 <LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
@@ -44,9 +45,9 @@ $htmlargs=%html[args]
 <H1 align="center">WWWOFFLE Interactive Configuration</H1>
 
 $wildcard?{
-<H2>URL: $htmlurl</H2>
+<H2>URL: $decurl</H2>
 }{
-<H2>URL: <a href="$htmlurl">$htmlurl</a></H2>
+<H2>URL: <a href="$htmlurl">$decurl</a></H2>
 }
 
 This page allows a number of configuration items for a particular URL to be set.

@@ -35,7 +35,7 @@ head2     = The modified headers of the request.
 
 $cached?{
 This page details the information that is available about the URL
-<b><tt><a href="%html[url]">$url</a></tt></b> that is available in the
+<b><tt><a href="%html[url]">%decode[url]</a></tt></b> that is available in the
 WWWOFFLE cache.
 
 <h2>Header</h2>
@@ -74,7 +74,7 @@ The HTML source code for the cached page (without any WWWOFFLE modifications).
 
 The headers that the browser would send to WWWOFFLE if it was to request this page.
 }{
-The page for the URL <b><tt><a href="%html[url]">$url</a></tt></b> is not
+The page for the URL <b><tt><a href="%html[url]">%decode[url]</a></tt></b> is not
 available in the WWWOFFLE cache.
 }
 
