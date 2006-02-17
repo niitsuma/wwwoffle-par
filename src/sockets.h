@@ -18,7 +18,7 @@
 
 /* in sockets.c */
 
-int OpenClientSocket(char* host,int port, char *shost,int sport,char *shost_ipbuf);
+int OpenClientSocket(char* host,int port, char *shost,int sport,int socks_remote_dns,char *shost_ipbuf);
 
 int OpenServerSocket(char* host,int port);
 int AcceptConnect(int socket);

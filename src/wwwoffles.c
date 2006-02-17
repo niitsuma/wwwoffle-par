@@ -2249,7 +2249,7 @@ passwordagain:
       int headlen;
       char *head;
       /* Add a WWWOFFLE timestamp */
-      /* AddToHeader(reply_head,"wwwoffle-cache-date",RFC822Date(time(NULL),1)); */
+      AddToHeader(reply_head,"wwwoffle-cache-date",RFC822Date(time(NULL),1));
       head=HeaderString(reply_head,&headlen);
       if((spool_err=write_data(spool,head,headlen))<0)
 	PrintMessage(Warning,"Cannot write to cache file [%!s]; disk full?");
@@ -2565,7 +2565,7 @@ passwordagain:
       int reply_head_size;
       char *head;
       /* Add a WWWOFFLE timestamp */
-      /* AddToHeader(reply_head,"wwwoffle-cache-date",RFC822Date(time(NULL),1)); */
+      AddToHeader(reply_head,"wwwoffle-cache-date",RFC822Date(time(NULL),1));
       head=HeaderString(reply_head,&reply_head_size);
       if((spool_err=write_data(spool,head,reply_head_size))<0)
 	PrintMessage(Warning,"Cannot write to cache file [%!s]; disk full?");

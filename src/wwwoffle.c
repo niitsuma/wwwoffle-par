@@ -466,7 +466,7 @@ int main(int argc, char** argv)
     int socket;
     char *line=NULL;
 
-    socket=OpenClientSocket(host,port?port:wwwoffle_port,NULL,0,NULL);
+    socket=OpenClientSocket(host,port?port:wwwoffle_port,NULL,0,0,NULL);
 
     if(socket==-1)
        PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port?port:wwwoffle_port);
@@ -545,7 +545,7 @@ int main(int argc, char** argv)
              continue;
             }
 
-          socket=OpenClientSocket(host,port?port:http_port,NULL,0,NULL);
+          socket=OpenClientSocket(host,port?port:http_port,NULL,0,0,NULL);
 
           if(socket==-1)
              PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port?port:http_port);
@@ -739,7 +739,7 @@ int main(int argc, char** argv)
     if(!Url->Protocol)
        PrintMessage(Fatal,"Cannot post or put protocol '%s'.",Url->proto);
 
-    socket=OpenClientSocket(host,port?port:http_port,NULL,0,NULL);
+    socket=OpenClientSocket(host,port?port:http_port,NULL,0,0,NULL);
 
     if(socket==-1)
        PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port?port:http_port);
@@ -846,7 +846,7 @@ int main(int argc, char** argv)
     if(!Url->Protocol)
        PrintMessage(Fatal,"Cannot fetch data from protocol '%s'.",Url->proto);
 
-    socket=OpenClientSocket(host,port?port:http_port,NULL,0,NULL);
+    socket=OpenClientSocket(host,port?port:http_port,NULL,0,0,NULL);
 
     if(socket==-1)
        PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port?port:http_port);

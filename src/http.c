@@ -30,6 +30,7 @@
 /*+ Set to the name of the proxy if there is one. +*/
 static /*@null@*/ /*@observer@*/ char *proxy=NULL;
 static /*@null@*/ /*@observer@*/ char *sproxy=NULL;
+static int socksremotedns=0;
 
 /*+ The file descriptor of the server. +*/
 static int server=-1;
@@ -56,10 +57,12 @@ char *HTTP_Open(URL *Url)
  if(IsLocalNetHost(Url->host)) {
    proxy=NULL;
    sproxy=NULL;
+   socksremotedns=0;
  }
  else {
    proxy=ConfigStringURL(Proxies,Url);
    sproxy=ConfigStringURL(SocksProxy,Url);
+   socksremotedns=ConfigBooleanURL(SocksRemoteDNS,Url);
  }     
 
  if(proxy) {
@@ -80,7 +83,7 @@ char *HTTP_Open(URL *Url)
 
  /* Open the connection. */
 
- server=OpenClientSocket(server_host,server_port,socks_host,socks_port,NULL);
+ server=OpenClientSocket(server_host,server_port,socks_host,socks_port,socksremotedns,NULL);
 
  if(server==-1)
     msg=GetPrintMessage(Warning,"Cannot open the HTTP connection to %s port %d; [%!s].",server_host,server_port);

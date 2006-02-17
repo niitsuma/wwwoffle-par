@@ -699,13 +699,17 @@ ConfigItem SSLProxy;
 /*+ The Socks proxy to use. +*/
 ConfigItem SocksProxy;
 
+/*+ Flags to indicate whether destination host names should be resolved remotely by SOCKS server. +*/
+ConfigItem SocksRemoteDNS;
+
 /*+ The item defintions in the Proxy section. +*/
 static ConfigItemDef proxy_itemdefs[]={
- {"auth-username",&ProxyAuthUser,1,0,Fixed,String           ,NULL},
- {"auth-password",&ProxyAuthPass,1,0,Fixed,String           ,NULL},
- {"socks"        ,&SocksProxy   ,1,0,Fixed,HostAndPortOrNone,NULL},
- {"ssl"          ,&SSLProxy     ,1,0,Fixed,HostAndPortOrNone,NULL},
- {"proxy"        ,&Proxies      ,1,0,Fixed,HostAndPortOrNone,NULL}
+ {"auth-username"   ,&ProxyAuthUser ,1,0,Fixed,String           ,NULL},
+ {"auth-password"   ,&ProxyAuthPass ,1,0,Fixed,String           ,NULL},
+ {"socks"           ,&SocksProxy    ,1,0,Fixed,HostAndPortOrNone,NULL},
+ {"socks-remote-dns",&SocksRemoteDNS,1,0,Fixed,Boolean          ,"no"},
+ {"ssl"             ,&SSLProxy      ,1,0,Fixed,HostAndPortOrNone,NULL},
+ {"proxy"           ,&Proxies       ,1,0,Fixed,HostAndPortOrNone,NULL}
 };
 
 /*+ The Proxy section. +*/

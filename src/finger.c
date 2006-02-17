@@ -72,7 +72,7 @@ char *Finger_Open(URL *Url)
 
  /* Open the connection. */
 
- server=OpenClientSocket(server_host,server_port,NULL,0,NULL);
+ server=OpenClientSocket(server_host,server_port,NULL,0,0,NULL);
 
  if(server==-1)
     msg=GetPrintMessage(Warning,"Cannot open the Finger connection to %s port %d; [%!s].",server_host,server_port);

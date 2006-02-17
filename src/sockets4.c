@@ -90,10 +90,24 @@ static jmp_buf dns_jmp_env;
 
   char* host The name of the remote host.
 
-  int port The socket number.
+  int port The port number.
+
+  For SOCKS v4 connections:
+
+    char* shost The name of the destination host the SOCKS server should connect to
+		(should be null if host is the destination).
+
+    int sport   The destination port number.
+
+    int socks_remote_dns  If nonzero, use SOCKS v4A to resolve destination host name remotely.
+
+    char* shost_ipbuf  Buffer used to return the string representation of the IP address
+		       of the destination host (i.e. shost if not null, otherwise host).
+		       Only makes sense if socks_remote_dns==0.
+		       Pointer to buffer may be null.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int OpenClientSocket(char* host,int port, char *shost,int sport,char *shost_ipbuf)
+int OpenClientSocket(char* host,int port, char *shost,int sport,int socks_remote_dns,char *shost_ipbuf)
 {
  int s;
  struct sockaddr_in server;
@@ -150,48 +164,90 @@ int OpenClientSocket(char* host,int port, char *shost,int sport,char *shost_ipbu
 
  if(shost) {
    socks_hdr_t *shdr;
-   int hdrsize,rv;
+   unsigned hdrsize,dstsize=0;
+   int rv;
    struct in_addr a;
 
-   hp=gethostbyname_or_timeout(shost);
-   if(!hp)
+   if(!socks_remote_dns) {
+     /* Resolve name of destination host locally.*/
+     hp=gethostbyname_or_timeout(shost);
+     if(!hp)
+       {
+	 uint32_t addr=inet_addr(shost);
+	 if(addr!=-1)
+	   hp=gethostbyaddr_or_timeout((char*)&addr,sizeof(addr),AF_INET);
+
+	 if(!hp)
+	   {
+	     if(errno!=ETIMEDOUT)
+	       errno=ERRNO_USE_H_ERRNO;
+	     PrintMessage(Warning,"Unknown host '%s' for server [%!s].",shost);
+	     close(s);
+	     return(-1);
+	   }
+       }
+
+     if(hp->h_addrtype!=AF_INET || hp->h_length!=sizeof(a)) {
+       PrintMessage(Warning,"Cannot connect to '%s': unexpected address type.",shost);
+       close(s);
+       errno=EAFNOSUPPORT;
+       return -1;
+     }
+     memcpy(&a,hp->h_addr,sizeof(a));
+     if(shost_ipbuf)
+       strcpy(shost_ipbuf,inet_ntoa(a));
+
+     /* Some sanity checks */
      {
-       uint32_t addr=inet_addr(shost);
-       if(addr!=-1)
-	 hp=gethostbyaddr_or_timeout((char*)&addr,sizeof(addr),AF_INET);
+       const char *p=(char*)&a;
+       if(p[0]==0 && p[1]==0 && p[2]==0) {
+	 PrintMessage(Warning,"Not connecting to '%s:%d': host has invalid IP address %s ",shost,sport,inet_ntoa(a));
+	 close(s);
+	 errno=EPERM;
+	 return -1;
+       }
+     }
 
-       if(!hp)
-	 {
-	   if(errno!=ETIMEDOUT)
-	     errno=ERRNO_USE_H_ERRNO;
-	   PrintMessage(Warning,"Unknown host '%s' for server [%!s].",shost);
-	   close(s);
-	   return(-1);
-	 }
-      }
-
-   if(hp->h_addrtype!=AF_INET || hp->h_length!=sizeof(a)) {
-     PrintMessage(Warning,"Cannot connect to '%s': unexpected address type.",shost);
-     close(s);
-     errno=EAFNOSUPPORT;
-     return -1;
+     /* Try not to connect to our own HTTP port. */
+     if(IsLocalAddrPort(a,sport)) {
+       PrintMessage(Warning,"Not connecting to '%s:%d': IP address %s matches that of localhost.",shost,sport,inet_ntoa(a));
+       close(s);
+       errno=EPERM;
+       return -1;
+     }
    }
-   memcpy(&a,hp->h_addr,sizeof(a));
-   if(shost_ipbuf)
-     strcpy(shost_ipbuf,inet_ntoa(a));
+   else {
+     /* Resolve name of destination host remotely using SOCKS v4A protocol.*/
+     static const char dummy_addr[sizeof(a)] = {0,0,0,1};
 
-   /* Try not to connect to our own HTTP port. */
-   if(IsLocalAddrPort(a,sport)) {
-     PrintMessage(Warning,"Not connecting to '%s:%d': IP address %s matches that of localhost.",shost,sport,inet_ntoa(a));
-     close(s);
-     errno=EPERM;
-     return -1;
-   }
+     memcpy(&a,dummy_addr,sizeof(a));
+     if(shost_ipbuf)
+       shost_ipbuf[0]=0;
+
+     dstsize=strlen(shost)+1;
+
+     /* Some sanity checks */
+     if(dstsize>256) {
+       PrintMessage(Warning,"Not connecting to '%s:%d': host name too long.",shost,sport);
+       close(s);
+       errno=EMSGSIZE;
+       return -1;
+     }
+#if 0
+     if(IsLocalHostPort2(shost,sport)) {
+       PrintMessage(Warning,"Not connecting to '%s:%d': name and port match that of localhost.",shost,sport);
+       close(s);
+       errno=EPERM;
+       return -1;
+     }
+#endif
+   }     
 
    {
      uid_t uid;
      struct passwd *pwd;
-     int nmsize;
+     unsigned nmsize;
+     char *p;
      char uidbuf[12];
 
      uid=getuid();
@@ -201,14 +257,16 @@ int OpenClientSocket(char* host,int port, char *shost,int sport,char *shost_ipbu
      else
        nmsize= sprintf(uidbuf,"%d",uid);
      ++nmsize; /* include the terminating null byte */
-     hdrsize=sizeof(socks_hdr_t)+nmsize;
+     hdrsize=sizeof(socks_hdr_t)+nmsize+dstsize;
      shdr=alloca(hdrsize);
 
      shdr->version=4; /* SOCKS protocol version number */
      shdr->command=1; /* CONNECT request */
      shdr->port=htons(sport);
      shdr->addr=a.s_addr;
-     memcpy(shdr->userid,pwd?pwd->pw_name:uidbuf,nmsize);
+     p=mempcpy(shdr->userid,pwd?pwd->pw_name:uidbuf,nmsize);
+     if(socks_remote_dns)
+       memcpy(p,shost,dstsize); /* Add name of destination for SOCKS v4A */
    }
 
    /* Should we use "write_all_or_timeout"?
@@ -354,7 +412,7 @@ int AcceptConnect(int socket)
 {
  int s;
 
- s=accept(socket,(struct sockaddr*)0,(int*)0);
+ s=accept(socket,(struct sockaddr*)0,(socklen_t*)0);
 
  if(s==-1)
     PrintMessage(Warning,"Failed to accept on server socket [%!s].");
@@ -380,7 +438,8 @@ int AcceptConnect(int socket)
 int SocketRemoteName(int socket,char **name,char **ipname,int *port)
 {
  struct sockaddr_in server;
- int length=sizeof(server),retval;
+ socklen_t length=sizeof(server);
+ int retval;
  static char host[MAXHOSTNAMELEN],ip[16];
 
  retval=getpeername(socket,(struct sockaddr*)&server,&length);
@@ -831,7 +890,7 @@ static int connect_or_timeout(int sockfd,struct sockaddr *serv_addr,int addrlen)
 
     if(retval>0)
       {
-       int arglen=sizeof(int);
+       socklen_t arglen=sizeof(int);
 
        if(getsockopt(sockfd,SOL_SOCKET,SO_ERROR,&retval,&arglen)<0)
           retval=errno;

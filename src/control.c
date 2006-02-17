@@ -184,7 +184,7 @@ static void ActionControlPage(int fd,Action action,char *command)
 {
  char *localhost=GetLocalHost(0);
  int error=0;
- int socket=OpenClientSocket(localhost,ConfigInteger(WWWOFFLE_Port),NULL,0,NULL);
+ int socket=OpenClientSocket(localhost,ConfigInteger(WWWOFFLE_Port),NULL,0,0,NULL);
 
  if(socket==-1)
    {

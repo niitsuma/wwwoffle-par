@@ -170,6 +170,23 @@ int IsLocalHostPort(char *hostport)
  return 0;
 }
 
+#if 0
+int IsLocalHostPort2(char *host, int port)
+{
+ if(LocalHost) {
+   if(port==ConfigInteger(HTTP_Port)) {
+     int i;
+     for(i=0;i<LocalHost->nentries;++i) {
+       char *localhost=LocalHost->key[i].string;
+       if(!strncasecmp(localhost,host))
+	 return 1;
+     }
+   }
+ }
+
+ return 0;
+}
+#endif
 
 /*++++++++++++++++++++++++++++++++++++++
   Check if the specified hostname is in the local network.

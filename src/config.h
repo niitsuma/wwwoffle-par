@@ -432,6 +432,9 @@ extern /*@null@*/ ConfigItem SSLProxy;
 /*+ The SOCKS proxy to use. +*/
 extern /*@null@*/ ConfigItem SocksProxy;
 
+/*+ Flags to indicate whether destination host names should be resolved remotely by SOCKS server. +*/
+extern /*@null@*/ ConfigItem SocksRemoteDNS;
+
 
 /* Alias section */
 

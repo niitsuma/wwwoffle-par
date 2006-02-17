@@ -47,6 +47,7 @@
 /*+ Set to the name of the proxy if there is one. +*/
 static char /*@null@*/ /*@observer@*/ *proxy=NULL;
 static char /*@null@*/ /*@observer@*/ *sproxy=NULL;
+static int socksremotedns=0;
 static char rhost_ipstr[ipaddr_strlen];
 
 /*+ The file descriptor of the socket +*/
@@ -91,10 +92,12 @@ char *FTP_Open(URL *Url)
  if(IsLocalNetHost(Url->host)) {
    proxy=NULL;
    sproxy=NULL;
+   socksremotedns=0;
  }
  else {
    proxy=ConfigStringURL(Proxies,Url);
    sproxy=ConfigStringURL(SocksProxy,Url);
+   socksremotedns=ConfigBooleanURL(SocksRemoteDNS,Url);
  }     
 
  if(proxy) {
@@ -115,7 +118,7 @@ char *FTP_Open(URL *Url)
 
  /* Open the connection. */
 
- server_ctrl=OpenClientSocket(server_host,server_port,socks_host,socks_port,rhost_ipstr);
+ server_ctrl=OpenClientSocket(server_host,server_port,socks_host,socks_port,socksremotedns,rhost_ipstr);
 
  if(server_ctrl==-1)
     msg=GetPrintMessage(Warning,"Cannot open the FTP control connection to %s port %d; [%!s].",server_host,server_port);
@@ -539,7 +542,7 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
        msg=GetPrintMessage(Warning,"Got '%s' message after sending 'EPSV' command, cannot parse.",str);
        goto free_return;
       }
-    host=rhost_ipstr;
+    host= ((*rhost_ipstr)?rhost_ipstr:Url->host);
    }
  else if(str[0]!='5' || str[1]!='0' || !isdigit(str[2]))
    {
@@ -604,7 +607,7 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
  if(sproxy)
    SETSOCKSHOSTPORT(sproxy,host,port,shost,sport);
 
- server_data=OpenClientSocket(host,port,shost,sport,NULL);
+ server_data=OpenClientSocket(host,port,shost,sport,socksremotedns,NULL);
 
  if(server_data==-1)
    {

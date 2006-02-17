@@ -1,13 +1,14 @@
-	  Alternative WWWOFFLE implementation - version 2.8e-par-3
+	  Alternative WWWOFFLE implementation - version 2.8e-par-4
                              by Paul Rombouts
 	  ========================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
 am making available so other people can run it and/or study the source code.
-Present version is 2.8e-par-3 (I've simply appended my initials to the version
-number). This version introduces an important efficiency improvement: the number
-of files in the spool directory are reduced by nearly 50% by using a single
-compact database file to remember the URLs belonging to the cached webpages.
+Present version is 2.8e-par-4 (I've simply appended my initials to the version
+number). Versions 2.8e-par and later introduce an important efficiency
+improvement: the number of files in the spool directory are reduced by nearly
+50% by using a single compact database file to remember the URLs belonging to
+the cached webpages.
 
 The first part of this file describes how to patch, compile, install and run
 wwwoffled. Please note that if you wish to use an existing WWWOFFLE spool
@@ -17,11 +18,11 @@ more detail the changes I've made to AMB's code.
 
 Before compiling and installing WWWOFFLE according to AMB's installation
 instructions described in the INSTALL file you must first apply my patch file
-wwwoffled-2.8e-par-3.diff.gz. Use a freshly untarred copy of Andrew Bishop's
+wwwoffled-2.8e-par-4.diff.gz. Use a freshly untarred copy of Andrew Bishop's
 original version 2.8e source, cd into the source directory wwwoffle-2.8e and
 apply the command:
 
-gzip -cd <path_to_patch>/wwwoffle-2.8e-par-3.diff.gz | patch -p2 -N -E
+gzip -cd <path_to_patch>/wwwoffle-2.8e-par-4.diff.gz | patch -p2 -N -E
 
 Note: because I have used GNU extensions you will need to compile with gcc and
 link with glibc. This will not be a problem with most Linux distributions.
@@ -78,6 +79,13 @@ correctly.
 
 I've introduced a few extensions to the way WWWOFFLE can be configured:
 
+- New in version 2.8e-par-4: I have added support for the SOCKS 4A protocol.
+  By default, when connecting through a SOCKS proxy server the destination host
+  name is resolved locally and the IP address is given to the SOCKS server.
+  Sometimes this is not what you want. By setting the new socks-remote-dns
+  option to yes, WWWOFFLE will not attempt to resolve the name and will supply
+  the host name directly to the SOCKS server.
+
 - New in version 2.8d-3: I've added a new option to the ModifyHTML section
   called replacement-meta-refresh-time. If this is set to a non-negative value,
   the delay time in the meta refresh tag will replaced with this value.
@@ -89,7 +97,7 @@ I've introduced a few extensions to the way WWWOFFLE can be configured:
   which means I get to see the page I am actually interested in without any
   delay.
 
-- New in version 2.8d: I've added support for connecting via SOCKS v4 proxies.
+- New in version 2.8d: I've added support for connecting via SOCKS 4 proxies.
   I personally use this feature with OpenSSH as the SOCKS server.
   For example, you can start ssh as a SOCKS server with the command
 
