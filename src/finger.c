@@ -30,6 +30,8 @@
 
 /*+ Set to the name of the proxy if there is one. +*/
 static /*@observer@*/ /*@null@*/ char *proxy=NULL;
+static /*@null@*/ /*@observer@*/ char *sproxy=NULL;
+static int socksremotedns=0;
 
 /*+ The file descriptor of the server. +*/
 static int server=-1;
@@ -48,13 +50,21 @@ char *Finger_Open(URL *Url)
  char *msg=NULL;
  char *server_host=NULL;
  int server_port=Protocols[Protocol_Finger].defport;
+ char *socks_host=NULL;
+ int socks_port=0;
 
  /* Sort out the host. */
 
- if(IsLocalNetHost(Url->host))
+ if(IsLocalNetHost(Url->host)) {
    proxy=NULL;
- else
+   sproxy=NULL;
+   socksremotedns=0;
+ }
+ else {
    proxy=ConfigStringURL(Proxies,Url);
+   sproxy=ConfigStringURL(SocksProxy,Url);
+   socksremotedns=ConfigBooleanURL(SocksRemoteDNS,Url);
+ }     
 
  if(proxy) {
    char *hoststr, *portstr; int hostlen;
@@ -69,17 +79,21 @@ char *Finger_Open(URL *Url)
    server_port=Url->portnum;
  }
 
+ if(sproxy)
+   SETSOCKSHOSTPORT(sproxy,server_host,server_port,socks_host,socks_port);
 
  /* Open the connection. */
 
- server=OpenClientSocket(server_host,server_port,NULL,0,0,NULL);
+ server=OpenClientSocket(server_host,server_port,socks_host,socks_port,socksremotedns,NULL);
 
  if(server==-1)
     msg=GetPrintMessage(Warning,"Cannot open the Finger connection to %s port %d; [%!s].",server_host,server_port);
-
- init_io(server);
- configure_io_read(server,ConfigInteger(SocketTimeout),0,0);
- configure_io_write(server,ConfigInteger(SocketTimeout),0,0);
+ else
+   {
+     init_io(server);
+     configure_io_read(server,ConfigInteger(SocketTimeout),0,0);
+     configure_io_write(server,ConfigInteger(SocketTimeout),0,0);
+   }
 
  return(msg);
 }
