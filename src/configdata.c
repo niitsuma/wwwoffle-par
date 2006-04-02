@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configdata.c 2.151 2004/12/09 19:02:37 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configdata.c 2.159 2006/02/11 20:00:24 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Configuration data functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -31,8 +31,10 @@
 
 
 #ifndef PATH_MAX
+/*+ The maximum pathname length in characters. +*/
 #define PATH_MAX 4096
 #endif
+
 
 /* StartUp section */
 
@@ -44,6 +46,9 @@ ConfigItem Bind_IPv6;
 
 /*+ The port number to use for the HTTP proxy port. +*/
 ConfigItem HTTP_Port;
+
+/*+ The port number to use for the HTTPS proxy port. +*/
+ConfigItem HTTPS_Port;
 
 /*+ The port number to use for the wwwoffle port. +*/
 ConfigItem WWWOFFLE_Port;
@@ -72,14 +77,15 @@ static ConfigItemDef startup_itemdefs[]={
  {"bind-ipv4"        ,&Bind_IPv4      ,0,0,Fixed,HostOrNone        ,"0.0.0.0"   },
  {"bind-ipv6"        ,&Bind_IPv6      ,0,0,Fixed,HostOrNone        ,"::"        },
  {"http-port"        ,&HTTP_Port      ,0,0,Fixed,PortNumber        ,NULL        },  /* 2 see InitConfigurationFile() */
- {"wwwoffle-port"    ,&WWWOFFLE_Port  ,0,0,Fixed,PortNumber        ,NULL        },  /* 3 see InitConfigurationFile() */
+ {"https-port"       ,&HTTPS_Port     ,0,0,Fixed,PortNumber        ,NULL        },  /* 3 see InitConfigurationFile() */
+ {"wwwoffle-port"    ,&WWWOFFLE_Port  ,0,0,Fixed,PortNumber        ,NULL        },  /* 4 see InitConfigurationFile() */
  {"spool-dir"        ,&SpoolDir       ,0,0,Fixed,PathName          ,DEF_SPOOLDIR},
  {"run-uid"          ,&WWWOFFLE_Uid   ,0,0,Fixed,UserId            ,"-1"        },
  {"run-gid"          ,&WWWOFFLE_Gid   ,0,0,Fixed,GroupId           ,"-1"        },
  {"use-syslog"       ,&UseSyslog      ,0,0,Fixed,Boolean           ,"yes"       },
  {"password"         ,&PassWord       ,0,0,Fixed,String            ,NULL        },
- {"max-servers"      ,&MaxServers     ,0,0,Fixed,CfgMaxServers     ,NULL        },  /* 9 see InitConfigurationFile() */
- {"max-fetch-servers",&MaxFetchServers,0,0,Fixed,CfgMaxFetchServers,NULL        }   /*10 see InitConfigurationFile() */
+ {"max-servers"      ,&MaxServers     ,0,0,Fixed,CfgMaxServers     ,NULL        },  /*10 see InitConfigurationFile() */
+ {"max-fetch-servers",&MaxFetchServers,0,0,Fixed,CfgMaxFetchServers,NULL        }   /*11 see InitConfigurationFile() */
 };
 
 /*+ The StartUp section. +*/
@@ -104,9 +110,6 @@ ConfigItem ConnectTimeout;
 
 /*+ The option to retry a failed connection. +*/
 ConfigItem ConnectRetry;
-
-/*+ The list of allowed SSL port numbers. +*/
-ConfigItem SSLAllowPort;
 
 /*+ The permissions for creation of +*/
 ConfigItem DirPerm,             /*+ directories. +*/
@@ -137,9 +140,8 @@ static ConfigItemDef options_itemdefs[]={
  {"dns-timeout"          ,&DNSTimeout         ,0,0,Fixed,TimeSecs   ,"1m"       },
  {"connect-timeout"      ,&ConnectTimeout     ,0,0,Fixed,TimeSecs   ,"30"       },
  {"connect-retry"        ,&ConnectRetry       ,0,0,Fixed,Boolean    ,"no"       },
- {"ssl-allow-port"       ,&SSLAllowPort       ,0,1,Fixed,PortNumber ,NULL       },
- {"dir-perm"             ,&DirPerm            ,0,0,Fixed,FileMode   ,NULL       }, /* 6 see InitConfigurationFile() */
- {"file-perm"            ,&FilePerm           ,0,0,Fixed,FileMode   ,NULL       }, /* 7 see InitConfigurationFile() */
+ {"dir-perm"             ,&DirPerm            ,0,0,Fixed,FileMode   ,NULL       }, /* 5 see InitConfigurationFile() */
+ {"file-perm"            ,&FilePerm           ,0,0,Fixed,FileMode   ,NULL       }, /* 6 see InitConfigurationFile() */
  {"run-online"           ,&RunOnline          ,0,0,Fixed,PathName   ,NULL       },
  {"run-offline"          ,&RunOffline         ,0,0,Fixed,PathName   ,NULL       },
  {"run-autodial"         ,&RunAutodial        ,0,0,Fixed,PathName   ,NULL       },
@@ -147,7 +149,7 @@ static ConfigItemDef options_itemdefs[]={
  {"lock-files"           ,&LockFiles          ,0,0,Fixed,Boolean    ,"no"       },
  {"reply-compressed-data",&ReplyCompressedData,0,0,Fixed,Boolean    ,"no"       },
  {"reply-chunked-data"   ,&ReplyChunkedData   ,0,0,Fixed,Boolean    ,"yes"      },
- {"exec-cgi"             ,&ExecCGI            ,0,1,Fixed,Url        ,NULL       }
+ {"exec-cgi"             ,&ExecCGI            ,0,1,Fixed,UrlWild    ,NULL       }
 };
 
 /*+ Options section. +*/
@@ -166,6 +168,9 @@ ConfigItem CacheControlNoCacheOnline;
 
 /*+ The option to allow or ignore the 'Cache-Control: max-age=0' request online. +*/
 ConfigItem CacheControlMaxAge0Online;
+
+/*+ The option to force a refresh if the request contains a cookie when online. +*/
+ConfigItem CookiesForceRefreshOnline;
 
 /*+ The maximum age of a cached page to use in preference while online. +*/
 ConfigItem RequestChanged;
@@ -215,6 +220,7 @@ static ConfigItemDef onlineoptions_itemdefs[]={
  {"pragma-no-cache"        ,&PragmaNoCacheOnline      ,1,0,Fixed,Boolean   ,"yes"},
  {"cache-control-no-cache" ,&CacheControlNoCacheOnline,1,0,Fixed,Boolean   ,"yes"},
  {"cache-control-max-age-0",&CacheControlMaxAge0Online,1,0,Fixed,Boolean   ,"yes"},
+ {"cookies-force-refresh"  ,&CookiesForceRefreshOnline,1,0,Fixed,Boolean   ,"no" },
  {"request-changed"        ,&RequestChanged           ,1,0,Fixed,TimeSecs  ,"10m"},
  {"request-changed-once"   ,&RequestChangedOnce       ,1,0,Fixed,Boolean   ,"yes"},
  {"request-expired"        ,&RequestExpired           ,1,0,Fixed,Boolean   ,"no" },
@@ -268,6 +274,38 @@ static ConfigItemDef offlineoptions_itemdefs[]={
 static ConfigSection offlineoptions_section={"OfflineOptions",
                                              sizeof(offlineoptions_itemdefs)/sizeof(ConfigItemDef),
                                              offlineoptions_itemdefs};
+
+
+/* SSLOptions section */
+
+/*+ The option to allow caching of SSL connections. +*/
+ConfigItem SSLEnableCaching;
+
+/*+ The list of allowed SSL hosts and port numbers when tunneling. +*/
+ConfigItem SSLAllowTunnel;
+
+/*+ The list of disallowed SSL hosts and port numbers when tunneling. +*/
+ConfigItem SSLDisallowTunnel;
+
+/*+ The list of allowed SSL hosts and port numbers when caching. +*/
+ConfigItem SSLAllowCache;
+
+/*+ The list of disallowed SSL hosts and port numbers when caching. +*/
+ConfigItem SSLDisallowCache;
+
+/*+ The item definitions in the SSLOptions section. +*/
+static ConfigItemDef ssloptions_itemdefs[]={
+ {"enable-caching" ,&SSLEnableCaching ,0,0,Fixed,Boolean        ,NULL},
+ {"allow-tunnel"   ,&SSLAllowTunnel   ,0,1,Fixed,HostAndPortWild,NULL},
+ {"disallow-tunnel",&SSLDisallowTunnel,0,1,Fixed,HostAndPortWild,NULL},
+ {"allow-cache"    ,&SSLAllowCache    ,0,1,Fixed,HostAndPortWild,NULL},
+ {"disallow-cache" ,&SSLDisallowCache ,0,1,Fixed,HostAndPortWild,NULL}
+};
+
+/*+ The SSLOptions section. +*/
+static ConfigSection ssloptions_section={"SSLOptions",
+                                         sizeof(ssloptions_itemdefs)/sizeof(ConfigItemDef),
+                                         ssloptions_itemdefs};
 
 
 /* FetchOptions section */
@@ -479,7 +517,7 @@ ConfigItem LocalNet;
 
 /*+ The item definitions in the LocalNet section. +*/
 static ConfigItemDef localnet_itemdefs[]={
- {"",&LocalNet,0,1,Host,None,NULL}
+ {"",&LocalNet,0,1,HostWild,None,NULL}
 };
 
 /*+ The LocalNet section. +*/
@@ -495,7 +533,7 @@ ConfigItem AllowedConnectHosts;
 
 /*+ The item definitions in the AllowedConnectHosts section. +*/
 static ConfigItemDef allowedconnecthosts_itemdefs[]={
- {"",&AllowedConnectHosts,0,1,Host,None,NULL}
+ {"",&AllowedConnectHosts,0,1,HostWild,None,NULL}
 };
 
 /*+ The AllowedConnectHosts section. +*/
@@ -749,6 +787,7 @@ static ConfigSection *sections[]={&startup_section,
                                   &options_section,
                                   &onlineoptions_section,
                                   &offlineoptions_section,
+                                  &ssloptions_section,
                                   &fetchoptions_section,
                                   &indexoptions_section,
                                   &modifyhtml_section,
@@ -790,7 +829,7 @@ char *ConfigurationFileName(void)
 
 void InitConfigurationFile(char *name)
 {
- static char startup[4][8],options[2][8];
+ static char startup[5][MAX_INT_STR+1],options[2][1+MAX_INT_STR+1];
 
  if(name)
     CurrentConfig.name=name;
@@ -811,12 +850,13 @@ void InitConfigurationFile(char *name)
  /* Default values that cannot be set at compile time. */
 
  sprintf(startup[0],"%d",DEF_HTTP_PORT);         startup_itemdefs[ 2].def_val=startup[0];
- sprintf(startup[1],"%d",DEF_WWWOFFLE_PORT);     startup_itemdefs[ 3].def_val=startup[1];
- sprintf(startup[2],"%d",DEF_MAX_SERVERS);       startup_itemdefs[ 9].def_val=startup[2];
- sprintf(startup[3],"%d",DEF_MAX_FETCH_SERVERS); startup_itemdefs[10].def_val=startup[3];
+ sprintf(startup[1],"%d",DEF_HTTPS_PORT);        startup_itemdefs[ 3].def_val=startup[1];
+ sprintf(startup[2],"%d",DEF_WWWOFFLE_PORT);     startup_itemdefs[ 4].def_val=startup[2];
+ sprintf(startup[3],"%d",DEF_MAX_SERVERS);       startup_itemdefs[10].def_val=startup[3];
+ sprintf(startup[4],"%d",DEF_MAX_FETCH_SERVERS); startup_itemdefs[11].def_val=startup[4];
 
- sprintf(options[0],"0%o",DEF_DIR_PERM);         options_itemdefs[6].def_val=options[0];
- sprintf(options[1],"0%o",DEF_FILE_PERM);        options_itemdefs[7].def_val=options[1];
+ sprintf(options[0],"0%o",DEF_DIR_PERM);         options_itemdefs[5].def_val=options[0];
+ sprintf(options[1],"0%o",DEF_FILE_PERM);        options_itemdefs[6].def_val=options[1];
 
  ftpoptions_itemdefs[1].def_val=DefaultFTPPassWord();
 
@@ -841,9 +881,28 @@ void InitConfigurationFile(char *name)
 
 int ReadConfigurationFile(int fd)
 {
+ static int first_time=1;
  char *errmsg;
 
- errmsg=ReadConfigFile();
+ if(first_time)
+   {
+    errmsg=ReadConfigFile(1);
+
+    if(errmsg)
+      {
+       if(fd!=-1)
+          write_string(fd,errmsg);
+       free(errmsg);
+
+       return(1);
+      }
+
+    SetLocalPort(ConfigInteger(HTTP_Port));
+
+    first_time=0;
+   }
+
+ errmsg=ReadConfigFile(0);
 
  if(errmsg)
    {
@@ -853,15 +912,13 @@ int ReadConfigurationFile(int fd)
 
     return(1);
    }
- else
-   {
-    SyslogLevel=ConfigInteger(LogLevel);
 
-    SetDNSTimeout(ConfigInteger(DNSTimeout));
-    SetConnectTimeout(ConfigInteger(ConnectTimeout));
+ SyslogLevel=ConfigInteger(LogLevel);
 
-    return(0);
-   }
+ SetDNSTimeout(ConfigInteger(DNSTimeout));
+ SetConnectTimeout(ConfigInteger(ConnectTimeout));
+
+ return(0);
 }
 
 

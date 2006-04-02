@@ -57,9 +57,9 @@ $open
 $encurl=%encode[refurl]
 $htmlurl=%html[refurl]
 <li> \
-[<a href="http://$localhost/info/url?$encurl">Info</a>] \
-[<a href="http://$localhost/configuration/url?$encurl">Config</a>] \
-[<a href="http://$localhost/index/url?$encurl">Index</a>] \
+[<a href="$localurl/info/url?$encurl">Info</a>] \
+[<a href="$localurl/configuration/url?$encurl">Config</a>] \
+[<a href="$localurl/index/url?$encurl">Index</a>] \
 [<tt>$status</tt>] \
 &nbsp; \
 $status?=X{$refurl}{<a href="$htmlurl">$refurl</a>}

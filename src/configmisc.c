@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configmisc.c 1.23 2004/07/03 14:58:08 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configmisc.c 1.32 2006/01/07 16:10:38 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Configuration file data management functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -31,7 +31,7 @@
 /* Local functions */
 
 static /*@null@*/ char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val);
-static /*@null@*/ char* sprintf_url_spec(UrlSpec *urlspec);
+static /*@null@*/ char* sprintf_url_spec(const UrlSpec *urlspec);
 static /*@null@*/ char *strstrn(const char *phaystack, const char *pneedle, size_t n, int nocase);
 
 
@@ -275,12 +275,15 @@ void FreeKeyOrValue(KeyOrValue *keyval,ConfigType type)
    case PathName:
    case FileExt:
    case MIMEType:
-   case HostOrNone:
    case Host:
-   case HostAndPortOrNone:
+   case HostOrNone:
    case HostAndPort:
+   case HostAndPortOrNone:
+   case HostWild:
+   case HostAndPortWild:
    case UserPass:
    case Url:
+   case UrlWild:
     if(keyval->string)
        free(keyval->string);
     break;
@@ -297,29 +300,28 @@ void FreeKeyOrValue(KeyOrValue *keyval,ConfigType type)
 
   int MatchUrlSpecification Return the matching length if true else 0.
 
-  UrlSpec *spec The URL-SPECIFICATION.
+  const UrlSpec *spec The URL-SPECIFICATION.
 
-  char *proto The protocol.
+  const char *proto The protocol.
 
-  char *host The host.
+  const char *host The host.
 
-  char *path The path.
+  int port The port number (or -1).
 
-  char *args The arguments.
+  const char *path The path.
+
+  const char *args The arguments.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int MatchUrlSpecification(UrlSpec *spec,char *proto,char *host,char *path,char *args)
+int MatchUrlSpecification(const UrlSpec *spec,const char *proto,const char *host,int port,const char *path,const char *args)
 {
- char *hoststr,*portstr;
  int match=0;
 
- SplitHostPort(host,&hoststr,&portstr);
-
  if((!spec->proto || !strcmp(UrlSpecProto(spec),proto)) &&
-    (!spec->host || WildcardMatch(hoststr,UrlSpecHost(spec),0)) &&
-    (spec->port==-1 || (!portstr && spec->port==0) || (portstr && atoi(portstr)==spec->port)) &&
+    (!spec->host || WildcardMatch(host,UrlSpecHost(spec),0)) &&
+    (spec->port==-1 || (port==-1 && spec->port==0) || (port!=-1 && port==spec->port)) &&
     (!spec->path || WildcardMatch(path,UrlSpecPath(spec),spec->nocase) || 
-     ((!strncmp(UrlSpecPath(spec),"/*/",3) && WildcardMatch(path,UrlSpecPath(spec)+2,spec->nocase)))) &&
+     ((!strncmp(UrlSpecPath(spec),"/*/",(size_t)3) && WildcardMatch(path,UrlSpecPath(spec)+2,spec->nocase)))) &&
     (!spec->args || (args && WildcardMatch(args,UrlSpecArgs(spec),spec->nocase)) || (!args && *UrlSpecArgs(spec)==0)))
    {
     match=(spec->proto?strlen(UrlSpecProto(spec)):0)+
@@ -327,8 +329,6 @@ int MatchUrlSpecification(UrlSpec *spec,char *proto,char *host,char *path,char *
           (spec->path ?strlen(UrlSpecPath(spec) ):0)+
           (spec->args ?strlen(UrlSpecArgs(spec) ):0)+1;
    }
-
- RejoinHostPort(host,hoststr,portstr);
 
  return(match);
 }
@@ -339,9 +339,9 @@ int MatchUrlSpecification(UrlSpec *spec,char *proto,char *host,char *path,char *
 
   int WildcardMatch returns 1 if there is a match.
 
-  char *string The fixed string that is being matched.
+  const char *string The fixed string that is being matched.
 
-  char *pattern The pattern to match against.
+  const char *pattern The pattern to match against.
 
   int nocase A flag that if set to 1 ignores the case of the string.
 
@@ -350,11 +350,11 @@ int MatchUrlSpecification(UrlSpec *spec,char *proto,char *host,char *path,char *
   See also the strstrn() function at the bottom of this file.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int WildcardMatch(char *string,char *pattern,int nocase)
+int WildcardMatch(const char *string,const char *pattern,int nocase)
 {
- int len_beg;
- char *midstr, *endstr;
- char *pattstr, *starp=strchr(pattern,'*');
+ size_t len_beg;
+ const char *midstr, *endstr;
+ const char *pattstr, *starp=strchr(pattern,'*');
 
  if(!starp)
     return(( nocase && !strcasecmp(string,pattern)) ||
@@ -369,7 +369,7 @@ int WildcardMatch(char *string,char *pattern,int nocase)
 
  while(pattstr=starp+1,starp=strchr(pattstr,'*'))
    {
-    int len_patt=starp-pattstr;
+    size_t len_patt=starp-pattstr;
     char *match=strstrn(midstr,pattstr,len_patt,nocase);
 
     if(!match)
@@ -446,10 +446,16 @@ char *ConfigTypeString(ConfigType type)
     return "HostAndPort";
    case HostAndPortOrNone:
     return "HostAndPortOrNone";            /* val */
+   case HostWild:
+    return "HostWild";                     /* val */
+   case HostAndPortWild:
+    return "HostAndPortWild";              /* val */
    case UserPass:
     return "UserPass";           /* key */
    case Url:
     return "Url";                          /* val */
+   case UrlWild:
+    return "UrlWild";                      /* val */
    case UrlSpecification:
     return "UrlSpecification";   /* key */ /* val */
    }
@@ -457,7 +463,7 @@ char *ConfigTypeString(ConfigType type)
  /*@notreached@*/
 
  return("??Unknown??");
-};
+}
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -534,19 +540,19 @@ void ConfigEntryStrings(ConfigItem item,int which,char **url,char **key,char **v
 
   char *MakeConfigEntryString Returns a malloced string.
 
-  ConfigItemDef *itemdef The configuration item definition.
+  const ConfigItemDef *itemdef The configuration item definition.
 
-  char *url Specifies the URL string.
+  const char *url Specifies the URL string.
 
-  char *key Specifies the key string.
+  const char *key Specifies the key string.
 
-  char *val Specifies the val string.
+  const char *val Specifies the val string.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *MakeConfigEntryString(ConfigItemDef *itemdef,char *url,char *key,char *val)
+char *MakeConfigEntryString(const ConfigItemDef *itemdef,const char *url,const char *key,const char *val)
 {
  int strpos=0;
- char *string=(char*)calloc(8,sizeof(char));
+ char *string=(char*)calloc((size_t)8,sizeof(char));
 
  /* Handle the URL */
 
@@ -617,7 +623,7 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
     /* Integer */
 
    case Boolean:
-    string=(char*)malloc(1+3);
+    string=(char*)malloc((size_t)4);
     strcpy(string,key_or_val.integer?"yes":"no");
     break;
 
@@ -627,12 +633,12 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
    case CacheSize:
    case FileSize:
    case Percentage:
-    string=(char*)malloc(1+16);
+    string=(char*)malloc((size_t)(MAX_INT_STR+1));
     sprintf(string,"%d",key_or_val.integer);
     break;
 
    case CfgLogLevel:
-    string=(char*)malloc(1+16);
+    string=(char*)malloc((size_t)17);
     if(key_or_val.integer==Debug)
        strcpy(string,"debug");
     if(key_or_val.integer==Inform)
@@ -647,7 +653,7 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
 
    case UserId:
     {
-     struct passwd *pwd=getpwuid(key_or_val.integer);
+     struct passwd *pwd=getpwuid((uid_t)key_or_val.integer);
      if(pwd)
        {
         string=(char*)malloc(1+strlen(pwd->pw_name));
@@ -655,7 +661,7 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
        }
      else
        {
-        string=(char*)malloc(1+16);
+        string=(char*)malloc((size_t)(MAX_INT_STR+1));
         sprintf(string,"%d",key_or_val.integer);
        }
     }
@@ -663,7 +669,7 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
 
    case GroupId:
     {
-     struct group *grp=getgrgid(key_or_val.integer);
+     struct group *grp=getgrgid((gid_t)key_or_val.integer);
      if(grp)
        {
         string=(char*)malloc(1+strlen(grp->gr_name));
@@ -671,14 +677,14 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
        }
      else
        {
-        string=(char*)malloc(1+16);
+        string=(char*)malloc((size_t)(MAX_INT_STR+1));
         sprintf(string,"%d",key_or_val.integer);
        }
     }
    break;
 
    case FileMode:
-    string=(char*)malloc(1+16);
+    string=(char*)malloc((size_t)(1+MAX_INT_STR+1));
     sprintf(string,"0%o",(unsigned)key_or_val.integer);
     break;
 
@@ -686,7 +692,7 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
     {
      int weeks,months,years,days=key_or_val.integer;
 
-     string=(char*)malloc(1+16);
+     string=(char*)malloc((size_t)(MAX_INT_STR+1+1));
 
      years=days/365;
      if(years*365==days)
@@ -712,7 +718,7 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
     {
      int weeks,days,hours,minutes,seconds=key_or_val.integer;
 
-     string=(char*)malloc(1+16);
+     string=(char*)malloc((size_t)(MAX_INT_STR+1+1));
 
      weeks=seconds/(3600*24*7);
      if(weeks*(3600*24*7)==seconds)
@@ -746,12 +752,15 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
    case PathName:
    case FileExt:
    case MIMEType:
-   case HostOrNone:
    case Host:
-   case HostAndPortOrNone:
+   case HostOrNone:
    case HostAndPort:
+   case HostAndPortOrNone:
+   case HostWild:
+   case HostAndPortWild:
    case UserPass:
    case Url:
+   case UrlWild:
     if(key_or_val.string)
       {
        string=(char*)malloc(1+strlen(key_or_val.string));
@@ -759,7 +768,7 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
       }
     else
       {
-       string=(char*)malloc(1);
+       string=(char*)malloc((size_t)1);
        *string=0;
       }
     break;
@@ -779,23 +788,24 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
 
   char* sprintf_url_spec Return the new string.
 
-  UrlSpec *urlspec The URL-SPECIFICATION to convert.
+  const UrlSpec *urlspec The URL-SPECIFICATION to convert.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static char* sprintf_url_spec(UrlSpec *urlspec)
+static char* sprintf_url_spec(const UrlSpec *urlspec)
 {
  char *string=NULL;
  int strpos=0;
- int newlen;
+ size_t newlen;
 
  if(!urlspec)
     return(NULL);
 
- newlen=1+16;
- if(urlspec->proto) newlen+=strlen(UrlSpecProto(urlspec));
- if(urlspec->host ) newlen+=strlen(UrlSpecHost (urlspec));
- if(urlspec->path ) newlen+=strlen(UrlSpecPath (urlspec));
- if(urlspec->args ) newlen+=strlen(UrlSpecArgs (urlspec));
+ newlen=1+8;
+ if(HasUrlSpecProto(urlspec)) newlen+=strlen(UrlSpecProto(urlspec));
+ if(HasUrlSpecHost (urlspec)) newlen+=strlen(UrlSpecHost (urlspec));
+ if(UrlSpecPort(urlspec)>0)   newlen+=MAX_INT_STR;
+ if(HasUrlSpecPath (urlspec)) newlen+=strlen(UrlSpecPath (urlspec));
+ if(HasUrlSpecArgs (urlspec)) newlen+=strlen(UrlSpecArgs (urlspec));
 
  string=(char*)malloc(newlen);
  *string=0;
@@ -812,22 +822,22 @@ static char* sprintf_url_spec(UrlSpec *urlspec)
     strpos+=strlen(string+strpos);
    }
 
- sprintf(string+strpos,"%s://",urlspec->proto?UrlSpecProto(urlspec):"*");
+ sprintf(string+strpos,"%s://",HasUrlSpecProto(urlspec)?UrlSpecProto(urlspec):"*");
  strpos+=strlen(string+strpos);
 
- sprintf(string+strpos,"%s",urlspec->host?UrlSpecHost(urlspec):"*");
+ sprintf(string+strpos,"%s",HasUrlSpecHost(urlspec)?UrlSpecHost(urlspec):"*");
  strpos+=strlen(string+strpos);
 
- if(urlspec->port==0)
+ if(UrlSpecPort(urlspec)==0)
     sprintf(string+strpos,":");
- else if(urlspec->port!=-1)
-    sprintf(string+strpos,":%d",urlspec->port);
+ else if(UrlSpecPort(urlspec)!=-1)
+    sprintf(string+strpos,":%d",UrlSpecPort(urlspec));
  strpos+=strlen(string+strpos);
 
- sprintf(string+strpos,"%s",urlspec->path?UrlSpecPath(urlspec):"/*");
+ sprintf(string+strpos,"%s",HasUrlSpecPath(urlspec)?UrlSpecPath(urlspec):"/*");
  strpos+=strlen(string+strpos);
 
- if(urlspec->args)
+ if(HasUrlSpecArgs(urlspec))
    {
     sprintf(string+strpos,"?%s",*UrlSpecArgs(urlspec)?UrlSpecArgs(urlspec):"*");
     strpos+=strlen(string+strpos);

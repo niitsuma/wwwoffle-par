@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/ftp.c 1.73 2004/03/01 19:51:57 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/ftp.c 1.84 2006/01/08 10:27:21 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Functions for getting URLs using FTP.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -44,7 +44,7 @@
 #define DEBUG_FTP 0
 
 /*+ Set to the name of the proxy if there is one. +*/
-static char /*@null@*/ /*@observer@*/ *proxy=NULL;
+static URL /*@null@*/ /*@only@*/ *proxyUrl=NULL;
 
 /*+ The file descriptor of the socket +*/
 static int server_ctrl=-1,      /*+ for the control connection to the server. +*/
@@ -78,40 +78,45 @@ static /*@null@*/ char *htmlise_dir_entry(void);
 char *FTP_Open(URL *Url)
 {
  char *msg=NULL;
- char *hoststr,*portstr;
+ char *proxy=NULL;
  char *server_host=NULL;
- int server_port=Protocols[Protocol_FTP].defport;
+ int server_port=-1;
 
  /* Sort out the host. */
 
- proxy=ConfigStringURL(Proxies,Url);
- if(IsLocalNetHost(Url->host))
-    proxy=NULL;
+ if(!IsLocalNetHost(Url->host))
+    proxy=ConfigStringURL(Proxies,Url);
 
  if(proxy)
-    server_host=proxy;
+   {
+    if(proxyUrl)
+       FreeURL(proxyUrl);
+    proxyUrl=NULL;
+
+    proxyUrl=CreateURL("http",proxy,"/",NULL,NULL,NULL);
+    server_host=proxyUrl->host;
+    server_port=proxyUrl->port;
+   }
  else
+   {
     server_host=Url->host;
+    server_port=Url->port;
+   }
 
- SplitHostPort(server_host,&hoststr,&portstr);
-
- if(portstr)
-    server_port=atoi(portstr);
+ if(server_port==-1)
+    server_port=DefaultPort(Url);
 
  /* Open the connection. */
 
- server_ctrl=OpenClientSocket(hoststr,server_port);
+ server_ctrl=OpenClientSocket(server_host,server_port);
 
  if(server_ctrl==-1)
-    msg=GetPrintMessage(Warning,"Cannot open the FTP control connection to %s port %d; [%!s].",hoststr,server_port);
+    msg=GetPrintMessage(Warning,"Cannot open the FTP control connection to %s port %d; [%!s].",server_host,server_port);
  else
    {
     init_io(server_ctrl);
-    configure_io_read(server_ctrl,ConfigInteger(SocketTimeout),0,0);
-    configure_io_write(server_ctrl,ConfigInteger(SocketTimeout),0,0);
+    configure_io_timeout(server_ctrl,ConfigInteger(SocketTimeout),ConfigInteger(SocketTimeout));
    }
-
- RejoinHostPort(server_host,hoststr,portstr);
 
  return(msg);
 }
@@ -135,7 +140,7 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
  char *path,*file=NULL;
  char *host,*mimetype="text/html";
  char *msg_reply=NULL;
- char *timestamp,sizebuf[32];
+ char *timestamp,sizebuf[MAX_INT_STR+1];
  int i,l,port;
  time_t modtime=0;
  char *user,*pass;
@@ -150,13 +155,13 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
 
  /* Take a simple route if it is proxied. */
 
- if(proxy)
+ if(proxyUrl)
    {
     char *head;
 
     /* Make the request OK for a proxy. */
 
-    MakeRequestProxyAuthorised(proxy,request_head);
+    MakeRequestProxyAuthorised(proxyUrl,request_head);
 
     /* Send the request. */
 
@@ -693,8 +698,7 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
  else
    {
     init_io(server_data);
-    configure_io_read(server_data,ConfigInteger(SocketTimeout),0,0);
-    configure_io_write(server_data,ConfigInteger(SocketTimeout),0,0);
+    configure_io_timeout(server_data,ConfigInteger(SocketTimeout),ConfigInteger(SocketTimeout));
    }
 
  /* Make the request */
@@ -920,7 +924,7 @@ int FTP_ReadHead(Header **reply_head)
 {
  /* Take a simple route if it is proxied. */
 
- if(proxy)
+ if(proxyUrl)
    {
     ParseReply(server_ctrl,reply_head);
 
@@ -938,20 +942,20 @@ int FTP_ReadHead(Header **reply_head)
 /*++++++++++++++++++++++++++++++++++++++
   Read bytes from the body of the reply for the URL.
 
-  int FTP_ReadBody Returns the number of bytes read on success, -1 on error.
+  ssize_t FTP_ReadBody Returns the number of bytes read on success, -1 on error.
 
   char *s A string to fill in with the information.
 
-  int n The number of bytes to read.
+  size_t n The number of bytes to read.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int FTP_ReadBody(char *s,int n)
+ssize_t FTP_ReadBody(char *s,size_t n)
 {
  int m=0;
 
  /* Take a simple route if it is proxied. */
 
- if(proxy)
+ if(proxyUrl)
     return(read_data(server_ctrl,s,n));
  
  /* Else send the data then the tail. */
@@ -1008,7 +1012,7 @@ int FTP_Close(void)
 
  /* Take a simple route if it is proxied. */
 
- if(proxy)
+ if(proxyUrl)
    {
     finish_tell_io(server_ctrl,&r1,&w1);
 
@@ -1047,6 +1051,10 @@ int FTP_Close(void)
     free(buffer);
  if(buffertail)
     free(buffertail);
+
+ if(proxyUrl)
+    FreeURL(proxyUrl);
+ proxyUrl=NULL;
 
  return(err);
 }
@@ -1155,7 +1163,7 @@ static char *htmlise_dir_entry(void)
 
     /* Create the line. */
 
-    strncpy(ll,h,p[file]-h);
+    strncpy(ll,h,(size_t)(p[file]-h));
     strcpy(ll+(p[file]-h),"<a href=\"");
     strcat(ll,"./");
     strcat(ll,fileurlenc);
@@ -1169,9 +1177,9 @@ static char *htmlise_dir_entry(void)
 
     if(islink)
       {
-       strncat(ll,endf,p[link]-endf);
+       strncat(ll,endf,(size_t)(p[link]-endf));
        strcat(ll,"<a href=\"");
-       if(strncmp(linkurlenc,"../",3) && strncmp(linkurlenc,"./",2) && strncmp(linkurlenc,"/",1))
+       if(strncmp(linkurlenc,"../",(size_t)3) && strncmp(linkurlenc,"./",(size_t)2) && strncmp(linkurlenc,"/",(size_t)1))
           strcat(ll,"./");
        strcat(ll,linkurlenc);
        strcat(ll,"\">");

@@ -174,7 +174,9 @@ if(open(CURR,"<$conf"))
             {
              die "\nExisting configuration file is not for version 2.6 or 2.7.\n".
                  "(The header line says that it is '$1')\n".
-                 "Try running upgrade-config-2.x-2.5.pl and/or upgrade-config-2.5-2.6.pl first.\n\n";
+                 "Try running upgrade-config-2.0-2.5.pl\n".
+                 "     and/or upgrade-config-2.5-2.6.pl\n".
+                 "\n";
             }
         next if(/^[ \t]*\#/);
         next if(/^[ \t]*$/);

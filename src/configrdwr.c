@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configrdwr.c 1.62 2004/05/21 08:51:38 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configrdwr.c 1.73 2006/01/07 16:10:38 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Configuration file reading and writing functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -41,31 +41,21 @@
 
 #include "io.h"
 #include "misc.h"
+#include "proto.h"
 #include "errors.h"
 #include "configpriv.h"
 #include "config.h"
 
 
-/*+ Need this for Win32 to use binary mode +*/
 #ifndef O_BINARY
+/*+ A work-around for needing O_BINARY with Win32 to use binary mode. +*/
 #define O_BINARY 0
 #endif
 
 #ifndef PATH_MAX
+/*+ The maximum pathname length in characters. +*/
 #define PATH_MAX 4096
 #endif
-
-
-/* Local functions */
-
-static char *filename_or_symlink_target(char *name);
-
-static /*@null@*/ char *InitParser(void);
-static /*@null@*/ char *ParseLine(/*@out@*/ char **line);
-static /*@null@*/ char *ParseItem(char *line,/*@out@*/ char **url_str,/*@out@*/ char **key_str,/*@out@*/ char **val_str);
-static /*@null@*/ char *ParseEntry(ConfigItemDef *itemdef,/*@out@*/ ConfigItem *item,/*@null@*/ char *url_str,char *key_str,/*@null@*/ char *val_str);
-
-static int isanumber(const char *string);
 
 
 /*+ The state of the parser +*/
@@ -87,6 +77,21 @@ typedef enum _ParserState
 }
 ParserState;
 
+
+/* Local functions */
+
+static char *filename_or_symlink_target(const char *name);
+
+static /*@null@*/ char *InitParser(void);
+static /*@null@*/ char *ParseLine(/*@out@*/ char **line);
+static /*@null@*/ char *ParseItem(char *line,/*@out@*/ char **url_str,/*@out@*/ char **key_str,/*@out@*/ char **val_str);
+static /*@null@*/ char *ParseEntry(const ConfigItemDef *itemdef,/*@out@*/ ConfigItem *item,/*@null@*/ const char *url_str,const char *key_str,/*@null@*/ const char *val_str);
+
+static int isanumber(const char *string);
+
+
+/* Local variables */
+
 static char *parse_name;        /*+ The name of the configuration file. +*/
 static int parse_file;          /*+ The file descriptor of the configuration file. +*/
 static int parse_line;          /*+ The line number in the configuration file. +*/
@@ -104,11 +109,13 @@ static ParserState parse_state; /*+ The parser state. +*/
   Read the data from the file.
 
   char *ReadConfigFile Returns the error message or NULL if OK.
+
+  int read_startup If true then only the startup section of the configuration file is read.
+                   If false then only the other sections are read.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *ReadConfigFile(void)
+char *ReadConfigFile(int read_startup)
 {
- static int first_time=1;
  char *errmsg=NULL;
 
  CreateBackupConfigFile();
@@ -124,7 +131,8 @@ char *ReadConfigFile(void)
        if((errmsg=ParseLine(&line)))
           break;
 
-       if(parse_section!=-1)
+       if((parse_section==0 && read_startup) ||
+          (parse_section>0 && !read_startup))
          {
           char *url_str,*key_str,*val_str;
 
@@ -160,13 +168,11 @@ char *ReadConfigFile(void)
  if(errmsg)
     RestoreBackupConfigFile();
  else
-    PurgeBackupConfigFile(!first_time);
-
- first_time=0;
+    PurgeBackupConfigFile(!read_startup);
 
  if(errmsg)
    {
-    char *newerrmsg=(char*)malloc(strlen(errmsg)+64+strlen(parse_name));
+    char *newerrmsg=(char*)malloc(strlen(errmsg)+64+MAX_INT_STR+strlen(parse_name));
     sprintf(newerrmsg,"Configuration file syntax error at line %d in '%s'; %s\n",parse_line,parse_name,errmsg); /* Used in wwwoffle.c */
     free(errmsg);
     errmsg=newerrmsg;
@@ -234,7 +240,7 @@ void DumpConfigFile(int fd)
 char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char *sameentry,char *nextentry)
 {
  char *errmsg=NULL;
- char **names=(char**)calloc((1+CurrentConfig.nsections),sizeof(char*));
+ char **names=(char**)calloc((size_t)(1+CurrentConfig.nsections),sizeof(char*));
  int file=-1,file_org=-1;
  ConfigItem dummy=NULL;
  int matched=0;
@@ -517,8 +523,8 @@ char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char 
 
  if(rename_failed)
    {
-    errmsg=(char*)malloc(120);
-    sprintf(errmsg,"There were problems renaming files, check the error log (this might stop the change you tried to make).");
+    errmsg=(char*)malloc((size_t)120);
+    strcpy(errmsg,"There were problems renaming files, check the error log (this might stop the change you tried to make).");
    }
 
  FreeConfigItem(dummy);
@@ -534,10 +540,10 @@ char *ModifyConfigFile(int section,int item,char *newentry,char *preventry,char 
 
   char *filename_or_symlink_target Returns the real file name.
 
-  char *name The file name that may be a symbolic link.
+  const char *name The file name that may be a symbolic link.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static char *filename_or_symlink_target(char *name)
+static char *filename_or_symlink_target(const char *name)
 {
  struct stat buf;
  char linkname[PATH_MAX+1];
@@ -547,7 +553,7 @@ static char *filename_or_symlink_target(char *name)
    {
     int linklen=0;
 
-    if((linklen=readlink(name,linkname,PATH_MAX))!=-1)
+    if((linklen=readlink(name,linkname,(size_t)PATH_MAX))!=-1)
       {
        linkname[linklen]=0;
 
@@ -658,7 +664,7 @@ static char *ParseLine(char **line)
       }
     else
       {
-       errmsg=(char*)malloc(32);
+       errmsg=(char*)malloc((size_t)32);
        strcpy(errmsg,"Unexpected end of file.");
       }
    }
@@ -714,12 +720,12 @@ static char *ParseLine(char **line)
          }
        else if(*l!='{' && *l!='[')
          {
-          errmsg=(char*)malloc(48);
+          errmsg=(char*)malloc((size_t)48);
           strcpy(errmsg,"Start of section must be '{' or '['.");
          }
        else
          {
-          errmsg=(char*)malloc(48);
+          errmsg=(char*)malloc((size_t)48);
           sprintf(errmsg,"Start of section '%c' has trailing junk.",*l);
          }
       }
@@ -737,7 +743,7 @@ static char *ParseLine(char **line)
          }
        else if(*l=='}')
          {
-          errmsg=(char*)malloc(48);
+          errmsg=(char*)malloc((size_t)48);
           sprintf(errmsg,"End of section '%c' has trailing junk.",*l);
          }
       }
@@ -755,13 +761,13 @@ static char *ParseLine(char **line)
          }
        else if(*l==']')
          {
-          errmsg=(char*)malloc(48);
+          errmsg=(char*)malloc((size_t)48);
           sprintf(errmsg,"End of section '%c' has trailing junk.",*l);
          }
        else if(*l!='#' && *l!=0 && strchr(l,'/'))
          {
-          errmsg=(char*)malloc(64);
-          sprintf(errmsg,"Included file must be in same directory (no '/').");
+          errmsg=(char*)malloc((size_t)64);
+          strcpy(errmsg,"Included file must be in same directory (no '/').");
          }
        else if(*l!='#' && *l!=0)
          {
@@ -777,7 +783,7 @@ static char *ParseLine(char **line)
           while(rr>inc_parse_name && *rr!='/')
              rr--;
 
-          strncpy(rr+1,l,r-l);
+          strncpy(rr+1,l,(size_t)(r-l));
           *((rr+1)+(r-l))=0;
 
           inc_parse_file=open(inc_parse_name,O_RDONLY|O_BINARY);
@@ -819,7 +825,7 @@ static char *ParseLine(char **line)
 
   char *ParseItem Returns an error message string in case of a problem.
 
-  char *line The line to parse.
+  char *line The line to parse (modified by the function).
 
   char **url_str Returns the URL string or NULL.
 
@@ -863,7 +869,7 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
           uu++;
        if(!*uu)
          {
-          char *errmsg=(char*)malloc(32);
+          char *errmsg=(char*)malloc((size_t)32);
           strcpy(errmsg,"No '>' to match the '<'.");
           return(errmsg);
          }
@@ -874,7 +880,7 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
           key++;
        if(!*key)
          {
-          char *errmsg=(char*)malloc(48);
+          char *errmsg=(char*)malloc((size_t)48);
           strcpy(errmsg,"No configuration entry following the '<...>'.");
           return(errmsg);
          }
@@ -925,7 +931,7 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
 
           if(CurrentConfig.sections[parse_section]->itemdefs[parse_item].url_type==0 && url)
             {
-             char *errmsg=(char*)malloc(48);
+             char *errmsg=(char*)malloc((size_t)48);
              strcpy(errmsg,"No URL context '<...>' allowed for this entry.");
              return(errmsg);
             }
@@ -934,7 +940,7 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
             {
              if(strchr(ll,'='))
                {
-                char *errmsg=(char*)malloc(40);
+                char *errmsg=(char*)malloc((size_t)40);
                 strcpy(errmsg,"Equal sign seen but not expected.");
                 return(errmsg);
                }
@@ -947,7 +953,7 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
              val=strchr(ll,'=');
              if(!val)
                {
-                char *errmsg=(char*)malloc(40);
+                char *errmsg=(char*)malloc((size_t)40);
                 strcpy(errmsg,"No equal sign seen but expected.");
                 return(errmsg);
                }
@@ -955,7 +961,7 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
              *ll=0;
              if(!*key)
                {
-                char *errmsg=(char*)malloc(48);
+                char *errmsg=(char*)malloc((size_t)48);
                 strcpy(errmsg,"Nothing to the left of the equal sign.");
                 return(errmsg);
                }
@@ -989,18 +995,18 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
 
   char *ParseEntry Return a string containing an error message in case of error.
 
-  ConfigItemDef *itemdef The item definition for the item in the section.
+  const ConfigItemDef *itemdef The item definition for the item in the section.
 
   ConfigItem *item The item to add the entry to.
 
-  char *url_str The string for the URL specification.
+  const char *url_str The string for the URL specification.
 
-  char *key_str The string for the key.
+  const char *key_str The string for the key.
 
-  char *val_str The string to the value.
+  const char *val_str The string to the value.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static char *ParseEntry(ConfigItemDef *itemdef,ConfigItem *item,char *url_str,char *key_str,char *val_str)
+static char *ParseEntry(const ConfigItemDef *itemdef,ConfigItem *item,const char *url_str,const char *key_str,const char *val_str)
 {
  UrlSpec *url=NULL;
  KeyOrValue key,val;
@@ -1104,14 +1110,14 @@ static char *ParseEntry(ConfigItemDef *itemdef,ConfigItem *item,char *url_str,ch
 
   char *ParseKeyOrValue Returns a string containing the error message.
 
-  char *text The text string to parse.
+  const char *text The text string to parse.
 
   ConfigType type The type we are looking for.
 
   KeyOrValue *pointer The location to store the key or value.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
+char *ParseKeyOrValue(const char *text,ConfigType type,KeyOrValue *pointer)
 {
  char *errmsg=NULL;
 
@@ -1123,33 +1129,33 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case CfgMaxServers:
     if(!*text)
-      {errmsg=(char*)malloc(56);strcpy(errmsg,"Expecting a maximum server count, got nothing.");}
+      {errmsg=(char*)malloc((size_t)56);strcpy(errmsg,"Expecting a maximum server count, got nothing.");}
     else if(!isanumber(text))
       {errmsg=(char*)malloc(48+strlen(text));sprintf(errmsg,"Expecting a maximum server count, got '%s'.",text);}
     else
       {
        pointer->integer=atoi(text);
        if(pointer->integer<=0 || pointer->integer>MAX_SERVERS)
-         {errmsg=(char*)malloc(48);sprintf(errmsg,"Invalid maximum server count: %d.",pointer->integer);}
+         {errmsg=(char*)malloc((size_t)(36+MAX_INT_STR));sprintf(errmsg,"Invalid maximum server count: %d.",pointer->integer);}
       }
     break;
 
    case CfgMaxFetchServers:
     if(!*text)
-      {errmsg=(char*)malloc(56);strcpy(errmsg,"Expecting a maximum fetch server count, got nothing.");}
+      {errmsg=(char*)malloc((size_t)56);strcpy(errmsg,"Expecting a maximum fetch server count, got nothing.");}
     else if(!isanumber(text))
       {errmsg=(char*)malloc(56+strlen(text));sprintf(errmsg,"Expecting a maximum fetch server count, got '%s'.",text);}
     else
       {
        pointer->integer=atoi(text);
        if(pointer->integer<=0 || pointer->integer>MAX_FETCH_SERVERS)
-         {errmsg=(char*)malloc(48);sprintf(errmsg,"Invalid maximum fetch server count: %d.",pointer->integer);}
+         {errmsg=(char*)malloc((size_t)(40+MAX_INT_STR));sprintf(errmsg,"Invalid maximum fetch server count: %d.",pointer->integer);}
       }
     break;
 
    case CfgLogLevel:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a log level, got nothing.");}
+      {errmsg=(char*)malloc((size_t)48);strcpy(errmsg,"Expecting a log level, got nothing.");}
     else if(strcasecmp(text,"debug")==0)
        pointer->integer=Debug;
     else if(strcasecmp(text,"info")==0)
@@ -1166,7 +1172,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case Boolean:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a Boolean, got nothing.");}
+      {errmsg=(char*)malloc((size_t)48);strcpy(errmsg,"Expecting a Boolean, got nothing.");}
     else if(!strcasecmp(text,"yes") || !strcasecmp(text,"true"))
        pointer->integer=1;
     else if(!strcasecmp(text,"no") || !strcasecmp(text,"false"))
@@ -1177,20 +1183,20 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case PortNumber:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a port number, got nothing.");}
+      {errmsg=(char*)malloc((size_t)48);strcpy(errmsg,"Expecting a port number, got nothing.");}
     else if(!isanumber(text))
       {errmsg=(char*)malloc(40+strlen(text));sprintf(errmsg,"Expecting a port number, got '%s'.",text);}
     else
       {
        pointer->integer=atoi(text);
        if(pointer->integer<=0 || pointer->integer>65535)
-         {errmsg=(char*)malloc(32);sprintf(errmsg,"Invalid port number %d.",pointer->integer);}
+         {errmsg=(char*)malloc((size_t)(24+MAX_INT_STR));sprintf(errmsg,"Invalid port number %d.",pointer->integer);}
       }
     break;
 
    case AgeDays:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting an age in days, got nothing.");}
+      {errmsg=(char*)malloc((size_t)48);strcpy(errmsg,"Expecting an age in days, got nothing.");}
     else if(isanumber(text))
        pointer->integer=atoi(text);
     else
@@ -1217,7 +1223,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case TimeSecs:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a time in seconds, got nothing.");}
+      {errmsg=(char*)malloc((size_t)48);strcpy(errmsg,"Expecting a time in seconds, got nothing.");}
     else if(isanumber(text))
        pointer->integer=atoi(text);
     else
@@ -1246,58 +1252,58 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case CacheSize:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a cache size in MB, got nothing.");}
+      {errmsg=(char*)malloc((size_t)48);strcpy(errmsg,"Expecting a cache size in MB, got nothing.");}
     else if(!isanumber(text))
       {errmsg=(char*)malloc(40+strlen(text));sprintf(errmsg,"Expecting a cache size in MB, got '%s'.",text);}
     else
       {
        pointer->integer=atoi(text);
        if(pointer->integer<-1)
-         {errmsg=(char*)malloc(48);sprintf(errmsg,"Invalid cache size %d.",pointer->integer);}
+         {errmsg=(char*)malloc((size_t)(24+MAX_INT_STR));sprintf(errmsg,"Invalid cache size %d.",pointer->integer);}
       }
     break;
 
    case FileSize:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a file size in kB, got nothing.");}
+      {errmsg=(char*)malloc((size_t)48);strcpy(errmsg,"Expecting a file size in kB, got nothing.");}
     else if(!isanumber(text))
       {errmsg=(char*)malloc(40+strlen(text));sprintf(errmsg,"Expecting a file size in kB, got '%s'.",text);}
     else
       {
        pointer->integer=atoi(text);
        if(pointer->integer<0)
-         {errmsg=(char*)malloc(48);sprintf(errmsg,"Invalid file size %d.",pointer->integer);}
+         {errmsg=(char*)malloc((size_t)(24+MAX_INT_STR));sprintf(errmsg,"Invalid file size %d.",pointer->integer);}
       }
     break;
 
    case Percentage:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a percentage, got nothing.");}
+      {errmsg=(char*)malloc((size_t)48);strcpy(errmsg,"Expecting a percentage, got nothing.");}
     else if(!isanumber(text))
       {errmsg=(char*)malloc(40+strlen(text));sprintf(errmsg,"Expecting a percentage, got '%s'.",text);}
     else
       {
        pointer->integer=atoi(text);
-       if(pointer->integer<0)
-         {errmsg=(char*)malloc(48);sprintf(errmsg,"Invalid percentage %d.",pointer->integer);}
+       if(pointer->integer<0 || pointer->integer>100)
+         {errmsg=(char*)malloc((size_t)(24+MAX_INT_STR));sprintf(errmsg,"Invalid percentage %d.",pointer->integer);}
       }
     break;
 
    case UserId:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a username or uid, got nothing.");}
+      {errmsg=(char*)malloc((size_t)48);strcpy(errmsg,"Expecting a username or uid, got nothing.");}
     else
       {
-       int uid;
+       uid_t uid;
        struct passwd *userInfo=getpwnam(text);
        if(userInfo)
           uid=userInfo->pw_uid;
        else
          {
           if(sscanf(text,"%d",&uid)!=1)
-            {errmsg=(char*)malloc(32+strlen(text));sprintf(errmsg,"Invalid user %s.",text);}
+            {errmsg=(char*)malloc(24+strlen(text));sprintf(errmsg,"Invalid user %s.",text);}
           else if(uid!=-1 && !getpwuid(uid))
-            {errmsg=(char*)malloc(32);sprintf(errmsg,"Unknown user id %d.",uid);}
+            {errmsg=(char*)malloc((size_t)(24+MAX_INT_STR));sprintf(errmsg,"Unknown user id %d.",uid);}
          }
        pointer->integer=uid;
       }
@@ -1305,19 +1311,19 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case GroupId:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a group name or gid, got nothing.");}
+      {errmsg=(char*)malloc((size_t)48);strcpy(errmsg,"Expecting a group name or gid, got nothing.");}
     else
       {
-       int gid;
+       gid_t gid;
        struct group *groupInfo=getgrnam(text);
        if(groupInfo)
           gid=groupInfo->gr_gid;
        else
          {
           if(sscanf(text,"%d",&gid)!=1)
-            {errmsg=(char*)malloc(32+strlen(text));sprintf(errmsg,"Invalid group %s.",text);}
+            {errmsg=(char*)malloc(24+strlen(text));sprintf(errmsg,"Invalid group %s.",text);}
           else if(gid!=-1 && !getgrgid(gid))
-            {errmsg=(char*)malloc(32);sprintf(errmsg,"Unknown group id %d.",gid);}
+            {errmsg=(char*)malloc((size_t)(24+MAX_INT_STR));sprintf(errmsg,"Unknown group id %d.",gid);}
          }
        pointer->integer=gid;
       }
@@ -1335,7 +1341,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case PathName:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a pathname, got nothing.");}
+      {errmsg=(char*)malloc((size_t)48);strcpy(errmsg,"Expecting a pathname, got nothing.");}
     else if(*text!='/')
       {errmsg=(char*)malloc(48+strlen(text));sprintf(errmsg,"Expecting an absolute pathname, got '%s'.",text);}
     else
@@ -1347,7 +1353,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case FileExt:
     if(!*text)
-      {errmsg=(char*)malloc(40);strcpy(errmsg,"Expecting a file extension, got nothing.");}
+      {errmsg=(char*)malloc((size_t)40);strcpy(errmsg,"Expecting a file extension, got nothing.");}
     else if(*text!='.')
       {errmsg=(char*)malloc(40+strlen(text));sprintf(errmsg,"Expecting a file extension, got '%s'.",text);}
     else
@@ -1359,16 +1365,19 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case FileMode:
     if(!*text)
-      {errmsg=(char*)malloc(40);strcpy(errmsg,"Expecting a file permissions mode, got nothing.");}
+      {errmsg=(char*)malloc((size_t)40);strcpy(errmsg,"Expecting a file permissions mode, got nothing.");}
     else if(!isanumber(text) || *text!='0')
-      {errmsg=(char*)malloc(48+strlen(text));sprintf(errmsg,"Expecting a file permissions mode, got '%s'.",text);}
+      {errmsg=(char*)malloc(56+strlen(text));sprintf(errmsg,"Expecting an octal file permissions mode, got '%s'.",text);}
     else
+      {
        sscanf(text,"%o",(unsigned *)&pointer->integer);
+       pointer->integer&=07777;
+      }
     break;
 
    case MIMEType:
      if(!*text)
-       {errmsg=(char*)malloc(40);strcpy(errmsg,"Expecting a MIME Type, got nothing.");}
+       {errmsg=(char*)malloc((size_t)40);strcpy(errmsg,"Expecting a MIME Type, got nothing.");}
      else
        {
         char *slash=strchr(text,'/');
@@ -1390,55 +1399,30 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case Host:
     if(!*text)
-      {errmsg=(char*)malloc(40);strcpy(errmsg,"Expecting a hostname, got nothing.");}
+      {errmsg=(char*)malloc((size_t)40);strcpy(errmsg,"Expecting a hostname, got nothing.");}
     else
       {
-       char *p,*host;
-       int wildcard=0,colons=0;
+       char *host,*colon;
 
-       p=text;
-       while(*p)
+       if(strchr(text,'*'))
+         {errmsg=(char*)malloc(56+strlen(text));sprintf(errmsg,"Expecting a hostname without a wildcard, got '%s'.",text); break;}
+
+       host=CanonicaliseHost(text);
+
+       if(*host=='[')
          {
-          if(*p=='*')
-             wildcard=1;
-          else if(*p==':')
-             colons++;
-          p++;
+          char *square=strchr(host,']');
+          colon=strchr(square,':');
          }
-
-       /*
-         This is tricky, we should check for a host:port combination and disallow it.
-         But the problem is that a single colon could be an IPv6 wildcard or an IPv4 host and port.
-         If there are 2 or more ':' then it is IPv6, if it starts with '[' it is IPv6, if it has zero
-         or one ':' then it must be a hostname/IPv4 and port
-         We also need a canonical hostname so that matching works correctly.
-       */
-
-       if(wildcard)
-          host=text;
        else
-          host=CanonicaliseHost(text);
+          colon=strchr(host,':');
 
-       if(colons==1 && *host!='[')
-         {errmsg=(char*)malloc(56+strlen(text));sprintf(errmsg,"Expecting a hostname without a port number, got '%s'.",text);}
-       else
-         {
-          pointer->string=(char*)malloc(strlen(host)+1);
-          if(*host=='[')
-            {
-             strcpy(pointer->string,host+1);
-             pointer->string[strlen(pointer->string)-1]=0;
-            }
-          else
-             strcpy(pointer->string,host);
-          for(p=pointer->string;*p;p++)
-             *p=tolower(*p);
-         }
+       if(colon)
+         {errmsg=(char*)malloc(56+strlen(text));sprintf(errmsg,"Expecting a hostname without a port number, got '%s'.",text); free(host); break;}
 
-       if(host!=text)
-          free(host);
+       pointer->string=host;
       }
-     break;
+    break;
 
    case HostAndPortOrNone:
     if(!*text || !strcasecmp(text,"none"))
@@ -1451,40 +1435,137 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case HostAndPort:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a hostname (and port), got nothing.");}
+      {errmsg=(char*)malloc((size_t)56);strcpy(errmsg,"Expecting a hostname and port number, got nothing.");}
     else
       {
-       char *hoststr,*portstr;
+       char *host,*colon;
 
-       /*
-         This is also tricky due to the IPv6 problem.
-         We have to rely on the user using '[xxxx]:yyy' if they want an IPv6 address and port.
-       */
+       if(strchr(text,'*'))
+         {errmsg=(char*)malloc(72+strlen(text));sprintf(errmsg,"Expecting a hostname and port number, without a wildcard, got '%s'.",text); break;}
 
-       SplitHostPort(text,&hoststr,&portstr);
-       RejoinHostPort(text,hoststr,portstr);
+       host=CanonicaliseHost(text);
 
-       if(*text==':')
-         {errmsg=(char*)malloc(48+strlen(text));sprintf(errmsg,"Expecting a hostname before the ':', got '%s'.",text);}
-       else
+       if(*host=='[')
          {
-          if(portstr && (!isanumber(portstr) || atoi(portstr)<=0 || atoi(portstr)>65535))
-            {errmsg=(char*)malloc(32+strlen(portstr));sprintf(errmsg,"Invalid port number %s.",portstr);}
-          else
-            {
-             char *p;
-             pointer->string=(char*)malloc(strlen(text)+1);
-             strcpy(pointer->string,text);
-             for(p=pointer->string;*p;p++)
-                *p=tolower(*p);
-            }
+          char *square=strchr(host,']');
+          colon=strchr(square,':');
          }
+       else
+          colon=strchr(host,':');
+
+       if(!colon)
+         {errmsg=(char*)malloc(56+strlen(text));sprintf(errmsg,"Expecting a hostname and port number, got '%s'.",text); free(host); break;}
+
+       if(colon && (!isanumber(colon+1) || atoi(colon+1)<=0 || atoi(colon+1)>65535))
+         {errmsg=(char*)malloc(32+strlen(colon+1));sprintf(errmsg,"Invalid port number %s.",colon+1); free(host); break;}
+
+       pointer->string=host;
       }
     break;
 
+   case HostWild:
+    if(!*text)
+      {errmsg=(char*)malloc((size_t)64);strcpy(errmsg,"Expecting a hostname (perhaps with wildcard), got nothing.");}
+    else
+      {
+       const char *p;
+       char *host;
+       int wildcard=0,colons=0;
+
+       p=text;
+       while(*p)
+         {
+          if(*p=='*')
+             wildcard++;
+          else if(*p==':')
+             colons++;
+          p++;
+         }
+
+       /*
+         This is tricky, we should check for a host:port combination and disallow it.
+         But the problem is that a single colon could be an IPv6 wildcard or an IPv4 host and port.
+         If there are 2 or more ':' then it is IPv6, if it starts with '[' it is IPv6.
+       */
+
+       if(wildcard)
+         {
+          char *p;
+          host=(char*)malloc(strlen(text)+1);
+          strcpy(host,text);
+          for(p=host;*p;p++)
+             *p=tolower(*p);
+         }
+       else
+          host=CanonicaliseHost(text);
+
+       if(colons==1 && *host!='[')
+         {errmsg=(char*)malloc(80+strlen(text));sprintf(errmsg,"Expecting a hostname without a port number (perhaps with wildcard), got '%s'.",text); free(host); break;}
+
+       if(*host=='[')
+         {
+          char *square=strchr(host,']');
+          if(!square || *(square+1))
+            {errmsg=(char*)malloc(80+strlen(text));sprintf(errmsg,"Expecting a hostname without a port number (perhaps with wildcard), got '%s'.",text); free(host); break;}
+         }
+
+       pointer->string=host;
+      }
+     break;
+
+   case HostAndPortWild:
+    if(!*text)
+      {errmsg=(char*)malloc((size_t)80);strcpy(errmsg,"Expecting a hostname and port number (perhaps with wildcard), got nothing.");}
+    else
+      {
+       const char *p;
+       char *host;
+       int wildcard=0,colons=0;
+
+       p=text;
+       while(*p)
+         {
+          if(*p=='*')
+             wildcard++;
+          else if(*p==':')
+             colons++;
+          p++;
+         }
+
+       /*
+         This is tricky, we should check for a host:port combination and allow it.
+         But the problem is that a single colon could be an IPv6 wildcard or an IPv4 host and port.
+         If there are 2 or more ':' then it is IPv6, if it starts with '[' it is IPv6.
+       */
+
+       if(wildcard)
+         {
+          char *p;
+          host=(char*)malloc(strlen(text)+1);
+          strcpy(host,text);
+          for(p=host;*p;p++)
+             *p=tolower(*p);
+         }
+       else
+          host=CanonicaliseHost(text);
+
+       if(colons==0 || (colons>1 && *host!='['))
+         {errmsg=(char*)malloc(80+strlen(text));sprintf(errmsg,"Expecting a hostname and a port number (perhaps with wildcard), got '%s'.",text); free(host); break;}
+
+       if(*host=='[')
+         {
+          char *square=strchr(host,']');
+          if(!square || *(square+1)!=':')
+            {errmsg=(char*)malloc(80+strlen(text));sprintf(errmsg,"Expecting a hostname and a port number (perhaps with wildcard), got '%s'.",text); free(host); break;}
+         }
+
+       pointer->string=host;
+      }
+     break;
+
    case UserPass:
     if(!*text)
-      {errmsg=(char*)malloc(48);strcpy(errmsg,"Expecting a username and password, got nothing.");}
+      {errmsg=(char*)malloc((size_t)48);strcpy(errmsg,"Expecting a username and password, got nothing.");}
     else if(!strchr(text,':'))
       {errmsg=(char*)malloc(48+strlen(text));sprintf(errmsg,"Expecting a username and password, got '%s'.",text);}
     else
@@ -1493,11 +1574,33 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case Url:
     if(!*text || !strcasecmp(text,"none"))
-       pointer->string=NULL;
+      {errmsg=(char*)malloc((size_t)32);strcpy(errmsg,"Expecting a URL, got nothing.");}
+    else
+      {
+       URL *tempUrl;
+
+       if(strchr(text,'*'))
+         {errmsg=(char*)malloc(56+strlen(text));sprintf(errmsg,"Expecting a URL without a wildcard, got '%s'.",text); break;}
+
+       tempUrl=SplitURL(text);
+       if(!IsProtocolHandled(tempUrl))
+         {errmsg=(char*)malloc(32+strlen(text));sprintf(errmsg,"Expecting a URL, got '%s'.",text);}
+       else
+         {
+          pointer->string=(char*)malloc(strlen(tempUrl->file)+1);
+          strcpy(pointer->string,tempUrl->file);
+         }
+       FreeURL(tempUrl);
+      }
+    break;
+
+   case UrlWild:
+    if(!*text || !strcasecmp(text,"none"))
+      {errmsg=(char*)malloc((size_t)64);strcpy(errmsg,"Expecting a URL (perhaps with wildcard), got nothing.");}
     else
       {
        URL *tempUrl=SplitURL(text);
-       if(!tempUrl->Protocol)
+       if(!IsProtocolHandled(tempUrl))
          {errmsg=(char*)malloc(32+strlen(text));sprintf(errmsg,"Expecting a URL, got '%s'.",text);}
        else
          {
@@ -1510,10 +1613,10 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
    case UrlSpecification:
     if(!*text)
-      {errmsg=(char*)malloc(64);strcpy(errmsg,"Expecting a URL-SPECIFICATION, got nothing.");}
+      {errmsg=(char*)malloc((size_t)64);strcpy(errmsg,"Expecting a URL-SPECIFICATION, got nothing.");}
     else
       {
-       char *p,*orgtext=text;
+       const char *p,*orgtext=text;
 
        pointer->urlspec=(UrlSpec*)malloc(sizeof(UrlSpec));
        pointer->urlspec->null=0;
@@ -1541,9 +1644,9 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
        /* protocol */
 
-       if(!strncmp(text,"*://",4))
+       if(!strncmp(text,"*://",(size_t)4))
           p=text+4;
-       else if(!strncmp(text,"://",3))
+       else if(!strncmp(text,"://",(size_t)3))
           p=text+3;
        else if((p=strstr(text,"://")))
          {
@@ -1552,7 +1655,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
           pointer->urlspec=(UrlSpec*)realloc((void*)pointer->urlspec,
                                              pointer->urlspec->proto+(p-text)+1);
 
-          strncpy(UrlSpecProto(pointer->urlspec),text,p-text);
+          strncpy(UrlSpecProto(pointer->urlspec),text,(size_t)(p-text));
           *(UrlSpecProto(pointer->urlspec)+(p-text))=0;
           p+=3;
          }
@@ -1607,7 +1710,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
           pointer->urlspec=(UrlSpec*)realloc((void*)pointer->urlspec,
                                              pointer->urlspec->host+(p-text)+1);
 
-          strncpy(UrlSpecHost(pointer->urlspec),text,p-text);
+          strncpy(UrlSpecHost(pointer->urlspec),text,(size_t)(p-text));
           *(UrlSpecHost(pointer->urlspec)+(p-text))=0;
 
           for(q=UrlSpecHost(pointer->urlspec);*q;q++)
@@ -1648,7 +1751,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
           ;
        else if(*text=='/' && (p=strchr(text,'?')))
          {
-          if(strncmp(text,"/*?",3))
+          if(strncmp(text,"/*?",(size_t)3))
              pointer->urlspec->path=1;
          }
        else if(*text=='/')
@@ -1663,12 +1766,21 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
        if(pointer->urlspec->path)
          {
-          char *temppath,*path,oldp;
+          char *temppath,*path;
 
-          oldp=*p;
-          *p=0;
-          temppath=URLDecodeGeneric(text);
-          *p=oldp;
+          if(*p)
+            {
+             char *temptemppath=(char*)malloc(1+(p-text));
+
+             strncpy(temptemppath,text,p-text);
+             temptemppath[p-text]=0;
+
+             temppath=URLDecodeGeneric(temptemppath);
+
+             free(temptemppath);
+            }
+          else
+             temppath=URLDecodeGeneric(text);
 
           path=URLEncodePath(temppath);
           free(temppath);
@@ -1691,12 +1803,6 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
 
        if(!*text)
           ;
-       else if(*text=='?' && !*(text+1))
-         {
-          p=text+1;
-
-          pointer->urlspec->args=1;
-         }
        else if(*text=='?')
          {
           p=text+1;
@@ -1714,7 +1820,7 @@ char *ParseKeyOrValue(char *text,ConfigType type,KeyOrValue *pointer)
           if(*p)
              args=URLRecodeFormArgs(p);
           else
-             args=p;
+             args="";
 
           pointer->urlspec->args=(unsigned short)(sizeof(UrlSpec)+
                                                   (pointer->urlspec->proto?1+strlen(UrlSpecProto(pointer->urlspec)):0)+

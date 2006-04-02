@@ -1,5 +1,5 @@
-          WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e
-          =========================================================
+          WWWOFFLE - World Wide Web Offline Explorer - Version 2.9
+          ========================================================
 
 
 The WWWOFFLE programs simplify World Wide Web browsing from computers that use
@@ -24,6 +24,7 @@ While Online
     - Conditional fetching to only get pages that have changed.
         - Based on expiration date, time since last fetched or once per session.
     - Non cached support for SSL (Secure Socket Layer e.g. https).
+    - Caching for https connections. (compile time option).
     - Can be used with one or more external proxies based on web page.
     - Control which pages cannot be accessed.
         - Allow replacement of blocked pages.
@@ -82,9 +83,10 @@ Convenience
         - Source code unmodified by WWWOFFLE.
     - Automatic proxy configuration with Proxy Auto-Config file.
     - Searchable cache with the addition of the ht://Dig, mnoGoSearch
-      (UdmSearch) or Namazu programs.
-    - Built in simple web-server for local pages.
-        - Allows CGI scripts
+      (UdmSearch), Namazu or Hyper Estraier programs.
+    - Built in simple web-server for local pages
+        - HTTP and HTTPS access (compile time option).
+        - Allows CGI scripts.
     - Timeouts to stop proxy lockups
         - DNS name lookups.
         - Remote server connection.
@@ -121,6 +123,7 @@ Security
         - Host access configured by hostname or IP address.
         - Optional proxy authentication for user level access control.
     - Optional password control for proxy management functions.
+    - HTTPS access to all proxy management web pages (compile time option).
     - Can censor incoming and outgoing HTTP headers to maintain user privacy.
 
 Configuration
@@ -153,7 +156,7 @@ will cause the page to be refreshed.
 
 The latest browser compatibility information is available at:
 
-http://www.gedanken.demon.co.uk/wwwoffle/version-2.8/browser.html
+http://www.gedanken.demon.co.uk/wwwoffle/version-2.9/browser.html
 
 
 Welcome Page
@@ -168,10 +171,10 @@ homepage which has information about WWWOFFLE in general:
 
 http://www.gedanken.demon.co.uk/wwwoffle/
 
-Or even better the WWWOFFLE version-2.8 user page which has more information
+Or even better the WWWOFFLE version-2.9 user page which has more information
 about this version of WWWOFFLE:
 
-http://www.gedanken.demon.co.uk/wwwoffle/version-2.8/user.html
+http://www.gedanken.demon.co.uk/wwwoffle/version-2.9/user.html
 
 
 Index Of Cached Files
@@ -266,12 +269,12 @@ be re-read.
 Searching the Cache
 -------------------
 
-The three web indexing programs ht://Dig, mnoGoSearch (UdmSearch) or Namazu can
-be used to create an index of the pages in the WWWOFFLE cache for later
-searching.
+The three web indexing programs ht://Dig, mnoGoSearch (UdmSearch), Namazu or
+Hyper Estraier can be used to create an index of the pages in the WWWOFFLE cache
+for later searching.
 
 For ht://Dig version 3.1.0b4 or later is required, it can be found at
-http://htdig.sdsu.edu/.
+http://www.htdig.org/.
 
 For mnoGoSearch (previously called UdmSearch) version 3.1.0 or later is
 required, it can be found at http://mnogosearch.org/.
@@ -280,13 +283,18 @@ For Namazu version 2.0.0 or later is required, it can be found at
 http://www.namazu.org/, also required is mknmz-wwwoffle which can be found at
 http://www.naney.org/comp/distrib/mknmz-wwwoffle/.
 
+For Hyper Estraier version 0.5.3 or later is required, it can be found at
+http://hyperestraier.sourceforge.net/.
+
 The search forms for these programs are 'http://localhost:8080/search/htdig/',
-'http://localhost:8080/search/mnogosearch/' and
-'http://localhost:8080/search/namazu/'.  These allow the search part of the
-programs to be run to find the cached web-pages that you want.
+'http://localhost:8080/search/mnogosearch/',
+'http://localhost:8080/search/namazu/', and
+'http://localhost:8080/search/hyperestraier/'.  These allow the search part of
+the programs to be run to find the cached web-pages that you want.
 
 For more information about configuring these programs to work with WWWOFFLE you
-should read the file README.htdig, README.mnogosearch or README.namazu.
+should read the file README.htdig, README.mnogosearch, README.namazu, or
+README.hyperestraier.
 
 
 Built-In Web-Server
@@ -324,7 +332,7 @@ delete requests that are recorded.  If a password is assigned then users that
 know this password can delete any request (or cached file or other thing).
 Individual users that do not know the password can delete pages that they have
 requested provided that they do it immediately that the "Will Get" page appears,
-the "Cancel" button on here has a once-only password that will delete that
+the "Delete" button on here has a once-only password that will delete that
 request.
 
 
@@ -351,6 +359,55 @@ will produce an error message indicating the problem.
 
 This is now a configurable option, the default condition is that lock files are
 not used.
+
+
+HTTPS Access to Internal Pages
+------------------------------
+
+All of the web pages that are available through normal HTTP access on port 8080
+(e.g. http://localhost:8080/*) are also available with secure HTTPS access on
+port 8443 if WWWOFFLE is compiled with the libgnutls encryption library.  This
+applies to all pages; indexes, built-in web server and control and configuration
+pages.
+
+
+Caching of HTTPS Web Pages
+--------------------------
+
+It is possible to configure WWWOFFLE so that it will intercept and cache
+selected HTTPS connections.  This is disabled by default and there are three
+steps to enable it.  WWWOFFLE must be compiled with encryption support, the
+enable-caching option in the SSLOptions section of the configuration file must
+be set true and the list of hosts to cache for must be set.
+
+When WWWOFFLE is configured to cache an HTTPS web page it will request the page,
+decrypt it, re-encrypt it and pass it to the browser.  The copy of the page that
+is stored in the cache will be stored without encryption.  With this option all
+other WWWOFFLE features like the DontGet section, the ModifyHTML section, the
+OnlineOptions and others will be used.  Normally most of these options cannot be
+applied to HTTPS pages because the exact URL is not known to WWWOFFLE and the
+unencrypted contents are not visible.
+
+
+HTTPS Server Certificates
+-------------------------
+
+To handle the encryption functions described above WWWOFFLE will create and
+manage a set of server certificates.  One master certificate is used to sign all
+of the other certificates that WWWOFFLE creates.  The created certificates are
+either for the WWWOFFLE server HTTPS access pages or for a fake certificate that
+is created for each server that is cached.  The certificates that are captured
+by WWWOFFLE and stored are the certificates that are sent back by the real HTTPS
+server.  The final set of certificates are the trusted certificates that
+WWWOFFLE can use to confirm that the remote server is the one it claims to be.
+
+The full set of certificates that WWWOFFLE stores can be seen through the
+WWWOFFLE URL http://localhost:8080/certificates/ but is only available if
+WWWOFFLE was compiled with encryption support.
+
+To add trusted certificates to WWWOFFLE place the certificate file (in PEM
+format) into the directory '/var/spool/wwwoffle/certificates/trusted' and
+restart WWWOFFLE.
 
 
 Spool Directory Layout
@@ -645,7 +702,8 @@ WWWOFFLE-TOOLS - Cache maintenance program
 ------------------------------------------
 
 This is a quick hack program that I wrote to allow you to list the contents of
-the cache or move files around in it.
+the cache or move files around in it.  The programs are all named after common
+UNIX commands with a 'wwwoffle-' prefix.
 
 All of the programs should be invoked from the spool directory.
 
@@ -675,6 +733,14 @@ wwwoffle-write  - Write data directly to the cache for the URL named on the
 wwwoffle-hash   - Print WWWOFFLE's encoding of the submitted URL. This is
                   useful for scripts working on the WWWOFFLE cache.
 
+wwwoffle-fsck   - Checks the WWWOFFLE cache for consistency, it will rename any
+                  files where the filename does not match the hash of the URL.
+
+wwwoffle-gzip   - Compress the contents of the cache so that they take less
+                  space but WWWOFFLE can still read them.
+
+wwwoffle-gunzip - Uncompress the contents of the cache.
+
 All of the programs are the same executable and the name of the file determines
 the function.  The wwwoffle-tools executable can also be used with a command
 line parameter, for example 'wwwoffle-ls' is the same as 'wwwoffle-tools -ls'.
@@ -685,13 +751,6 @@ the correct permissions and uid/gid.
 
 These are basically hacks and should not be considered as fully featured and
 fully debugged programs.
-
-
-UNCOMPRESS-CACHE - Cache uncompression program
-----------------------------------------------
-
-This is another quick hack program that will uncompress the whole of the
-WWWOFFLE cache if the compression option has been chosen.
 
 
 audit-usage.pl - Perl script to check log files
@@ -729,16 +788,16 @@ Author and Copyright
 --------------------
 
 The two programs wwwoffle and wwwoffled were written by Andrew M. Bishop in
-1996,97,98,99,2000,01,02,03 and are copyright Andrew M. Bishop 1996,97,98,99,
-2000,01,02,03.
+1996,97,98,99,2000,01,02,03,04,05 and are copyright Andrew M. Bishop 1996,97,98,
+99,04,05,2000,01,02,03,04,05.
 
-The programs update-cache, endian-cache and the programs known as wwwoffle-tools
-were written by Andrew M. Bishop in 1997,98,99,2000,01,02,03 and are copyright
-Andrew M. Bishop 1997,98,99,2000,01,02,03.
+The programs known as wwwoffle-tools were written by Andrew M. Bishop in 1997,
+98,99,2000,01,02,03,04,05 and are copyright Andrew M. Bishop 1997,98,99,2000,01,
+02,03,04,05.
 
 The Perl scripts update-config.pl and audit-usage.pl were written by Andrew
-M. Bishop in 1998,99,2000,01,02,03 and are copyright Andrew M. Bishop
-1998,99,2000,01,02,03.
+M. Bishop in 1998,99,2000,01,02,03,04,05 and are copyright Andrew M. Bishop
+1998,99,2000,01,02,03,04,05.
 
 They can be freely distributed according to the terms of the GNU General Public
 License (see the file `COPYING').
@@ -772,6 +831,14 @@ The Namazu package is copyrighted by the Namazu Project and mknmz-wwwoffle is
 copyrighted by WATANABE Yoshimasa, both programs are released under the GPL.
 The configuration files in search/namazu/conf/* come from Namazu (with
 modifications by myself).
+
+
+Hyper Estraier
+- - - - - - -
+
+The Hyper Estraier package is copyrighted by Mikio Hirabayashi and is released
+under the LGPL.  The configuration files in search/hyperestraier/conf/* come
+from Hyper Estraier (with modifications by myself).
 
 
 With Source Code Contributions From
@@ -825,6 +892,14 @@ Marc Boucher <MarcB@box100.com>
 
 Ilya Dogolazky <ilyad@math.uni-bonn.de>
         The patch for the fix-mixed-cyrillic option.
+
+Dieter <netbsd@sopwith.solgatos.com>
+       A patch with some 64-bit/32-bit compatibility fixes (that prompted me to
+       go and find and fix a lot more).
+
+Andreas Mohr <andi@rhlx01.fht-esslingen.de>
+        A patch to add "const" to lots of structures and function parameters
+        (this prompted me to go and do a lot more).
 
 
 And Other Useful Contributions From

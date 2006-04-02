@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/iopriv.c 1.4 2004/01/17 16:29:37 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/iopriv.c 1.7 2006/01/20 18:43:21 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Private functions for file input and output.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -16,6 +16,7 @@
 #include "autoconfig.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 #include <sys/types.h>
 #include <unistd.h>
@@ -49,7 +50,7 @@ static jmp_buf write_jmp_env;
 
 static void sigalarm(int signum);
 
-static int write_all(int fd,const char *data,int n);
+static ssize_t write_all(int fd,const char *data,size_t n);
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -57,12 +58,12 @@ static int write_all(int fd,const char *data,int n);
 
   io_buffer *create_io_buffer The io_buffer to create.
 
-  int size The size to allocate.
+  size_t size The size to allocate.
   ++++++++++++++++++++++++++++++++++++++*/
 
-io_buffer *create_io_buffer(int size)
+io_buffer *create_io_buffer(size_t size)
 {
- io_buffer *new=(io_buffer*)calloc(1,sizeof(io_buffer));
+ io_buffer *new=(io_buffer*)calloc((size_t)1,sizeof(io_buffer));
 
  new->data=(char*)malloc(size);
  new->size=size;
@@ -88,16 +89,16 @@ void destroy_io_buffer(io_buffer *buffer)
 /*++++++++++++++++++++++++++++++++++++++
   Read some data from a file descriptor and buffer it with a timeout.
 
-  int io_read_with_timeout Returns the number of bytes read.
+  ssize_t io_read_with_timeout Returns the number of bytes read.
 
   int fd The file descriptor to read from.
 
   io_buffer *out The IO buffer to output the data.
 
-  int timeout The maximum time to wait for data (or 0 for no timeout).
+  unsigned timeout The maximum time to wait for data to be read (or 0 for no timeout).
   ++++++++++++++++++++++++++++++++++++++*/
 
-int io_read_with_timeout(int fd,io_buffer *out,int timeout)
+ssize_t io_read_with_timeout(int fd,io_buffer *out,unsigned timeout)
 {
  int n;
 
@@ -152,16 +153,16 @@ static void sigalarm(/*@unused@*/ int signum)
 /*++++++++++++++++++++++++++++++++++++++
   Write some data to a file descriptor from a buffer with a timeout.
 
-  int io_write_with_timeout Returns the number of bytes written or negative on error.
+  ssize_t io_write_with_timeout Returns the number of bytes written or negative on error.
 
   int fd The file descriptor to write to.
 
   io_buffer *in The IO buffer with the input data.
 
-  int timeout The maximum time to wait for data (or 0 for no timeout).
+  unsigned timeout The maximum time to wait for data to be written (or 0 for no timeout).
   ++++++++++++++++++++++++++++++++++++++*/
 
-int io_write_with_timeout(int fd,io_buffer *in,int timeout)
+ssize_t io_write_with_timeout(int fd,io_buffer *in,unsigned timeout)
 {
  int n;
  struct sigaction action;
@@ -176,6 +177,34 @@ start:
     n=write_all(fd,in->data,in->length);
     in->length=0;
     return(n);
+   }
+
+ if(in->length>(4*IO_BUFFER_SIZE))
+   {
+    size_t offset;
+    io_buffer temp;
+
+    temp.size=in->size;
+
+    for(offset=0;offset<in->length;offset+=IO_BUFFER_SIZE)
+      {
+       temp.data=in->data+offset;
+
+       temp.length=in->length-offset;
+       if(temp.length>IO_BUFFER_SIZE)
+          temp.length=IO_BUFFER_SIZE;
+
+       n=io_write_with_timeout(fd,&temp,timeout);
+
+       if(n<0)
+         {
+          in->length=0;
+          return(n);
+         }
+      }
+
+    in->length=0;
+    return(in->length);
    }
 
  action.sa_handler = sigalarm;
@@ -213,18 +242,18 @@ start:
 /*++++++++++++++++++++++++++++++++++++++
   A function to write all of a buffer of data to a file descriptor.
 
-  int write_all Returns the number of bytes written.
+  ssize_t write_all Returns the number of bytes written.
 
   int fd The file descriptor.
 
   const char *data The data buffer to write.
 
-  int n The number of bytes to write.
+  size_t n The number of bytes to write.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int write_all(int fd,const char *data,int n)
+static ssize_t write_all(int fd,const char *data,size_t n)
 {
- int nn=0;
+ ssize_t nn=0;
 
  /* Unroll the first loop to optimise the obvious case. */
 
@@ -246,5 +275,5 @@ static int write_all(int fd,const char *data,int n)
    }
  while(nn<n);
 
- return(n);
+ return(nn);
 }

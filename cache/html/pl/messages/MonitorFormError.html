@@ -5,7 +5,7 @@
 
 Available WWWOFFLE Variables (all with a '$' prefix).
 
-localhost = The hostname of the server running wwwoffled (='$localhost').
+localurl  = The root URL of the server running wwwoffled (='$localurl').
 version   = The version of the WWWOFFLE server (='$version').
 body      = The body of the request (='$body').
 
@@ -14,7 +14,7 @@ body      = The body of the request (='$body').
 <HEAD>
 <META http-equiv="Content-Type" content="text/html; charset=ISO-8859-2">
 <TITLE>WWWOFFLE - Błąd interaktywnego formularza monitorowania</TITLE>
-<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
+<LINK href="$localurl/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
 <BODY class="wwwoffle-message">
@@ -59,7 +59,7 @@ przesłać formularz ponownie.
 <!-- Standard WWWOFFLE Message Page Inline Help End -->
 
 <div class="wwwoffle-nav" align="center">
-[<a href="http://$localhost/monitor-options/">Wróć do strony monitorowania</a>]
+[<a href="$localurl/monitor-options/">Wróć do strony monitorowania</a>]
 </div>
 
 <!-- Standard WWWOFFLE Message Page Footer Start -->
@@ -67,8 +67,8 @@ przesłać formularz ponownie.
 <hr class="wwwoffle-footer">
 <div class="wwwoffle-footer" align="center">
 WWWOFFLE - [ \
-<a href="http://$localhost/Welcome.html">Strona Powitalna</a>| \
-<a href="http://$localhost/FAQ.html">Pytania i Odpowiedzi</a> \
+<a href="$localurl/Welcome.html">Strona Powitalna</a>| \
+<a href="$localurl/FAQ.html">Pytania i Odpowiedzi</a> \
 ] - WWWOFFLE
 </div>
 

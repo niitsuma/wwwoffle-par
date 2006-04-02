@@ -9,14 +9,14 @@ FUNC   \%[a-z_0-9]+\[[a-z_0-9]+\]
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/messages.l 1.56 2003/12/04 12:01:11 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/messages.l 1.62 2006/01/29 19:59:19 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Parse the HTML to create the messages.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1998,99,2000,01,02,03 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04,05 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -60,13 +60,16 @@ FUNC   \%[a-z_0-9]+\[[a-z_0-9]+\]
 #include "version.h"
 
 
-/*+ Need this for Win32 to use binary mode +*/
 #ifndef O_BINARY
+/*+ A work-around for needing O_BINARY with Win32 to use binary mode. +*/
 #define O_BINARY 0
 #endif
 
 
 extern int msg_yylex(void);
+
+
+/* Local functions */
 
 static char *html_message_body(int fd,char *template, va_list ap);
 
@@ -79,6 +82,8 @@ static char *call_function(char *func);
 
 static void strip_trailing_whitespace(char *string);
 
+
+/* Local variables */
 
 /*+ A known fixed empty string. +*/
 static char *empty="";
@@ -188,7 +193,7 @@ void HTMLMessageHead(int fd,int status_val,char *status_str, ...)
 
  /* The start of the header */
 
- headline=(char*)malloc(strlen(status_str)+32);
+ headline=(char*)malloc(strlen(status_str)+16+MAX_INT_STR);
  sprintf(headline,"HTTP/1.0 %d %s\r\n",status_val,status_str);
  header=CreateHeader(headline,0);
  free(headline);
@@ -258,6 +263,9 @@ void HTMLMessageHead(int fd,int status_val,char *status_str, ...)
 
  headerstr=HeaderString(header);
 
+ if(StderrLevel==ExtraDebug)
+    PrintMessage(ExtraDebug,"Reply Head (internal page)\n%s",headerstr);
+
  write_string(fd,headerstr);
 
  free(headerstr);
@@ -268,13 +276,13 @@ void HTMLMessageHead(int fd,int status_val,char *status_str, ...)
 
 #if USE_ZLIB
  if(client_compression)
-    configure_io_write(fd,-1,client_compression,-1);
+    configure_io_zlib(fd,-1,client_compression);
 #endif
 
  /* Initialise the client chunked encoding. */
 
  if(client_chunked)
-    configure_io_write(fd,-1,-1,1);
+    configure_io_chunked(fd,-1,1);
 }
 
 
@@ -371,9 +379,9 @@ static char *html_message_body(int fd,char *template,va_list ap)
 
  if(nvariables==0)
    {
-    char *localhost=GetLocalHost(1);
-    add_variable("localhost",localhost);
-    free(localhost);
+    char *localurl=GetLocalURL();
+    add_variable("localurl",localurl);
+    free(localurl);
     add_variable("version",WWWOFFLE_VERSION);
    }
 
@@ -436,7 +444,7 @@ static void write_or_append_string(char *str)
       }
    }
  else
-    write_string(out_fd,str);
+    write_buffer_data(out_fd,str,strlen(str)); /* expect to make lots of small writes */
 }
 
 

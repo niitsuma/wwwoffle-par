@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configedit.c 1.34 2004/09/28 16:25:30 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configedit.c 1.41 2005/10/11 18:34:15 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   The HTML interactive configuration editing pages.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -35,6 +35,10 @@ static void ConfigurationItemPage(int fd,int section,int item,URL *Url,/*@null@*
 static void ConfigurationEditURLPage(int fd,URL *Url,/*@null@*/ Body *request_body);
 static void ConfigurationURLPage(int fd,char *url);
 static void ConfigurationAuthFail(int fd,char *url);
+
+
+/*+ The amount to rewind a file before starting to read forward again. +*/
+#define REWIND_STEP 2048
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -98,7 +102,7 @@ void ConfigurationPage(int fd,URL *Url,Body *request_body)
 
  for(s=0;s<CurrentConfig.nsections;s++)
    {
-    int len=strlen(CurrentConfig.sections[s]->name);
+    size_t len=strlen(CurrentConfig.sections[s]->name);
 
     if(!strncmp(CurrentConfig.sections[s]->name,Url->path+15,len))
       {
@@ -168,22 +172,22 @@ static void ConfigurationIndexPage(int fd,char *url)
    {
     char *description=NULL;
 
-    lseek(file,0,SEEK_SET);
+    lseek(file,(off_t)0,SEEK_SET);
     reinit_io(file);
 
     while((line=read_line(file,line)))
       {
        line[strlen(line)-1]=0;
 
-       if(!strncmp(line,"SECTION",7) && !strcmp(line+8,CurrentConfig.sections[s]->name))
+       if(!strncmp(line,"SECTION",(size_t)7) && !strcmp(line+8,CurrentConfig.sections[s]->name))
          {
           line=read_line(file,line);
           if(line)
              line[strlen(line)-1]=0;
           description=line;
-          seekpos=lseek(file,0,SEEK_CUR);
-          if(seekpos>READ_BUFFER_SIZE)
-             seekpos-=READ_BUFFER_SIZE;
+          seekpos=lseek(file,(off_t)0,SEEK_CUR);
+          if(seekpos>REWIND_STEP)
+             seekpos-=REWIND_STEP;
           else
              seekpos=0;
           break;
@@ -202,7 +206,7 @@ static void ConfigurationIndexPage(int fd,char *url)
 
  while((line=read_line(file,line)))
    {
-    if(!strncmp(line,"TAIL",4))
+    if(!strncmp(line,"TAIL",(size_t)4))
        break;
    }
 
@@ -256,15 +260,15 @@ static void ConfigurationSectionPage(int fd,int section,char *url)
    {
     line1[strlen(line1)-1]=0;
 
-    if(!strncmp(line1,"SECTION",7) && !strcmp(line1+8,CurrentConfig.sections[section]->name))
+    if(!strncmp(line1,"SECTION",(size_t)7) && !strcmp(line1+8,CurrentConfig.sections[section]->name))
       {
        line1=read_line(file,line1);
        if(line1)
           line1[strlen(line1)-1]=0;
        description=line1;
-       seekpos=lseek(file,0,SEEK_CUR);
-       if(seekpos>READ_BUFFER_SIZE)
-          seekpos-=READ_BUFFER_SIZE;
+       seekpos=lseek(file,(off_t)0,SEEK_CUR);
+       if(seekpos>REWIND_STEP)
+          seekpos-=REWIND_STEP;
        else
           seekpos=0;
        break;
@@ -295,7 +299,7 @@ static void ConfigurationSectionPage(int fd,int section,char *url)
       {
        line1[strlen(line1)-1]=0;
 
-       if(!strncmp(line1,"SECTION",7) && !strcmp(line1+8,CurrentConfig.sections[section]->name))
+       if(!strncmp(line1,"SECTION",(size_t)7) && !strcmp(line1+8,CurrentConfig.sections[section]->name))
           break;
       }
 
@@ -303,9 +307,9 @@ static void ConfigurationSectionPage(int fd,int section,char *url)
       {
        line1[strlen(line1)-1]=0;
 
-       if(!strncmp(line1,"SECTION",7))
+       if(!strncmp(line1,"SECTION",(size_t)7))
           break;
-       if(!strncmp(line1,"ITEM",4) && !strcmp(line1+5,CurrentConfig.sections[section]->itemdefs[i].name))
+       if(!strncmp(line1,"ITEM",(size_t)4) && !strcmp(line1+5,CurrentConfig.sections[section]->itemdefs[i].name))
          {
           line1=read_line(file,line1);
           if(line1)
@@ -370,15 +374,15 @@ static void ConfigurationItemPage(int fd,int section,int item,URL *Url,char *url
 
     for(i=0;args[i];i++)
       {
-       if(!strncmp("url=",args[i],4) && args[i][4])
+       if(!strncmp("url=",args[i],(size_t)4) && args[i][4])
           url=TrimArgs(URLDecodeFormArgs(args[i]+4));
-       else if(!strncmp("key=",args[i],4) && args[i][4])
+       else if(!strncmp("key=",args[i],(size_t)4) && args[i][4])
           key=TrimArgs(URLDecodeFormArgs(args[i]+4));
-       else if(!strncmp("val=",args[i],4) && args[i][4])
+       else if(!strncmp("val=",args[i],(size_t)4) && args[i][4])
           val=TrimArgs(URLDecodeFormArgs(args[i]+4));
-       else if(!strncmp("action=",args[i],7))
+       else if(!strncmp("action=",args[i],(size_t)7))
           action=TrimArgs(URLDecodeFormArgs(args[i]+7));
-       else if(!strncmp("entry=",args[i],6))
+       else if(!strncmp("entry=",args[i],(size_t)6))
           entry=TrimArgs(URLDecodeFormArgs(args[i]+6));
        else
           PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",args[i],Url->name);
@@ -395,7 +399,7 @@ static void ConfigurationItemPage(int fd,int section,int item,URL *Url,char *url
    {
     char *line1=NULL,*line2=NULL,*template=NULL,*description=NULL;
     int file;
-    char nentries[8],nallowed[8];
+    char nentries[MAX_INT_STR+1],nallowed[8];
     char *entry_url=NULL,*entry_key=NULL,*entry_val=NULL;
     int edit=0;
 
@@ -438,13 +442,15 @@ static void ConfigurationItemPage(int fd,int section,int item,URL *Url,char *url
     init_io(file);
 
     HTMLMessageHead(fd,200,"WWWOFFLE Configuration Item Page",
+                    "Cache-Control","no-cache",
+                    "Expires","0",
                     NULL);
 
     while((line1=read_line(file,line1)))
       {
        line1[strlen(line1)-1]=0;
 
-       if(!strncmp(line1,"SECTION",7) && !strcmp(line1+8,CurrentConfig.sections[section]->name))
+       if(!strncmp(line1,"SECTION",(size_t)7) && !strcmp(line1+8,CurrentConfig.sections[section]->name))
           break;
       }
 
@@ -452,9 +458,9 @@ static void ConfigurationItemPage(int fd,int section,int item,URL *Url,char *url
       {
        line1[strlen(line1)-1]=0;
 
-       if(!strncmp(line1,"SECTION",7))
+       if(!strncmp(line1,"SECTION",(size_t)7))
           break;
-       if(!strncmp(line1,"ITEM",4) && !strcmp(line1+5,CurrentConfig.sections[section]->itemdefs[item].name))
+       if(!strncmp(line1,"ITEM",(size_t)4) && !strcmp(line1+5,CurrentConfig.sections[section]->itemdefs[item].name))
          {
           line1=read_line(file,line1);
           if(line1)
@@ -586,8 +592,8 @@ static void ConfigurationItemPage(int fd,int section,int item,URL *Url,char *url
        errmsg=ModifyConfigFile(section,item,NULL    ,NULL ,entry,NULL );
     else
       {
-       errmsg=(char*)malloc(96);
-       sprintf(errmsg,"The specified form action was invalid or an existing entry parameter was missing.");
+       errmsg=(char*)malloc((size_t)96);
+       strcpy(errmsg,"The specified form action was invalid or an existing entry parameter was missing.");
       }
 
     /* Display the result */
@@ -629,7 +635,7 @@ static void ConfigurationEditURLPage(int fd,URL *Url,Body *request_body)
  int urllen;
  char *proto=NULL,*host=NULL,*port=NULL,*path=NULL,*args=NULL;
  char *proto_other=NULL,*host_other=NULL,*port_other=NULL,*path_other=NULL,*args_other=NULL;
- char *localhost,*relocate;
+ char *localurl,*relocate;
 
  /* Parse the arguments. */
 
@@ -641,25 +647,25 @@ static void ConfigurationEditURLPage(int fd,URL *Url,Body *request_body)
 
     for(i=0;arglist[i];i++)
       {
-       if(!strncmp("proto=",arglist[i],6) && arglist[i][6])
+       if(!strncmp("proto=",arglist[i],(size_t)6) && arglist[i][6])
           proto=TrimArgs(URLDecodeFormArgs(arglist[i]+6));
-       else if(!strncmp("host=",arglist[i],5) && arglist[i][5])
+       else if(!strncmp("host=",arglist[i],(size_t)5) && arglist[i][5])
           host=TrimArgs(URLDecodeFormArgs(arglist[i]+5));
-       else if(!strncmp("port=",arglist[i],5) && arglist[i][5])
+       else if(!strncmp("port=",arglist[i],(size_t)5) && arglist[i][5])
           port=TrimArgs(URLDecodeFormArgs(arglist[i]+5));
-       else if(!strncmp("path=",arglist[i],5) && arglist[i][5])
+       else if(!strncmp("path=",arglist[i],(size_t)5) && arglist[i][5])
           path=TrimArgs(URLDecodeFormArgs(arglist[i]+5));
-       else if(!strncmp("args=",arglist[i],5) && arglist[i][5])
+       else if(!strncmp("args=",arglist[i],(size_t)5) && arglist[i][5])
           args=TrimArgs(URLDecodeFormArgs(arglist[i]+5));
-       else if(!strncmp("proto_other=",arglist[i],12) && arglist[i][12])
+       else if(!strncmp("proto_other=",arglist[i],(size_t)12) && arglist[i][12])
           proto_other=TrimArgs(URLDecodeFormArgs(arglist[i]+12));
-       else if(!strncmp("host_other=",arglist[i],11) && arglist[i][11])
+       else if(!strncmp("host_other=",arglist[i],(size_t)11) && arglist[i][11])
           host_other=TrimArgs(URLDecodeFormArgs(arglist[i]+11));
-       else if(!strncmp("port_other=",arglist[i],11) && arglist[i][11])
+       else if(!strncmp("port_other=",arglist[i],(size_t)11) && arglist[i][11])
           port_other=TrimArgs(URLDecodeFormArgs(arglist[i]+11));
-       else if(!strncmp("path_other=",arglist[i],11) && arglist[i][11])
+       else if(!strncmp("path_other=",arglist[i],(size_t)11) && arglist[i][11])
           path_other=TrimArgs(URLDecodeFormArgs(arglist[i]+11));
-       else if(!strncmp("args_other=",arglist[i],11) && arglist[i][11])
+       else if(!strncmp("args_other=",arglist[i],(size_t)11) && arglist[i][11])
           args_other=TrimArgs(URLDecodeFormArgs(arglist[i]+11));
        else
           PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",arglist[i],Url->name);
@@ -698,13 +704,13 @@ static void ConfigurationEditURLPage(int fd,URL *Url,Body *request_body)
    {if(args_other) free(args_other);}
 
  if(!proto)
-    proto=strcpy(malloc(2),"*");
+    proto=strcpy(malloc((size_t)2),"*");
 
  if(!host)
-    host=strcpy(malloc(2),"*");
+    host=strcpy(malloc((size_t)2),"*");
 
  if(!path)
-    path=strcpy(malloc(2),"*");
+    path=strcpy(malloc((size_t)2),"*");
 
  /* Create the URL */
 
@@ -736,11 +742,11 @@ static void ConfigurationEditURLPage(int fd,URL *Url,Body *request_body)
 
  /* Redirect the client to it */
 
- localhost=GetLocalHost(1);
+ localurl=GetLocalURL();
  encurl=URLEncodeFormArgs(url);
- relocate=(char*)malloc(strlen(localhost)+strlen(encurl)+32);
+ relocate=(char*)malloc(strlen(localurl)+strlen(encurl)+24);
 
- sprintf(relocate,"http://%s/configuration/url?%s",localhost,encurl);
+ sprintf(relocate,"%s/configuration/url?%s",localurl,encurl);
 
  HTMLMessage(fd,302,"WWWOFFLE Configuration Edit URL Redirect",relocate,"Redirect",
              "location",relocate,
@@ -748,7 +754,7 @@ static void ConfigurationEditURLPage(int fd,URL *Url,Body *request_body)
 
  free(url);
  free(encurl);
- free(localhost);
+ free(localurl);
  free(relocate);
 }
 
@@ -765,7 +771,8 @@ static void ConfigurationURLPage(int fd,char *url)
 {
  char *proto=NULL,*host=NULL,*port=NULL,*path=NULL,*args=NULL;
  char *copy,*colon,*slash,*ques;
- int wildcard=0,file,s,i,seekpos=0;
+ int wildcard=0,file,s,i;
+ off_t seekpos=0;
  char *line1=NULL,*line2=NULL;
 
  /* Assume a "well-formed" URL, from the function above or a WWWOFFLE index.
@@ -858,18 +865,18 @@ static void ConfigurationURLPage(int fd,char *url)
 
  for(s=0;s<CurrentConfig.nsections;s++)
    {
-    lseek(file,0,SEEK_SET);  /* go back to the start of the file */
+    lseek(file,(off_t)0,SEEK_SET);  /* go back to the start of the file */
     reinit_io(file);
 
     while((line1=read_line(file,line1)))
       {
        line1[strlen(line1)-1]=0;
 
-       if(!strncmp(line1,"SECTION",7) && !strcmp(line1+8,CurrentConfig.sections[s]->name))
+       if(!strncmp(line1,"SECTION",(size_t)7) && !strcmp(line1+8,CurrentConfig.sections[s]->name))
          {
-          seekpos=lseek(file,0,SEEK_CUR);
-          if(seekpos>READ_BUFFER_SIZE)
-             seekpos-=READ_BUFFER_SIZE;
+          seekpos=lseek(file,(off_t)0,SEEK_CUR);
+          if(seekpos>REWIND_STEP)
+             seekpos-=REWIND_STEP;
           else
              seekpos=0;
           break;
@@ -889,7 +896,7 @@ static void ConfigurationURLPage(int fd,char *url)
             {
              line1[strlen(line1)-1]=0;
 
-             if(!strncmp(line1,"SECTION",7) && !strcmp(line1+8,CurrentConfig.sections[s]->name))
+             if(!strncmp(line1,"SECTION",(size_t)7) && !strcmp(line1+8,CurrentConfig.sections[s]->name))
                 break;
             }
 
@@ -897,9 +904,9 @@ static void ConfigurationURLPage(int fd,char *url)
             {
              line1[strlen(line1)-1]=0;
 
-             if(!strncmp(line1,"SECTION",7))
+             if(!strncmp(line1,"SECTION",(size_t)7))
                 break;
-             if(!strncmp(line1,"ITEM",4) && !strcmp(line1+5,CurrentConfig.sections[s]->itemdefs[i].name))
+             if(!strncmp(line1,"ITEM",(size_t)4) && !strcmp(line1+5,CurrentConfig.sections[s]->itemdefs[i].name))
                {
                 line1=read_line(file,line1);
                 if(line1)
@@ -927,12 +934,12 @@ static void ConfigurationURLPage(int fd,char *url)
                      {
                       if(!(*CurrentConfig.sections[s]->itemdefs[i].item)->url[j])
                          break;
-                      else if(MatchUrlSpecification((*CurrentConfig.sections[s]->itemdefs[i].item)->url[j],Url->proto,Url->host,Url->path,Url->args))
+                      else if(MatchUrlSpecification((*CurrentConfig.sections[s]->itemdefs[i].item)->url[j],Url->proto,Url->host,Url->port,Url->path,Url->args))
                          break;
                      }
                    else
                      {
-                      if(MatchUrlSpecification((*CurrentConfig.sections[s]->itemdefs[i].item)->key[j].urlspec,Url->proto,Url->host,Url->path,Url->args))
+                      if(MatchUrlSpecification((*CurrentConfig.sections[s]->itemdefs[i].item)->key[j].urlspec,Url->proto,Url->host,Url->port,Url->path,Url->args))
                          break;
                      }
 

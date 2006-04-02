@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffled.c 2.74 2004/07/05 08:29:13 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffled.c 2.81 2005/12/11 10:06:20 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   A demon program to maintain the database and spawn the servers.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04,05 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -47,6 +47,7 @@
 #include "errors.h"
 #include "config.h"
 #include "sockets.h"
+#include "certificates.h"
 #include "version.h"
 
 
@@ -60,6 +61,7 @@ static void sighup(int signum);
 
 /*+ The server sockets that we listen on +*/
 int http_fd[2]={-1,-1},          /*+ for the HTTP connections. +*/
+    https_fd[2]={-1,-1},         /*+ for the HTTPS connections. +*/
     wwwoffle_fd[2]={-1,-1};      /*+ for the WWWOFFLE connections. +*/
 
 /*+ The online / offline /autodial status. +*/
@@ -224,19 +226,25 @@ int main(int argc, char** argv)
 
  /* Print a startup message. */
 
-#if USE_ZLIB
-#define ZLIB_STRING "with zlib"
-#else
-#define ZLIB_STRING "without zlib"
-#endif
-
 #if USE_IPV6
 #define IPV6_STRING "with ipv6"
 #else
 #define IPV6_STRING "without ipv6"
 #endif
 
- PrintMessage(Important,"WWWOFFLE Demon Version %s (%s,%s) started.",WWWOFFLE_VERSION,ZLIB_STRING,IPV6_STRING);
+#if USE_ZLIB
+#define ZLIB_STRING "with zlib"
+#else
+#define ZLIB_STRING "without zlib"
+#endif
+
+#if USE_GNUTLS
+#define GNUTLS_STRING "with gnutls"
+#else
+#define GNUTLS_STRING "without gnutls"
+#endif
+
+ PrintMessage(Important,"WWWOFFLE Demon Version %s (%s,%s,%s) started.",WWWOFFLE_VERSION,IPV6_STRING,ZLIB_STRING,GNUTLS_STRING);
  PrintMessage(Inform,"WWWOFFLE Read Configuration File '%s'.",ConfigurationFileName());
 
  /* Change the user and group. */
@@ -248,31 +256,31 @@ int main(int argc, char** argv)
     seteuid(0);
 
  if(log_file && (uid!=-1 || gid!=-1))
-    chown(log_file,uid,gid);
+    chown(log_file,(uid_t)uid,(gid_t)gid);
 
  if(gid!=-1)
    {
 #if HAVE_SETGROUPS
     if(getuid()==0 || geteuid()==0)
-       if(setgroups(0, NULL)<0)
+       if(setgroups(0,NULL)<0)
           PrintMessage(Fatal,"Cannot clear supplementary group list [%!s].");
 #endif
 
 #if HAVE_SETRESGID
-    if(setresgid(gid,gid,gid)<0)
+    if(setresgid((gid_t)gid,(gid_t)gid,(gid_t)gid)<0)
        PrintMessage(Fatal,"Cannot set real/effective/saved group id to %d [%!s].",gid);
 #else
     if(geteuid()==0)
       {
-       if(setgid(gid)<0)
+       if(setgid((gid_t)gid)<0)
           PrintMessage(Fatal,"Cannot set group id to %d [%!s].",gid);
       }
     else
       {
 #if HAVE_SETREGID
-       if(setregid(getegid(),gid)<0)
+       if(setregid(getegid(),(gid_t)gid)<0)
           PrintMessage(Fatal,"Cannot set effective group id to %d [%!s].",gid);
-       if(setregid(gid,-1)<0)
+       if(setregid((gid_t)gid,(gid_t)~1)<0)
           PrintMessage(Fatal,"Cannot set real group id to %d [%!s].",gid);
 #else
        PrintMessage(Fatal,"Must be root to totally change group id.");
@@ -284,20 +292,20 @@ int main(int argc, char** argv)
  if(uid!=-1)
    {
 #if HAVE_SETRESUID
-    if(setresuid(uid,uid,uid)<0)
+    if(setresuid((uid_t)uid,(uid_t)uid,(uid_t)uid)<0)
        PrintMessage(Fatal,"Cannot set real/effective/saved user id to %d [%!s].",uid);
 #else
     if(geteuid()==0)
       {
-       if(setuid(uid)<0)
+       if(setuid((uid_t)uid)<0)
           PrintMessage(Fatal,"Cannot set user id to %d [%!s].",uid);
       }
     else
       {
 #if HAVE_SETREUID
-       if(setreuid(geteuid(),uid)<0)
+       if(setreuid(geteuid(),(uid_t)uid)<0)
           PrintMessage(Fatal,"Cannot set effective user id to %d [%!s].",uid);
-       if(setreuid(uid,-1)<0)
+       if(setreuid((uid_t)uid,(uid_t)~1)<0)
           PrintMessage(Fatal,"Cannot set real user id to %d [%!s].",uid);
 #else
        PrintMessage(Fatal,"Must be root to totally change user id.");
@@ -311,80 +319,6 @@ int main(int argc, char** argv)
 
  if(geteuid()==0 || getegid()==0)
     PrintMessage(Warning,"Running with root user or group privileges is not recommended.");
-
- /* Bind the HTTP proxy socket(s). */
-
-#if USE_IPV6
- if(ConfigString(Bind_IPv6))
-   {
-    http_fd[1]=OpenServerSocket(ConfigString(Bind_IPv6),ConfigInteger(HTTP_Port));
-    if(http_fd[1]==-1)
-       PrintMessage(Fatal,"Cannot create HTTP IPv6 server socket.");
-   }
-#endif
-
- if(ConfigString(Bind_IPv4))
-   {
-    http_fd[0]=OpenServerSocket(ConfigString(Bind_IPv4),ConfigInteger(HTTP_Port));
-    if(http_fd[0]==-1)
-      {
-#if USE_IPV6
-       if(http_fd[1]!=-1 && ConfigString(Bind_IPv4) && !strcmp(ConfigString(Bind_IPv4),"0.0.0.0") &&
-                            ConfigString(Bind_IPv6) && !strcmp(ConfigString(Bind_IPv6),"0:0:0:0:0:0:0:0"))
-          PrintMessage(Warning,"Cannot create HTTP IPv4 server socket (but the IPv6 one might accept IPv4 connections).");
-       else
-          PrintMessage(Fatal,"Cannot create HTTP IPv4 server socket.");
-#else
-       PrintMessage(Fatal,"Cannot create HTTP server socket.");
-#endif
-      }
-   }
-
- if(http_fd[0]==-1 && http_fd[1]==-1)
-   {
-#if USE_IPV6
-    PrintMessage(Fatal,"The IPv4 and IPv6 HTTP sockets were not bound; are they disabled in the config file?");
-#else
-    PrintMessage(Fatal,"The HTTP socket was not bound; are they disabled in the config file?");
-#endif
-   }
-
- /* Bind the WWWOFFLE control socket(s). */
-
-#if USE_IPV6
- if(ConfigString(Bind_IPv6))
-   {
-    wwwoffle_fd[1]=OpenServerSocket(ConfigString(Bind_IPv6),ConfigInteger(WWWOFFLE_Port));
-    if(wwwoffle_fd[1]==-1)
-       PrintMessage(Fatal,"Cannot create WWWOFFLE IPv6 server socket.");
-   }
-#endif
-
- if(ConfigString(Bind_IPv4))
-   {
-    wwwoffle_fd[0]=OpenServerSocket(ConfigString(Bind_IPv4),ConfigInteger(WWWOFFLE_Port));
-    if(wwwoffle_fd[0]==-1)
-      {
-#if USE_IPV6
-       if(wwwoffle_fd[1]!=-1 && ConfigString(Bind_IPv4) && !strcmp(ConfigString(Bind_IPv4),"0.0.0.0") &&
-                                ConfigString(Bind_IPv6) && !strcmp(ConfigString(Bind_IPv6),"0:0:0:0:0:0:0:0"))
-          PrintMessage(Warning,"Cannot create WWWOFFLE IPv4 server socket (but the IPv6 one might accept IPv4 connections).");
-       else
-          PrintMessage(Fatal,"Cannot create WWWOFFLE IPv4 server socket.");
-#else
-       PrintMessage(Fatal,"Cannot create WWWOFFLE server socket.");
-#endif
-      }
-   }
-
- if(wwwoffle_fd[0]==-1 && wwwoffle_fd[1]==-1)
-   {
-#if USE_IPV6
-    PrintMessage(Fatal,"The IPv4 and IPv6 WWWOFFLE sockets were not bound; are they disabled in the config file?");
-#else
-    PrintMessage(Fatal,"The WWWOFFLE socket was not bound; are they disabled in the config file?");
-#endif
-   }
 
  /* Create, Change to and open the spool directory. */
 
@@ -404,6 +338,131 @@ int main(int argc, char** argv)
  err=ChangeToSpoolDir(ConfigString(SpoolDir));
  if(err==-1)
     PrintMessage(Fatal,"Cannot change to spool directory %s [%!s].",ConfigString(SpoolDir));
+
+ /* Bind the HTTP proxy socket(s). */
+
+#if USE_IPV6
+ if(ConfigString(Bind_IPv6))
+   {
+    http_fd[1]=OpenServerSocket(ConfigString(Bind_IPv6),ConfigInteger(HTTP_Port));
+    if(http_fd[1]==-1)
+       PrintMessage(Fatal,"Cannot create HTTP IPv6 server socket.");
+   }
+#endif
+
+ if(ConfigString(Bind_IPv4))
+   {
+    http_fd[0]=OpenServerSocket(ConfigString(Bind_IPv4),ConfigInteger(HTTP_Port));
+    if(http_fd[0]==-1)
+      {
+#if USE_IPV6
+       if(http_fd[1]!=-1 && ConfigString(Bind_IPv4) && !strcmp(ConfigString(Bind_IPv4),"0.0.0.0") &&
+                            ConfigString(Bind_IPv6) && !strcmp(ConfigString(Bind_IPv6),"[0:0:0:0:0:0:0:0]"))
+          PrintMessage(Warning,"Cannot create HTTP IPv4 server socket (but the IPv6 one might accept IPv4 connections).");
+       else
+          PrintMessage(Fatal,"Cannot create HTTP IPv4 server socket.");
+#else
+       PrintMessage(Fatal,"Cannot create HTTP server socket.");
+#endif
+      }
+   }
+
+ if(http_fd[0]==-1 && http_fd[1]==-1)
+   {
+#if USE_IPV6
+    PrintMessage(Fatal,"The IPv4 and IPv6 HTTP sockets were not bound; are they disabled in the config file?");
+#else
+    PrintMessage(Fatal,"The HTTP socket was not bound; is it disabled in the config file?");
+#endif
+   }
+
+ /* Bind the HTTPS socket(s). */
+
+#if USE_GNUTLS
+
+ if(LoadRootCredentials())
+   {
+    PrintMessage(Warning,"Failed to read (or create if needed) the WWWOFFLE root certificates.");
+   }
+
+ if(LoadTrustedCertificates())
+   {
+    PrintMessage(Warning,"Failed to read in any trusted certificates.");
+   }
+
+#if USE_IPV6
+ if(ConfigString(Bind_IPv6))
+   {
+    https_fd[1]=OpenServerSocket(ConfigString(Bind_IPv6),ConfigInteger(HTTPS_Port));
+    if(https_fd[1]==-1)
+       PrintMessage(Fatal,"Cannot create HTTPS IPv6 server socket.");
+   }
+#endif
+
+ if(ConfigString(Bind_IPv4))
+   {
+    https_fd[0]=OpenServerSocket(ConfigString(Bind_IPv4),ConfigInteger(HTTPS_Port));
+    if(https_fd[0]==-1)
+      {
+#if USE_IPV6
+       if(https_fd[1]!=-1 && ConfigString(Bind_IPv4) && !strcmp(ConfigString(Bind_IPv4),"0.0.0.0") &&
+                             ConfigString(Bind_IPv6) && !strcmp(ConfigString(Bind_IPv6),"[0:0:0:0:0:0:0:0]"))
+          PrintMessage(Warning,"Cannot create HTTPS IPv4 server socket (but the IPv6 one might accept IPv4 connections).");
+       else
+          PrintMessage(Fatal,"Cannot create HTTPS IPv4 server socket.");
+#else
+       PrintMessage(Fatal,"Cannot create HTTPS server socket.");
+#endif
+      }
+   }
+
+ if(https_fd[0]==-1 && https_fd[1]==-1)
+   {
+#if USE_IPV6
+    PrintMessage(Fatal,"The IPv4 and IPv6 HTTPS sockets were not bound; are they disabled in the config file?");
+#else
+    PrintMessage(Fatal,"The HTTPS socket was not bound; is it disabled in the config file?");
+#endif
+   }
+
+#endif /* USE_GNUTLS */
+
+ /* Bind the WWWOFFLE control socket(s). */
+
+#if USE_IPV6
+ if(ConfigString(Bind_IPv6))
+   {
+    wwwoffle_fd[1]=OpenServerSocket(ConfigString(Bind_IPv6),ConfigInteger(WWWOFFLE_Port));
+    if(wwwoffle_fd[1]==-1)
+       PrintMessage(Fatal,"Cannot create WWWOFFLE IPv6 server socket.");
+   }
+#endif
+
+ if(ConfigString(Bind_IPv4))
+   {
+    wwwoffle_fd[0]=OpenServerSocket(ConfigString(Bind_IPv4),ConfigInteger(WWWOFFLE_Port));
+    if(wwwoffle_fd[0]==-1)
+      {
+#if USE_IPV6
+       if(wwwoffle_fd[1]!=-1 && ConfigString(Bind_IPv4) && !strcmp(ConfigString(Bind_IPv4),"0.0.0.0") &&
+                                ConfigString(Bind_IPv6) && !strcmp(ConfigString(Bind_IPv6),"[0:0:0:0:0:0:0:0]"))
+          PrintMessage(Warning,"Cannot create WWWOFFLE IPv4 server socket (but the IPv6 one might accept IPv4 connections).");
+       else
+          PrintMessage(Fatal,"Cannot create WWWOFFLE IPv4 server socket.");
+#else
+       PrintMessage(Fatal,"Cannot create WWWOFFLE server socket.");
+#endif
+      }
+   }
+
+ if(wwwoffle_fd[0]==-1 && wwwoffle_fd[1]==-1)
+   {
+#if USE_IPV6
+    PrintMessage(Fatal,"The IPv4 and IPv6 WWWOFFLE sockets were not bound; are they disabled in the config file?");
+#else
+    PrintMessage(Fatal,"The WWWOFFLE socket was not bound; is it disabled in the config file?");
+#endif
+   }
 
  /* Detach from terminal */
 
@@ -446,12 +505,18 @@ int main(int argc, char** argv)
 #endif
           if(http_fd[nfd]>=nfds)
              nfds=http_fd[nfd]+1;
+          if(https_fd[nfd]>=nfds)
+             nfds=https_fd[nfd]+1;
           if(wwwoffle_fd[nfd]>=nfds)
              nfds=wwwoffle_fd[nfd]+1;
 
           if(n_servers<max_servers)
+            {
              if(http_fd[nfd]!=-1)
                 FD_SET(http_fd[nfd],&readfd);
+             if(https_fd[nfd]!=-1)
+                FD_SET(https_fd[nfd],&readfd);
+            }
 
           if(wwwoffle_fd[nfd]!=-1)
              FD_SET(wwwoffle_fd[nfd],&readfd);
@@ -478,8 +543,7 @@ int main(int argc, char** argv)
              if(client>=0)
                {
                 init_io(client);
-                configure_io_read(client,ConfigInteger(SocketTimeout),0,0);
-                configure_io_write(client,ConfigInteger(SocketTimeout),0,0);
+                configure_io_timeout(client,ConfigInteger(SocketTimeout),ConfigInteger(SocketTimeout));
 
                 if(SocketRemoteName(client,&host,&ip,&port))
                   {
@@ -509,8 +573,7 @@ int main(int argc, char** argv)
                       CloseSocket(client);
                      }
 
-                   if(canonical_ip!=ip)
-                      free(canonical_ip);
+                   free(canonical_ip);
                   }
                }
             }
@@ -525,8 +588,7 @@ int main(int argc, char** argv)
              if(client>=0)
                {
                 init_io(client);
-                configure_io_read(client,ConfigInteger(SocketTimeout),0,0);
-                configure_io_write(client,ConfigInteger(SocketTimeout),0,0);
+                configure_io_timeout(client,ConfigInteger(SocketTimeout),ConfigInteger(SocketTimeout));
 
                 if(!SocketRemoteName(client,&host,&ip,&port))
                   {
@@ -540,8 +602,7 @@ int main(int argc, char** argv)
                    else
                       PrintMessage(Warning,"HTTP Proxy connection rejected from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
 
-                   if(canonical_ip!=ip)
-                      free(canonical_ip);
+                   free(canonical_ip);
                   }
 
                 if(nofork)
@@ -554,6 +615,47 @@ int main(int argc, char** argv)
                   }
                }
             }
+
+#if USE_GNUTLS
+          if(https_fd[nfd]!=-1 && FD_ISSET(https_fd[nfd],&readfd))
+            {
+             char *host,*ip;
+             int port,client;
+
+             client=AcceptConnect(https_fd[nfd]);
+
+             if(client>=0)
+               {
+                init_io(client);
+                configure_io_timeout(client,ConfigInteger(SocketTimeout),ConfigInteger(SocketTimeout));
+
+                if(!SocketRemoteName(client,&host,&ip,&port))
+                  {
+                   char *canonical_ip=CanonicaliseHost(ip);
+
+                   if(IsAllowedConnectHost(host) || IsAllowedConnectHost(canonical_ip))
+                     {
+                      PrintMessage(Inform,"HTTPS Proxy connection from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
+                      ForkServer(client);
+                     }
+                   else
+                      PrintMessage(Warning,"HTTPS Proxy connection rejected from host %s (%s).",host,canonical_ip); /* Used in audit-usage.pl */
+
+                   free(canonical_ip);
+                  }
+
+                if(nofork)
+                   got_sigexit=1;
+
+                if(!nofork)
+                  {
+                   finish_io(client);
+                   CloseSocket(client);
+                  }
+               }
+            }
+#endif /* USE_GNUTLS */
+
 #if USE_IPV6
          }
 #endif
@@ -638,10 +740,10 @@ int main(int argc, char** argv)
           if(exitval==3)
              fetching=0;
 
-          if(exitval==4 && online==1)
+          if(exitval==4 && online!=0)
              fetching=1;
 
-          if(online!=1)
+          if(online==0)
              fetching=0;
          }
 
@@ -730,6 +832,10 @@ int main(int argc, char** argv)
  PrintMessage(Important,"Exiting.");
 
  FinishConfigurationFile();
+
+#if USE_GNUTLS
+ FreeLoadedCredentials();
+#endif
 
  return(0);
 }

@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/io.h 1.5 2004/01/17 16:22:18 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/io.h 1.14 2006/01/20 19:01:29 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Functions for file input and output (public interfaces).
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -16,8 +16,12 @@
 #ifndef IO_H
 #define IO_H    /*+ To stop multiple inclusions. +*/
 
-/*+ The size of the buffer to use when reading from the cache or a socket. +*/
-#define READ_BUFFER_SIZE 4096
+
+#include <unistd.h>
+
+
+/*+ The size of the buffer to use for the IO internals (also used elsewhere as general buffer size). +*/
+#define IO_BUFFER_SIZE 4096
 
 
 /* In io.c */
@@ -25,21 +29,31 @@
 void init_io(int fd);
 void reinit_io(int fd);
 
-void configure_io_read(int fd,int timeout,int zlib,int chunked);
-void configure_io_write(int fd,int timeout,int zlib,int chunked);
+void configure_io_timeout(int fd,int timeout_r,int timeout_w);
 
-int read_data(int fd,/*@out@*/ char *buffer,int n);
+#if USE_ZLIB
+void configure_io_zlib(int fd,int zlib_r,int zlib_w);
+#endif
+
+void configure_io_chunked(int fd,int chunked_r,int chunked_w);
+
+#if USE_GNUTLS
+int configure_io_gnutls(int fd,const char *host,int type);
+#endif
+
+ssize_t read_data(int fd,/*@out@*/ char *buffer,size_t n);
 
 char /*@null@*/ *read_line(int fd,/*@out@*/ /*@returned@*/ /*@null@*/ char *line);
 
-int /*@alt void@*/ write_data(int fd,const char *data,int n);
+ssize_t /*@alt void@*/ write_data(int fd,const char *data,size_t n);
+ssize_t /*@alt void@*/ write_buffer_data(int fd,const char *data,size_t n);
 
-int /*@alt void@*/ write_string(int fd,const char *str);
+ssize_t /*@alt void@*/ write_string(int fd,const char *str);
 
 #ifdef __GNUC__
-int /*@alt void@*/ write_formatted(int fd,const char *fmt,...) /*@printflike@*/ __attribute__ ((format (printf,2,3)));
+ssize_t /*@alt void@*/ write_formatted(int fd,const char *fmt,...) /*@printflike@*/ __attribute__ ((format (printf,2,3)));
 #else
-int /*@alt void@*/ write_formatted(int fd,const char *fmt,...) /*@printflike@*/;
+ssize_t /*@alt void@*/ write_formatted(int fd,const char *fmt,...) /*@printflike@*/;
 #endif
 
 void tell_io(int fd,/*@out@*/ /*@null@*/ unsigned long* r,/*@out@*/ /*@null@*/ unsigned long *w);

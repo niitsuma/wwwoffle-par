@@ -5,7 +5,7 @@
 
 Available WWWOFFLE Variables (all with a '$' prefix).
 
-localhost = The hostname of the server running wwwoffled (='$localhost').
+localurl  = The root URL of the server running wwwoffled (='$localurl').
 version   = The version of the WWWOFFLE server (='$version').
 location  = The URL that the browser is to be redirected to (='$location').
 
@@ -13,7 +13,7 @@ location  = The URL that the browser is to be redirected to (='$location').
 
 <HEAD>
 <TITLE>WWWOFFLE - Web Pagina Redirect</TITLE>
-<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
+<LINK href="$localurl/wwwoffle.css" type="text/css" rel="stylesheet">
 <META http-equiv="refresh" content="1 ; URL=$location">
 </HEAD>
 
@@ -45,8 +45,8 @@ als een fout in WWWOFFLE of in uw browser.
 <hr class="wwwoffle-footer">
 <div class="wwwoffle-footer" align="center">
 WWWOFFLE - [ \
-<a href="http://$localhost/Welcome.html" title="Een introductie tot WWWOFFLE">Welkomst Pagina</a>| \
-<a href="http://$localhost/FAQ.html" title="Frequent Aangekaarte Questies over WWWOFFLE">FAQ</a> \
+<a href="$localurl/Welcome.html" title="Een introductie tot WWWOFFLE">Welkomst Pagina</a>| \
+<a href="$localurl/FAQ.html" title="Frequent Aangekaarte Questies over WWWOFFLE">FAQ</a> \
 ] - WWWOFFLE
 </div>
 

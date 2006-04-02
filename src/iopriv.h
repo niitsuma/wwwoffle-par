@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/iopriv.h 1.5 2004/01/17 16:22:18 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/iopriv.h 1.15 2006/01/20 19:01:29 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Functions for file input and output (private data structures).
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -16,8 +16,14 @@
 #ifndef IO_PRIV_H
 #define IO_PRIV_H    /*+ To stop multiple inclusions. +*/
 
+#include <unistd.h>
+
 #if USE_ZLIB
 #include <zlib.h>
+#endif
+
+#if USE_GNUTLS
+#include <gnutls/gnutls.h>
 #endif
 
 
@@ -26,11 +32,13 @@
 typedef struct io_buffer
 {
  char *data;                    /*+ The data buffer. +*/
- unsigned int length;           /*+ The occupied length of the data buffer. +*/
- unsigned int size;             /*+ The size of the data buffer. +*/
+ size_t length;                 /*+ The occupied length of the data buffer. +*/
+ size_t size;                   /*+ The size of the data buffer. +*/
 }
 io_buffer;
 
+
+#if USE_ZLIB
 
 /*+ A data structure to hold the deflate and gzip context. +*/
 
@@ -38,9 +46,7 @@ typedef struct io_zlib
 {
  int type;                      /*+ The type using the RFC number, zlib=1950, deflate=1951, gzip=1952. +*/
 
-#if USE_ZLIB
  z_stream stream;               /*+ The deflate / inflate stream (defined in zlib.h). +*/
-#endif
 
  unsigned long crc;             /*+ The gzip crc. +*/
 
@@ -60,6 +66,27 @@ typedef struct io_zlib
 }
 io_zlib;
 
+#endif /* USE_ZLIB */
+
+
+#if USE_GNUTLS
+
+/*+ A data structure to hold the gnutls context. +*/
+
+typedef struct io_gnutls
+{
+ int type;                            /*+ The type (server=1, client=0). +*/
+
+ int fd;                              /*+ The file descriptor used for this session. +*/
+
+ gnutls_certificate_credentials_t cred; /*+ The certificate credentials. +*/
+
+ gnutls_session_t session;            /*+ The session information. +*/
+}
+io_gnutls;
+
+#endif /* USE_GNUTLS */
+
 
 /*+ A data structure to hold the chunked encoding context. +*/
 
@@ -72,8 +99,7 @@ typedef struct io_chunk
 
  short doing_trailer;           /*+ A flag to indicate that we are handling the trailer part (decoding). +*/
 
- char *chunk_buffer;            /*+ A buffer of data that is too small to send in a single chunk (encoding). +*/
- int   chunk_buffer_len;        /*+ The length of the buffer of data that is too small to send in a single chunk (encoding). +*/
+ io_buffer *chunk_buffer;       /*+ A buffer of data that is too small to send in a single chunk (encoding). +*/
 }
 io_chunk;
 
@@ -84,14 +110,15 @@ typedef struct io_context
 {
  /* Read parameters */
 
- int r_timeout;                 /*+ The timeout to use when reading. +*/
+ unsigned r_timeout;            /*+ The timeout to use when reading. +*/
 
- char *r_line_data;             /*+ The spare data when reading lines (reading). +*/
- int   r_line_data_len;         /*+ The length of the spare line data (reading). +*/
+ io_buffer *r_line_data;        /*+ The spare data when reading lines (reading). +*/
 
+#if USE_ZLIB
  io_zlib   *r_zlib_context;     /*+ The zlib compression/decompression private data (reading). +*/
 
  io_buffer *r_zlch_data;        /*+ The IO buffer between zlib and chunked encoding (reading). +*/
+#endif
 
  io_chunk  *r_chunk_context;    /*+ The chunked encoding/decoding private data (reading). +*/
 
@@ -101,20 +128,43 @@ typedef struct io_context
 
  /* Write parameters */
 
- int w_timeout;                 /*+ The timeout to use when writing. +*/
+ unsigned w_timeout;            /*+ The timeout to use when writing. +*/
 
+ io_buffer *w_buffer_data;      /*+ Input buffering to avoid very small writes (writing). +*/
+
+#if USE_ZLIB
  io_zlib   *w_zlib_context;     /*+ The zlib compression/decompression private data (writing). +*/
 
  io_buffer *w_zlch_data;        /*+ The IO buffer between zlib and chunked encoding (writing). +*/
+#endif
 
  io_chunk  *w_chunk_context;    /*+ The chunked encoding/decoding private data (writing). +*/
 
  io_buffer *w_file_data;        /*+ The IO buffer closest to the raw file (writing). +*/
 
  unsigned long w_raw_bytes;     /*+ The number of raw bytes written. +*/
+
+#if USE_GNUTLS
+
+ /* SSL/https parameters */
+
+ io_gnutls *gnutls_context;     /*+ The gnutls encryption/decryption context. +*/
+
+#endif
 }
 io_context;
 
+
+/* In io.c */
+
+/*+ The IO functions error number. +*/
+extern int io_errno;
+
+/*+ The IO functions error message string. +*/
+extern char *io_strerror;
+
+
+#if USE_ZLIB
 
 /* In io_zlib.c */
 
@@ -126,6 +176,21 @@ int io_zlib_uncompress(io_buffer *in,io_zlib *context,io_buffer *out);
 
 int io_finish_zlib_compress  (io_zlib *context,io_buffer *out);
 int io_finish_zlib_uncompress(io_zlib *context,/*@null@*/ io_buffer *out);
+
+#endif /* USE_ZLIB */
+
+
+#if USE_GNUTLS
+
+/* In iognutls.c */
+
+io_gnutls /*@null@*/ /*@special@*/ *io_init_gnutls(int fd,/*@null@*/ const char *host,int type) /*@allocates result@*/;
+int io_finish_gnutls(io_gnutls *context);
+
+int io_gnutls_read_with_timeout(io_gnutls *context,io_buffer *out,unsigned timeout);
+int io_gnutls_write_with_timeout(io_gnutls *context,io_buffer *in,unsigned timeout);
+
+#endif /* USE_GNUTLS */
 
 
 /* In io_chunk.c */
@@ -142,12 +207,12 @@ int io_finish_chunk_decode(io_chunk *context,/*@null@*/ io_buffer *out);
 
 /* In iopriv.c */
 
-io_buffer /*@special@*/ *create_io_buffer(int size) /*@allocates result@*/;
+io_buffer /*@special@*/ *create_io_buffer(size_t size) /*@allocates result@*/;
 void destroy_io_buffer(/*@special@*/ io_buffer *buffer) /*@releases buffer@*/;
 
-int io_read_with_timeout(int fd,io_buffer *out,int timeout);
+ssize_t io_read_with_timeout(int fd,io_buffer *out,unsigned timeout);
 
-int io_write_with_timeout(int fd,io_buffer *in,int timeout);
+ssize_t io_write_with_timeout(int fd,io_buffer *in,unsigned timeout);
 
 
 #endif /* IO_PRIV_H */

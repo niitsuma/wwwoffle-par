@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configpriv.h 1.20 2004/01/17 16:22:18 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configpriv.h 1.27 2006/01/07 16:10:38 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Configuration file management functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -112,10 +112,14 @@ typedef enum _ConfigType
  HostOrNone,                    /*+ For host names (string) or nothing. +*/
  HostAndPort,                   /*+ For host name and port numbers (string[:port]). +*/
  HostAndPortOrNone,             /*+ For host name and port numbers (string[:port]) or nothing. +*/
+ HostWild,                      /*+ For host names that could be wildcards (string). +*/
+ HostAndPortWild,               /*+ For host names and port numbers that could be wildcards (string[:port]). +*/
 
  UserPass,                      /*+ A username and password (string:string) +*/
 
  Url,                           /*+ For a URL ([proto://host[:port]]/path). +*/
+ UrlWild,                       /*+ For a URL that could contain wildcards ([proto://host[:port]]/path). +*/
+
  UrlSpecification               /*+ A URL specification as described in README.CONF. +*/
 }
 ConfigType;
@@ -127,13 +131,13 @@ typedef struct _ConfigItem* ConfigItem;
 /*+ The definition of an item in a section of the configuration file. +*/
 typedef struct _ConfigItemDef
 {
- char       *name;              /*+ The name of the entry. +*/
- ConfigItem *item;              /*+ A pointer to the item containing the values for the entry. +*/
- int         url_type;          /*+ Set to true if there is the option of having a URL present. +*/
- int         same_key;          /*+ Set to true if the entry can repeat with the same key. +*/
- ConfigType  key_type;          /*+ The type of the key on the left side of the equals sign. +*/
- ConfigType  val_type;          /*+ The type of the value on the right side of the equals sign. +*/
- /*@null@*/ char *def_val;      /*+ The default value if no other is specified. +*/
+            char       *name;     /*+ The name of the entry. +*/
+            ConfigItem *item;     /*+ A pointer to the item containing the values for the entry. +*/
+            int         url_type; /*+ Set to true if there is the option of having a URL present. +*/
+            int         same_key; /*+ Set to true if the entry can repeat with the same key. +*/
+            ConfigType  key_type; /*+ The type of the key on the left side of the equals sign. +*/
+            ConfigType  val_type; /*+ The type of the value on the right side of the equals sign. +*/
+ /*@null@*/ char       *def_val;  /*+ The default value if no other is specified. +*/
 }
 ConfigItemDef;
 
@@ -169,10 +173,17 @@ typedef struct _UrlSpec
 }
 UrlSpec;
 
+#define HasUrlSpecProto(xxx) ((xxx)->proto)
+#define HasUrlSpecHost(xxx)  ((xxx)->host)
+#define HasUrlSpecPath(xxx)  ((xxx)->path)
+#define HasUrlSpecArgs(xxx)  ((xxx)->args)
+
 #define UrlSpecProto(xxx) (char*)((char*)(xxx)+(int)(xxx)->proto)
 #define UrlSpecHost(xxx)  (char*)((char*)(xxx)+(int)(xxx)->host)
 #define UrlSpecPath(xxx)  (char*)((char*)(xxx)+(int)(xxx)->path)
 #define UrlSpecArgs(xxx)  (char*)((char*)(xxx)+(int)(xxx)->args)
+
+#define UrlSpecPort(xxx)  ((xxx)->port)
 
 /*+ A key or a value. +*/
 typedef union _KeyOrValue
@@ -186,22 +197,22 @@ KeyOrValue;
 /*+ One item in a section of the configuration file. +*/
 struct _ConfigItem
 {
- ConfigItemDef *itemdef;        /*+ The corresponding item definition. +*/
- int            nentries;       /*+ The number of entries in the lists. +*/
- UrlSpec      **url;            /*+ The list of URL-SPECIFICATIONs if present. +*/
- KeyOrValue    *key;            /*+ The list of keys. +*/
- KeyOrValue    *val;            /*+ The list of values. +*/
- KeyOrValue    *def_val;        /*+ The default value. +*/
+ const ConfigItemDef *itemdef;  /*+ The corresponding item definition. +*/
+       int            nentries; /*+ The number of entries in the lists. +*/
+       UrlSpec      **url;      /*+ The list of URL-SPECIFICATIONs if present. +*/
+       KeyOrValue    *key;      /*+ The list of keys. +*/
+       KeyOrValue    *val;      /*+ The list of values. +*/
+       KeyOrValue    *def_val;  /*+ The default value. +*/
 };
 
 
 /* in configrdwr.c */
 
-char /*@only@*/ /*@null@*/ *ReadConfigFile(void);
+char /*@only@*/ /*@null@*/ *ReadConfigFile(int read_startup);
 
 char /*@only@*/ /*@null@*/ *ModifyConfigFile(int section,int item,/*@null@*/ char *newentry,/*@null@*/ char *preventry,/*@null@*/ char *sameentry,/*@null@*/ char *nextentry);
 
-char /*@only@*/ /*@null@*/ *ParseKeyOrValue(char *text,ConfigType type,/*@out@*/ KeyOrValue *pointer);
+char /*@only@*/ /*@null@*/ *ParseKeyOrValue(const char *text,ConfigType type,/*@out@*/ KeyOrValue *pointer);
 
 
 /* In configmisc.c */
@@ -217,12 +228,12 @@ void PurgeConfigFile(void);
 void FreeConfigItem(/*@null@*/ /*@special@*/ ConfigItem item) /*@releases item@*/;
 void FreeKeyOrValue(/*@only@*/ KeyOrValue *keyval,ConfigType type);
 
-int MatchUrlSpecification(UrlSpec *spec,char *proto,char *host,char *path,/*@null@*/ char *args);
-int WildcardMatch(char *string,char *pattern,int nocase);
+int MatchUrlSpecification(const UrlSpec *spec,const char *proto,const char *host,int port,const char *path,/*@null@*/ const char *args);
+int WildcardMatch(const char *string,const char *pattern,int nocase);
 
 char *ConfigEntryString(ConfigItem item,int which);
 void ConfigEntryStrings(ConfigItem item,int which,/*@out@*/ char **url,/*@out@*/ char **key,/*@out@*/ char **val);
-char *MakeConfigEntryString(ConfigItemDef *itemdef,/*@null@*/ char *url,/*@null@*/ char *key,/*@null@*/ char *val);
+char *MakeConfigEntryString(const ConfigItemDef *itemdef,/*@null@*/ const char *url,/*@null@*/ const char *key,/*@null@*/ const char *val);
 
 /*@observer@*/ char *ConfigTypeString(ConfigType type);
 

@@ -16,16 +16,16 @@ url             ({alphanum}|{nonascii}|{safepunct})+
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/css.l 1.11 2003/09/06 12:55:06 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/css.l 1.12 2005/02/27 10:16:25 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8f.
   Parse the CSS and look for the images and stylesheets.
   ******************/ /******************
   Written by Andrew M. Bishop
 
   Some parts of the lex scanner based on the CSS2 specification from W3C.
 
-  This file Copyright 1997,98,99,2000,01,02,03 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -81,8 +81,6 @@ void ParseCSS(int fd,URL *Url)
  static int first=1;
 
  PrintMessage(Debug,"Parsing document using CSS parser.");
-
- SetBaseURL(Url);
 
  css_yyfd=fd;
 

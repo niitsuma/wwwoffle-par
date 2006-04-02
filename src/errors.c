@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/errors.c 2.45 2004/06/17 18:19:13 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/errors.c 2.50 2005/10/11 18:35:52 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Generate error messages in a standard format optionally to syslog and stderr.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04,05 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -41,8 +41,13 @@
 #include <varargs.h>
 #endif
 
-/*+ Need this for Win32 to use binary mode +*/
+#ifdef __CYGWIN__
+#include "config.h"
+#endif
+
+
 #ifndef O_BINARY
+/*+ A work-around for needing O_BINARY with Win32 to use binary mode. +*/
 #define O_BINARY 0
 #endif
 
@@ -176,13 +181,13 @@ static pid_t pid;
 static time_t last_time=0;
 
 /*+ The error messages. +*/
-static char *ErrorString[]={"ExtraDebug","Debug"  ,"Information","Important","Warning"  ,"Fatal"};
+static const char *ErrorString[]={"ExtraDebug","Debug"  ,"Information","Important","Warning"  ,"Fatal"};
 
 /*+ The priority to apply to syslog messages. +*/
 #if defined(__CYGWIN__)
-static int ErrorPriority[]={-1          ,Debug    ,Inform       ,Important  ,Warning    ,Fatal};
+static const int ErrorPriority[]={-1          ,Debug    ,Inform       ,Important  ,Warning    ,Fatal};
 #else
-static int ErrorPriority[]={-1          ,LOG_DEBUG,LOG_INFO     ,LOG_NOTICE ,LOG_WARNING,LOG_ERR};
+static const int ErrorPriority[]={-1          ,LOG_DEBUG,LOG_INFO     ,LOG_NOTICE ,LOG_WARNING,LOG_ERR};
 #endif
 
 /*+ The error facility to use, +*/
@@ -256,7 +261,7 @@ void OpenErrorLog(char *name)
    }
  else
    {
-    lseek(log,0,SEEK_END);
+    lseek(log,(off_t)0,SEEK_END);
 
     if(log!=STDERR_FILENO)
       {
@@ -364,7 +369,7 @@ char *GetPrintMessage(ErrorLevel errlev,const char* fmt, ...)
 
 static char *print_message(ErrorLevel errlev,const char* fmt,va_list ap)
 {
- int str_len=16+strlen(fmt);
+ size_t str_len=1+strlen(fmt);
  static /*@only@*/ char* string=NULL;
  int i,j;
  time_t this_time=time(NULL);
@@ -392,7 +397,7 @@ static char *print_message(ErrorLevel errlev,const char* fmt,va_list ap)
        string[j++]=fmt[i];
     else
       {
-       char str[16],*strp=NULL;
+       char str[20+16],*strp=NULL; /* 20 characters for 64-bit unsigned (%llu) value ~0. */
 
        switch(fmt[++i])
          {
@@ -467,7 +472,7 @@ static char *print_message(ErrorLevel errlev,const char* fmt,va_list ap)
  if(use_stderr && ((StderrLevel==-1 && errlev>=SyslogLevel) || (StderrLevel!=-1 && errlev>=StderrLevel)))
    {
     if(SyslogLevel==ExtraDebug || StderrLevel==ExtraDebug)
-       fprintf(stderr,"%s[%ld] %10ld: %s: %s\n",program,(long)pid,this_time,ErrorString[errlev],string);
+       fprintf(stderr,"%s[%ld] %10ld: %s: %s\n",program,(long)pid,(long)this_time,ErrorString[errlev],string);
     else
        fprintf(stderr,"%s[%ld] %s: %s\n",program,(long)pid,ErrorString[errlev],string);
    }

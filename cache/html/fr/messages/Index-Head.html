@@ -5,7 +5,7 @@
 
 WWWOFFLE : Variables disponibles (mettre le prefixe '$').
 
-localhost = Le serveur sur lequel wwwoffled tourne (='$localhost').
+localurl  = Le URL du serveur sur lequel wwwoffled tourne (='$localurl').
 version   = The version of the WWWOFFLE server (='$version').
 type      = L'index demande (='$type').
             Possibilites: outgoing, monitor, lasttime, prevtime, lastout, prevout,
@@ -33,9 +33,10 @@ $type?=prevtime{<TITLE>WWWOFFLE Index - Pages Captur&eacute;es pendant l'Avant-D
 $type?=lastout {<TITLE>WWWOFFLE Index - Derni&egrave;res Pages Demand&eacute;es</TITLE>}{}
 $type?=prevout {<TITLE>WWWOFFLE Index - Pages Demand&eacute;es Pr&eacute;c&eacute;dentes ($subtype)</TITLE>}{}
 $type?=http    {<TITLE>WWWOFFLE Index - $type://$subtype</TITLE>}{}
+$type?=https   {<TITLE>WWWOFFLE Index - $type://$subtype</TITLE>}{}
 $type?=ftp     {<TITLE>WWWOFFLE Index - $type://$subtype</TITLE>}{}
 $type?=finger  {<TITLE>WWWOFFLE Index - $type://$subtype</TITLE>}{}
-<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
+<LINK href="$localurl/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
 <BODY class="wwwoffle-message">
@@ -44,6 +45,7 @@ $typesubtype=$type$subtype
 $type?=prevtime{$type=$type$subtype $subtype=}{}
 $type?=prevout{$type=$type$subtype $subtype=}{}
 $typesubtype?=http{$type=$type/}{}
+$typesubtype?=https{$type=$type/}{}
 $typesubtype?=ftp{$type=$type/}{}
 $typesubtype?=finger{$type=$type/}{}
 $subtype?{$subtype=/$subtype}{}
@@ -67,6 +69,7 @@ $type?=monitor {<strong>[Suivies]</strong>}                       {<a href="/ind
 $type?=lasttime{<strong>[Derni&egrave;re&nbsp;Connexion]</strong>}{<a href="/index/lasttime/?sort=$sort$delete$refresh$monitor$all$config$info">[Derni&egrave;re&nbsp;Connexion]</a>}
 $type?=lastout {<strong>[Derni&egrave;re Demande]</strong>}            {<a href="/index/lastout/?sort=$sort$delete$refresh$monitor$all$config$info">[Derni&egrave;re Demande]</a>}
 $type?=http/   {<strong>[http]</strong>}                          {<a href="/index/http/?sort=$sort$delete$refresh$monitor$all$config$info">[http]</a>}
+$type?=https/  {<strong>[https]</strong>}                         {<a href="/index/https/?sort=$sort$delete$refresh$monitor$all$config$info">[https]</a>}
 $type?=ftp/    {<strong>[ftp]</strong>}                           {<a href="/index/ftp/?sort=$sort$delete$refresh$monitor$all$config$info">[ftp]</a>}
 $type?=finger/ {<strong>[finger]</strong>}                        {<a href="/index/finger/?sort=$sort$delete$refresh$monitor$all$config$info">[finger]</a>}
 <br>

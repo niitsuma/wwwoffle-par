@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/connect.c 2.47 2004/01/11 10:28:49 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/connect.c 2.50 2005/08/19 18:00:49 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Handle WWWOFFLE connections received by the demon.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02,03 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,05 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -51,6 +51,7 @@ extern time_t OfflineTime;
 
 /*+ The server sockets that we listen on +*/
 extern int http_fd[2],          /*+ for the HTTP connections. +*/
+           https_fd[2],         /*+ for the HTTPS connections. +*/
            wwwoffle_fd[2];      /*+ for the WWWOFFLE connections. +*/
 
 /*+ The online / offline / autodial status. +*/
@@ -99,13 +100,13 @@ void CommandConnect(int client)
  if(!(line=read_line(client,line)))
    {PrintMessage(Warning,"Nothing to read from the wwwoffle control socket [%!s]."); return;}
 
- if(strncmp(line,"WWWOFFLE ",9))
+ if(strncmp(line,"WWWOFFLE ",(size_t)9))
    {
     PrintMessage(Warning,"WWWOFFLE Not a command."); /* Used in audit-usage.pl */
     return;
    }
 
- if(ConfigString(PassWord) || !strncmp(&line[9],"PASSWORD ",9))
+ if(ConfigString(PassWord) || !strncmp(&line[9],"PASSWORD ",(size_t)9))
    {
     char *password;
 
@@ -132,14 +133,14 @@ void CommandConnect(int client)
     if(!(line=read_line(client,line)))
       {PrintMessage(Warning,"Unexpected end of wwwoffle control command [%!s]."); return;}
 
-    if(strncmp(line,"WWWOFFLE ",9))
+    if(strncmp(line,"WWWOFFLE ",(size_t)9))
       {
        PrintMessage(Warning,"WWWOFFLE Not a command."); /* Used in audit-usage.pl */
        return;
       }
    }
 
- if(!strncmp(&line[9],"ONLINE",6))
+ if(!strncmp(&line[9],"ONLINE",(size_t)6))
    {
     if(online==1)
        write_string(client,"WWWOFFLE Already Online\n"); /* Used in wwwoffle.c */
@@ -159,7 +160,7 @@ void CommandConnect(int client)
     if(fetch_fd!=-1)
        fetching=1;
    }
- else if(!strncmp(&line[9],"AUTODIAL",8))
+ else if(!strncmp(&line[9],"AUTODIAL",(size_t)8))
    {
     if(online==-1)
        write_string(client,"WWWOFFLE Already in Autodial Mode\n"); /* Used in wwwoffle.c */
@@ -174,7 +175,7 @@ void CommandConnect(int client)
     OnlineTime=time(NULL);
     online=-1;
    }
- else if(!strncmp(&line[9],"OFFLINE",7))
+ else if(!strncmp(&line[9],"OFFLINE",(size_t)7))
    {
     if(!online)
        write_string(client,"WWWOFFLE Already Offline\n"); /* Used in wwwoffle.c */
@@ -189,7 +190,7 @@ void CommandConnect(int client)
     OfflineTime=time(NULL);
     online=0;
    }
- else if(!strncmp(&line[9],"FETCH",5))
+ else if(!strncmp(&line[9],"FETCH",(size_t)5))
    {
     if(fetch_fd!=-1)
       {
@@ -213,7 +214,7 @@ void CommandConnect(int client)
        ForkRunModeScript(ConfigString(RunFetch),"fetch","start",fetch_fd);
       }
    }
- else if(!strncmp(&line[9],"CONFIG",6))
+ else if(!strncmp(&line[9],"CONFIG",(size_t)6))
    {
     write_string(client,"WWWOFFLE Reading Configuration File.\n");
     PrintMessage(Important,"WWWOFFLE Re-reading Configuration File."); /* Used in audit-usage.pl */
@@ -228,7 +229,7 @@ void CommandConnect(int client)
 
     PrintMessage(Important,"WWWOFFLE Finished Re-reading Configuration File.");
    }
- else if(!strncmp(&line[9],"DUMP",4))
+ else if(!strncmp(&line[9],"DUMP",(size_t)4))
    {
     PrintMessage(Important,"WWWOFFLE Dumping Configuration File."); /* Used in audit-usage.pl */
 
@@ -236,7 +237,7 @@ void CommandConnect(int client)
 
     PrintMessage(Important,"WWWOFFLE Finished Dumping Configuration File.");
    }
- else if(!strncmp(&line[9],"PURGE",5))
+ else if(!strncmp(&line[9],"PURGE",(size_t)5))
    {
     pid_t pid;
 
@@ -265,11 +266,13 @@ void CommandConnect(int client)
           CloseSocket(fetch_fd);
          }
 
-       /* These four sockets don't need finish_io() calling because they never
+       /* These six sockets don't need finish_io() calling because they never
           had init_io() called, they are just bound to a port listening. */
 
        if(http_fd[0]!=-1) CloseSocket(http_fd[0]);
        if(http_fd[1]!=-1) CloseSocket(http_fd[1]);
+       if(https_fd[0]!=-1) CloseSocket(https_fd[0]);
+       if(https_fd[1]!=-1) CloseSocket(https_fd[1]);
        if(wwwoffle_fd[0]!=-1) CloseSocket(wwwoffle_fd[0]);
        if(wwwoffle_fd[1]!=-1) CloseSocket(wwwoffle_fd[1]);
 
@@ -287,7 +290,7 @@ void CommandConnect(int client)
        exit(0);
       }
    }
- else if(!strncmp(&line[9],"STATUS",5))
+ else if(!strncmp(&line[9],"STATUS",(size_t)5))
    {
     int i;
 
@@ -349,7 +352,7 @@ void CommandConnect(int client)
     if(purging)
        write_formatted(client,"Purge-PID    : %d\n",purge_pid);
    }
- else if(!strncmp(&line[9],"KILL",4))
+ else if(!strncmp(&line[9],"KILL",(size_t)4))
    {
     write_string(client,"WWWOFFLE Kill Signalled.\n");
     PrintMessage(Important,"WWWOFFLE Kill."); /* Used in audit-usage.pl */
@@ -399,11 +402,13 @@ void ForkRunModeScript(char *filename,char *mode,char *arg,int client)
        CloseSocket(fetch_fd);
       }
 
-    /* These four sockets don't need finish_io() calling because they never
+    /* These six sockets don't need finish_io() calling because they never
        had init_io() called, they are just bound to a port listening. */
 
     if(http_fd[0]!=-1) CloseSocket(http_fd[0]);
     if(http_fd[1]!=-1) CloseSocket(http_fd[1]);
+    if(https_fd[0]!=-1) CloseSocket(https_fd[0]);
+    if(https_fd[1]!=-1) CloseSocket(https_fd[1]);
     if(wwwoffle_fd[0]!=-1) CloseSocket(wwwoffle_fd[0]);
     if(wwwoffle_fd[1]!=-1) CloseSocket(wwwoffle_fd[1]);
 
@@ -418,7 +423,7 @@ void ForkRunModeScript(char *filename,char *mode,char *arg,int client)
     else
        execl(filename,filename,mode,NULL);
 
-    PrintMessage(Warning,"Cannot exec the run-%s program '%s' [%!s].",filename);
+    PrintMessage(Warning,"Cannot exec the run-%s program '%s' [%!s].",mode,filename);
     exit(1);
    }
 }
@@ -473,11 +478,13 @@ void ForkServer(int fd)
        CloseSocket(fetch_fd);
       }
 
-    /* These four sockets don't need finish_io() calling because they never
+    /* These six sockets don't need finish_io() calling because they never
        had init_io() called, they are just bound to a port listening. */
 
     if(http_fd[0]!=-1) CloseSocket(http_fd[0]);
     if(http_fd[1]!=-1) CloseSocket(http_fd[1]);
+    if(https_fd[0]!=-1) CloseSocket(https_fd[0]);
+    if(https_fd[1]!=-1) CloseSocket(https_fd[1]);
     if(wwwoffle_fd[0]!=-1) CloseSocket(wwwoffle_fd[0]);
     if(wwwoffle_fd[1]!=-1) CloseSocket(wwwoffle_fd[1]);
 

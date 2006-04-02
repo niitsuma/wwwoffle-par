@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configfunc.c 1.17 2004/01/17 16:23:46 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configfunc.c 1.41 2006/01/09 18:51:11 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Configuration item checking functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -28,6 +28,13 @@
 #include "configpriv.h"
 #include "config.h"
 #include "sockets.h"
+
+
+/*+ The local HTTP (or HTTPS) port number. +*/
+int localport=-1;
+
+/*+ The local port protocol (HTTP or HTTPS). +*/
+char *localproto=NULL;
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -63,31 +70,53 @@ char *DefaultFTPPassWord(void)
 /*++++++++++++++++++++++++++++++++++++++
   Decide if the specified host and port number is allowed for SSL.
 
-  int IsSSLAllowedPort Returns true if it is allowed.
+  int IsSSLAllowed Returns true if it is allowed.
 
-  char *host The hostname and port number to check.
+  URL *Url The URL of the host (no path) to match.
+
+  int cached A flag to indicate that caching is proposed.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int IsSSLAllowedPort(char *host)
+int IsSSLAllowed(URL *Url,int cached)
 {
- char *hoststr,*portstr;
- int port=0,isit=0;
+ int isit=0;
  int i;
+ char *hostport=Url->hostport;
 
- SplitHostPort(host,&hoststr,&portstr);
+ if(Url->port==-1)
+   {
+    hostport=(char*)malloc(strlen(Url->hostport)+1+3+1);
+    strcpy(hostport,Url->hostport);
+    strcat(hostport,":443");
+   }
 
- if(portstr)
-    port=atoi(portstr);
+ if(cached)
+   {
+    if(SSLAllowCache)
+       for(i=0;i<SSLAllowCache->nentries;i++)
+          if(WildcardMatch(hostport,SSLAllowCache->val[i].string,0))
+            {isit=1;break;}
 
- RejoinHostPort(host,hoststr,portstr);
+    if(SSLDisallowCache && isit)
+       for(i=0;i<SSLDisallowCache->nentries;i++)
+          if(WildcardMatch(hostport,SSLDisallowCache->val[i].string,0))
+            {isit=0;break;}
+   }
+ else
+   {
+    if(SSLAllowTunnel)
+       for(i=0;i<SSLAllowTunnel->nentries;i++)
+          if(WildcardMatch(hostport,SSLAllowTunnel->val[i].string,0))
+            {isit=1;break;}
 
- if(!portstr)
-    return(0);
+    if(SSLDisallowTunnel && isit)
+       for(i=0;i<SSLDisallowTunnel->nentries;i++)
+          if(WildcardMatch(hostport,SSLDisallowTunnel->val[i].string,0))
+            {isit=0;break;}
+   }
 
- if(SSLAllowPort)
-    for(i=0;i<SSLAllowPort->nentries;i++)
-       if(SSLAllowPort->val[i].integer==port)
-         {isit=1;break;}
+ if(Url->port==-1)
+    free(hostport);
 
  return(isit);
 }
@@ -98,10 +127,10 @@ int IsSSLAllowedPort(char *host)
 
   int IsCGIAllowed Returns true if it is allowed.
 
-  char *path The pathname to check.
+  const char *path The pathname to check.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int IsCGIAllowed(char *path)
+int IsCGIAllowed(const char *path)
 {
  int isit=0;
  int i;
@@ -116,14 +145,29 @@ int IsCGIAllowed(char *path)
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Get the first specified name of the server host.
+  Set the local port number so that it can be used in local URLs.
 
-  char *GetLocalHost Returns the first named localhost.
-
-  int port If true then return the port as well.
+  int port The port number.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *GetLocalHost(int port)
+void SetLocalPort(int port)
+{
+ localport=port;
+
+ if(localport==ConfigInteger(HTTPS_Port))
+    localproto="https";
+ else
+    localproto="http";
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Get the name of the first specified server in the Localhost section.
+
+  char *GetLocalHost Returns the first named localhost.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+char *GetLocalHost(void)
 {
  char *localhost,*ret;
 
@@ -132,17 +176,61 @@ char *GetLocalHost(int port)
  else
     localhost=DEF_LOCALHOST;
 
- ret=(char*)malloc(strlen(localhost)+12);
+ ret=(char*)malloc(strlen(localhost)+1);
 
- if(port)
-   {
-    if(strchr(localhost,':'))
-       sprintf(ret,"[%s]:%d",localhost,ConfigInteger(HTTP_Port));
-    else
-       sprintf(ret,"%s:%d",localhost,ConfigInteger(HTTP_Port));
-   }
+ strcpy(ret,localhost);
+
+ return(ret);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Get the name and port number of the first specified server in the Localhost section.
+
+  char *GetLocalHostPort Returns the first named localhost and port number.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+char *GetLocalHostPort(void)
+{
+ char *localhost,*ret;
+
+ if(LocalHost && LocalHost->nentries)
+    localhost=LocalHost->key[0].string;
  else
-    strcpy(ret,localhost);
+    localhost=DEF_LOCALHOST;
+
+ ret=(char*)malloc(strlen(localhost)+3+MAX_INT_STR+1);
+
+ if(strchr(localhost,':'))      /* IPv6 */
+    sprintf(ret,"[%s]:%d",localhost,localport);
+ else
+    sprintf(ret,"%s:%d",localhost,localport);
+
+ return(ret);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Get a URL for the first specified server in the Localhost section.
+
+  char *GetLocalURL Returns a URL for the first named localhost and port number.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+char *GetLocalURL(void)
+{
+ char *localhost,*ret;
+
+ if(LocalHost && LocalHost->nentries)
+    localhost=LocalHost->key[0].string;
+ else
+    localhost=DEF_LOCALHOST;
+
+ ret=(char*)malloc(strlen(localproto)+strlen(localhost)+6+MAX_INT_STR+1);
+
+ if(strchr(localhost,':'))      /* IPv6 */
+    sprintf(ret,"%s://[%s]:%d",localproto,localhost,localport);
+ else
+    sprintf(ret,"%s://%s:%d",localproto,localhost,localport);
 
  return(ret);
 }
@@ -153,34 +241,25 @@ char *GetLocalHost(int port)
 
   int IsLocalHost Return true if the host is the local host.
 
-  char *host The name of the host (and port number) to be checked.
-
-  int port If true then check the port number as well.
+  const URL *Url The URL that has been requested.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int IsLocalHost(char *host,int port)
+int IsLocalHost(const URL *Url)
 {
- char *hoststr,*portstr;
  int isit=0;
+ int http_port,https_port;
  int i;
 
- SplitHostPort(host,&hoststr,&portstr);
+ http_port=ConfigInteger(HTTP_Port);
+ https_port=ConfigInteger(HTTPS_Port);
+
+ if(Url->port!=http_port && Url->port!=https_port && (Url->port!=-1 || http_port!=80 || https_port!=443))
+    return(0);
 
  if(LocalHost)
     for(i=0;i<LocalHost->nentries;i++)
-       if(!strcmp(LocalHost->key[i].string,hoststr))
+       if(!strcmp(LocalHost->key[i].string,Url->host))
          {isit=1;break;}
-
- RejoinHostPort(host,hoststr,portstr);
-
- if(isit && port)
-   {
-    if((portstr && atoi(portstr)==ConfigInteger(HTTP_Port)) ||
-       (!portstr && ConfigInteger(HTTP_Port)==80))
-       ;
-    else
-       isit=0;
-   }
 
  return(isit);
 }
@@ -191,20 +270,17 @@ int IsLocalHost(char *host,int port)
 
   int IsLocalNetHost Return true if the host is on the local network.
 
-  char *host The name of the host (and port number) to be checked.
+  const char *host The name of the host to be checked.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int IsLocalNetHost(char *host)
+int IsLocalNetHost(const char *host)
 {
- char *hoststr,*portstr;
  int isit=0;
  int i;
 
- SplitHostPort(host,&hoststr,&portstr);
-
  if(LocalHost)
     for(i=0;i<LocalHost->nentries;i++)
-       if(!strcmp(LocalHost->key[i].string,hoststr))
+       if(!strcmp(LocalHost->key[i].string,host))
          {isit=1;break;}
 
  if(LocalNet && !isit)
@@ -212,17 +288,15 @@ int IsLocalNetHost(char *host)
     for(i=0;i<LocalNet->nentries;i++)
        if(*LocalNet->key[i].string=='!')
          {
-          if(WildcardMatch(hoststr,LocalNet->key[i].string+1,0))
+          if(WildcardMatch(host,LocalNet->key[i].string+1,0))
             {isit=0;break;}
          }
        else
          {
-          if(WildcardMatch(hoststr,LocalNet->key[i].string,0))
+          if(WildcardMatch(host,LocalNet->key[i].string,0))
             {isit=1;break;}
          }
    }
-
- RejoinHostPort(host,hoststr,portstr);
 
  return(isit);
 }
@@ -233,20 +307,17 @@ int IsLocalNetHost(char *host)
 
   int IsAllowedConnectHost Return true if it is allowed to connect.
 
-  char *host The name of the host to be checked.
+  const char *host The name of the host to be checked.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int IsAllowedConnectHost(char *host)
+int IsAllowedConnectHost(const char *host)
 {
- char *hoststr,*portstr;
  int isit=0;
  int i;
 
- SplitHostPort(host,&hoststr,&portstr);
-
  if(LocalHost)
     for(i=0;i<LocalHost->nentries;i++)
-       if(!strcmp(LocalHost->key[i].string,hoststr))
+       if(!strcmp(LocalHost->key[i].string,host))
          {isit=1;break;}
 
  if(AllowedConnectHosts && !isit)
@@ -254,17 +325,15 @@ int IsAllowedConnectHost(char *host)
     for(i=0;i<AllowedConnectHosts->nentries;i++)
        if(*AllowedConnectHosts->key[i].string=='!')
          {
-          if(WildcardMatch(hoststr,AllowedConnectHosts->key[i].string+1,0))
+          if(WildcardMatch(host,AllowedConnectHosts->key[i].string+1,0))
             {isit=0;break;}
          }
        else
          {
-          if(WildcardMatch(hoststr,AllowedConnectHosts->key[i].string,0))
+          if(WildcardMatch(host,AllowedConnectHosts->key[i].string,0))
             {isit=1;break;}
          }
    }
-
- RejoinHostPort(host,hoststr,portstr);
 
  return(isit);
 }
@@ -275,10 +344,10 @@ int IsAllowedConnectHost(char *host)
 
   char *IsAllowedConnectUser Return the username if it is allowed to connect.
 
-  char *userpass The encoded username and password of the user to be checked.
+  const char *userpass The encoded username and password of the user to be checked.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *IsAllowedConnectUser(char *userpass)
+char *IsAllowedConnectUser(const char *userpass)
 {
  char *isit;
  int i;
@@ -290,7 +359,7 @@ char *IsAllowedConnectUser(char *userpass)
 
  if(AllowedConnectUsers && userpass)
    {
-    char *up=userpass;
+    const char *up=userpass;
 
     while(*up!=' ') up++;
     while(*up==' ') up++;
@@ -299,7 +368,7 @@ char *IsAllowedConnectUser(char *userpass)
        if(!strcmp(AllowedConnectUsers->key[i].string,up))
          {
           char *colon;
-          int l;
+          size_t l;
           isit=Base64Decode(AllowedConnectUsers->key[i].string,&l);
           if((colon=strchr(isit,':')))
              *colon=0;
@@ -316,12 +385,12 @@ char *IsAllowedConnectUser(char *userpass)
 
   int NotCompressed Return 1 if the data is not to be compressed.
 
-  char *mime_type The MIME type of the data (may be NULL).
+  const char *mime_type The MIME type of the data (may be NULL).
 
-  char *path The path of the URL (may be NULL).
+  const char *path The path of the URL (may be NULL).
   ++++++++++++++++++++++++++++++++++++++*/
 
-int NotCompressed(char *mime_type,char *path)
+int NotCompressed(const char *mime_type,const char *path)
 {
  int retval=0;
  int i;
@@ -346,14 +415,14 @@ int NotCompressed(char *mime_type,char *path)
 
   char *CensoredHeader Returns the value to be inserted or NULL if it is to be removed.
 
-  URL *Url the URL that the request or reply is for/from.
+  const URL *Url the URL that the request or reply is for/from.
 
-  char *key The key to check.
+  const char *key The key to check.
 
   char *val The default value to use.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *CensoredHeader(URL *Url,char *key,char *val)
+char *CensoredHeader(const URL *Url,const char *key,char *val)
 {
  char *new=val;
  int i;
@@ -361,7 +430,7 @@ char *CensoredHeader(URL *Url,char *key,char *val)
  if(CensorHeader)
     for(i=0;i<CensorHeader->nentries;i++)
        if(!strcasecmp(CensorHeader->key[i].string,key))
-          if(!CensorHeader->url[i] || MatchUrlSpecification(CensorHeader->url[i],Url->proto,Url->host,Url->path,Url->args))
+          if(!CensorHeader->url[i] || MatchUrlSpecification(CensorHeader->url[i],Url->proto,Url->host,Url->port,Url->path,Url->args))
             {
              if(!CensorHeader->val[i].string)
                 new=NULL;
@@ -386,13 +455,13 @@ char *CensoredHeader(URL *Url,char *key,char *val)
 
   char *WhatMIMEType Returns the MIME Type.
 
-  char *path The path of the file.
+  const char *path The path of the file.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *WhatMIMEType(char *path)
+char *WhatMIMEType(const char *path)
 {
  char *mimetype=ConfigString(DefaultMIMEType);
- int maxlen=0;
+ unsigned maxlen=0;
  int i;
 
  if(MIMETypes)
@@ -407,86 +476,93 @@ char *WhatMIMEType(char *path)
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Check if a specified protocol and host is aliased to another host.
+  Get the URL that the current URL is aliased to.
 
-  int IsAliased Returns non-zero if this is host is aliased to another host.
+  URL *GetAliasURL Returns a pointer to a new URL if the specified URL is aliased.
 
-  char *proto The protocol to check.
-
-  char *host The hostname to check.
-
-  char *path The pathname to check.
-
-  char **new_proto The protocol of the alias.
-
-  char **new_host The hostname of the alias.
-
-  char **new_path The pathname of the alias.
+  const URL *Url The URL to check.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int IsAliased(char *proto,char *host,char *path,char **new_proto,char **new_host,char **new_path)
+URL *GetAliasURL(const URL *Url)
 {
+ URL *newUrl=NULL;
  int i;
-
- *new_proto=*new_host=*new_path=NULL;
 
  if(Aliases)
     for(i=0;i<Aliases->nentries;i++)
       {
-       char *fake_path=Aliases->key[i].urlspec->path?UrlSpecPath(Aliases->key[i].urlspec):"";
+       char *alias_path=HasUrlSpecPath(Aliases->key[i].urlspec)?UrlSpecPath(Aliases->key[i].urlspec):"";
 
-       if(MatchUrlSpecification(Aliases->key[i].urlspec,proto,host,fake_path,NULL) &&
-          !strncmp(fake_path,path,strlen(fake_path)))
+       if(MatchUrlSpecification(Aliases->key[i].urlspec,Url->proto,Url->host,Url->port,alias_path,NULL) &&
+          !strncmp(alias_path,Url->path,strlen(alias_path)))
          {
-          if(Aliases->val[i].urlspec->proto)
+          char *new_proto=NULL,*new_hostport=NULL,*new_path=NULL,*new_args=NULL;
+
+          /* Sort out the aliased protocol. */
+
+          if(HasUrlSpecProto(Aliases->val[i].urlspec))
+             new_proto=UrlSpecProto(Aliases->val[i].urlspec);
+          else
+             new_proto=Url->proto;
+
+          /* Sort out the aliased host. */
+
+          if(HasUrlSpecHost(Aliases->val[i].urlspec))
             {
-             *new_proto=(char*)malloc(strlen(UrlSpecProto(Aliases->val[i].urlspec))+1);
-             strcpy(*new_proto,UrlSpecProto(Aliases->val[i].urlspec));
+             new_hostport=(char*)malloc(strlen(UrlSpecHost(Aliases->val[i].urlspec))+1+MAX_INT_STR+1);
+             strcpy(new_hostport,UrlSpecHost(Aliases->val[i].urlspec));
+             if(UrlSpecPort(Aliases->val[i].urlspec)>0)
+                sprintf(new_hostport+strlen(new_hostport),":%d",UrlSpecPort(Aliases->val[i].urlspec));
             }
           else
-            {
-             *new_proto=(char*)malloc(strlen(proto)+1);
-             strcpy(*new_proto,proto);
-            }
+             new_hostport=Url->hostport;
 
-          if(Aliases->val[i].urlspec->host)
-            {
-             *new_host=(char*)malloc(strlen(UrlSpecHost(Aliases->val[i].urlspec))+8);
-             strcpy(*new_host,UrlSpecHost(Aliases->val[i].urlspec));
-             if(Aliases->val[i].urlspec->port>0)
-                sprintf((*new_host)+strlen(*new_host),":%d",Aliases->val[i].urlspec->port);
-            }
-          else
-            {
-             *new_host=(char*)malloc(strlen(host)+1);
-             strcpy(*new_host,host);
-            }
+          /* Sort out the aliased path. */
 
-          if(Aliases->val[i].urlspec->path)
+          if(HasUrlSpecPath(Aliases->val[i].urlspec))
             {
-             int oldlen=strlen(fake_path);
+             int oldlen=strlen(alias_path);
              int newlen=strlen(UrlSpecPath(Aliases->val[i].urlspec));
 
-             *new_path=(char*)malloc(newlen-oldlen+strlen(path)+1);
-             if(newlen)
-               {
-                strcpy(*new_path,UrlSpecPath(Aliases->val[i].urlspec));
-                if(newlen>1 && (*new_path)[newlen-1]=='/')
-                   (*new_path)[newlen-1]=0;
-               }
-             else
-                (*new_path)[0]=0;
-             strcat(*new_path,path+oldlen);
+             new_path=(char*)malloc(newlen-oldlen+strlen(Url->path)+2);
+             strcpy(new_path,UrlSpecPath(Aliases->val[i].urlspec));
+
+             if(*(UrlSpecPath(Aliases->val[i].urlspec)+newlen-1)!='/' && alias_path[oldlen-1]=='/')
+                strcat(new_path,"/");
+             if(*(UrlSpecPath(Aliases->val[i].urlspec)+newlen-1)=='/' && alias_path[oldlen-1]!='/')
+                new_path[newlen-1]=0;
+
+             strcat(new_path,Url->path+oldlen);
             }
           else
+             new_path=Url->path;
+
+          /* Sort out the aliased arguments. */
+
+          if(Url->args && *Url->args=='!')
             {
-             *new_path=(char*)malloc(strlen(path)+1);
-             strcpy(*new_path,path);
+             char *pling2=strchr(Url->args+1,'!');
+
+             if(pling2)
+                new_args=pling2+1;
+             else
+                new_args=NULL;
             }
+          else
+             new_args=Url->args;
+
+          /* Create the new alias. */
+
+          newUrl=CreateURL(new_proto,new_hostport,new_path,new_args,Url->user,Url->pass);
+
+          if(new_hostport!=Url->hostport) free(new_hostport);
+          if(new_path    !=Url->path)     free(new_path);
+
+          break;
          }
      }
 
- return(!!*new_proto);
+ return(newUrl);
 }
 
 
@@ -555,10 +631,10 @@ char *ConfigString(ConfigItem item)
 
   ConfigItem item The configuration item to check.
 
-  URL *Url the URL to check for a match against (or NULL to get the match for all URLs).
+  const URL *Url the URL to check for a match against (or NULL to get the match for all URLs).
   ++++++++++++++++++++++++++++++++++++++*/
 
-int ConfigIntegerURL(ConfigItem item,URL *Url)
+int ConfigIntegerURL(ConfigItem item,const URL *Url)
 {
  int i;
 
@@ -575,7 +651,7 @@ int ConfigIntegerURL(ConfigItem item,URL *Url)
    {
     if(!item->url[i])
        return(item->val[i].integer);
-    else if(Url && MatchUrlSpecification(item->url[i],Url->proto,Url->host,Url->path,Url->args))
+    else if(Url && MatchUrlSpecification(item->url[i],Url->proto,Url->host,Url->port,Url->path,Url->args))
        return(item->val[i].integer);
    }
 
@@ -590,10 +666,10 @@ int ConfigIntegerURL(ConfigItem item,URL *Url)
 
   ConfigItem item The configuration item to check.
 
-  URL *Url the URL to check for a match against (or NULL to get the match for all URLs).
+  const URL *Url the URL to check for a match against (or NULL to get the match for all URLs).
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *ConfigStringURL(ConfigItem item,URL *Url)
+char *ConfigStringURL(ConfigItem item,const URL *Url)
 {
  int i;
 
@@ -610,7 +686,7 @@ char *ConfigStringURL(ConfigItem item,URL *Url)
    {
     if(!item->url[i])
        return(item->val[i].string);
-    else if(Url && MatchUrlSpecification(item->url[i],Url->proto,Url->host,Url->path,Url->args))
+    else if(Url && MatchUrlSpecification(item->url[i],Url->proto,Url->host,Url->port,Url->path,Url->args))
        return(item->val[i].string);
    }
 
@@ -628,10 +704,10 @@ char *ConfigStringURL(ConfigItem item,URL *Url)
 
   ConfigItem item The configuration item to match.
 
-  URL *Url The URL to search the list for.
+  const URL *Url The URL to search the list for.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int ConfigBooleanMatchURL(ConfigItem item,URL *Url)
+int ConfigBooleanMatchURL(ConfigItem item,const URL *Url)
 {
  int i;
 
@@ -645,7 +721,7 @@ int ConfigBooleanMatchURL(ConfigItem item,URL *Url)
     PrintMessage(Fatal,"Configuration file error at %s:%d",__FILE__,__LINE__);
 
  for(i=0;i<item->nentries;i++)
-    if(MatchUrlSpecification(item->key[i].urlspec,Url->proto,Url->host,Url->path,Url->args))
+    if(MatchUrlSpecification(item->key[i].urlspec,Url->proto,Url->host,Url->port,Url->path,Url->args))
        return(!item->key[i].urlspec->negated);
 
  return(0);

@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/monitor.c 1.54 2004/09/28 16:25:30 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/monitor.c 1.59 2005/12/10 15:11:31 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   The functions for monitoring URLs.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1998,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04,05 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -60,10 +60,13 @@
 #include "errors.h"
 
 
-/*+ Need this for Win32 to use binary mode +*/
 #ifndef O_BINARY
+/*+ A work-around for needing O_BINARY with Win32 to use binary mode. +*/
 #define O_BINARY 0
 #endif
+
+
+/* Local functions */
 
 static void MonitorFormShow(int fd,char *request_args);
 static void MonitorFormParse(int fd,URL *Url,char *request_args,/*@null@*/ Body *request_body);
@@ -221,49 +224,49 @@ static void MonitorFormParse(int fd,URL *Url,char *request_args,Body *request_bo
 
  for(i=0;args[i];i++)
    {
-    if(!strncmp("url=",args[i],4))
+    if(!strncmp("url=",args[i],(size_t)4))
        url=TrimArgs(URLDecodeFormArgs(args[i]+4));
-    else if(!strncmp("mofy1=",args[i],6))
+    else if(!strncmp("mofy1=",args[i],(size_t)6))
        mofy[0]=args[i][6];
-    else if(!strncmp("mofy2=",args[i],6))
+    else if(!strncmp("mofy2=",args[i],(size_t)6))
        mofy[1]=args[i][6];
-    else if(!strncmp("mofy3=",args[i],6))
+    else if(!strncmp("mofy3=",args[i],(size_t)6))
        mofy[2]=args[i][6];
     else if(!strncmp("mofy4=",args[i],6))
        mofy[3]=args[i][6];
-    else if(!strncmp("mofy5=",args[i],6))
+    else if(!strncmp("mofy5=",args[i],(size_t)6))
        mofy[4]=args[i][6];
-    else if(!strncmp("mofy6=",args[i],6))
+    else if(!strncmp("mofy6=",args[i],(size_t)6))
        mofy[5]=args[i][6];
-    else if(!strncmp("mofy7=",args[i],6))
+    else if(!strncmp("mofy7=",args[i],(size_t)6))
        mofy[6]=args[i][6];
-    else if(!strncmp("mofy8=",args[i],6))
+    else if(!strncmp("mofy8=",args[i],(size_t)6))
        mofy[7]=args[i][6];
-    else if(!strncmp("mofy9=",args[i],6))
+    else if(!strncmp("mofy9=",args[i],(size_t)6))
        mofy[8]=args[i][6];
-    else if(!strncmp("mofy10=",args[i],7))
+    else if(!strncmp("mofy10=",args[i],(size_t)7))
        mofy[9]=args[i][7];
-    else if(!strncmp("mofy11=",args[i],7))
+    else if(!strncmp("mofy11=",args[i],(size_t)7))
        mofy[10]=args[i][7];
-    else if(!strncmp("mofy12=",args[i],7))
+    else if(!strncmp("mofy12=",args[i],(size_t)7))
        mofy[11]=args[i][7];
-    else if(!strncmp("dofm=",args[i],5))
+    else if(!strncmp("dofm=",args[i],(size_t)5))
        dofm=args[i]+5;
-    else if(!strncmp("dofw0=",args[i],6))
+    else if(!strncmp("dofw0=",args[i],(size_t)6))
        dofw[0]=args[i][6];
-    else if(!strncmp("dofw1=",args[i],6))
+    else if(!strncmp("dofw1=",args[i],(size_t)6))
        dofw[1]=args[i][6];
-    else if(!strncmp("dofw2=",args[i],6))
+    else if(!strncmp("dofw2=",args[i],(size_t)6))
        dofw[2]=args[i][6];
-    else if(!strncmp("dofw3=",args[i],6))
+    else if(!strncmp("dofw3=",args[i],(size_t)6))
        dofw[3]=args[i][6];
-    else if(!strncmp("dofw4=",args[i],6))
+    else if(!strncmp("dofw4=",args[i],(size_t)6))
        dofw[4]=args[i][6];
-    else if(!strncmp("dofw5=",args[i],6))
+    else if(!strncmp("dofw5=",args[i],(size_t)6))
        dofw[5]=args[i][6];
-    else if(!strncmp("dofw6=",args[i],6))
+    else if(!strncmp("dofw6=",args[i],(size_t)6))
        dofw[6]=args[i][6];
-    else if(!strncmp("hofd=",args[i],5))
+    else if(!strncmp("hofd=",args[i],(size_t)5))
        hofd=args[i]+5;
     else
        PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",args[i],Url->name);
@@ -465,11 +468,13 @@ void RequestMonitoredPages(void)
       {PrintMessage(Inform,"Cannot stat file 'monitor/%s'; [%!s] race condition?",ent->d_name);return;}
     else if(S_ISREG(buf.st_mode) && *ent->d_name=='O')
       {
-       char *url=FileNameToURL(ent->d_name),*file;
-       URL *Url=SplitURL(url);
+       URL *Url=FileNameToURL(ent->d_name);
        int last,next;
 
        ChangeBackToSpoolDir();
+
+       if(!Url)
+          continue;
 
        MonitorTimes(Url,&last,&next);
 
@@ -482,7 +487,7 @@ void RequestMonitoredPages(void)
           int ifd=open(ent->d_name,O_RDONLY|O_BINARY);
 
           if(ifd==-1)
-             PrintMessage(Warning,"Cannot open monitored file 'monitor/%s' to read [%!s].",ent->d_name);
+             PrintMessage(Warning,"Cannot open monitored file 'monitor/%s' to read; [%!s].",ent->d_name);
           else
             {
              int ofd;
@@ -491,14 +496,13 @@ void RequestMonitoredPages(void)
 
              ChangeBackToSpoolDir();
 
-             ofd=OpenOutgoingSpoolFile(0);
+             ofd=OpenNewOutgoingSpoolFile();
 
              if(ofd==-1)
-                PrintMessage(Warning,"Cannot open outgoing spool file for monitored URL '%s'; [%!s].",url);
+                PrintMessage(Warning,"Cannot open outgoing spool file for monitored URL '%s'; [%!s].",Url->name);
              else
                {
                 char *contents=(char*)malloc(buf.st_size+1);
-                URL *Url=SplitURL(url);
 
                 init_io(ofd);
 
@@ -507,10 +511,9 @@ void RequestMonitoredPages(void)
                    PrintMessage(Warning,"Cannot write to outgoing file; disk full?");
 
                 finish_io(ofd);
-                CloseOutgoingSpoolFile(ofd,Url);
+                CloseNewOutgoingSpoolFile(ofd,Url);
 
                 free(contents);
-                FreeURL(Url);
                }
 
              chdir("monitor");
@@ -518,15 +521,11 @@ void RequestMonitoredPages(void)
              finish_io(ifd);
              close(ifd);
 
-             file=URLToFileName(Url);
-             *file='M';
-             utime(file,NULL);
-             free(file);
+             if(utime(URLToFileName(Url,'M',0),NULL))
+                PrintMessage(Warning,"Cannot change timestamp of monitored file 'monitor/%s'; [%!s].",URLToFileName(Url,'M',0));
             }
          }
 
-       if(url)
-          free(url);
        FreeURL(Url);
       }
    }

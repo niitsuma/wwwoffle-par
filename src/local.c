@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/local.c 1.11 2004/01/11 10:28:20 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/local.c 1.15 2005/08/14 09:48:50 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Serve the local web-pages and handle the language selection.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1998,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04,05 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -43,14 +43,18 @@
 #include "config.h"
 
 
-/*+ Need this for Win32 to use binary mode +*/
 #ifndef O_BINARY
+/*+ A work-around for needing O_BINARY with Win32 to use binary mode. +*/
 #define O_BINARY 0
 #endif
 
 
+/* Local functions */
+
 static char /*@null@*/ /*@observer@*/ **get_languages(int *ndirs);
 
+
+/* Local variables */
 
 /*+ The language header that the client sent. +*/
 static char /*@null@*/ /*@only@*/ *accept_language=NULL;
@@ -124,7 +128,7 @@ void LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
                                 NULL);
              else
                {
-                char buffer[READ_BUFFER_SIZE];
+                char buffer[IO_BUFFER_SIZE];
                 int n;
 
                 HTMLMessageHead(fd,200,"WWWOFFLE Local OK",
@@ -132,7 +136,7 @@ void LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
                                 "Content-Type",WhatMIMEType(file),
                                 NULL);
 
-                while((n=read_data(htmlfd,buffer,READ_BUFFER_SIZE))>0)
+                while((n=read_data(htmlfd,buffer,IO_BUFFER_SIZE))>0)
                    write_data(fd,buffer,n);
                }
 
@@ -145,13 +149,12 @@ void LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
       }
     else if(S_ISDIR(buf.st_mode))
       {
-       char *localhost=GetLocalHost(1);
-       char *dir=(char*)malloc(strlen(Url->path)+strlen(localhost)+24);
+       char *localurl=GetLocalURL();
+       char *dir=(char*)malloc(strlen(Url->path)+strlen(localurl)+16);
 
        PrintMessage(Debug,"Using the local directory '%s'.",file);
 
-       strcpy(dir,"http://");
-       strcat(dir,localhost);
+       strcpy(dir,localurl);
        strcat(dir,Url->path);
        if(dir[strlen(dir)-1]!='/')
           strcat(dir,"/");
@@ -161,7 +164,7 @@ void LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
                    NULL);
 
        free(dir);
-       free(localhost);
+       free(localurl);
 
        found=1;
       }
@@ -220,7 +223,7 @@ char *FindLanguageFile(char* search)
 
  /* Find the file */
 
- if(!strncmp(search,"local/",sizeof("local")))
+ if(!strncmp(search,"local/",(size_t)6))
     dirn=-1;
 
  while(dirn<(ndirs+2))

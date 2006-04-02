@@ -1,4 +1,4 @@
-            WWWOFFLE - World Wide Web Offline Explorer - Version 2.8
+            WWWOFFLE - World Wide Web Offline Explorer - Version 2.9
             ========================================================
 
 
@@ -25,11 +25,12 @@ RFC 1738 - Uniform Resource Locators (URL)
 RFC 1808 - Relative Uniform Resource Locators
            This describes how relative URLs are to be handled.
 
+RFC 2396 - Uniform Resource Identifiers (URI): Generic Syntax
+           This describes URLs in more detail and updates RFC 1808 where the
+           "parameters" part of a URL path is concerned.
+
 HTML 4   - The HTML 4.0 specification from the World Wide Web Consortium.
            Section 17.13.3 specifies how URLs for HTML form data are created.
-
-Note: The HTML 4 document supercedes RFC1866 (Hypertext Markup Language - 2.0)
-      which was previously referenced by this document, but is now obsoleted.
 
 
 URL Format in WWWOFFLE
@@ -42,7 +43,7 @@ from string to URL is almost the first thing that is done on incoming requests.
 
 The general structure for a URL in WWWOFFLE is the following:
 
-<protocol>://[<username>:<password>@]<hostname>[:<port>]/<pathname>[;<parameters>][?<arguments>]
+<protocol>://[<username>:<password>@]<hostname>[:<port>]/<pathname>[?<arguments>]
 
 
 Because of the issues about methods by which URLs may be encoded it is possible
@@ -149,20 +150,13 @@ pathname
 parameters
 - - - - -
 
-1) If no parameters are given then parameters=NULL.
-
-2) In other cases the parameters are extracted from the string.
-
-   a) The parameters may have been URL-encoded in different ways by different
-      user agents.  A canonical format is required in WWWOFFLE since it is used
-      to form the cache filename.
-
-   b) The parameters are converted to canonical form using URLRecodeFormArgs().
-
-
-| This is a change since version 2.5, previously the parameters were handled as
-| part of the path.
-
+| The handling of the "parameters" part of a URL (as described in RFC 1808 and
+| RFC 2369) is changed in version 2.9, they are now considered part of the path.
+| Between version 2.6 and version 2.8 the "parameters" part of the path were
+| handled as separate from the path itself and only one "parameter" was allowed.
+| In RFC 2396 it is made clear that although the parameters are separate from
+| the path they are handled in exactly the same way as the path component that
+| they are attached to.
 
 
 arguments

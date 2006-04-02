@@ -28,9 +28,9 @@ Passwort: <input type="password" name="password">
 </form>
 
 <div class="wwwoffle-nav" align="center">
-$url?{[<a href="http://$localhost/index/?sort=alpha">Index</a>]}{}
-$mon?{[<a href="http://$localhost/index/monitor/?sort=alpha">Index</a>]}{}
-$req?{[<a href="http://$localhost/index/outgoing/?sort=alpha">Index</a>]}{}
+$url?{[<a href="$localurl/index/?sort=alpha">Main Index</a>]}{}
+$mon?{[<a href="$localurl/index/monitor/?sort=alpha">Monitor Index</a>]}{}
+$req?{[<a href="$localurl/index/outgoing/?sort=alpha">Outgoing Index</a>]}{}
 </div>
 
 <script type="text/javascript">
@@ -46,8 +46,8 @@ document.write("<\/div>");
 <hr class="wwwoffle-footer">
 <div class="wwwoffle-footer" align="center">
 WWWOFFLE - [ \
-<a href="http://$localhost/Welcome.html">Willkommensseite</a>| \
-<a href="http://$localhost/FAQ.html">FAQ</a> \
+<a href="$localurl/Welcome.html">Willkommensseite</a>| \
+<a href="$localurl/FAQ.html">FAQ</a> \
 ] - WWWOFFLE
 </div>
 

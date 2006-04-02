@@ -1,17 +1,17 @@
-.\" $Header: /home/amb/wwwoffle/doc/RCS/wwwoffle.conf.man.template 2.80 2004/10/24 13:26:54 amb Exp $
+.\" $Header: /home/amb/wwwoffle/doc/RCS/wwwoffle.conf.man.template 2.82 2006/01/07 16:27:27 amb Exp $
 .\"
-.\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
+.\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
 .\"
 .\"  Manual page for wwwoffle.conf
 .\"
 .\"  Written by Andrew M. Bishop
 .\"
-.\"  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+.\"  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
 .\"  It may be distributed under the GNU Public License, version 2, or
 .\"  any higher version.  See section COPYING of the GNU Public license
 .\"  for conditions under which this file may be redistributed.
 .\"
-.TH wwwoffle.conf 5 "Oct 24, 2004"
+.TH wwwoffle.conf 5 "January 7, 2006"
 
 .SH NAME
 
@@ -91,6 +91,12 @@ An integer specifying the port number for the HTTP proxy to use
 (default=8080)\.  This is the port number that must be specified in the
 client to connect to the WWWOFFLE proxy\.
 .TP
+.B https\-port = (port)
+An integer specifying the port number for the HTTPS proxy to use
+(default=8443)\.  This is the port number can be used to access the
+WWWOFFLE internal pages or proxy function\.  Requires gnutls compilation
+option\.
+.TP
 .B wwwoffle\-port = (port)
 An integer specifying the port number for the WWWOFFLE control
 connections to use (default=8081)\.
@@ -153,12 +159,6 @@ to be made before giving up (default=30)\.
 If a connection cannot be made to a remote server then WWWOFFLE should
 try again after a short delay (default=no)\.
 .TP
-.B ssl\-allow\-port = (integer)
-A port number that is allowed to be proxied for Secure Socket Layer
-(SSL) connections, e\.g\. https\.  This option should be set to 443 to
-allow https, there can be more than one ssl\-port entry for other ports
-as required\.
-.TP
 .B dir\-perm = (octal int)
 The directory permissions to use when creating spool directories
 (default=0755)\.  This option overrides the umask of the user and must
@@ -211,15 +211,23 @@ Options that control how WWWOFFLE behaves when it is online\.
 .TP
 .B [<URL\-SPEC>] pragma\-no\-cache = yes | no
 Whether to request a new copy of a page if the request from the client
-has 'Pragma: no\-cache' (default=yes)\.
+has 'Pragma: no\-cache' (default=yes)\.  This option takes precedence
+over the request\-changed and request\-changed\-once options\.
 .TP
 .B [<URL\-SPEC>] cache\-control\-no\-cache = yes | no
 Whether to request a new copy of a page if the request from the client
-has 'Cache\-Control: no\-cache' (default=yes)\.
+has 'Cache\-Control: no\-cache' (default=yes)\.  This option takes
+precedence over the request\-changed and request\-changed\-once options\.
 .TP
 .B [<URL\-SPEC>] cache\-control\-max\-age\-0 = yes | no
 Whether to request a new copy of a page if the request from the client
-has 'Cache\-Control: max\-age=0' (default=yes)\.
+has 'Cache\-Control: max\-age=0' (default=yes)\.  This option takes
+precedence over the request\-changed and request\-changed\-once options\.
+.TP
+.B [<URL\-SPEC>] cookies\-force\-refresh = yes | no
+Whether to force the refresh of a page if the request from the client
+contains a cookie (default=no)\.  This option takes precedence over
+the request\-changed and request\-changed\-once options\.
 .TP
 .B [<URL\-SPEC>] request\-changed = (time)
 While online pages will only be fetched if the cached version is older
@@ -324,6 +332,52 @@ automatically recording requests made while offline (default=no)\.
 .TP
 .B [<URL\-SPEC>] dont\-request = yes | no
 Do not request any URLs that match this when offline (default=no)\.
+
+.SH SSLOptions
+
+Options that control how WWWOFFLE behaves when a connection is made to it for a
+Secure Sockets Layer (SSL) server\.  Normally only tunnelling (with no decryption
+or caching of the data) is possible\.  When WWWOFFLE is compiled with the gnutls
+library it is possible configure WWWOFFLE to decrypt, cache and re\-encrypt the
+connections\.
+.TP
+.B enable\-caching = yes | no
+If caching (involving decryption and re\-encryption) of Secure Sockets
+Layer (SSL) server connections is allowed (default = no)\.
+.TP
+.B allow\-tunnel = (host[:port])
+A hostname and port number (a 
+.I WILDCARD
+match) for an SSL server that can
+be connected to using WWWOFFLE as a tunnelling proxy (no caching or
+decryption of the data) (default is no hosts or ports allowed)\.  This
+option should be set to *:443 to allow https to the default port number\.
+There can be more than one option for other ports or hosts as required\.
+This option takes precedence over the allow\-cache option\.
+.TP
+.B disallow\-tunnel = (host[:port])
+A hostname and port number (a 
+.I WILDCARD
+match) for an SSL server that can
+not be connected to using WWWOFFLE as a tunnelling proxy\.  There can be
+more than one option for other ports or hosts as required\.  This option
+takes precedence over the allow\-tunnel option\.
+.TP
+.B allow\-cache = (host[:port])
+A hostname and port number (a 
+.I WILDCARD
+match) for an SSL server that can
+be connected to using WWWOFFLE as a caching proxy (decryption of the
+data) (default is no hosts or ports allowed)\.  This option should be set
+to *:443 to allow https to the default port number\.  There can be more
+than one option for other ports or hosts as required\.
+.TP
+.B disallow\-cache = (host[:port])
+A hostname and port number (a 
+.I WILDCARD
+match) for an SSL server that can
+not be connected to using WWWOFFLE as a caching proxy\.  This option
+takes precedence over the allow\-cache option\.
 
 .SH FetchOptions
 
@@ -765,11 +819,12 @@ section (default=no)\.
 .TP
 .B [<URL\-SPEC>] age = (age)
 The maximum age in the cache for URLs that match this (default=14)\.
-An age of zero means not to keep, negative means not to delete\.  The
+An age of zero means always to delete, negative means not to delete\.
+The 
 .I URL\-SPECIFICATION
-matches only the protocol and host unless use\-url is
-set to true\. Longer times can be specified with a 'w', 'm' or 'y'
-suffix for weeks, months or years (e\.g\. 2w=14)\.
+matches only the protocol and host unless
+use\-url is set to true\. Longer times can be specified with a 'w', 'm'
+or 'y' suffix for weeks, months or years (e\.g\. 2w=14)\.
 .TP
 .B [<URL\-SPEC>] compress\-age = (age)
 The maximum age in the cache for URLs that match this to be stored
@@ -912,6 +967,12 @@ insensitive)\.
   request-changed   = 3600
  }
 
+ SSLOptions
+ {
+  enable-caching = no
+  allow-tunnel   = *:443
+ }
+
  FetchOptions
  {
   images = yes
@@ -964,4 +1025,4 @@ wwwoffle(1), wwwoffled(8).
 
 .SH AUTHOR
 
-Andrew M. Bishop 1996,97,98,99,2000,01,02,03,04 (amb@gedanken.demon.co.uk)
+Andrew M. Bishop 1996,97,98,99,2000,01,02,03,04,05 (amb@gedanken.demon.co.uk)

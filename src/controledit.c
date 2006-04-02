@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/controledit.c 2.33 2004/01/11 10:28:20 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/controledit.c 2.35 2005/03/13 13:55:34 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Configuration file management via a web-page.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -30,8 +30,9 @@
 #include "errors.h"
 #include "config.h"
 
-/*+ Need this for Win32 to use binary mode +*/
+
 #ifndef O_BINARY
+/*+ A work-around for needing O_BINARY with Win32 to use binary mode. +*/
 #define O_BINARY 0
 #endif
 
@@ -47,6 +48,8 @@ typedef struct _ControlEditSection
 }
 *ControlEditSection;
 
+
+/* Local functions */
 
 static void ControlEditForms(int fd,ControlEditSection *sections);
 static void ControlEditUpdate(int fd,char *section,ControlEditSection *sections);
@@ -112,7 +115,7 @@ void ControlEditPage(int fd,char *request_args,Body *request_body)
                    "section",newargs,
                    "reason","BadSection",
                    NULL);
-    else if(!request_body || strncmp(request_body->content,"value=",6))
+    else if(!request_body || strncmp(request_body->content,"value=",(size_t)6))
        HTMLMessage(fd,404,"WWWOFFLE Configuration Error",NULL,"ControlEditError",
                    "section",newargs,
                    "reason","BadBody",
@@ -240,7 +243,7 @@ static ControlEditSection *read_config_file(void)
 
  init_io(conf);
 
- sections=(ControlEditSection*)calloc(1,sizeof(ControlEditSection));
+ sections=(ControlEditSection*)calloc((size_t)1,sizeof(ControlEditSection));
 
  while((line=read_line(conf,line)))
    {
@@ -256,7 +259,7 @@ static ControlEditSection *read_config_file(void)
       {
        state=1;
        sections=(ControlEditSection*)realloc((void*)sections,sizeof(ControlEditSection)*(sec_num+2));
-       sections[sec_num]=(ControlEditSection)calloc(1,sizeof(struct _ControlEditSection));
+       sections[sec_num]=(ControlEditSection)calloc((size_t)1,sizeof(struct _ControlEditSection));
        sections[++sec_num]=NULL;
        sections[sec_num-1]->comment=(char*)malloc(strlen(l)+1);
        strcpy(sections[sec_num-1]->comment,l);
@@ -278,7 +281,7 @@ static ControlEditSection *read_config_file(void)
        if(sec_num==0 || sections[sec_num-1]->name)
          {
           sections=(ControlEditSection*)realloc((void*)sections,sizeof(ControlEditSection)*(sec_num+2));
-          sections[sec_num]=(ControlEditSection)calloc(1,sizeof(struct _ControlEditSection));
+          sections[sec_num]=(ControlEditSection)calloc((size_t)1,sizeof(struct _ControlEditSection));
           sections[++sec_num]=NULL;
          }
        sections[sec_num-1]->name=(char*)malloc(strlen(l)+1);
@@ -289,7 +292,7 @@ static ControlEditSection *read_config_file(void)
     else if(state==2 && *l=='{')
       {
        state=3;
-       sections[sec_num-1]->content=(char*)malloc(1);
+       sections[sec_num-1]->content=(char*)malloc((size_t)1);
        strcpy(sections[sec_num-1]->content,"");
       }
     else if(state==2 && *l=='[')
@@ -338,7 +341,7 @@ static ControlEditSection *read_config_file(void)
       {
        char *name,*r,*old;
 
-       sections[sec_num]->content=(char*)malloc(1);
+       sections[sec_num]->content=(char*)malloc((size_t)1);
        strcpy(sections[sec_num]->content,"");
 
        name=(char*)malloc(strlen(ConfigurationFileName())+strlen(sections[sec_num]->file)+1);

@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffles.c 2.278 2004/11/28 16:12:52 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffles.c 2.314 2006/02/20 19:27:48 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   A server to fetch the required pages.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -78,11 +78,16 @@ Mode;
 static URL *modify_Url;         /*+ the URL that is being modified. +*/
 
 /*+ Variables to allow the modifications to take place on the data stream; +*/
+static const Protocol *modify_UrlProtocol; /*+ the Protocol for the URL that is being modified. +*/
+
+/*+ Variables to allow the modifications to take place on the data stream; +*/
 static int modify_read_fd,      /*+ the file descriptor to read from. +*/
            modify_write_fd,     /*+ the file descriptor to write to. +*/
-           modify_copy_fd,      /*+ the file descriptor to copy the data to. +*/
-           modify_err,          /*+ the error when writing. +*/
-           modify_n;            /*+ the number of bytes read. +*/
+           modify_copy_fd;      /*+ the file descriptor to copy the data to. +*/
+
+/*+ Variables to allow the modifications to take place on the data stream; +*/
+static ssize_t modify_err,      /*+ the error when writing. +*/
+               modify_n;        /*+ the number of bytes read. +*/
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -102,12 +107,12 @@ int wwwoffles(int online,int fetching,int client)
  int outgoing=-1,spool=-1,server=-1,is_server=0;
  int fetch_again=0;
  char *proxy_auth,*proxy_user;
- char *aliasProto=NULL,*aliasHost=NULL,*aliasPath=NULL;
+ URL *outgoingUrl,*aliasUrl;
  Header *request_head=NULL,*reply_head=NULL;
  Body   *request_body=NULL,*reply_body=NULL;
  int reply_status=-1,head_only=0;
- char *url;
  URL *Url=NULL,*Urlpw=NULL;
+ const Protocol* UrlProtocol=NULL;
  Mode mode=None;
  int outgoing_exists=0,lasttime_exists=0;
  time_t spool_exists=0,spool_exists_pw=0;
@@ -152,13 +157,34 @@ int wwwoffles(int online,int fetching,int client)
  if(client==-1 && mode!=Fetch)
     PrintMessage(Fatal,"Cannot use client file descriptor %d.",client);
 
+#if USE_GNUTLS
+
+ /* Check if we are using http or https client connection. */
+
+ if(mode!=Fetch)
+   {
+    char *host;
+    int port;
+
+    if(!SocketLocalName(client,&host,NULL,&port))
+      {
+       SetLocalPort(port);
+
+       if(port==ConfigInteger(HTTPS_Port))
+          if(configure_io_gnutls(client,host,1))
+             PrintMessage(Fatal,"Cannot start SSL/TLS connection");
+      }
+   }
+
+#endif
+
  /* Open up the outgoing file for reading the stored request from. */
 
  if(mode==Fetch)
    {
-    outgoing=OpenOutgoingSpoolFile(1);
+    outgoing=OpenExistingOutgoingSpoolFile(&outgoingUrl);
 
-    if(outgoing==-1)
+    if(outgoing==-1 || !outgoingUrl)
       {
        PrintMessage(Inform,"No more outgoing requests."); /* Used in audit-usage.pl */
        return(3);
@@ -177,9 +203,17 @@ int wwwoffles(int online,int fetching,int client)
  /* Get the URL from the request and read the header and body (if present). */
 
  if(mode==Real || mode==Spool || mode==SpoolOrReal)
-    url=ParseRequest(client,&request_head,&request_body);
+    Url=ParseRequest(client,&request_head,&request_body);
  else /* if(mode==Fetch) */
-    url=ParseRequest(outgoing,&request_head,&request_body);
+   {
+    Url=ParseRequest(outgoing,&request_head,&request_body);
+    FreeURL(Url);
+    Url=outgoingUrl;
+   }
+
+#if USE_GNUTLS
+ checkrequest:
+#endif
 
  if(StderrLevel==ExtraDebug)
    {
@@ -199,7 +233,7 @@ int wwwoffles(int online,int fetching,int client)
 
  /* Check that a URL was read, means a valid header was received. */
 
- if(!url || !request_head)
+ if(!Url || !request_head)
    {
     PrintMessage(Warning,"Could not parse HTTP request (%s).",request_head?"Parse error":"Empty request"); /* Used in audit-usage.pl */
 
@@ -209,15 +243,13 @@ int wwwoffles(int online,int fetching,int client)
                    NULL);
     else /* if(mode==Fetch) */
        if(client!=-1)
-          write_formatted(client,"Cannot fetch %s [%s]\n",Url->name,
+          write_formatted(client,"Cannot fetch %s [%s]\n",Url?Url->name:"URL",
                           request_head?"Cannot parse the HTTP request":"The HTTP request was empty");
 
     /*@-mustfreefresh@*/
     return(1); /* We don't bother to free memory because return() is exit() in child. */
     /*@=mustfreefresh@*/
    }
-
- Url=SplitURL(url);
 
  /* Check if the client can use compression and work out which type. */
 
@@ -293,89 +325,126 @@ int wwwoffles(int online,int fetching,int client)
  else if(proxy_auth)
     PrintMessage(Inform,"HTTP Proxy connection from user '%s'.",proxy_user); /* Used in audit-usage.pl */
 
- /* Check the HTTP method that is requested. */
+ /* Check for the request method used */
 
  if(!strcasecmp(request_head->method,"CONNECT"))
    {
-    PrintMessage(Inform,"SSL='%s'.",Url->host); /* Used in audit-usage.pl */
-
-    if(mode==Real || mode==SpoolOrReal || (mode==Spool && IsLocalNetHost(Url->host)))
+    if(mode==Fetch)
       {
-       if(IsSSLAllowedPort(Url->host) && !ConfigBooleanMatchURL(DontGet,Url))
-         {
-          char *err=SSL_Open(Url);
+       PrintMessage(Warning,"A 'CONNECT' method request for '%s' cannot be handled in Fetch mode.",Url->hostport);
 
-          if(err && ConfigBoolean(ConnectRetry))
-            {
-             PrintMessage(Inform,"Waiting to try connection again.");
-             sleep(10);
-             free(err);
-             err=SSL_Open(Url);
-            }
+       if(client!=-1)
+          write_formatted(client,"Cannot fetch %s [HTTP method 'CONNECT' not supported in this mode]\n",Url->name);
 
-          if(err)
-            {
-             HTMLMessage(client,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
-                         "url",Url->host,
-                         "reason",err,
-                         "cache",NULL,
-                         "backup",NULL,
-                         NULL);
-             free(err);
-             mode=InternalPage; goto internalpage;
-            }
-
-          err=SSL_Request(client,Url,request_head);
-
-          if(err)
-            {
-             HTMLMessage(client,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
-                         "url",Url->host,
-                         "reason",err,
-                         "cache",NULL,
-                         "backup",NULL,
-                         NULL);
-             free(err);
-             mode=InternalPage; goto internalpage;
-            }
-
-          SSL_Transfer(client);
-
-          SSL_Close();
-
-          /*@-mustfreefresh@*/
-          return(0); /* We don't bother to free memory because return() is exit() in child. */
-          /*@=mustfreefresh@*/
-         }
-       else
-         {
-          PrintMessage(Warning,"A SSL proxy connection for %s was received but is not allowed.",Url->host);
-          HTMLMessage(client,500,"WWWOFFLE Server Error",NULL,"ServerError",
-                      "error","SSL proxy connection to specified port is not allowed.",
-                      NULL);
-          mode=InternalPage; goto internalpage;
-         }
+       /*@-mustfreefresh@*/
+       return(1); /* We don't bother to free memory because return() is exit() in child. */
+       /*@=mustfreefresh@*/
       }
-    else /* if(mode==Fetch || (mode==Spool && !IsLocalNetHost(Url->host))) */
+    else if(mode==Spool && !IsLocalNetHost(Url->host) && !(USE_GNUTLS && ConfigBoolean(SSLEnableCaching)))
       {
-       PrintMessage(Warning,"A SSL proxy connection for %s was received but wwwoffles is in wrong mode.",Url->host);
+       PrintMessage(Warning,"A 'CONNECT' method request for '%s' cannot be handled in Spool mode.",Url->hostport);
 
-       if(mode==Fetch)
+       HTMLMessage(client,500,"WWWOFFLE Server Error",NULL,"ServerError",
+                   "error","SSL proxy connection while offline is not allowed.",
+                   NULL);
+       mode=InternalPage; goto internalpage;
+      }
+    else if(ConfigBooleanMatchURL(DontGet,Url))
+      {
+       PrintMessage(Inform,"The URL '%s' matches one in the list not to get.",Url->name);
+
+       HTMLMessage(client,404,"WWWOFFLE Host Not Got",NULL,"HostNotGot",
+                   "url",Url->name,
+                   NULL);
+       mode=InternalPage; goto internalpage;
+      }
+    else if((IsSSLAllowed(Url,0) && mode!=Spool) || IsLocalNetHost(Url->host)) /* tunnel SSL connection */
+      {
+       char *err;
+
+       PrintMessage(Inform,"SSL(tunnel)='%s'.",Url->hostport); /* Used in audit-usage.pl */
+
+       err=SSL_Open(Url);
+
+       if(err && ConfigBoolean(ConnectRetry))
          {
-          if(client!=-1)
-             write_formatted(client,"Cannot fetch %s [HTTP method 'CONNECT' not supported in this mode]\n",Url->name);
-
-          /*@-mustfreefresh@*/
-          return(1); /* We don't bother to free memory because return() is exit() in child. */
-          /*@=mustfreefresh@*/
+          PrintMessage(Inform,"Waiting to try connection again.");
+          sleep(10);
+          free(err);
+          err=SSL_Open(Url);
          }
-       else /* if(mode!=Fetch) */
+
+       if(err)
          {
-          HTMLMessage(client,500,"WWWOFFLE Server Error",NULL,"ServerError",
-                      "error","SSL proxy connection while offline is not allowed.",
+          HTMLMessage(client,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
+                      "url",Url->hostport,
+                      "reason",err,
+                      "cache",NULL,
+                      "backup",NULL,
                       NULL);
+          free(err);
           mode=InternalPage; goto internalpage;
          }
+
+       err=SSL_Request(client,Url,request_head);
+
+       if(err)
+         {
+          HTMLMessage(client,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
+                      "url",Url->hostport,
+                      "reason",err,
+                      "cache",NULL,
+                      "backup",NULL,
+                      NULL);
+          free(err);
+          mode=InternalPage; goto internalpage;
+         }
+
+       SSL_Transfer(client);
+
+       SSL_Close();
+
+       /*@-mustfreefresh@*/
+       return(0); /* We don't bother to free memory because return() is exit() in child. */
+       /*@=mustfreefresh@*/
+      }
+#if USE_GNUTLS
+    else if(ConfigBoolean(SSLEnableCaching) && IsSSLAllowed(Url,1)) /* cache SSL connection */
+      {
+       URL *httpsUrl;
+       int err;
+
+       PrintMessage(Inform,"SSL(cached)='%s'.",Url->hostport); /* Used in audit-usage.pl */
+
+       write_string(client,"HTTP/1.0 200 WWWOFFLE SSL OK\r\n\r\n");
+
+       if(IsLocalHost(Url))
+          err=configure_io_gnutls(client,Url->host,1);
+       else
+          err=configure_io_gnutls(client,Url->host,2);
+
+       if(err)
+          PrintMessage(Fatal,"Could not initialise SSL connection to client.");
+
+       SetLocalPort(ConfigInteger(HTTPS_Port));
+
+       httpsUrl=ParseRequest(client,&request_head,&request_body);
+
+       FreeURL(Url);
+       Url=CreateURL("https",httpsUrl->hostport,httpsUrl->path,httpsUrl->args,httpsUrl->user,httpsUrl->pass);
+       FreeURL(httpsUrl);
+
+       goto checkrequest;
+      }
+#endif
+    else
+      {
+       PrintMessage(Warning,"A SSL proxy connection for %s was received but is not allowed.",Url->hostport);
+
+       HTMLMessage(client,500,"WWWOFFLE Server Error",NULL,"ServerError",
+                   "error","SSL proxy connection to specified host and port is not allowed.",
+                   NULL);
+       mode=InternalPage; goto internalpage;
       }
    }
  else if(strcmp(request_head->method,"GET") &&
@@ -414,6 +483,38 @@ int wwwoffles(int online,int fetching,int client)
     head_only=1;
    }
 
+ /* Check caching is allowed for SSL connections when Fetching */
+
+ if(mode==Fetch && !strcmp(Url->proto,"https"))
+   {
+    if(IsSSLAllowed(Url,0)) /* tunnel SSL connection */
+      {
+       PrintMessage(Warning,"A SSL request for %s was received but tunnelling only is allowed.",Url->hostport);
+
+       if(client!=-1)
+          write_formatted(client,"Cannot fetch %s [HTTPS tunnelling not supported in this mode]\n",Url->name);
+
+       /*@-mustfreefresh@*/
+       return(1); /* We don't bother to free memory because return() is exit() in child. */
+       /*@=mustfreefresh@*/
+      }
+#if USE_GNUTLS
+    else if(ConfigBoolean(SSLEnableCaching) && IsSSLAllowed(Url,1)) /* cache SSL connection */
+       ;
+#endif
+    else
+      {
+       PrintMessage(Warning,"A SSL request for %s was received but not allowed.",Url->hostport);
+
+       if(client!=-1)
+          write_formatted(client,"Cannot fetch %s [HTTPS not allowed for this host]\n",Url->name);
+
+       /*@-mustfreefresh@*/
+       return(1); /* We don't bother to free memory because return() is exit() in child. */
+       /*@=mustfreefresh@*/
+      }
+   }
+
 
  /*----------------------------------------
    mode = Spool, Real, SpoolOrReal or Fetch
@@ -422,39 +523,29 @@ int wwwoffles(int online,int fetching,int client)
    ----------------------------------------*/
 
  PrintMessage(Inform,"URL='%s'%s.",Url->name,Url->user?" (With username/password)":""); /* Used in audit-usage.pl */
- PrintMessage(Debug,"proto='%s'; host='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
-              Url->proto,Url->host,Url->path,Url->args,Url->user,Url->pass);
+ PrintMessage(Debug,"proto='%s'; hostport='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
+              Url->proto,Url->hostport,Url->path,Url->args,Url->user,Url->pass);
 
  /* Check for an alias. */
 
- if(IsAliased(Url->proto,Url->host,Url->path,&aliasProto,&aliasHost,&aliasPath))
+ if((aliasUrl=GetAliasURL(Url)))
    {
-    URL *newUrl;
-    char *newurl=(char*)malloc(strlen(aliasProto)+strlen(aliasHost)+strlen(aliasPath)-
-                               strlen(Url->path)+strlen(Url->pathp)+8);
-
-    sprintf(newurl,"%s://%s%s%s",aliasProto,aliasHost,aliasPath,Url->pathp+strlen(Url->path));
-
-    newUrl=SplitURL(newurl);
-
-    if(Url->user)
-       AddURLPassword(newUrl,Url->user,Url->pass);
-
-    PrintMessage(Inform,"Aliased URL='%s'%s.",newUrl->name,newUrl->user?" (With username/password)":"");
-    PrintMessage(Debug,"Aliased proto='%s'; host='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
-                 newUrl->proto,newUrl->host,newUrl->path,newUrl->args,newUrl->user,newUrl->pass);
+    PrintMessage(Inform,"Aliased URL='%s'%s.",aliasUrl->name,aliasUrl->user?" (With username/password)":"");
+    PrintMessage(Debug,"Aliased proto='%s'; hostport='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
+                 aliasUrl->proto,aliasUrl->hostport,aliasUrl->path,aliasUrl->args,aliasUrl->user,aliasUrl->pass);
 
     if(mode==Fetch)
       {
        FreeURL(Url);
-       Url=newUrl;
+       Url=aliasUrl;
        ChangeURLInHeader(request_head,Url->file);
       }
     else /* if(mode!=Fetch) */
       {
-       HTMLMessage(client,302,"WWWOFFLE Alias Redirect",newUrl->file,"Redirect",
-                   "location",newUrl->file,
+       HTMLMessage(client,302,"WWWOFFLE Alias Redirect",aliasUrl->file,"Redirect",
+                   "location",aliasUrl->file,
                    NULL);
+       FreeURL(aliasUrl);
        mode=InternalPage; goto internalpage;
       }
    }
@@ -488,26 +579,21 @@ int wwwoffles(int online,int fetching,int client)
          }
        else
          {
-          char *newurl=(char*)malloc(strlen(replace)+1);
           URL *newUrl=SplitURL(replace);
 
-          strcpy(newurl,replace);
-
-          free(url);
-          url=newurl;
           FreeURL(Url);
           Url=newUrl;
 
           PrintMessage(Inform,"Replaced URL='%s'%s.",newUrl->name,newUrl->user?" (With username/password)":"");
-          PrintMessage(Debug,"Replaced proto='%s'; host='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
-                       newUrl->proto,newUrl->host,newUrl->path,newUrl->args,newUrl->user,newUrl->pass);
+          PrintMessage(Debug,"Replaced proto='%s'; hostport='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
+                       newUrl->proto,newUrl->hostport,newUrl->path,newUrl->args,newUrl->user,newUrl->pass);
          }
       }
    }
 
  /* Is the specified protocol valid? */
 
- if(!Url->Protocol)
+ if(!IsProtocolHandled(Url))
    {
     PrintMessage(Inform,"The protocol '%s' is not available.",Url->proto);
 
@@ -532,15 +618,15 @@ int wwwoffles(int online,int fetching,int client)
 
  /* Can a POST or PUT request be made with this protocol? */
 
- if((!strcmp(request_head->method,"POST") && !Url->Protocol->postable) ||
-    (!strcmp(request_head->method,"PUT") && !Url->Protocol->putable))
+ if((!strcmp(request_head->method,"POST") && !IsPOSTHandled(Url)) ||
+    (!strcmp(request_head->method,"PUT") && !IsPUTHandled(Url)))
    {
-    PrintMessage(Warning,"The requested method '%s' is not supported for the %s protocol.",request_head->method,Url->Protocol->name);
+    PrintMessage(Warning,"The requested method '%s' is not supported for the %s protocol.",request_head->method,Url->proto);
 
     if(mode==Fetch)
       {
        if(client!=-1)
-          write_formatted(client,"Cannot fetch %s [The %s method is not supported for %s]\n",Url->name,request_head->method,Url->Protocol->name);
+          write_formatted(client,"Cannot fetch %s [The %s method is not supported for %s]\n",Url->name,request_head->method,Url->proto);
 
        /*@-mustfreefresh@*/
        return(1); /* We don't bother to free memory because return() is exit() in child. */
@@ -550,7 +636,7 @@ int wwwoffles(int online,int fetching,int client)
       {
        HTMLMessage(client,501,"WWWOFFLE Method Unsupported",NULL,"MethodUnsupported",
                    "method",request_head->method,
-                   "protocol",Url->Protocol->name,
+                   "protocol",Url->proto,
                    NULL);
        mode=InternalPage; goto internalpage;
       }
@@ -570,19 +656,18 @@ int wwwoffles(int online,int fetching,int client)
 
  /* If a local URL handle it. */
 
- if(Url->local)
+ if(IsLocalHost(Url))
    {
     /* Refresh requests, recursive fetches, refresh options etc. */
 
-    if(!strncmp("/refresh",Url->path,8))
+    if(!strncmp("/refresh",Url->path,(size_t)8))
       {
        int recurse=0;
-       char *newurl=RefreshPage(client,Url,request_body,&recurse);
-       URL *newUrl;
+       URL *newUrl=RefreshPage(client,Url,request_body,&recurse);
 
        /* An internal page ( /refresh-options/ ) or some sort of error. */
 
-       if(!newurl)
+       if(!newUrl)
          {
           if(mode==Fetch)
             {
@@ -601,11 +686,9 @@ int wwwoffles(int online,int fetching,int client)
 
        /* A new URL to get to replace the original one. */
 
-       newUrl=SplitURL(newurl);
-
        PrintMessage(Inform,"Refresh newUrl='%s'%s.",newUrl->name,newUrl->user?" (With username/password)":"");
-       PrintMessage(Debug,"Refresh proto='%s'; host='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
-                    newUrl->proto,newUrl->host,newUrl->path,newUrl->args,newUrl->user,newUrl->pass);
+       PrintMessage(Debug,"Refresh proto='%s'; hostport='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
+                    newUrl->proto,newUrl->hostport,newUrl->path,newUrl->args,newUrl->user,newUrl->pass);
 
        /* The new URL was originally a POST or PUT request. */
 
@@ -646,9 +729,7 @@ int wwwoffles(int online,int fetching,int client)
 
           mode=SpoolGet;
 
-          free(newurl);
           FreeURL(newUrl);
-          newurl=url;
           newUrl=Url;
          }
 
@@ -704,19 +785,17 @@ int wwwoffles(int online,int fetching,int client)
 
        /* Swap to the new URL if it is different. */
 
-       if(url!=newurl)
+       if(Url!=newUrl)
          {
           if(Url->user)
-             AddURLPassword(newUrl,Url->user,Url->pass);
+             AddPasswordURL(newUrl,Url->user,Url->pass);
 
-          free(url);
-          url=newurl;
           FreeURL(Url);
           Url=newUrl;
 
           PrintMessage(Inform,"Refresh URL='%s'%s.",Url->name,Url->user?" (With username/password)":"");
-          PrintMessage(Debug,"Refresh proto='%s'; host='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
-                       Url->proto,Url->host,Url->path,Url->args,Url->user,Url->pass);
+          PrintMessage(Debug,"Refresh proto='%s'; hostport='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
+                       Url->proto,Url->hostport,Url->path,Url->args,Url->user,Url->pass);
          }
       }
 
@@ -735,7 +814,7 @@ int wwwoffles(int online,int fetching,int client)
 
     /* The index pages. */
 
-    else if(!strncmp("/index/",Url->path,7)) /* if(... && mode!=Fetch) */
+    else if(!strncmp("/index/",Url->path,(size_t)7)) /* if(... && mode!=Fetch) */
       {
        IndexPage(client,Url);
        mode=InternalPage; goto internalpage;
@@ -743,7 +822,7 @@ int wwwoffles(int online,int fetching,int client)
 
     /* The info pages. */
 
-    else if(!strncmp("/info/",Url->path,6)) /* if(... && mode!=Fetch) */
+    else if(!strncmp("/info/",Url->path,(size_t)6)) /* if(... && mode!=Fetch) */
       {
        InfoPage(client,Url,request_head,request_body);
        mode=InternalPage; goto internalpage;
@@ -751,7 +830,7 @@ int wwwoffles(int online,int fetching,int client)
 
     /* The control pages, deleting and URL replacements for wwwoffle program. */
 
-    else if(!strncmp("/control/",Url->path,9)) /* if(... && mode!=Fetch) */
+    else if(!strncmp("/control/",Url->path,(size_t)9)) /* if(... && mode!=Fetch) */
       {
        ControlPage(client,Url,request_body);
        mode=InternalPage; goto internalpage;
@@ -759,7 +838,7 @@ int wwwoffles(int online,int fetching,int client)
 
     /* The configuration editing pages. */
 
-    else if(!strncmp("/configuration/",Url->path,15)) /* if(... && mode!=Fetch) */
+    else if(!strncmp("/configuration/",Url->path,(size_t)15)) /* if(... && mode!=Fetch) */
       {
        ConfigurationPage(client,Url,request_body);
        mode=InternalPage; goto internalpage;
@@ -767,7 +846,7 @@ int wwwoffles(int online,int fetching,int client)
 
     /* The monitor request and options pages, (note that there is no trailing '/'). */
 
-    else if(!strncmp("/monitor",Url->path,8)) /* if(... && mode!=Fetch) */
+    else if(!strncmp("/monitor",Url->path,(size_t)8)) /* if(... && mode!=Fetch) */
       {
        MonitorPage(client,Url,request_body);
        mode=InternalPage; goto internalpage;
@@ -775,15 +854,27 @@ int wwwoffles(int online,int fetching,int client)
 
     /* The search pages. */
 
-    else if(!strncmp("/search/",Url->path,8)) /* if(... && mode!=Fetch) */
+    else if(!strncmp("/search/",Url->path,(size_t)8)) /* if(... && mode!=Fetch) */
       {
        SearchPage(client,Url,request_head,request_body);
        mode=InternalPage; goto internalpage;
       }
 
+#if USE_GNUTLS
+
+    /* The https certificate pages. */
+
+    else if(!strncmp("/certificates/",Url->path,(size_t)14)) /* if(... && mode!=Fetch) */
+      {
+       CertificatesPage(client,Url,request_head);
+       mode=InternalPage; goto internalpage;
+      }
+
+#endif
+
     /* The local pages in the root or local directories. */
 
-    else if(!strchr(Url->path+1,'/') || !strncmp("/local/",Url->path,7)) /* if(... && mode!=Fetch) */
+    else if(!strchr(Url->path+1,'/') || !strncmp("/local/",Url->path,(size_t)7)) /* if(... && mode!=Fetch) */
       {
        LocalPage(client,Url,request_head,request_body);
        mode=InternalPage; goto internalpage;
@@ -799,10 +890,8 @@ int wwwoffles(int online,int fetching,int client)
           if(!strncmp(Protocols[i].name,Url->pathp+1,strlen(Protocols[i].name)) &&
              Url->pathp[strlen(Protocols[i].name)+1]=='/')
             {
-             free(url);
-             url=(char*)malloc(strlen(Url->pathp)+4);
-             Url->pathp[strlen(Protocols[i].name)+1]=0;
-             sprintf(url,"%s://%s",Url->pathp+1,&Url->pathp[strlen(Protocols[i].name)+2]);
+             char *url=(char*)malloc(strlen(Url->pathp)+4);
+             sprintf(url,"%s://%s",Protocols[i].name,&Url->pathp[strlen(Protocols[i].name)+2]);
              FreeURL(Url);
              Url=SplitURL(url);
              break;
@@ -848,26 +937,21 @@ int wwwoffles(int online,int fetching,int client)
             }
           else
             {
-             char *newurl=(char*)malloc(strlen(replace)+1);
              URL *newUrl=SplitURL(replace);
 
-             strcpy(newurl,replace);
-
-             free(url);
-             url=newurl;
              FreeURL(Url);
              Url=newUrl;
 
              PrintMessage(Inform,"Replaced URL='%s'%s.",newUrl->name,newUrl->user?" (With username/password)":"");
-             PrintMessage(Debug,"Replaced proto='%s'; host='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
-                          newUrl->proto,newUrl->host,newUrl->path,newUrl->args,newUrl->user,newUrl->pass);
+             PrintMessage(Debug,"Replaced proto='%s'; hostport='%s'; path='%s'; args='%s'; user:pass='%s:%s'.",
+                          newUrl->proto,newUrl->hostport,newUrl->path,newUrl->args,newUrl->user,newUrl->pass);
             }
          }
       }
 
     /* Is the specified protocol valid? (duplicated code from above.) */
 
-    if(!Url->Protocol)
+    if(!IsProtocolHandled(Url))
       {
        PrintMessage(Inform,"The protocol '%s' is not available.",Url->proto);
 
@@ -892,15 +976,15 @@ int wwwoffles(int online,int fetching,int client)
 
     /* Can a POST or PUT request be made with this protocol? (duplicated code from above.) */
 
-    if((!strcmp(request_head->method,"POST") && !Url->Protocol->postable) ||
-       (!strcmp(request_head->method,"PUT") && !Url->Protocol->putable))
+    if((!strcmp(request_head->method,"POST") && !IsPOSTHandled(Url)) ||
+       (!strcmp(request_head->method,"PUT") && !IsPUTHandled(Url)))
       {
-       PrintMessage(Warning,"The requested method '%s' is not supported for the %s protocol.",request_head->method,Url->Protocol->name);
+       PrintMessage(Warning,"The requested method '%s' is not supported for the %s protocol.",request_head->method,Url->proto);
 
        if(mode==Fetch)
          {
           if(client!=-1)
-             write_formatted(client,"Cannot fetch %s [The %s method is not supported for %s]\n",Url->name,request_head->method,Url->Protocol->name);
+             write_formatted(client,"Cannot fetch %s [The %s method is not supported for %s]\n",Url->name,request_head->method,Url->proto);
 
           /*@-mustfreefresh@*/
           return(1); /* We don't bother to free memory because return() is exit() in child. */
@@ -910,7 +994,7 @@ int wwwoffles(int online,int fetching,int client)
          {
           HTMLMessage(client,501,"WWWOFFLE Method Unsupported",NULL,"MethodUnsupported",
                       "method",request_head->method,
-                      "protocol",Url->Protocol->name,
+                      "protocol",Url->proto,
                       NULL);
           mode=InternalPage; goto internalpage;
          }
@@ -927,7 +1011,7 @@ int wwwoffles(int online,int fetching,int client)
       {
        URL *refUrl=SplitURL(referer);
 
-       if(refUrl->local && !strncmp(refUrl->path,"/info/request",13))
+       if(IsLocalHost(refUrl) && !strncmp(refUrl->path,"/info/request",(size_t)13))
          {
           InfoPage(client,Url,request_head,request_body);
           FreeURL(refUrl);
@@ -947,10 +1031,8 @@ int wwwoffles(int online,int fetching,int client)
 
  if(Url->user && ConfigBooleanURL(TryWithoutPassword,Url))
    {
-    URL *new=SplitURL(Url->name);
-
     Urlpw=Url;
-    Url=new;
+    Url=CreateURL(Url->proto,Url->hostport,Url->path,Url->args,NULL,NULL);
 
     if(!Urlpw->pass)
       {
@@ -1016,7 +1098,7 @@ int wwwoffles(int online,int fetching,int client)
 
           if(spool_exists_pw && !outgoing_exists)
             {
-             int new_outgoing=OpenOutgoingSpoolFile(0);
+             int new_outgoing=OpenNewOutgoingSpoolFile();
 
              if(new_outgoing==-1)
                 PrintMessage(Warning,"Cannot open the new outgoing request to write.");
@@ -1033,7 +1115,7 @@ int wwwoffles(int online,int fetching,int client)
                       PrintMessage(Warning,"Cannot write to outgoing file; disk full?");
 
                 finish_io(new_outgoing);
-                CloseOutgoingSpoolFile(new_outgoing,Url);
+                CloseNewOutgoingSpoolFile(new_outgoing,Url);
                 free(head);
                }
             }
@@ -1117,7 +1199,7 @@ passwordagain:
 
     else if(mode==Fetch)
       {
-       PrintMessage(Inform,"The request to fetch a page from the local network host '%s' is ignored.",Url->host);
+       PrintMessage(Inform,"The request to fetch a page from the local network host '%s' is ignored.",Url->hostport);
        if(client!=-1)
           write_formatted(client,"Cannot fetch %s [On local network]\n",Url->name);
 
@@ -1248,10 +1330,10 @@ passwordagain:
  {
   char *user_agent=GetHeader(request_head,"User-Agent");
   if(user_agent)
-     is_client_searcher=!strncasecmp(user_agent,"htdig",5) ||
-                        !strncasecmp(user_agent,"mnoGoSearch",11) ||
-                        !strncasecmp(user_agent,"UdmSearch",9) ||
-                        !strncasecmp(user_agent,"WDG_Validator",13);
+     is_client_searcher=!strncasecmp(user_agent,"htdig",(size_t)5) ||
+                        !strncasecmp(user_agent,"mnoGoSearch",(size_t)11) ||
+                        !strncasecmp(user_agent,"UdmSearch",(size_t)9) ||
+                        !strncasecmp(user_agent,"WDG_Validator",(size_t)13);
  }
 
  if(is_client_searcher)
@@ -1304,17 +1386,7 @@ passwordagain:
 
  /* If a forced refresh then change to an appropriate mode. */
 
- else if(!is_client_searcher &&
-         (RefreshForced() ||
-          (!online &&
-           ((ConfigBooleanURL(PragmaNoCacheOffline,Url)       && GetHeader2(request_head,"Pragma","no-cache")) ||
-            (ConfigBooleanURL(CacheControlNoCacheOffline,Url) && GetHeader2(request_head,"Cache-Control","no-cache")) ||
-            (ConfigBooleanURL(CacheControlMaxAge0Offline,Url) && GetHeader2(request_head,"Cache-Control","max-age=0")))) ||
-          (online &&
-           ((ConfigBooleanURL(PragmaNoCacheOnline,Url)        && GetHeader2(request_head,"Pragma","no-cache")) ||
-            (ConfigBooleanURL(CacheControlNoCacheOnline,Url)  && GetHeader2(request_head,"Cache-Control","no-cache")) ||
-            (ConfigBooleanURL(CacheControlMaxAge0Online,Url)  && GetHeader2(request_head,"Cache-Control","max-age=0"))))
-          ))
+ else if(!is_client_searcher && (RefreshForced() || RequireForced(request_head,Url,online)))
    {
     if(conditional_request_ims)
        RemoveFromHeader(request_head,"If-Modified-Since");
@@ -1381,7 +1453,7 @@ passwordagain:
 
     else if(fetch_again)
       {
-       lseek(spool,0,SEEK_SET);
+       lseek(spool,(off_t)0,SEEK_SET);
        reinit_io(spool);
 
        if(ParseDocument(spool,Url,0))
@@ -1558,6 +1630,8 @@ passwordagain:
    Set up the spool file, outgoing file and server connection as appropriate.
    ----------------------------------------*/
 
+ UrlProtocol=GetProtocol(Url);
+
  /* Set up the file descriptor for the spool file (to write). */
 
  if(mode==Real || mode==Fetch)
@@ -1621,9 +1695,9 @@ passwordagain:
     !outgoing_exists &&
     (mode==SpoolRefresh ||
      ((mode==SpoolGet || mode==SpoolPragma) &&
-      (!ConfigBooleanURL(ConfirmRequests,Url) || is_client_wwwoffle || Url->local || (Url->args && *Url->args=='!')))))
+      (!ConfigBooleanURL(ConfirmRequests,Url) || is_client_wwwoffle || IsLocalHost(Url)))))
    {
-    outgoing=OpenOutgoingSpoolFile(0);
+    outgoing=OpenNewOutgoingSpoolFile();
 
     if(outgoing==-1)
       {
@@ -1641,7 +1715,7 @@ passwordagain:
 
  if(mode==Real || mode==RealNoCache || mode==Fetch)
    {
-    char *err=(Url->Protocol->open)(Url);
+    char *err=(UrlProtocol->open)(Url);
 
     /* Retry if the option is set. */
 
@@ -1650,7 +1724,7 @@ passwordagain:
        PrintMessage(Inform,"Waiting to try connection again.");
        sleep(10);
        free(err);
-       err=(Url->Protocol->open)(Url);
+       err=(UrlProtocol->open)(Url);
       }
 
     /* In case of an error ... */
@@ -1661,8 +1735,8 @@ passwordagain:
 
        if(mode==Real || mode==Fetch)
          {
-          lseek(spool,0,SEEK_SET);
-          ftruncate(spool,0);
+          lseek(spool,(off_t)0,SEEK_SET);
+          ftruncate(spool,(off_t)0);
           reinit_io(spool);
 
           HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
@@ -1753,7 +1827,7 @@ passwordagain:
 
  if(mode==Real || mode==RealNoCache || mode==Fetch)
    {
-    char *err=(Url->Protocol->request)(Url,request_head,request_body);
+    char *err=(UrlProtocol->request)(Url,request_head,request_body);
 
     is_server=1;
 
@@ -1765,8 +1839,8 @@ passwordagain:
 
        if(mode==Real || mode==Fetch)
          {
-          lseek(spool,0,SEEK_SET);
-          ftruncate(spool,0);
+          lseek(spool,(off_t)0,SEEK_SET);
+          ftruncate(spool,(off_t)0);
           reinit_io(spool);
 
           HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
@@ -1790,7 +1864,7 @@ passwordagain:
           if(client!=-1)
              write_formatted(client,"Fetch Failure %s [Server Connection Error]\n",Url->name);
 
-          (Url->Protocol->close)();
+          (UrlProtocol->close)();
 
           free(err);
 
@@ -1821,7 +1895,7 @@ passwordagain:
          !outgoing_exists &&
          (mode==SpoolRefresh ||
           ((mode==SpoolGet || mode==SpoolPragma) &&
-           (!ConfigBooleanURL(ConfirmRequests,Url) || is_client_wwwoffle || Url->local || (Url->args && *Url->args=='!')))))
+           (!ConfigBooleanURL(ConfirmRequests,Url) || is_client_wwwoffle || IsLocalHost(Url)))))
    {
     char *head=HeaderString(request_head);
     int err=write_string(outgoing,head);
@@ -1865,7 +1939,7 @@ passwordagain:
 
     /* Get the header */
 
-    server=Url->Protocol->readhead(&reply_head);
+    server=UrlProtocol->readhead(&reply_head);
 
     is_server=1;
 
@@ -1877,7 +1951,7 @@ passwordagain:
           PrintMessage(ExtraDebug,"Incoming Reply Head (from server/proxy)\n%s",HeaderString(reply_head));
 
        FreeHeader(reply_head);
-       server=Url->Protocol->readhead(&reply_head);
+       server=UrlProtocol->readhead(&reply_head);
       }
 
     /* In case of error ... */
@@ -1890,8 +1964,8 @@ passwordagain:
 
        if(mode==Real || mode==Fetch)
          {
-          lseek(spool,0,SEEK_SET);
-          ftruncate(spool,0);
+          lseek(spool,(off_t)0,SEEK_SET);
+          ftruncate(spool,(off_t)0);
           reinit_io(spool);
 
           HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
@@ -1915,7 +1989,7 @@ passwordagain:
           if(client!=-1)
              write_formatted(client,"Fetch Failure %s [Server Reply Error]\n",Url->name);
 
-          (Url->Protocol->close)();
+          (UrlProtocol->close)();
 
           /*@-mustfreefresh@*/
           return(1); /* We don't bother to free memory because return() is exit() in child. */
@@ -1951,7 +2025,7 @@ passwordagain:
       {
        PrintMessage(Inform,"Server has used 'Content-Encoding: %s'.",content_encoding); /* Used in audit-usage.pl */
        RemoveFromHeader(reply_head,"Content-Encoding");
-       configure_io_read(server,-1,server_compression,-1);
+       configure_io_zlib(server,server_compression,-1);
       }
 #endif
 
@@ -1964,7 +2038,7 @@ passwordagain:
       {
        PrintMessage(Inform,"Server has used 'Transfer-Encoding: %s'.",transfer_encoding); /* Used in audit-usage.pl */
        RemoveFromHeader(reply_head,"Transfer-Encoding");
-       configure_io_read(server,-1,-1,1);
+       configure_io_chunked(server,1,-1);
       }
 
     /* Handle status codes */
@@ -2067,12 +2141,12 @@ passwordagain:
     else if((mode==Fetch || mode==Real) && reply_status>=300 &&
             ConfigBooleanURL(KeepCacheIfNotFound,Url) && SpooledPageStatus(Url,1)==200)
       {
-       char status[12];
+       char status[MAX_INT_STR+1];
 
        PrintMessage(Debug,"Reply status for '%s' was %d, keeping backup spool file.",Url->name,reply_status);
 
-       lseek(spool,0,SEEK_SET);
-       ftruncate(spool,0);
+       lseek(spool,(off_t)0,SEEK_SET);
+       ftruncate(spool,(off_t)0);
        reinit_io(spool);
 
        sprintf(status,"%d",reply_status);
@@ -2105,15 +2179,17 @@ passwordagain:
 
     else if(mode==Fetch && (reply_status==301 || reply_status==302))
       {
-       char *new_url=MovedLocation(Url,reply_head);
+       URL *newUrl=MovedLocation(Url,reply_head);
 
        if(client!=-1)
           write_formatted(client,"Fetching More %s [Page Moved]\n",Url->name);
 
-       if(!new_url)
+       if(!newUrl)
           PrintMessage(Warning,"Cannot parse the reply for the new location.");
        else
-          fetch_again+=RecurseFetchRelocation(Url,new_url);
+          fetch_again+=RecurseFetchRelocation(Url,newUrl);
+
+       FreeURL(newUrl);
       }
    }
 
@@ -2140,7 +2216,7 @@ passwordagain:
 
  /* Initialise the body. */
 
- reply_body=CreateBody(READ_BUFFER_SIZE);
+ reply_body=CreateBody(IO_BUFFER_SIZE);
 
  /* Close the outgoing file if any. */
 
@@ -2151,7 +2227,7 @@ passwordagain:
     if(mode==Fetch)
        close(outgoing);
     if(mode==SpoolGet || mode==SpoolRefresh || mode==SpoolPragma)
-       CloseOutgoingSpoolFile(outgoing,Url);
+       CloseNewOutgoingSpoolFile(outgoing,Url);
    }
 
 
@@ -2289,14 +2365,14 @@ passwordagain:
 #if USE_ZLIB
     if(client_compression && !head_only)
        if(mode!=RealNoPassword)
-          configure_io_write(client,-1,client_compression,-1);
+          configure_io_zlib(client,-1,client_compression);
 #endif
 
     /* Initialise the client chunked encoding. */
 
     if(client_chunked && !head_only)
        if(mode!=RealNoPassword)
-          configure_io_write(client,-1,-1,1);
+          configure_io_chunked(client,-1,1);
 
     /* While there is data to read ... */
 
@@ -2310,6 +2386,7 @@ passwordagain:
        PrintMessage(Debug,"Modifying page content of type '%s'",content_type);
 
        modify_Url=Url;
+       modify_UrlProtocol=UrlProtocol;
        modify_read_fd=-1;
        modify_write_fd=client;
        modify_copy_fd=spool;
@@ -2325,7 +2402,7 @@ passwordagain:
        err=modify_err;
       }
     else
-       while(err!=-1 && (n=(Url->Protocol->readbody)(reply_body->content,READ_BUFFER_SIZE))>0)
+       while(err!=-1 && (n=(UrlProtocol->readbody)(reply_body->content,IO_BUFFER_SIZE))>0)
          {
           /* Write the data to the cache. */
 
@@ -2348,14 +2425,14 @@ passwordagain:
        if(err==-1)
          {
           int intr_keep=ConfigBooleanURL(IntrDownloadKeep,Url);
-          int intr_size=ConfigIntegerURL(IntrDownloadSize,Url)<<10;
           int intr_percent=ConfigIntegerURL(IntrDownloadPercent,Url);
+          unsigned long intr_size=ConfigIntegerURL(IntrDownloadSize,Url)<<10;
 
           if(server!=-1) /* can happen if ftp built-in error message */
              tell_io(server,&bytes_end,NULL);
           bytes=bytes_end-bytes_start;
 
-          PrintMessage(Warning,"Cannot write to client; disconnected?");
+          PrintMessage(Inform,"Cannot write to client; disconnected?");
 
           PrintMessage(Debug,"Content-Length=%d, bytes=%d, intr-keep=%d intr-size=%d intr-percent=%d.",
                        content_length,bytes,intr_keep,intr_size,intr_percent);
@@ -2367,7 +2444,7 @@ passwordagain:
 
              PrintMessage(Debug,"Continuing download from server.");
 
-             while((n=(Url->Protocol->readbody)(reply_body->content,READ_BUFFER_SIZE))>0)
+             while((n=(UrlProtocol->readbody)(reply_body->content,IO_BUFFER_SIZE))>0)
                {
                 /* Write the data to the cache. */
 
@@ -2381,11 +2458,11 @@ passwordagain:
 
        if(err==-1 && !ConfigBooleanURL(IntrDownloadKeep,Url))
          {
-          lseek(spool,0,SEEK_SET);
-          ftruncate(spool,0);
+          lseek(spool,(off_t)0,SEEK_SET);
+          ftruncate(spool,(off_t)0);
           reinit_io(spool);
 
-          PrintMessage(Warning,"Error writing to client; client disconnected?");
+          PrintMessage(Inform,"Error writing to client; client disconnected?");
           HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
                       "url",Url->name,
                       "reason","ClientClose",
@@ -2398,8 +2475,8 @@ passwordagain:
 
        else if(n<0 && !ConfigBooleanURL(TimeoutDownloadKeep,Url))
          {
-          lseek(spool,0,SEEK_SET);
-          ftruncate(spool,0);
+          lseek(spool,(off_t)0,SEEK_SET);
+          ftruncate(spool,(off_t)0);
           reinit_io(spool);
 
           PrintMessage(Warning,"Error reading reply body from remote host [%!s].");
@@ -2415,13 +2492,13 @@ passwordagain:
 
        else
          {
-          ftruncate(spool,lseek(spool,0,SEEK_CUR));
+          ftruncate(spool,lseek(spool,(off_t)0,SEEK_CUR));
 
           /* In case of error change the cache status code. */
 
           if(n<0 || err==-1)
             {
-             lseek(spool,0,SEEK_SET);
+             lseek(spool,(off_t)0,SEEK_SET);
              reinit_io(spool);
 
              FreeHeader(reply_head);
@@ -2432,7 +2509,7 @@ passwordagain:
              free(head);
              head=HeaderString(reply_head);
 
-             lseek(spool,0,SEEK_SET);
+             lseek(spool,(off_t)0,SEEK_SET);
              reinit_io(spool);
 
              write_string(spool,head);
@@ -2451,13 +2528,13 @@ passwordagain:
 
 #if USE_ZLIB
     if(client_compression)
-       configure_io_write(client,-1,0,-1);
+       configure_io_zlib(client,-1,0);
 #endif
 
     /* Finish with the client chunked encoding */
 
     if(client_chunked)
-       configure_io_write(client,-1,-1,0);
+       configure_io_chunked(client,-1,0);
 
     free(head);
    }
@@ -2488,7 +2565,7 @@ passwordagain:
 
     /* While the server has data write it to the cache. */
 
-    while((n=(Url->Protocol->readbody)(reply_body->content,READ_BUFFER_SIZE))>0)
+    while((n=(UrlProtocol->readbody)(reply_body->content,IO_BUFFER_SIZE))>0)
        if(write_data(spool,reply_body->content,n)==-1)
           PrintMessage(Warning,"Cannot write to cache file; disk full?");
 
@@ -2496,8 +2573,8 @@ passwordagain:
 
     if(n<0 && !ConfigBooleanURL(TimeoutDownloadKeep,Url))
       {
-       lseek(spool,0,SEEK_SET);
-       ftruncate(spool,0);
+       lseek(spool,(off_t)0,SEEK_SET);
+       ftruncate(spool,(off_t)0);
        reinit_io(spool);
 
        PrintMessage(Warning,"Error reading reply body from remote host [%!s].");
@@ -2516,7 +2593,7 @@ passwordagain:
 
     else
       {
-       ftruncate(spool,lseek(spool,0,SEEK_CUR));
+       ftruncate(spool,lseek(spool,(off_t)0,SEEK_CUR));
 
        if(spool_exists)
           DeleteBackupWebpageSpoolFile(Url);
@@ -2530,7 +2607,7 @@ passwordagain:
 
     if(n>=0)
       {
-       lseek(spool,0,SEEK_SET);
+       lseek(spool,(off_t)0,SEEK_SET);
        reinit_io(spool);
 
        if(ParseDocument(spool,Url,0))
@@ -2590,7 +2667,7 @@ passwordagain:
        if(reply_head)
           FreeHeader(reply_head);
 
-       lseek(spool,0,SEEK_SET);
+       lseek(spool,(off_t)0,SEEK_SET);
        reinit_io(spool);
 
        reply_status=ParseReply(spool,&reply_head);
@@ -2627,7 +2704,7 @@ passwordagain:
              PrintMessage(Debug,"Spooled page has 'Content-Encoding: %s'.",content_encoding);
              RemoveFromHeader(reply_head,"Content-Encoding");
              RemoveFromHeader2(reply_head,"Pragma","wwwoffle-compressed");
-             configure_io_read(spool,-1,2,-1);
+             configure_io_zlib(spool,2,-1);
             }
          }
 #endif
@@ -2711,13 +2788,13 @@ passwordagain:
 
 #if USE_ZLIB
        if(client_compression && !head_only)
-          configure_io_write(client,-1,client_compression,-1);
+          configure_io_zlib(client,-1,client_compression);
 #endif
 
        /* Initialise the client chunked encoding. */
 
        if(client_chunked && !head_only)
-          configure_io_write(client,-1,-1,1);
+          configure_io_chunked(client,-1,1);
 
        /* Modify the content or don't and put it in the temporary file. */
 
@@ -2728,6 +2805,7 @@ passwordagain:
           PrintMessage(Debug,"Modifying page content of type '%s'",content_type);
 
           modify_Url=NULL;
+          modify_UrlProtocol=NULL;
           modify_read_fd=spool;
           modify_write_fd=client;
           modify_copy_fd=-1;
@@ -2743,10 +2821,10 @@ passwordagain:
          {
           int n;
 
-          while((n=read_data(spool,reply_body->content,READ_BUFFER_SIZE))>0)
+          while((n=read_data(spool,reply_body->content,IO_BUFFER_SIZE))>0)
              if(write_data(client,reply_body->content,n)==-1)
                {
-                PrintMessage(Warning,"Cannot write to client; disconnected?");
+                PrintMessage(Inform,"Cannot write to client; disconnected?");
                 break;
                }
          }
@@ -2759,20 +2837,20 @@ passwordagain:
     /* Finish with uncompressing from the cache. */
 
 #if USE_ZLIB
-    configure_io_read(spool,-1,0,-1);
+    configure_io_zlib(spool,0,-1);
 #endif
 
     /* Finish with the client compression. */
 
 #if USE_ZLIB
     if(client_compression)
-       configure_io_write(client,-1,0,-1);
+       configure_io_zlib(client,-1,0);
 #endif
 
     /* Finish with the client chunked encoding */
 
     if(client_chunked)
-       configure_io_write(client,-1,-1,0);
+       configure_io_chunked(client,-1,0);
    }
 
  /* If the page is to be requested. */
@@ -2783,7 +2861,7 @@ passwordagain:
 
     if(offline_request || online)
       {
-       if(ConfigBooleanURL(ConfirmRequests,Url) && !Url->local && (!Url->args || *Url->args!='!') && !outgoing_exists)
+       if(ConfigBooleanURL(ConfirmRequests,Url) && !IsLocalHost(Url) && !outgoing_exists)
           HTMLMessage(client,404,"WWWOFFLE Confirm Request",NULL,"ConfirmRequest",
                       "url",Url->name,
                       NULL);
@@ -2818,12 +2896,12 @@ passwordagain:
     mode=InternalPage;
    }
 
- /* If the request is for a refresh page when online or offline the redirect the client. */
+ /* If the request is for a refresh page when online or offline then redirect the client. */
 
  else /* if(mode==RealRefresh || mode==SpoolRefresh) */
    {
-    HTMLMessage(client,302,"WWWOFFLE Refresh Redirect",Url->link,"Redirect",
-                "location",Url->link,
+    HTMLMessage(client,302,"WWWOFFLE Refresh Redirect",ProxyableLink(Url),"Redirect",
+                "location",ProxyableLink(Url),
                 NULL);
 
     mode=InternalPage;
@@ -2849,7 +2927,7 @@ internalpage:
  /* If we had a connection to a server then close it. */
 
  if(is_server)
-    (Url->Protocol->close)();
+    (UrlProtocol->close)();
 
  /* If there is a spool file open then close it. */
 
@@ -2893,7 +2971,6 @@ internalpage:
  /* Free the original URL */
 
  FreeURL(Url);
- free(url);
 
  /* If there is a request head and body then free them. */
 
@@ -2940,22 +3017,22 @@ internalpage:
 /*++++++++++++++++++++++++++++++++++++++
   Read data from the server/cache and perhaps write a copy to the cache when modifying content.
 
-  int wwwoffles_read_data Returns the number of bytes read.
+  ssize_t wwwoffles_read_data Returns the number of bytes read.
 
   char *data The data buffer to fill in.
 
-  int len The length of the buffer to fill in.
+  size_t len The length of the buffer to fill in.
 
   This function is used as a callback from gifmodify.c and htmlmodify.l
   ++++++++++++++++++++++++++++++++++++++*/
 
-int wwwoffles_read_data(char *data,int len)
+int wwwoffles_read_data(char *data,size_t len)
 {
  if(modify_err==-1)
     return(0);
 
  if(modify_Url)
-    modify_n=(modify_Url->Protocol->readbody)(data,len);
+    modify_n=(modify_UrlProtocol->readbody)(data,len);
  else
     modify_n=read_data(modify_read_fd,data,len);
 
@@ -2975,21 +3052,21 @@ int wwwoffles_read_data(char *data,int len)
 /*++++++++++++++++++++++++++++++++++++++
   Write data to the client and handle client socket closing.
 
-  int wwwoffles_write_data Returns the number of bytes written.
+  ssize_t wwwoffles_write_data Returns the number of bytes written.
 
-  char *data The data to write.
+  const char *data The data to write.
 
-  int len The number of bytes to write.
+  size_t len The number of bytes to write.
 
   This function is used as a callback from gifmodify.c and htmlmodify.l
   ++++++++++++++++++++++++++++++++++++++*/
 
-int wwwoffles_write_data(char *data,int len)
+ssize_t wwwoffles_write_data(const char *data,size_t len)
 {
  /* Write the data to the client if it wants the body now. */
 
  if(modify_err!=-1)
-    modify_err=write_data(modify_write_fd,data,len);
+    modify_err=write_buffer_data(modify_write_fd,data,len); /* expect to make lots of small writes */
 
  return(len);
 }

@@ -27,15 +27,15 @@ url             ({alphanum}|{nonascii}|{safepunct})+
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/html.l 2.84 2003/09/06 12:55:06 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/html.l 2.89 2006/02/15 18:42:17 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Parse the HTML and look for the images, links and other things.
   ******************/ /******************
   Written by Andrew M. Bishop
   Object and Parameter handling by Walter Pfannenmller
 
-  This file Copyright 1997,98,99,2000,01,02,03 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -83,8 +83,6 @@ url             ({alphanum}|{nonascii}|{safepunct})+
 
 typedef enum _HTMLTags
 {
- tag_simple    = 0  /* Simple tags, processed attribute by attribute. */,
-
  tag_a         = 0  /* "a"          */ ,
  tag_area      = 1  /* "area"       */ ,
  tag_base      = 2  /* "base"       */ ,
@@ -98,25 +96,26 @@ typedef enum _HTMLTags
  tag_ins       =10  /* "ins"        */ ,
  tag_q         =11  /* "q"          */ ,
  tag_script    =12  /* "script"     */ ,
+ tag_td        =13  /* "td"         */ ,
 
- tag_complex   =13  /* Complex tags, stored and processed as a whole. */,
+ tag_complex   =14  /* Complex tags, stored and processed as a whole. */,
 
- tag_img       =13  /* "img"        */ ,
- tag_applet    =14  /* "applet"     */ ,
- tag_embed     =15  /* "embed"      */ ,
- tag_link      =16  /* "link"       */ ,
- tag_meta      =17  /* "meta"       */ ,
- tag_object    =18  /* "object"     */ ,
- tag_param     =19  /* "param"      */ ,
- tag_xml       =20  /* "xml"        */ ,
+ tag_applet    =15  /* "applet"     */ ,
+ tag_embed     =16  /* "embed"      */ ,
+ tag_img       =17  /* "img"        */ ,
+ tag_link      =18  /* "link"       */ ,
+ tag_meta      =19  /* "meta"       */ ,
+ tag_object    =20  /* "object"     */ ,
+ tag_param     =21  /* "param"      */ ,
+ tag_xml       =22  /* "xml"        */ ,
 
- tag_ntags     =21
+ tag_ntags     =23
 }
 HTMLTags;
 
 /*+ Tag strings +*/
 
-static char *tags[]=
+static const char* const tags[]=
 {
  /* tag_a         = 0  */ "a"           ,
  /* tag_area      = 1  */ "area"        ,
@@ -131,15 +130,18 @@ static char *tags[]=
  /* tag_ins       =10  */ "ins"         ,
  /* tag_q         =11  */ "q"           ,
  /* tag_script    =12  */ "script"      ,
+ /* tag_td        =13  */ "td"          ,
 
- /* tag_img       =13  */ "img"         ,
- /* tag_applet    =14  */ "applet"      ,
- /* tag_embed     =15  */ "embed"       ,
- /* tag_link      =16  */ "link"        ,
- /* tag_meta      =17  */ "meta"        ,
- /* tag_object    =18  */ "object"      ,
- /* tag_param     =19  */ "param"       ,
- /* tag_xml       =20  */ "xml"         
+ /* tag_complex   =14  */ ""            ,
+
+ /* tag_applet    =15  */ "applet"      ,
+ /* tag_embed     =16  */ "embed"       ,
+ /* tag_img       =17  */ "img"         ,
+ /* tag_link      =18  */ "link"        ,
+ /* tag_meta      =19  */ "meta"        ,
+ /* tag_object    =20  */ "object"      ,
+ /* tag_param     =21  */ "param"       ,
+ /* tag_xml       =22  */ "xml"
 };
 
 /*+ Attribute types +*/
@@ -155,20 +157,20 @@ typedef enum _HTMLAttributes
  att_codetype  = 6  /* "codetype"   */ ,
  att_content   = 7  /* "content"    */ ,
  att_data      = 8  /* "data"       */ ,
- att_href      = 9  /* "href"       */ ,
- att_http_equiv=10  /* "http-equiv" */ ,
- att_longdesc  =11  /* "longdesc"   */ ,
- att_name      =12  /* "name"       */ ,
- att_object    =13  /* "object"     */ ,
- att_profile   =14  /* "profile"    */ ,
- att_rel       =15  /* "rel"        */ ,
- att_src       =16  /* "src"        */ ,
- att_type      =17  /* "type"       */ ,
- att_usemap    =18  /* "usemap"     */ ,
- att_value     =19  /* "value"      */ ,
- att_valuetype =20  /* "valuetype"  */ ,
- att_width     =21  /* "width"      */ ,
- att_height    =22  /* "height"     */ ,
+ att_height    = 9  /* "height"     */ ,
+ att_href      =10  /* "href"       */ ,
+ att_http_equiv=11  /* "http-equiv" */ ,
+ att_longdesc  =12  /* "longdesc"   */ ,
+ att_name      =13  /* "name"       */ ,
+ att_object    =14  /* "object"     */ ,
+ att_profile   =15  /* "profile"    */ ,
+ att_rel       =16  /* "rel"        */ ,
+ att_src       =17  /* "src"        */ ,
+ att_type      =18  /* "type"       */ ,
+ att_usemap    =19  /* "usemap"     */ ,
+ att_value     =20  /* "value"      */ ,
+ att_valuetype =21  /* "valuetype"  */ ,
+ att_width     =22  /* "width"      */ ,
 
  att_natts     =23
 }
@@ -176,7 +178,7 @@ HTMLAttributes;
 
 /*+ Attribute strings. +*/
 
-static char *attributes[]=
+static const char* const attributes[]=
 {
  /* att_archive   = 0 */  "archive"     ,
  /* att_background= 1 */  "background"  ,
@@ -187,20 +189,20 @@ static char *attributes[]=
  /* att_codetype  = 6 */  "codetype"    ,
  /* att_content   = 7 */  "content"     ,
  /* att_data      = 8 */  "data"        ,
- /* att_href      = 9 */  "href"        ,
- /* att_http_equiv=10 */  "http-equiv"  ,
- /* att_longdesc  =11 */  "longdesc"    ,
- /* att_name      =12 */  "name"        ,
- /* att_object    =13 */  "object"      ,
- /* att_profile   =14 */  "profile"     ,
- /* att_rel       =15 */  "rel"         ,
- /* att_src       =16 */  "src"         ,
- /* att_type      =17 */  "type"        ,
- /* att_usemap    =18 */  "usemap"      ,
- /* att_value     =19 */  "value"       ,
- /* att_valuetype =20 */  "valuetype"   ,
- /* att_width     =21 */  "width"       ,
- /* att_height    =22 */  "height"      
+ /* att_height    = 9 */  "height"      ,
+ /* att_href      =10 */  "href"        ,
+ /* att_http_equiv=11 */  "http-equiv"  ,
+ /* att_longdesc  =12 */  "longdesc"    ,
+ /* att_name      =13 */  "name"        ,
+ /* att_object    =14 */  "object"      ,
+ /* att_profile   =15 */  "profile"     ,
+ /* att_rel       =16 */  "rel"         ,
+ /* att_src       =17 */  "src"         ,
+ /* att_type      =18 */  "type"        ,
+ /* att_usemap    =19 */  "usemap"      ,
+ /* att_value     =20 */  "value"       ,
+ /* att_valuetype =21 */  "valuetype"   ,
+ /* att_width     =22 */  "width"
 };
 
 /*+ A structure to hold a tag and its attributes. +*/
@@ -234,17 +236,8 @@ static void handle_meta_tag(Tag *tag);
 static void handle_img_tag(Tag *tag,int fetch_webbug_images);
 
 
-/*+ The refresh content of a Meta tag. +*/
-static /*@null@*/ char *meta_refresh=NULL;
-
-/*+ The content of a Base tag. +*/
-static /*@null@*/ char *base_url=NULL;
-
 /*+ The file descriptor that we are reading from. +*/
 static int html_yyfd=-1;
-
-/*+ The base URL of this page. +*/
-static /*@null@*/ URL *baseUrl=NULL;
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -261,15 +254,6 @@ void ParseHTML(int fd,URL *Url)
 
  PrintMessage(Debug,"Parsing document using HTML parser.");
 
- baseUrl=Url;
- base_url=NULL;
-
- SetBaseURL(baseUrl);
-
- if(meta_refresh)
-    free(meta_refresh);
- meta_refresh=NULL;
-
  html_yyfd=fd;
 
  if(!first)
@@ -277,35 +261,7 @@ void ParseHTML(int fd,URL *Url)
 
  parse_html(Url);
 
- if(base_url)
-   {
-    baseUrl=SplitURL(base_url);
-    SetBaseURL(baseUrl);
-   }
-
  first=0;
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Return the URL from the Meta Refresh tag if there is one.
-
-  char *MetaRefresh Returns the new URL or NULL if none.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-char *MetaRefresh(void)
-{
- if(meta_refresh)
-   {
-    char *new=LinkURL(baseUrl,meta_refresh);
-    if(new!=meta_refresh)
-      {
-       free(meta_refresh);
-       meta_refresh=new;
-      }
-   }
-
- return(meta_refresh);
 }
 
 
@@ -406,8 +362,8 @@ static void handle_object_tag(Tag *tag,int fetch_webbug_images)
  /* Check for images. */
 
  for(i=0;i<tag->nattr;i++)
-    if((tag->attr_type[i]==att_codetype && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"image",5)) ||
-       (tag->attr_type[i]==att_type && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"image",5)))
+    if((tag->attr_type[i]==att_codetype && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"image",(size_t)5)) ||
+       (tag->attr_type[i]==att_type && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"image",(size_t)5)))
        is_image=1;
     else if(tag->attr_type[i]==att_width && tag->attr_val[i])
        width=atoi(tag->attr_val[i]);
@@ -450,9 +406,9 @@ static void handle_object_tag(Tag *tag,int fetch_webbug_images)
        else if(tag->attr_type[i]==att_data)     {uri=tag->attr_val[i];}
        else if(tag->attr_type[i]==att_classid)
          {
-          if(!strncasecmp(tag->attr_val[i],"java:",5))       {uri=tag->attr_val[i]+5; is_java=1;}
-          else if(!strncasecmp(tag->attr_val[i],"clsid:",6)) {uri=tag->attr_val[i]+6;}
-          else if(strncasecmp(tag->attr_val[i],"data:",5))   {uri=tag->attr_val[i];}
+          if(!strncasecmp(tag->attr_val[i],"java:",(size_t)5))       {uri=tag->attr_val[i]+5; is_java=1;}
+          else if(!strncasecmp(tag->attr_val[i],"clsid:",(size_t)6)) {uri=tag->attr_val[i]+6;}
+          else if(strncasecmp(tag->attr_val[i],"data:",(size_t)5))   {uri=tag->attr_val[i];}
          }
       }
 
@@ -519,12 +475,14 @@ static void handle_link_tag(Tag *tag,int fetch_icon_images)
  int is_stylesheet=0,is_icon=0;
 
  for(i=0;i<tag->nattr;i++)
-    if(tag->attr_type[i]==att_rel && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"Stylesheet",10))
+    if(tag->attr_type[i]==att_rel && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"Stylesheet",(size_t)10))
        is_stylesheet=1;
 
  if(fetch_icon_images)
     for(i=0;i<tag->nattr;i++)
-       if(tag->attr_type[i]==att_rel && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"Shortcut Icon",10))
+       if(tag->attr_type[i]==att_rel && tag->attr_val[i] &&
+          (!strncasecmp(tag->attr_val[i],"Shortcut Icon",(size_t)10) ||
+           !strncasecmp(tag->attr_val[i],"Icon",(size_t)4)))
           is_icon=1;
 
  for(i=0;i<tag->nattr;i++)
@@ -552,7 +510,7 @@ static void handle_meta_tag(Tag *tag)
  int is_meta_http_equiv_refresh=0;
 
  for(i=0;i<tag->nattr;i++)
-    if(tag->attr_type[i]==att_http_equiv && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"Refresh",7))
+    if(tag->attr_type[i]==att_http_equiv && tag->attr_val[i] && !strncasecmp(tag->attr_val[i],"Refresh",(size_t)7))
        is_meta_http_equiv_refresh=1;
 
  if(is_meta_http_equiv_refresh)
@@ -581,7 +539,7 @@ static void handle_meta_tag(Tag *tag)
                {
                 p++;
                 while(isspace(*p)) p++;
-                if(!strncasecmp(p,"URL",3))
+                if(!strncasecmp(p,"URL",(size_t)3))
                   {
                    p+=3;
                    while(isspace(*p)) p++;
@@ -595,10 +553,7 @@ static void handle_meta_tag(Tag *tag)
                    if(!*p)
                       ; /* unparseable */
                    else
-                     {
-                      meta_refresh=(char*)malloc(strlen(p)+1);
-                      strcpy(meta_refresh,p);
-                     }
+                      AddReference(p,RefMetaRefresh);
                   }
                }
             }
@@ -661,8 +616,8 @@ static void parse_html(URL *Url)
  tagdata.type=tag_ntags;
  tagdata.nattr=0;
  tagdata.nattr_malloc=16;
- tagdata.attr_type=(int*)calloc(16,sizeof(int));
- tagdata.attr_val=(char**)calloc(16,sizeof(char*));
+ tagdata.attr_type=(int*)calloc((size_t)16,sizeof(int));
+ tagdata.attr_val=(char**)calloc((size_t)16,sizeof(char*));
 
  /* The actual parser. */
 
@@ -739,7 +694,7 @@ static void parse_html(URL *Url)
           ref=RefFrame;
        else if(key==att_cite && (tag==tag_q || tag==tag_blockquote || tag==tag_ins || tag==tag_del))
           ref=RefLink;
-       else if(key==att_background && tag==tag_body)
+       else if(key==att_background && (tag==tag_body || tag==tag_td))
           ref=RefImage;
        else if(key==att_longdesc && (tag==tag_frame || tag==tag_iframe || tag==tag_img))
           ref=RefLink;
@@ -754,11 +709,11 @@ static void parse_html(URL *Url)
        /* Other simple ones using a single attribute. */
 
        else if(key==att_href && tag==tag_base && html_yylval!=NULL)
-         {base_url=(char*)malloc(strlen(html_yylval)+1); strcpy(base_url,html_yylval);}
+          AddReference(html_yylval,RefBaseUrl);
 
        /* More complicated ones that depend on other attributes are stored and done later. */
 
-       if(tag>=tag_complex)
+       if(tag>tag_complex)
          {
           if(tagdata.nattr==tagdata.nattr_malloc)
             {

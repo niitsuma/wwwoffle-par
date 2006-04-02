@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/io.c 2.41 2004/01/17 16:29:37 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/io.c 2.54 2006/01/20 19:01:29 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Functions for file input and output.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -48,7 +48,10 @@
 
 
 /*+ The buffer size for reading lines. +*/
-#define LINE_BUFFER_SIZE 128
+#define LINE_BUFFER_SIZE  256
+
+/*+ The buffer size for write accumulation (use same size as MIN_CHUNK_SIZE). +*/
+#define WRITE_BUFFER_SIZE (IO_BUFFER_SIZE/4)
 
 
 /*+ The number of IO contexts allocated. +*/
@@ -58,12 +61,15 @@ static int nio=0;
 static /*@only@*/ io_context **io_contexts;
 
 
-/*+ The chunked encoding/compression error number. +*/
+/*+ The IO functions error number. +*/
 int io_errno=0;
 
-/*+ The chunked encoding/compression error message string. +*/
+/*+ The IO functions error message string. +*/
 char /*@null@*/ *io_strerror=NULL;
 
+
+static void change_buffers(io_context *context,int change_buffers_r,int change_buffers_w);
+static int io_write_data(int fd,io_context *context,io_buffer *iobuffer);
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -92,7 +98,7 @@ void init_io(int fd)
  if(io_contexts[fd])
     PrintMessage(Fatal,"IO: Function init_io(%d) was called twice without calling finish_io(%d).",fd,fd);
 
- io_contexts[fd]=(io_context*)calloc(1,sizeof(io_context));
+ io_contexts[fd]=(io_context*)calloc((size_t)1,sizeof(io_context));
 }
 
 
@@ -124,9 +130,8 @@ void reinit_io(int fd)
 
  if(context->r_line_data)
    {
-    free(context->r_line_data);
+    destroy_io_buffer(context->r_line_data);
     context->r_line_data=NULL;
-    context->r_line_data_len=0;
    }
 
  context->r_raw_bytes=0;
@@ -135,221 +140,310 @@ void reinit_io(int fd)
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Configure the IO context used for this file descriptor when reading.
+  Configure the timeout in the IO context used for this file descriptor.
 
   int fd The file descriptor.
 
-  int timeout The read timeout or 0 for none or -1 to keep the same.
+  int timeout_r The read timeout or 0 for none or -1 to leave unchanged.
 
-  int zlib The flag to indicate the new zlib compression method.
-
-  int chunked The flag to indicate the new chunked encoding method.
+  int timeout_w The write timeout or 0 for none or -1 to leave unchanged.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void configure_io_read(int fd,int timeout,int zlib,int chunked)
+void configure_io_timeout(int fd,int timeout_r,int timeout_w)
 {
  io_context *context;
- int change_buffers=0;
 
  if(fd==-1)
-    PrintMessage(Fatal,"IO: Function configure_io_read(%d) was called with an invalid argument.",fd);
+    PrintMessage(Fatal,"IO: Function configure_io_timeout(%d) was called with an invalid argument.",fd);
 
  if(nio<=fd || !io_contexts[fd])
-    PrintMessage(Fatal,"IO: Function configure_io_read(%d) was called without calling init_io(%d) first.",fd,fd);
+    PrintMessage(Fatal,"IO: Function configure_io_timeout(%d) was called without calling init_io(%d) first.",fd,fd);
 
  context=io_contexts[fd];
 
- /* Set the timeout */
+ /* Set the timeouts */
 
- if(timeout>=0)
-    context->r_timeout=timeout;
+ if(timeout_r>=0)
+    context->r_timeout=timeout_r;
 
- /* Create the zlib decompression context */
+ if(timeout_w>=0)
+    context->w_timeout=timeout_w;
+}
 
- if(zlib<0)
-    ;
- else if(zlib && !context->r_zlib_context)
+
+#if USE_ZLIB
+
+/*++++++++++++++++++++++++++++++++++++++
+  Configure the compression option for the IO context used for this file descriptor.
+
+  int fd The file descriptor.
+
+  int zlib_r The flag to indicate the new zlib compression method for reading or -1 to leave unchanged.
+
+  int zlib_w The flag to indicate the new zlib compression method for writing or -1 to leave unchanged.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+void configure_io_zlib(int fd,int zlib_r,int zlib_w)
+{
+ io_context *context;
+ int change_buffers_r=0,change_buffers_w=0;
+
+ if(fd==-1)
+    PrintMessage(Fatal,"IO: Function configure_io_zlib(%d) was called with an invalid argument.",fd);
+
+ if(nio<=fd || !io_contexts[fd])
+    PrintMessage(Fatal,"IO: Function configure_io_zlib(%d) was called without calling init_io(%d) first.",fd,fd);
+
+ context=io_contexts[fd];
+
+ /* Create the zlib decompression context for reading */
+
+ if(zlib_r>=0)
    {
-    context->r_zlib_context=io_init_zlib_uncompress(zlib);
-    if(!context->r_zlib_context)
-       PrintMessage(Fatal,"IO: Could not initialise zlib uncompression; [%!s].");
-    change_buffers=1;
+    if(zlib_r && !context->r_zlib_context)
+      {
+       context->r_zlib_context=io_init_zlib_uncompress(zlib_r);
+       if(!context->r_zlib_context)
+          PrintMessage(Fatal,"IO: Could not initialise zlib uncompression; [%!s].");
+       change_buffers_r=1;
+      }
+    else if(!zlib_r && context->r_zlib_context)
+      {
+       /* FIXME
+          Stop decoding ready to read more non-compressed data
+          Difficult because two possible encoding types, zlib and chunked,
+          cannot finish one without finishing the other, what about wrong order?
+          Should call finish_io() and then init_io() in this case?
+          Getting here should be a fatal error?
+          Currently does nothing to allow finish_io() to work.
+          FIXME */
+      }
    }
- else if(!zlib && context->r_zlib_context)
+
+ /* Create the zlib compression context for writing */
+
+ if(zlib_w>=0)
    {
-    /* FIXME
-       Stop decoding ready to read more non-compressed data
-       Difficult because two possible encoding types, zlib and chunked,
-       cannot finish one without finishing the other, what about wrong order?
-       Should call finish_io() and then init_io() in this case?
-       Getting here should be a fatal error?
-       Currently does nothing to allow finish_io() to work.
-       FIXME */
+    if(zlib_w && !context->w_zlib_context)
+      {
+       context->w_zlib_context=io_init_zlib_compress(zlib_w);
+       if(!context->w_zlib_context)
+          PrintMessage(Fatal,"IO: Could not initialise zlib compression; [%!s].");
+       change_buffers_w=1;
+      }
+    else if(!zlib_w && context->w_zlib_context)
+      {
+       /* FIXME
+          Stop compressing ready to write more non-compressed data
+          Difficult because two possible encoding types, zlib and chunked,
+          cannot finish one without finishing the other, what about wrong order?
+          Should call finish_io() and then init_io() in this case?
+          Getting here should be a fatal error?
+          Currently does nothing to allow finish_io() to work.
+          FIXME */
+      }
    }
 
- /* Create the chunked decoding context */
+ change_buffers(context,change_buffers_r,change_buffers_w);
+}
 
- if(chunked<0)
-    ;
- else if(chunked && !context->r_chunk_context)
+#endif /* USE_ZLIB */
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Configure the chunked encoding/decoding for the IO context used for this file descriptor.
+
+  int fd The file descriptor.
+
+  int chunked_r The flag to indicate the new chunked encoding method for reading or -1 to leave unchanged.
+
+  int chunked_w The flag to indicate the new chunked encoding method for writing or -1 to leave unchanged.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+void configure_io_chunked(int fd,int chunked_r,int chunked_w)
+{
+ io_context *context;
+ int change_buffers_r=0,change_buffers_w=0;
+
+ if(fd==-1)
+    PrintMessage(Fatal,"IO: Function configure_io_chunked(%d) was called with an invalid argument.",fd);
+
+ if(nio<=fd || !io_contexts[fd])
+    PrintMessage(Fatal,"IO: Function configure_io_chunked(%d) was called without calling init_io(%d) first.",fd,fd);
+
+ context=io_contexts[fd];
+
+ /* Create the chunked decoding context for reading */
+
+ if(chunked_r>=0)
    {
-    context->r_chunk_context=io_init_chunk_decode();
-    if(!context->r_chunk_context)
-       PrintMessage(Fatal,"IO: Could not initialise chunked decoding; [%!s].");
-    change_buffers=1;
+    if(chunked_r && !context->r_chunk_context)
+      {
+       context->r_chunk_context=io_init_chunk_decode();
+       if(!context->r_chunk_context)
+          PrintMessage(Fatal,"IO: Could not initialise chunked decoding; [%!s].");
+       change_buffers_r=1;
+      }
+    else if(!chunked_r && context->r_chunk_context)
+      {
+       /* FIXME
+          Stop decoding ready to read more non-chunked data
+          Difficult because two possible encoding types, zlib and chunked,
+          cannot finish one without finishing the other, what about wrong order?
+          Should call finish_io() and then init_io() in this case?
+          Getting here should be a fatal error?
+          Currently does nothing to allow finish_io() to work.
+          FIXME */
+      }
    }
- else if(!chunked && context->r_chunk_context)
+
+ /* Create the chunked encoding context for writing */
+
+ if(chunked_w>=0)
    {
-    /* FIXME
-       Stop decoding ready to read more non-chunked data
-       Difficult because two possible encoding types, zlib and chunked,
-       cannot finish one without finishing the other, what about wrong order?
-       Should call finish_io() and then init_io() in this case?
-       Getting here should be a fatal error?
-       Currently does nothing to allow finish_io() to work.
-       FIXME */
+    if(chunked_w && !context->w_chunk_context)
+      {
+       context->w_chunk_context=io_init_chunk_encode();
+       if(!context->w_chunk_context)
+          PrintMessage(Fatal,"IO: Could not initialise chunked encoding; [%!s].");
+       change_buffers_w=1;
+      }
+    else if(!chunked_w && context->w_chunk_context)
+      {
+       /* FIXME
+          Stop encoding ready to write more non-chunked data
+          Difficult because two possible encoding types, zlib and chunked,
+          cannot finish one without finishing the other, what about wrong order?
+          Should call finish_io() and then init_io() in this case?
+          Getting here should be a fatal error?
+          Currently does nothing to allow finish_io() to work.
+          FIXME */
+      }
    }
 
- /* Change the buffers */
+ change_buffers(context,change_buffers_r,change_buffers_w);
+}
 
- if(change_buffers)
+
+#if USE_GNUTLS
+
+/*++++++++++++++++++++++++++++++++++++++
+  Configure the encryption in the IO context used for this file descriptor.
+
+  int configure_io_gnutls returns 0 if OK or an error code.
+
+  int fd The file descriptor to configure.
+
+  const char *host The name of the server to serve as or NULL for a client.
+
+  int type A flag set to 0 for client connection, 1 for built-in server or 2 for a fake server.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+int configure_io_gnutls(int fd,const char *host,int type)
+{
+ io_context *context;
+
+ if(fd==-1)
+    PrintMessage(Fatal,"IO: Function configure_io_gnutls(%d) was called with an invalid argument.",fd);
+
+ if(nio<=fd || !io_contexts[fd])
+    PrintMessage(Fatal,"IO: Function configure_io_gnutls(%d) was called without calling init_io(%d) first.",fd,fd);
+
+ context=io_contexts[fd];
+
+ /* Initialise the GNUTLS context information. */
+
+ context->gnutls_context=io_init_gnutls(fd,host,type);
+
+ if(!context->gnutls_context)
+    return(1);
+
+ return(0);
+}
+
+#endif
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Change the buffers when the zlib or chunked encoding state changes.
+
+  io_context *context The IO context to modify.
+
+  int change_buffers_r A flag to indicate that the read buffers need changing.
+
+  int change_buffers_w A flag to indicate that the write buffers need changing.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+void change_buffers(io_context *context,int change_buffers_r,int change_buffers_w)
+{
+ /* Change the read buffers */
+
+ if(change_buffers_r)
    {
+#if USE_ZLIB
     if(context->r_zlch_data)
        destroy_io_buffer(context->r_zlch_data);
+#endif /* USE_ZLIB */
 
     if(context->r_file_data)
        destroy_io_buffer(context->r_file_data);
 
-    if(!context->r_chunk_context && !context->r_zlib_context)
+#if USE_ZLIB
+    if(!context->r_zlib_context)
       {
        context->r_zlch_data=NULL;
-       context->r_file_data=NULL;
+#endif
+       if(!context->r_chunk_context)
+          context->r_file_data=NULL;
+       else /* if(context->r_chunk_context) */
+          context->r_file_data=create_io_buffer(IO_BUFFER_SIZE);
+#if USE_ZLIB
       }
-    else if(context->r_chunk_context && !context->r_zlib_context)
+    else /* if(context->r_zlib_context) */
       {
-       context->r_zlch_data=NULL;
-       context->r_file_data=create_io_buffer(READ_BUFFER_SIZE);
+       if(!context->r_chunk_context)
+          context->r_zlch_data=NULL;
+       else /* if(context->r_chunk_context) */
+          context->r_zlch_data=create_io_buffer(IO_BUFFER_SIZE);
+
+       context->r_file_data=create_io_buffer(IO_BUFFER_SIZE);
       }
-    else if(!context->r_chunk_context && context->r_zlib_context)
-      {
-       context->r_zlch_data=NULL;
-       context->r_file_data=create_io_buffer(READ_BUFFER_SIZE);
-      }
-    else /* if(context->r_chunk_context && context->r_zlib_context) */
-      {
-       context->r_zlch_data=create_io_buffer(READ_BUFFER_SIZE);
-       context->r_file_data=create_io_buffer(READ_BUFFER_SIZE);
-      }
-   }
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Configure the IO context used for this file descriptor when writing.
-
-  int fd The file descriptor.
-
-  int timeout The write timeout or 0 for none or -1 to keep the same.
-
-  int zlib The flag to indicate the new zlib compression method.
-
-  int chunked The flag to indicate the new chunked encoding method.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-void configure_io_write(int fd,int timeout,int zlib,int chunked)
-{
- io_context *context;
- int change_buffers=0;
-
- if(fd==-1)
-    PrintMessage(Fatal,"IO: Function configure_io_write(%d) was called with an invalid argument.",fd);
-
- if(nio<=fd || !io_contexts[fd])
-    PrintMessage(Fatal,"IO: Function configure_io_write(%d) was called without calling init_io(%d) first.",fd,fd);
-
- context=io_contexts[fd];
-
- /* Set the timeout */
-
- if(timeout>=0)
-    context->w_timeout=timeout;
-
- /* Create the zlib compression context */
-
- if(zlib<0)
-    ;
- else if(zlib && !context->w_zlib_context)
-   {
-    context->w_zlib_context=io_init_zlib_compress(zlib);
-    if(!context->w_zlib_context)
-       PrintMessage(Fatal,"IO: Could not initialise zlib compression; [%!s].");
-    change_buffers=1;
-   }
- else if(!zlib && context->w_zlib_context)
-   {
-    /* FIXME
-       Stop compressing ready to write more non-compressed data
-       Difficult because two possible encoding types, zlib and chunked,
-       cannot finish one without finishing the other, what about wrong order?
-       Should call finish_io() and then init_io() in this case?
-       Getting here should be a fatal error?
-       Currently does nothing to allow finish_io() to work.
-       FIXME */
+#endif /* USE_ZLIB */
    }
 
- /* Create the chunked encoding context */
+ /* Change the write buffers */
 
- if(chunked<0)
-    ;
- else if(chunked && !context->w_chunk_context)
+ if(change_buffers_w)
    {
-    context->w_chunk_context=io_init_chunk_encode();
-    if(!context->w_chunk_context)
-       PrintMessage(Fatal,"IO: Could not initialise chunked encoding; [%!s].");
-    change_buffers=1;
-   }
- else if(!chunked && context->w_chunk_context)
-   {
-    /* FIXME
-       Stop encoding ready to write more non-chunked data
-       Difficult because two possible encoding types, zlib and chunked,
-       cannot finish one without finishing the other, what about wrong order?
-       Should call finish_io() and then init_io() in this case?
-       Getting here should be a fatal error?
-       Currently does nothing to allow finish_io() to work.
-       FIXME */
-   }
-
- /* Create the buffers */
-
- if(change_buffers)
-   {
+#if USE_ZLIB
     if(context->w_zlch_data)
        destroy_io_buffer(context->w_zlch_data);
+#endif /* USE_ZLIB */
 
     if(context->w_file_data)
        destroy_io_buffer(context->w_file_data);
 
-    if(!context->w_chunk_context && !context->w_zlib_context)
+#if USE_ZLIB
+    if(!context->w_zlib_context)
       {
        context->w_zlch_data=NULL;
-       context->w_file_data=NULL;
+#endif
+       if(!context->w_chunk_context)
+          context->w_file_data=NULL;
+       else /* if(context->w_chunk_context) */
+          context->w_file_data=create_io_buffer(IO_BUFFER_SIZE+16);
+#if USE_ZLIB
       }
-    else if(context->w_chunk_context && !context->w_zlib_context)
+    else /* if(context->w_zlib_context) */
       {
-       context->w_zlch_data=NULL;
-       context->w_file_data=create_io_buffer(READ_BUFFER_SIZE);
+       if(!context->w_chunk_context)
+          context->w_zlch_data=NULL;
+       else /* if(context->w_chunk_context) */
+          context->w_zlch_data=create_io_buffer(IO_BUFFER_SIZE);
+
+       context->w_file_data=create_io_buffer(IO_BUFFER_SIZE+16);
       }
-    else if(!context->w_chunk_context && context->w_zlib_context)
-      {
-       context->w_zlch_data=NULL;
-       context->w_file_data=create_io_buffer(READ_BUFFER_SIZE+16);
-      }
-    else /* if(context->w_chunk_context && context->w_zlib_context) */
-      {
-       context->w_zlch_data=create_io_buffer(READ_BUFFER_SIZE);
-       context->w_file_data=create_io_buffer(READ_BUFFER_SIZE+16);
-      }
+#endif /* USE_ZLIB */
    }
 }
 
@@ -357,16 +451,16 @@ void configure_io_write(int fd,int timeout,int zlib,int chunked)
 /*++++++++++++++++++++++++++++++++++++++
   Read data from a file descriptor instead of read().
 
-  int read_data Returns the number of bytes read or 0 for end of file.
+  ssize_t read_data Returns the number of bytes read or 0 for end of file.
 
   int fd The file descriptor.
 
   char *buffer The buffer to put the data into.
 
-  int n The maximum number of bytes to read.
+  size_t n The maximum number of bytes to read.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int read_data(int fd,char *buffer,int n)
+ssize_t read_data(int fd,char *buffer,size_t n)
 {
  io_context *context;
  int err=0,nr=0;
@@ -388,82 +482,113 @@ int read_data(int fd,char *buffer,int n)
 
  /* Finish the line data if there is any */
 
- if(context->r_line_data_len)
+ if(context->r_line_data && context->r_line_data->length)
    {
-    if(!context->r_chunk_context && !context->r_zlib_context)
-      {
-       if(iobuffer.size>context->r_line_data_len)
+#if USE_ZLIB
+    if(!context->r_zlib_context)
+#endif
+       if(!context->r_chunk_context)
          {
-          memcpy(iobuffer.data,context->r_line_data,context->r_line_data_len);
-          iobuffer.length+=context->r_line_data_len;
-          context->r_line_data_len=0;
-         }
-       else
-         {
-          memcpy(iobuffer.data,context->r_line_data,iobuffer.size);
-          iobuffer.length+=iobuffer.size;
-          memmove(context->r_line_data,context->r_line_data+iobuffer.size,context->r_line_data_len-iobuffer.size);
-          context->r_line_data_len-=iobuffer.size;
+          if(iobuffer.size>context->r_line_data->length)
+            {
+             memcpy(iobuffer.data,context->r_line_data->data,context->r_line_data->length);
+             iobuffer.length+=context->r_line_data->length;
+             context->r_line_data->length=0;
+            }
+          else
+            {
+             memcpy(iobuffer.data,context->r_line_data->data,iobuffer.size);
+             iobuffer.length+=iobuffer.size;
+             memmove(context->r_line_data->data,context->r_line_data->data+iobuffer.size,context->r_line_data->length-iobuffer.size);
+             context->r_line_data->length-=iobuffer.size;
+            }
+
+          return(iobuffer.length);
          }
 
-       return(iobuffer.length);
-      }
-    else
-      {
-       memcpy(context->r_file_data->data,context->r_line_data,context->r_line_data_len);
-       context->r_file_data->length+=context->r_line_data_len;
-       context->r_line_data_len=0;
-      }
+    memcpy(context->r_file_data->data,context->r_line_data->data,context->r_line_data->length);
+    context->r_file_data->length+=context->r_line_data->length;
+    context->r_line_data->length=0;
    }
 
  /* Read in new data */
 
- if(!context->r_chunk_context && !context->r_zlib_context)
+#if USE_ZLIB
+ if(!context->r_zlib_context)
    {
-    nr=io_read_with_timeout(fd,&iobuffer,context->r_timeout);
-    if(nr>0) context->r_raw_bytes+=nr;
-   }
- else if(context->r_chunk_context && !context->r_zlib_context)
-   {
-    do
+#endif
+    if(!context->r_chunk_context)
       {
-       err=io_read_with_timeout(fd,context->r_file_data,context->r_timeout);
-       if(err>0) context->r_raw_bytes+=err;
-       if(err<0) break;
-       err=io_chunk_decode(context->r_file_data,context->r_chunk_context,&iobuffer);
-       if(err<0 || err==1) break;
+#if USE_GNUTLS
+       if(context->gnutls_context)
+          nr=io_gnutls_read_with_timeout(context->gnutls_context,&iobuffer,context->r_timeout);
+       else
+#endif
+          nr=io_read_with_timeout(fd,&iobuffer,context->r_timeout);
+       if(nr>0) context->r_raw_bytes+=nr;
       }
-    while(iobuffer.length==0);
-    nr=iobuffer.length;
-   }
- else if(!context->r_chunk_context && context->r_zlib_context)
-   {
-    do
+    else /* if(context->r_chunk_context) */
       {
-       err=io_read_with_timeout(fd,context->r_file_data,context->r_timeout);
-       if(err>0) context->r_raw_bytes+=err;
-       if(err<0) break;
-       err=io_zlib_uncompress(context->r_file_data,context->r_zlib_context,&iobuffer);
-       if(err<0 || err==1) break;
+       do
+         {
+#if USE_GNUTLS
+          if(context->gnutls_context)
+             err=io_gnutls_read_with_timeout(context->gnutls_context,context->r_file_data,context->r_timeout);
+          else
+#endif
+             err=io_read_with_timeout(fd,context->r_file_data,context->r_timeout);
+          if(err>0) context->r_raw_bytes+=err;
+          if(err<0) break;
+          err=io_chunk_decode(context->r_file_data,context->r_chunk_context,&iobuffer);
+          if(err<0 || err==1) break;
+         }
+       while(iobuffer.length==0);
+       nr=iobuffer.length;
       }
-    while(iobuffer.length==0);
-    nr=iobuffer.length;
+#if USE_ZLIB
    }
- else /* if(context->r_chunk_context && context->r_zlib_context) */
+ else /* if(context->r_zlib_context) */
    {
-    do
+    if(!context->r_chunk_context)
       {
-       err=io_read_with_timeout(fd,context->r_file_data,context->r_timeout);
-       if(err>0) context->r_raw_bytes+=err;
-       if(err<0) break;
-       err=io_chunk_decode(context->r_file_data,context->r_chunk_context,context->r_zlch_data);
-       if(err<0) break;
-       err=io_zlib_uncompress(context->r_zlch_data,context->r_zlib_context,&iobuffer);
-       if(err<0 || err==1) break;
+       do
+         {
+#if USE_GNUTLS
+          if(context->gnutls_context)
+             err=io_gnutls_read_with_timeout(context->gnutls_context,context->r_file_data,context->r_timeout);
+          else
+#endif
+             err=io_read_with_timeout(fd,context->r_file_data,context->r_timeout);
+          if(err>0) context->r_raw_bytes+=err;
+          if(err<0) break;
+          err=io_zlib_uncompress(context->r_file_data,context->r_zlib_context,&iobuffer);
+          if(err<0 || err==1) break;
+         }
+       while(iobuffer.length==0);
+       nr=iobuffer.length;
       }
-    while(iobuffer.length==0);
-    nr=iobuffer.length;
+    else /* if(context->r_chunk_context) */
+      {
+       do
+         {
+#if USE_GNUTLS
+          if(context->gnutls_context)
+             err=io_gnutls_read_with_timeout(context->gnutls_context,context->r_file_data,context->r_timeout);
+          else
+#endif
+             err=io_read_with_timeout(fd,context->r_file_data,context->r_timeout);
+          if(err>0) context->r_raw_bytes+=err;
+          if(err<0) break;
+          err=io_chunk_decode(context->r_file_data,context->r_chunk_context,context->r_zlch_data);
+          if(err<0) break;
+          err=io_zlib_uncompress(context->r_zlch_data,context->r_zlib_context,&iobuffer);
+          if(err<0 || err==1) break;
+         }
+       while(iobuffer.length==0);
+       nr=iobuffer.length;
+      }
    }
+#endif /* USE_ZLIB */
 
  if(err<0)
     return(err);
@@ -486,7 +611,7 @@ char *read_line(int fd,char *line)
 {
  io_context *context;
  int found=0,eof=0;
- int n=0;
+ size_t n=0;
 
  if(fd==-1)
     PrintMessage(Fatal,"IO: Function read_line(%d) was called with an invalid argument.",fd);
@@ -499,10 +624,7 @@ char *read_line(int fd,char *line)
  /* Create the temporary line buffer if there is not one */
 
  if(!context->r_line_data)
-   {
-    context->r_line_data=(char*)malloc(LINE_BUFFER_SIZE+1);
-    context->r_line_data_len=0;
-   }
+    context->r_line_data=create_io_buffer(LINE_BUFFER_SIZE+1);
 
  /* Use the existing data or read in some more */
 
@@ -510,29 +632,29 @@ char *read_line(int fd,char *line)
    {
     line=(char*)realloc((void*)line,n+(LINE_BUFFER_SIZE+1));
 
-    if(context->r_line_data_len>0)
+    if(context->r_line_data->length>0)
       {
-       for(n=0;n<context->r_line_data_len;n++)
-          if(context->r_line_data[n]=='\n')
+       for(n=0;n<context->r_line_data->length;n++)
+          if(context->r_line_data->data[n]=='\n')
             {
              found=1;
              n++;
              break;
             }
 
-       memcpy(line,context->r_line_data,n);
+       memcpy(line,context->r_line_data->data,n);
 
-       if(n==context->r_line_data_len)
-          context->r_line_data_len=0;
+       if(n==context->r_line_data->length)
+          context->r_line_data->length=0;
        else
          {
-          context->r_line_data_len-=n;
-          memmove(context->r_line_data,context->r_line_data+n,context->r_line_data_len);
+          context->r_line_data->length-=n;
+          memmove(context->r_line_data->data,context->r_line_data->data+n,context->r_line_data->length);
          }
       }
     else
       {
-       int nn;
+       ssize_t nn;
        io_buffer iobuffer;
 
        /* FIXME
@@ -544,7 +666,12 @@ char *read_line(int fd,char *line)
        iobuffer.size=LINE_BUFFER_SIZE;
        iobuffer.length=0;
 
-       nn=io_read_with_timeout(fd,&iobuffer,context->r_timeout);
+#if USE_GNUTLS
+       if(context->gnutls_context)
+          nn=io_gnutls_read_with_timeout(context->gnutls_context,&iobuffer,context->r_timeout);
+       else
+#endif
+          nn=io_read_with_timeout(fd,&iobuffer,context->r_timeout);
        if(nn>0) context->r_raw_bytes+=nn;
 
        if(nn<=0)
@@ -562,8 +689,8 @@ char *read_line(int fd,char *line)
 
        if(found)
          {
-          context->r_line_data_len=nn-n;
-          memcpy(context->r_line_data,line+n,context->r_line_data_len);
+          context->r_line_data->length=nn-n;
+          memcpy(context->r_line_data->data,line+n,context->r_line_data->length);
          }
       }
    }
@@ -582,20 +709,19 @@ char *read_line(int fd,char *line)
 /*++++++++++++++++++++++++++++++++++++++
   Write data to a file descriptor instead of write().
 
-  int write_data Returns the number of bytes written.
+  ssize_t write_data Returns the number of bytes written.
 
   int fd The file descriptor.
 
   const char *data The data buffer to write.
 
-  int n The number of bytes to write.
+  size_t n The number of bytes to write.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int write_data(int fd,const char *data,int n)
+ssize_t write_data(int fd,const char *data,size_t n)
 {
  io_context *context;
  io_buffer iobuffer;
- int err=0;
 
  if(fd==-1)
     PrintMessage(Fatal,"IO: Function write_data(%d) was called with an invalid argument.",fd);
@@ -605,76 +731,204 @@ int write_data(int fd,const char *data,int n)
 
  context=io_contexts[fd];
 
+ if(context->w_buffer_data && context->w_buffer_data->length)
+   {
+    int err=io_write_data(fd,context,context->w_buffer_data);
+    if(err<0) return(err);
+   }
+
  /* Create the temporary input buffer */
 
  iobuffer.data=(char*)data;
  iobuffer.size=n;
  iobuffer.length=n;
 
+ return(io_write_data(fd,context,&iobuffer));
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Write data to a file descriptor instead of write() but with buffering.
+
+  ssize_t write_buffer_data Returns the number of bytes written.
+
+  int fd The file descriptor.
+
+  const char *data The data buffer to write.
+
+  size_t n The number of bytes to write.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+ssize_t write_buffer_data(int fd,const char *data,size_t n)
+{
+ io_context *context;
+
+ if(fd==-1)
+    PrintMessage(Fatal,"IO: Function write_buffer_data(%d) was called with an invalid argument.",fd);
+
+ if(nio<=fd || !io_contexts[fd])
+    PrintMessage(Fatal,"IO: Function write_buffer_data(%d) was called without calling init_io(%d) first.",fd,fd);
+
+ context=io_contexts[fd];
+
+ /* Create the temporary write buffer if there is not one */
+
+ if(!context->w_buffer_data)
+    context->w_buffer_data=create_io_buffer(2*WRITE_BUFFER_SIZE);
+
+ if(n<=WRITE_BUFFER_SIZE || (n+context->w_buffer_data->length)<=(2*WRITE_BUFFER_SIZE))
+   {
+    memcpy(context->w_buffer_data->data+context->w_buffer_data->length,data,n);
+    context->w_buffer_data->length+=n;
+
+    if(context->w_buffer_data->length>WRITE_BUFFER_SIZE)
+       return(io_write_data(fd,context,context->w_buffer_data));
+    else
+       return(n);
+   }
+ else
+   {
+    io_buffer iobuffer;
+
+    if(context->w_buffer_data && context->w_buffer_data->length)
+      {
+       int err=io_write_data(fd,context,context->w_buffer_data);
+       if(err<0) return(err);
+      }
+
+    /* Create the temporary input buffer */
+
+    iobuffer.data=(char*)data;
+    iobuffer.size=n;
+    iobuffer.length=n;
+
+    return(io_write_data(fd,context,&iobuffer));
+   }
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  An internal function to actually write the data bypassing the write buffer.
+
+  int io_write_data Returns the number of bytes written.
+
+  int fd The file descriptor to write to.
+
+  io_context *context The IO context to write to.
+
+  io_buffer *iobuffer The buffer of data to write.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+static int io_write_data(int fd,io_context *context,io_buffer *iobuffer)
+{
+ int err=0;
+
  /* Write the output data */
 
- if(!context->w_chunk_context && !context->w_zlib_context)
+#if USE_ZLIB
+ if(!context->w_zlib_context)
    {
-    err=io_write_with_timeout(fd,&iobuffer,context->w_timeout);
-    if(err>0) context->w_raw_bytes+=err;
-   }
- else if(context->w_chunk_context && !context->w_zlib_context)
-   {
-    do
+#endif
+    if(!context->w_chunk_context)
       {
-       err=io_chunk_encode(&iobuffer,context->w_chunk_context,context->w_file_data);
-       if(err<0) break;
-       err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
+#if USE_GNUTLS
+       if(context->gnutls_context)
+          err=io_gnutls_write_with_timeout(context->gnutls_context,iobuffer,context->w_timeout);
+       else
+#endif
+          err=io_write_with_timeout(fd,iobuffer,context->w_timeout);
        if(err>0) context->w_raw_bytes+=err;
-       if(err<0) break;
       }
-    while(iobuffer.length>0);
-   }
- else if(!context->w_chunk_context && context->w_zlib_context)
-   {
-    do
+    else /* if(context->w_chunk_context) */
       {
-       err=io_zlib_compress(&iobuffer,context->w_zlib_context,context->w_file_data);
-       if(err<0) break;
-       err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
-       if(err>0) context->w_raw_bytes+=err;
-       if(err<0) break;
+       do
+         {
+          err=io_chunk_encode(iobuffer,context->w_chunk_context,context->w_file_data);
+          if(err<0) break;
+          if(context->w_file_data->length>0)
+            {
+#if USE_GNUTLS
+             if(context->gnutls_context)
+                err=io_gnutls_write_with_timeout(context->gnutls_context,context->w_file_data,context->w_timeout);
+             else
+#endif
+                err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
+             if(err>0) context->w_raw_bytes+=err;
+             if(err<0) break;
+            }
+         }
+       while(iobuffer->length>0);
       }
-    while(iobuffer.length>0);
+#if USE_ZLIB
    }
- else /* if(context->w_chunk_context && context->w_zlib_context) */
+ else /* if(context->w_zlib_context) */
    {
-    do
+    if(!context->w_chunk_context)
       {
-       err=io_zlib_compress(&iobuffer,context->w_zlib_context,context->w_zlch_data);
-       if(err<0) break;
-       err=io_chunk_encode(context->w_zlch_data,context->w_chunk_context,context->w_file_data);
-       if(err<0) break;
-       err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
-       if(err>0) context->w_raw_bytes+=err;
-       if(err<0) break;
+       do
+         {
+          err=io_zlib_compress(iobuffer,context->w_zlib_context,context->w_file_data);
+          if(err<0) break;
+          if(context->w_file_data->length>0)
+            {
+#if USE_GNUTLS
+             if(context->gnutls_context)
+                err=io_gnutls_write_with_timeout(context->gnutls_context,context->w_file_data,context->w_timeout);
+             else
+#endif
+                err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
+             if(err>0) context->w_raw_bytes+=err;
+             if(err<0) break;
+            }
+         }
+       while(iobuffer->length>0);
       }
-    while(iobuffer.length>0);
+    else /* if(context->w_chunk_context) */
+      {
+       do
+         {
+          err=io_zlib_compress(iobuffer,context->w_zlib_context,context->w_zlch_data);
+          if(err<0) break;
+          if(context->w_zlch_data->length>0)
+            {
+             err=io_chunk_encode(context->w_zlch_data,context->w_chunk_context,context->w_file_data);
+             if(err<0) break;
+             if(context->w_file_data->length>0)
+               {
+#if USE_GNUTLS
+                if(context->gnutls_context)
+                   err=io_gnutls_write_with_timeout(context->gnutls_context,context->w_file_data,context->w_timeout);
+                else
+#endif
+                   err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
+                if(err>0) context->w_raw_bytes+=err;
+                if(err<0) break;
+               }
+            }
+         }
+       while(iobuffer->length>0);
+      }
    }
+#endif /* USE_ZLIB */
 
  if(err<0)
     return(err);
  else
-    return(n);
+    return(iobuffer->length);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Write a simple string to a file descriptor like fputs does to a FILE*.
 
-  int write_string Returns the number of bytes written.
+  ssize_t write_string Returns the number of bytes written.
 
   int fd The file descriptor.
 
   const char *str The string.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int write_string(int fd,const char *str)
+ssize_t write_string(int fd,const char *str)
 {
  return(write_data(fd,str,strlen(str)));
 }
@@ -692,9 +946,10 @@ int write_string(int fd,const char *str)
   ... The other arguments.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int write_formatted(int fd,const char *fmt,...)
+ssize_t write_formatted(int fd,const char *fmt,...)
 {
- int i,n,width;
+ int i,width;
+ ssize_t n;
  char *str,*strp;
  va_list ap;
 
@@ -723,22 +978,21 @@ int write_formatted(int fd,const char *fmt,...)
        while(!isalpha(fmt[i]))
           i++;
 
-       switch(fmt[i])
+       if(fmt[i]=='s')
          {
-         case 's':
           strp=va_arg(ap,char*);
           if(width && width>strlen(strp))
              n+=width;
           else
              n+=strlen(strp);
-          break;
-
-         default:
+         }
+       else
+         {
           (void)va_arg(ap,void*);
-          if(width && width>16)
+          if(width && width>22) /* 22 characters for 64-bit octal (%llo) value ~0. */
              n+=width;
           else
-             n+=16;
+             n+=22;
          }
       }
 
@@ -793,7 +1047,9 @@ void tell_io(int fd,unsigned long* r,unsigned long *w)
  /* Return the data */
 
  if(r)
-    *r=context->r_raw_bytes-context->r_line_data_len; /* Pretend we have not read the contents of the line data buffer */
+    *r=context->r_raw_bytes;
+ if(r && context->r_line_data)
+    *r-=context->r_line_data->length; /* Pretend we have not read the contents of the line data buffer */
 
  if(w)
     *w=context->w_raw_bytes;
@@ -813,6 +1069,7 @@ void tell_io(int fd,unsigned long* r,unsigned long *w)
 void finish_tell_io(int fd,unsigned long* r,unsigned long *w)
 {
  io_context *context;
+ int err=0;
  int more;
 
  if(fd==-1)
@@ -825,79 +1082,121 @@ void finish_tell_io(int fd,unsigned long* r,unsigned long *w)
 
  /* Finish the reading side */
 
- if(!context->r_chunk_context && !context->r_zlib_context)
-    ;
- else if(context->r_chunk_context && !context->r_zlib_context)
+#if USE_ZLIB
+ if(!context->r_zlib_context)
    {
-    io_finish_chunk_decode(context->r_chunk_context,NULL);
+#endif
+    if(context->r_chunk_context)
+       io_finish_chunk_decode(context->r_chunk_context,NULL);
+#if USE_ZLIB
    }
- else if(!context->r_chunk_context && context->r_zlib_context)
+ else /* if(context->r_zlib_context) */
    {
-    io_finish_zlib_uncompress(context->r_zlib_context,NULL);
+    if(!context->r_chunk_context)
+       io_finish_zlib_uncompress(context->r_zlib_context,NULL);
+    else /* if(context->r_chunk_context) */
+      {
+       io_finish_chunk_decode(context->r_chunk_context,NULL);
+       io_finish_zlib_uncompress(context->r_zlib_context,NULL);
+      }
    }
- else /* if(context->r_chunk_context && context->r_zlib_context) */
-   {
-    io_finish_chunk_decode(context->r_chunk_context,NULL);
-    io_finish_zlib_uncompress(context->r_zlib_context,NULL);
-   }
+#endif /* USE_ZLIB */
 
  /* Write out any remaining data */
 
- if(!context->w_chunk_context && !context->w_zlib_context)
-    ;
- else if(context->w_chunk_context && !context->w_zlib_context)
+ if(context->w_buffer_data && context->w_buffer_data->length)
+    io_write_data(fd,context,context->w_buffer_data);
+
+#if USE_ZLIB
+ if(!context->w_zlib_context)
    {
-    do
+#endif
+    if(context->w_chunk_context)
       {
-       more=io_finish_chunk_encode(context->w_chunk_context,context->w_file_data);
-       if(more>=0)
+       do
          {
-          int err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
-          if(err>0) context->w_raw_bytes+=err;
-         }
-      }
-    while(more==1);
-   }
- else if(!context->w_chunk_context && context->w_zlib_context)
-   {
-    do
-      {
-       more=io_finish_zlib_compress(context->w_zlib_context,context->w_file_data);
-       if(more>=0)
-         {
-          int err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
-          if(err>0) context->w_raw_bytes+=err;
-         }
-      }
-    while(more==1);
-   }
- else /* if(context->w_chunk_context && context->w_zlib_context) */
-   {
-    do
-      {
-       more=io_finish_zlib_compress(context->w_zlib_context,context->w_zlch_data);
-       if(more>=0)
-         {
-          int more2=io_chunk_encode(context->w_zlch_data,context->w_chunk_context,context->w_file_data);
-          if(more2>=0)
+          more=io_finish_chunk_encode(context->w_chunk_context,context->w_file_data);
+          if(more>=0)
             {
-             int err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
+#if USE_GNUTLS
+             if(context->gnutls_context)
+                err=io_gnutls_write_with_timeout(context->gnutls_context,context->w_file_data,context->w_timeout);
+             else
+#endif
+                err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
              if(err>0) context->w_raw_bytes+=err;
             }
          }
+       while(more==1);
       }
-    while(more==1);
-    do
-      {
-       more=io_finish_chunk_encode(context->w_chunk_context,context->w_file_data);
-       if(more>=0)
-         {
-          int err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
-          if(err>0) context->w_raw_bytes+=err;
-         }
-      }
-    while(more==1);
+#if USE_ZLIB
    }
+ else /* if(context->w_zlib_context) */
+   {
+    if(!context->w_chunk_context)
+      {
+       do
+         {
+          more=io_finish_zlib_compress(context->w_zlib_context,context->w_file_data);
+          if(more>=0)
+            {
+#if USE_GNUTLS
+             if(context->gnutls_context)
+                err=io_gnutls_write_with_timeout(context->gnutls_context,context->w_file_data,context->w_timeout);
+             else
+#endif
+                err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
+             if(err>0) context->w_raw_bytes+=err;
+            }
+         }
+       while(more==1);
+      }
+    else /* if(context->w_chunk_context) */
+      {
+       do
+         {
+          more=io_finish_zlib_compress(context->w_zlib_context,context->w_zlch_data);
+          if(more>=0)
+            {
+             int more2=io_chunk_encode(context->w_zlch_data,context->w_chunk_context,context->w_file_data);
+             if(more2>=0)
+               {
+#if USE_GNUTLS
+                if(context->gnutls_context)
+                   err=io_gnutls_write_with_timeout(context->gnutls_context,context->w_file_data,context->w_timeout);
+                else
+#endif
+                   err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
+                if(err>0) context->w_raw_bytes+=err;
+               }
+            }
+         }
+       while(more==1);
+       do
+         {
+          more=io_finish_chunk_encode(context->w_chunk_context,context->w_file_data);
+          if(more>=0)
+            {
+#if USE_GNUTLS
+             if(context->gnutls_context)
+                err=io_gnutls_write_with_timeout(context->gnutls_context,context->w_file_data,context->w_timeout);
+             else
+#endif
+                err=io_write_with_timeout(fd,context->w_file_data,context->w_timeout);
+             if(err>0) context->w_raw_bytes+=err;
+            }
+         }
+       while(more==1);
+      }
+   }
+#endif /* USE_ZLIB */
+
+ /* Destroy the encryption information */
+
+#if USE_GNUTLS
+ if(context->gnutls_context)
+    io_finish_gnutls(context->gnutls_context);
+#endif
 
  /* Return the data */
 
@@ -910,16 +1209,20 @@ void finish_tell_io(int fd,unsigned long* r,unsigned long *w)
  /* Free all data structures */
 
  if(context->r_line_data)
-    free(context->r_line_data);
+    destroy_io_buffer(context->r_line_data);
 
+#if USE_ZLIB
  if(context->r_zlch_data)
     destroy_io_buffer(context->r_zlch_data);
+#endif
 
  if(context->r_file_data)
     destroy_io_buffer(context->r_file_data);
 
+#if USE_ZLIB
  if(context->w_zlch_data)
     destroy_io_buffer(context->w_zlch_data);
+#endif
 
  if(context->w_file_data)
     destroy_io_buffer(context->w_file_data);

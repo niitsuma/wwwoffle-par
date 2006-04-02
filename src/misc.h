@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/misc.h 2.44 2004/01/17 16:22:18 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/misc.h 2.61 2006/01/08 10:27:22 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Miscellaneous HTTP / HTML functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -16,38 +16,52 @@
 #ifndef MISC_H
 #define MISC_H    /*+ To stop multiple inclusions. +*/
 
-/*+ A forward definition of the protocol type. +*/
-typedef struct _Protocol *ProtocolP;
+#include <unistd.h>
+
+#if TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# if HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+
+
+/*+ The longest string needed to contain an integer. +*/
+#define MAX_INT_STR 20  /* to hold a 64-bit unsigned long: 18446744073709551615ULL */
 
 
 /*+ A URL data type. +*/
 typedef struct _URL
 {
- char *name;                    /*+ The canonical URL for the object. +*/
+ char *name;                    /*+ The canonical URL for the object without the username/password. +*/
 
- char *link;                    /*+ A URL that will work for browsers (may point to name). +*/
-
- char *file;                    /*+ The URL that is used for generating the filename (may point to name). +*/
+ char *file;                    /*+ The URL that is used for generating the filename with the username/password (may point to name). +*/
 
  char *hostp;                   /*+ A pointer to the host in the url. +*/
  char *pathp;                   /*+ A pointer to the path in the url. +*/
 
  char *proto;                   /*+ The protocol. +*/
- char *host;                    /*+ The host. +*/
+ char *hostport;                /*+ The host name and port number. +*/
  char *path;                    /*+ The path. +*/
- char *params;                  /*+ The parameters. +*/
  char *args;                    /*+ The arguments (also known as the query in RFCs). +*/
 
- ProtocolP Protocol;            /*+ The protocol. +*/
+ char *user;                    /*+ The username if supplied (or else NULL). +*/
+ char *pass;                    /*+ The password if supplied (or else NULL). +*/
 
- char *user;                    /*+ The username if supplied. +*/
- char *pass;                    /*+ The password if supplied. +*/
+ char *host;                    /*+ The host only part without the port (may point to hostport). +*/
+ int port;                      /*+ The port number if supplied (or else -1). +*/
 
- char *dir;                     /*+ The directory name for the host to avoid using ':' on Win32 (may point to host). +*/
+ char *private_link;            /*+ A local URL for non-proxyable protocols (may point to name).  Private data. +*/
 
- char local;                    /*+ Set to true if the host is the localhost. +*/
+ char *private_dir;             /*+ The directory name for the host to avoid using ':' on Win32 (may point to hostport).  Private data. +*/
+ char *private_file;            /*+ The hashed filename for the URL.  Private data. +*/
 }
 URL;
+
 
 /*+ A request or reply header type. +*/
 typedef struct _Header
@@ -64,14 +78,15 @@ typedef struct _Header
  char **key;                    /*+ The name of the header line. +*/
  char **val;                    /*+ The value of the header line. +*/
 
- int size;                      /*+ The size of the header as read from the file/socket. +*/
+ size_t size;                   /*+ The size of the header as read from the file/socket. +*/
 }
 Header;
+
 
 /*+ A request or reply body type. +*/
 typedef struct _Body
 {
- int length;                    /*+ The length of the content. +*/
+ size_t length;                 /*+ The length of the content. +*/
 
  char *content;                 /*+ The content itself. +*/
 }
@@ -86,6 +101,7 @@ typedef struct _HeaderListItem
 }
 HeaderListItem;
 
+
 /*+ A header value split into a list. +*/
 typedef struct _HeaderList
 {
@@ -98,17 +114,15 @@ HeaderList;
 
 /* in miscurl.c */
 
-URL /*@special@*/ *SplitURL(char *url) /*@allocates result@*/ /*@defines result->name,result->link,result->file,result->hostp,result->pathp,result->proto,result->host,result->path,result->params,result->args,result->Protocol,result->user,result->pass,result->dir,result->local@*/;
-void AddURLPassword(URL *Url,char *user,/*@null@*/ char *pass);
+URL *SplitURL(const char *url);
+URL /*@special@*/ *CreateURL(const char *proto,const char *hostport,const char *path,/*@null@*/ const char *args,/*@null@*/ const char *user,/*@null@*/ const char *pass) /*@allocates result@*/ /*@defines result->name,result->link,result->dir,result->file,result->hostp,result->pathp,result->proto,result->hostport,result->path,result->args,result->user,result->pass,result->host,result->port,result->private_link,result->private_dir,result->private_file@*/;
 void FreeURL(/*@special@*/ URL *Url) /*@releases Url@*/;
 
-char *LinkURL(URL *Url,char *link);
+void AddPasswordURL(URL *Url,/*@null@*/ const char *user,/*@null@*/ const char *pass);
+URL /*@special@*/ *LinkURL(const URL *Url,const char *link) /*@allocates result@*/ /*@defines result->name,result->link,result->dir,result->file,result->hostp,result->pathp,result->proto,result->hostport,result->path,result->args,result->user,result->pass,result->host,result->port,result->private_link,result->private_dir,result->private_file@*/;
 
-char *CanonicaliseHost(char *host);
+char /*@special@*/ *CanonicaliseHost(const char *host) /*@allocates result@*/;
 void CanonicaliseName(char *name);
-
-void SplitHostPort(char *hostport,/*@out@*/ char **host,/*@out@*/ char **port);
-void RejoinHostPort(char *hostport,char *host,/*@null@*/ char *port);
 
 
 /* In miscencdec.c */
@@ -122,18 +136,18 @@ char /*@only@*/ *URLEncodePath(const char *str);
 char /*@only@*/ *URLEncodeFormArgs(const char *str);
 char /*@only@*/ *URLEncodePassword(const char *str);
 
-char /*@only@*/ **SplitFormArgs(char *str);
+char /*@only@*/ **SplitFormArgs(const char *str);
 
 char *TrimArgs(/*@returned@*/ char *str);
 
 char /*@only@*/ *MakeHash(const char *args);
 
-char /*@observer@*/ *RFC822Date(long t,int utc);
+char /*@observer@*/ *RFC822Date(time_t t,int utc);
 long DateToTimeT(const char *date);
-char /*@observer@*/ *DurationToString(const long duration);
+char /*@observer@*/ *DurationToString(const time_t duration);
 
-char /*@only@*/ *Base64Decode(const char *str,/*@out@*/ int *l);
-char /*@only@*/ *Base64Encode(const char *str,int l);
+char /*@only@*/ *Base64Decode(const char *str,/*@out@*/ size_t *l);
+char /*@only@*/ *Base64Encode(const char *str,size_t l);
 
 void URLReplaceAmp(char *string);
 
@@ -142,23 +156,23 @@ char /*@only@*/* HTMLString(const char* c,int nbsp);
 
 /* In headbody.c */
 
-Header /*@special@*/ *CreateHeader(char *line,int type) /*@allocates result@*/ /*@defines result->method,result->url,result->note,result->version,result->key,result->val@*/;
+Header /*@special@*/ *CreateHeader(const char *line,int type) /*@allocates result,result->version,result->key,result->val@*/ /*@defines result->type,result->method,result->url,result->status,result->note,result->version,result->n,result->key,result->val,result->size@*/;
 
-void AddToHeader(Header *head,/*@null@*/ char *key,char *val);
+void AddToHeader(Header *head,/*@null@*/ const char *key,const char *val);
 int AddToHeaderRaw(Header *head,char *line);
 
-void ChangeURLInHeader(Header *head,char *url);
-void ChangeNoteInHeader(Header *head,char *note);
-void RemovePlingFromHeader(Header *head,char *url);
-void ChangeVersionInHeader(Header *head,char *version);
+void ChangeURLInHeader(Header *head,const char *url);
+void ChangeNoteInHeader(Header *head,const char *note);
+void RemovePlingFromHeader(Header *head,const char *url);
+void ChangeVersionInHeader(Header *head,const char *version);
 
-void RemoveFromHeader(Header *head,char* key);
-void RemoveFromHeader2(Header *head,char* key,char *val);
+void RemoveFromHeader(Header *head,const char* key);
+void RemoveFromHeader2(Header *head,const char* key,const char *val);
 
-char /*@null@*/ /*@observer@*/ *GetHeader(Header *head,char* key);
-char /*@null@*/ /*@observer@*/ *GetHeader2(Header *head,char* key,char *val);
+char /*@null@*/ /*@observer@*/ *GetHeader(const Header *head,const char* key);
+char /*@null@*/ /*@observer@*/ *GetHeader2(const Header *head,const char* key,const char *val);
 
-char /*@only@*/ *HeaderString(Header *head);
+char /*@only@*/ *HeaderString(const Header *head);
 
 void FreeHeader(/*@special@*/ Header *head) /*@releases head@*/;
 

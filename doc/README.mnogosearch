@@ -1,4 +1,4 @@
-          WWWOFFLE - World Wide Web Offline Explorer - Version 2.7
+          WWWOFFLE - World Wide Web Offline Explorer - Version 2.9
           ========================================================
 
 
@@ -25,46 +25,17 @@ searching.
 Installing mnoGoSearch
 ----------------------
 
-Note: If you already have version 3.1.0 or later of mnoGoSearch installed and
-      working then you can skip this section.
-
-To be able to use this program it must be installed.  The instructions below
-give a step-by-step guide to this process assuming that version 3.1.13 of
-UdmSearch is used, later versions should also work.
-
-1) Get the mnoGoSearch source code
-
-Download the source for the UdmSearch programs from
+mnoGoSearch is available from the web site
 
         http://mnogosearch.org/
 
+You need to have version 3.1.0 or later of mnoGoSearch.
 
-2) Unpack the source code
-
-Use
-
-        tar -xvzf mnogosearch-3.1.13.tar.gz
-
-to create the directory mnogosearch-3.1.13 with the program source files in.
+No special compile-time configuration of mnoGoSearch is required to be able to
+use it with WWWOFFLE.
 
 
-3) Configure the mnoGoSearch compilation stage
-
-Move to the mnogosearch-3.1.13 directory and run the configuration program
-
-        cd mnogosearch-3.1.13
-        ./configure --disable-syslog
-
-
-4) Compile
-
-Run make to compile mnoGoSearch
-
-        make
-        make install
-
-This will compile and install it.  Any problems at this stage will require the
-use of the mnoGoSearch documentation to solve.
+I tested with version 3.1.0.
 
 
 Configure WWWOFFLE to run with mnoGoSearch

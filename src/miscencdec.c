@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/miscencdec.c 1.9 2004/01/11 10:28:20 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/miscencdec.c 1.15 2006/01/15 10:13:18 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Miscellaneous HTTP / HTML Encoding & Decoding functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -38,25 +38,25 @@
 /* To understand why the URLDecode*() and URLEncode*() functions are coded this way see README.URL */
 
 /*+ For conversion from integer to hex string. +*/
-static char hexstring[17]="0123456789ABCDEF";
+static const char hexstring[17]="0123456789ABCDEF";
 
 /*+ For conversion from hex string to integer. +*/
-static unsigned char unhexstring[256]={ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x00-0x0f "                " */
-                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x10-0x1f "                " */
-                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x20-0x2f " !"#$%&'()*+,-./" */
-                                        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0,  /* 0x30-0x3f "0123456789:;<=>?" */
-                                        0,10,11,12,13,14,15, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x40-0x4f "@ABCDEFGHIJKLMNO" */
-                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x50-0x5f "PQRSTUVWXYZ[\]^_" */
-                                        0,10,11,12,13,14,15, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x60-0x6f "`abcdefghijklmno" */
-                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x70-0x7f "pqrstuvwxyz{|}~ " */
-                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x80-0x8f "                " */
-                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x90-0x9f "                " */
-                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0xa0-0xaf "                " */
-                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0xb0-0xbf "                " */
-                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0xc0-0xcf "                " */
-                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0xd0-0xdf "                " */
-                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0xe0-0xef "                " */
-                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; /* 0xf0-0xff "                " */
+static const unsigned char unhexstring[256]={ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x00-0x0f "                " */
+                                              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x10-0x1f "                " */
+                                              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x20-0x2f " !"#$%&'()*+,-./" */
+                                              0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0,  /* 0x30-0x3f "0123456789:;<=>?" */
+                                              0,10,11,12,13,14,15, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x40-0x4f "@ABCDEFGHIJKLMNO" */
+                                              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x50-0x5f "PQRSTUVWXYZ[\]^_" */
+                                              0,10,11,12,13,14,15, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x60-0x6f "`abcdefghijklmno" */
+                                              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x70-0x7f "pqrstuvwxyz{|}~ " */
+                                              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x80-0x8f "                " */
+                                              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x90-0x9f "                " */
+                                              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0xa0-0xaf "                " */
+                                              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0xb0-0xbf "                " */
+                                              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0xc0-0xcf "                " */
+                                              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0xd0-0xdf "                " */
+                                              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0xe0-0xef "                " */
+                                              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; /* 0xf0-0xff "                " */
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -148,7 +148,7 @@ char *URLRecodeFormArgs(const char *str)
    The unencoded character "?" on the input is left unencoded on the output to handle broken servers.
  */
 
- static char allowed[257]=
+ static const char allowed[257]=
  "                                "  /* 0x00-0x1f "                                " */
  " !  $   ()* ,-./0123456789:     "  /* 0x20-0x3f " !"#$%&'()*+,-./0123456789:;<=>?" */
  " ABCDEFGHIJKLMNOPQRSTUVWXYZ    _"  /* 0x40-0x5f "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_" */
@@ -213,13 +213,13 @@ char *URLEncodePath(const char *str)
    The characters in the range 0x00-0x1f and 0x7f-0xff are always disallowed.
    The '%' character is always disallowed because it is the quote character.
    RFC 1738 section 2.2 calls " <>"#%{}|\^~[]`" unsafe characters, I make an exception for '~'.
-   RFC 1738 section 2.2 calls ";/?:@=&" reserved characters, I make an exception for "/:=".
+   RFC 1738 section 2.2 calls ";/?:@=&" reserved characters, I make an exception for ";/:=".
    I disallow "'" because it may lead to confusion.
  */
 
- static char allowed[257]=
+ static const char allowed[257]=
  "                                "  /* 0x00-0x1f "                                " */
- " !  $   ()*+,-./0123456789:  =  "  /* 0x20-0x3f " !"#$%&'()*+,-./0123456789:;<=>?" */
+ " !  $   ()*+,-./0123456789:; =  "  /* 0x20-0x3f " !"#$%&'()*+,-./0123456789:;<=>?" */
  " ABCDEFGHIJKLMNOPQRSTUVWXYZ    _"  /* 0x40-0x5f "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_" */
  " abcdefghijklmnopqrstuvwxyz   ~ "  /* 0x60-0x7f "`abcdefghijklmnopqrstuvwxyz{|}~ " */
  "                                "  /* 0x80-0x9f "                                " */
@@ -268,7 +268,7 @@ char *URLEncodeFormArgs(const char *str)
    I disallow ""'\`" because they may lead to confusion.
  */
 
- static char allowed[257]=
+ static const char allowed[257]=
  "                                "  /* 0x00-0x1f "                                " */
  " !  $   ()* ,-./0123456789:     "  /* 0x20-0x3f " !"#$%&'()*+,-./0123456789:;<=>?" */
  " ABCDEFGHIJKLMNOPQRSTUVWXYZ    _"  /* 0x40-0x5f "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_" */
@@ -321,7 +321,7 @@ char *URLEncodePassword(const char *str)
    I disallow "'()" because they may lead to confusion.
  */
 
- static char allowed[257]=
+ static const char allowed[257]=
  "                                "  /* 0x00-0x1f "                                " */
  " !  $     *+,-. 0123456789   =  "  /* 0x20-0x3f " !"#$%&'()*+,-./0123456789:;<=>?" */
  " ABCDEFGHIJKLMNOPQRSTUVWXYZ    _"  /* 0x40-0x5f "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_" */
@@ -355,10 +355,10 @@ char *URLEncodePassword(const char *str)
 
   char **SplitFormArgs Returns an array of pointers into a copy of the string.
 
-  char *str The form data or arguments to split.
+  const char *str The form data or arguments to split.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char **SplitFormArgs(char *str)
+char **SplitFormArgs(const char *str)
 {
  char **args=(char**)malloc(10*sizeof(char*));
  char *p;
@@ -442,14 +442,14 @@ char *MakeHash(const char *args)
  MD5Init (&ctx);
 
  /* Process whole buffer but last len % 64 bytes.  */
- MD5Update (&ctx, (const unsigned char*)args, strlen(args));
+ MD5Update (&ctx, (const unsigned char*)args, (unsigned)strlen(args));
 
  /* Put result in desired memory area.  */
  MD5Final ((unsigned char *)md5, &ctx);
 
  md5[16]=0;
 
- hash=Base64Encode(md5,16);
+ hash=Base64Encode(md5,(size_t)16);
 
  for(p=hash;*p;p++)
     if(*p=='/')
@@ -462,10 +462,10 @@ char *MakeHash(const char *args)
 
 
 /*+ Conversion from time_t to date string and back (day of week). +*/
-static char *weekdays[7]={"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+static const char* const weekdays[7]={"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
 
 /*+ Conversion from time_t to date string and back (month of year). +*/
-static char *months[12]={"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+static const char* const months[12]={"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -473,14 +473,14 @@ static char *months[12]={"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","
 
   char *RFC822Date Returns a pointer to a fixed string containing the date.
 
-  long t The time.
+  time_t t The time.
 
   int utc Set to true to get Universal Time, else localtime.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *RFC822Date(long t,int utc)
+char *RFC822Date(time_t t,int utc)
 {
- static char value[2][32];
+ static char value[4][32];
  static int which=0;
  char weekday[4];
  char month[4];
@@ -500,11 +500,11 @@ char *RFC822Date(long t,int utc)
     if(tim->tm_isdst<0)
       {tim=gmtime(&t);utc=1;}
 
-    strftime(weekday,4,"%a",tim);
-    strftime(month,4,"%b",tim);
+    strftime(weekday,(size_t)4,"%a",tim);
+    strftime(month,(size_t)4,"%b",tim);
    }
 
- which^=1;
+ which=(which+1)%4;
 
  /* Sun, 06 Nov 1994 08:49:37 GMT    ; RFC 822, updated by RFC 1123 */
 
@@ -628,15 +628,15 @@ long DateToTimeT(const char *date)
 
   char *DurationToString Returns a (static, one of two) string.
 
-  const long duration The duration in seconds.
+  const time_t duration The duration in seconds.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *DurationToString(const long duration)
+char *DurationToString(const time_t duration)
 {
  static int which=0;
  static char string[2][64];
  int n=0;
- long weeks,days,hours,minutes,seconds=duration;
+ time_t weeks,days,hours,minutes,seconds=duration;
 
  weeks=seconds/(3600*24*7);
  seconds-=(3600*24*7)*weeks;
@@ -653,36 +653,36 @@ char *DurationToString(const long duration)
  which^=1;
 
  if(weeks>4)
-    n+=sprintf(string[which]+n,"%ldw",weeks);
+    n+=sprintf(string[which]+n,"%dw",(unsigned)weeks);
  else
    {days+=7*weeks;weeks=0;}
 
  if(days)
-    n+=sprintf(string[which]+n,"%s%ldd",weeks?" ":"",days);
+    n+=sprintf(string[which]+n,"%s%dd",weeks?" ":"",(unsigned)days);
 
  if(hours || minutes || seconds)
    {
     if(days || weeks)
        n+=sprintf(string[which]+n," ");
     if(hours && !minutes && !seconds)
-       n+=sprintf(string[which]+n,"%ldh",hours);
+       n+=sprintf(string[which]+n,"%dh",(unsigned)hours);
     else if(!seconds)
-       n+=sprintf(string[which]+n,"%02ld:%02ld",hours,minutes);
+       n+=sprintf(string[which]+n,"%02d:%02d",(unsigned)hours,(unsigned)minutes);
     else
-       n+=sprintf(string[which]+n,"%02ld:%02ld:%02ld",hours,minutes,seconds);
+       n+=sprintf(string[which]+n,"%02d:%02d:%02d",(unsigned)hours,(unsigned)minutes,(unsigned)seconds);
    }
 
- sprintf(string[which]+n," (%lds)",duration);
+ sprintf(string[which]+n," (%ds)",(unsigned)duration);
 
  return(string[which]);
 }
 
 
 /*+ The conversion from a 6 bit value to an ASCII character. +*/
-static char base64[64]={'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P',
-                        'Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f',
-                        'g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v',
-                        'w','x','y','z','0','1','2','3','4','5','6','7','8','9','+','/'};
+static const char base64[64]={'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P',
+                              'Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f',
+                              'g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v',
+                              'w','x','y','z','0','1','2','3','4','5','6','7','8','9','+','/'};
 
 /*++++++++++++++++++++++++++++++++++++++
   Decode a base 64 string.
@@ -691,12 +691,12 @@ static char base64[64]={'A','B','C','D','E','F','G','H','I','J','K','L','M','N',
 
   const char *str The string to be decoded.
 
-  int *l Returns the length of the decoded string.
+  size_t *l Returns the length of the decoded string.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *Base64Decode(const char *str,int *l)
+char *Base64Decode(const char *str,size_t *l)
 {
- int le=strlen(str);
+ size_t le=strlen(str);
  char *decoded=(char*)malloc(le+1);
  int i,j,k;
 
@@ -735,12 +735,12 @@ char *Base64Decode(const char *str,int *l)
 
   const char *str The string to be encoded.
 
-  int l The length of the string to be encoded.
+  size_t l The length of the string to be encoded.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *Base64Encode(const char *str,int l)
+char *Base64Encode(const char *str,size_t l)
 {
- int le=4*(l/3)+(l%3)+!!(l%3);
+ size_t le=4*(l/3)+(l%3)+!!(l%3);
  char *encoded=(char*)malloc(4*(le/4)+4*!!(le%4)+1);
  int i,j,k;
 
@@ -811,7 +811,7 @@ void URLReplaceAmp(char *string)
 char* HTMLString(const char* c,int nbsp)
 {
  int i=0,j=0,len=256-5;              /* 5 is the longest possible inserted amount */
- char* ret=(char*)malloc(257);
+ char* ret=(char*)malloc((size_t)257);
 
  do
    {

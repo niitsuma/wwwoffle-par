@@ -5,7 +5,7 @@
 
 Available WWWOFFLE Variables (all with a '$' prefix).
 
-localhost = The hostname of the server running wwwoffled (='$localhost').
+localurl  = The root URL of the server running wwwoffled (='$localurl').
 version   = The version of the WWWOFFLE server (='$version').
 url       = The URL that was asked for (='$url').
 cache     = A flag to indicate if the page is being written to the cache or browser (='$cache').
@@ -23,7 +23,7 @@ $encurl=%encode[url]
 
 <HEAD>
 <TITLE>WWWOFFLE - Remote Host Error</TITLE>
-<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
+<LINK href="$localurl/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
 <BODY class="wwwoffle-message">
@@ -91,12 +91,12 @@ reloading this page will request it again.
 
 <div class="wwwoffle-nav" align="center">
 [ \
-Cancel| \
-<a href="http://$localhost/refresh/?$encurl">Refresh</a>: \
-<a href="http://$localhost/refresh-options/?$encurl">Options</a>| \
-<a href="http://$localhost/monitor-options/?$encurl">Monitor</a>| \
-<a href="http://$localhost/index/url?$encurl">Index</a>| \
-<a href="http://$localhost/configuration/url?$encurl">Configure</a> \
+<a href="$localurl/refresh/?$encurl">Refresh</a>: \
+<a href="$localurl/refresh-options/?$encurl">Options</a>| \
+<a href="$localurl/monitor-options/?$encurl">Monitor</a>| \
+Delete| \
+<a href="$localurl/index/url?$encurl">Index</a>| \
+<a href="$localurl/configuration/url?$encurl">Configure</a> \
 ]
 </div>
 
@@ -105,8 +105,8 @@ Cancel| \
 <hr class="wwwoffle-footer">
 <div class="wwwoffle-footer" align="center">
 WWWOFFLE - [ \
-<a href="http://$localhost/Welcome.html" title="An introduction to WWWOFFLE">Welcome Page</a>| \
-<a href="http://$localhost/FAQ.html" title="Frequently Asked Questions about WWWOFFLE">FAQ</a> \
+<a href="$localurl/Welcome.html" title="An introduction to WWWOFFLE">Welcome Page</a>| \
+<a href="$localurl/FAQ.html" title="Frequently Asked Questions about WWWOFFLE">FAQ</a> \
 ] - WWWOFFLE
 </div>
 

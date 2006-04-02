@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/javaclass.c 1.10 2004/01/11 10:29:59 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/javaclass.c 1.11 2005/03/13 13:55:35 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Inspect a .class Object and look for other Objects.
   ******************/ /******************
   Written by W. Pfannenmueller
 
-  This file Copyright 1998,99,2000,01,02,03,04 W. Pfannenmueller & Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04,05 W. Pfannenmueller & Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -183,7 +183,7 @@ static char *readUnicode(int fd)
     {
         ret[i] = getByte(fd);
     }
-    return (char*)UnicodeToUTF8(ret,len);
+    return (char*)UnicodeToUTF8(ret,(int)len);
 }
 
 
@@ -287,7 +287,7 @@ static char *addclass(char *name)
 
 static int isStandardClass(char *name)
 {
-    int i;
+    unsigned i;
     for(i = 0; i < (sizeof(standardClasses)/sizeof(char *)); i++)
     {
          if(!strncmp(name,

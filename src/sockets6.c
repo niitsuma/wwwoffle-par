@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/sockets6.c 1.15 2004/01/17 16:29:37 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/sockets6.c 1.19 2005/10/15 18:00:58 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   IPv4+IPv6 Socket manipulation routines.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04,05 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -53,7 +53,7 @@
 
 static void sigalarm(int signum);
 static struct addrinfo /*@null@*/ *getaddrinfo_or_timeout(char *name,char *port,int ai_flags);
-static int getnameinfo_or_timeout(struct sockaddr *addr,int len,/*@null@*/ /*@out@*/ char **host,/*@null@*/ /*@out@*/ char **ip,/*@null@*/ /*@out@*/ char **port);
+static int getnameinfo_or_timeout(struct sockaddr *addr,size_t len,/*@null@*/ /*@out@*/ char **host,/*@null@*/ /*@out@*/ char **ip,/*@null@*/ /*@out@*/ char **port);
 static int connect_or_timeout(int sockfd,struct addrinfo *addr);
 
 /* Local variables */
@@ -87,17 +87,26 @@ int OpenClientSocket(char* host,int port)
 {
  int s=-1;
  struct addrinfo *server,*ss;
- char portstr[12];
+ char hostipstr[INET6_ADDRSTRLEN],*hoststr,portstr[5+1];
 
- sprintf(portstr,"%d",port);
+ if(*host=='[') /* accept IP addresses inside '[...]' */
+   {
+    strcpy(hostipstr,host+1);
+    hostipstr[strlen(hostipstr)-1]=0;
+    hoststr=hostipstr;
+   }
+ else
+    hoststr=host;
 
- server=getaddrinfo_or_timeout(host,portstr,0);
+ sprintf(portstr,"%d",port&0xffff);
+
+ server=getaddrinfo_or_timeout(hoststr,portstr,0);
 
  if(!server)
    {
     if(errno!=ETIMEDOUT)
        errno=ERRNO_USE_GAI_ERRNO;
-    PrintMessage(Warning,"Unknown host '%s' for server [%!s].",host);
+    PrintMessage(Warning,"Unknown host '%s' for server [%!s].",hoststr);
     return(-1);
    }
 
@@ -117,7 +126,7 @@ int OpenClientSocket(char* host,int port)
          {
           close(s);
           s=-1;
-          PrintMessage(Inform,"Failed to connect %s socket to '%s' port '%d' [%!s].",ss->ai_family==AF_INET?"IPv4":"IPv6",host,port);
+          PrintMessage(Inform,"Failed to connect %s socket to '%s' port '%d' [%!s].",ss->ai_family==AF_INET?"IPv4":"IPv6",hoststr,port);
           continue;
          }
 
@@ -148,18 +157,27 @@ int OpenServerSocket(char *host,int port)
 {
  int s=-1;
  struct addrinfo *server,*ss;
- char portstr[12];
+ char hostipstr[INET6_ADDRSTRLEN],*hoststr,portstr[5+1];
  int reuse_addr=1;
 
- sprintf(portstr,"%d",port);
+ if(*host=='[') /* accept IP addresses inside '[...]' */
+   {
+    strcpy(hostipstr,host+1);
+    hostipstr[strlen(hostipstr)-1]=0;
+    hoststr=hostipstr;
+   }
+ else
+    hoststr=host;
 
- server=getaddrinfo_or_timeout(host,portstr,AI_PASSIVE);
+ sprintf(portstr,"%d",port&0xffff);
+
+ server=getaddrinfo_or_timeout(hoststr,portstr,AI_PASSIVE);
 
  if(!server)
    {
     if(errno!=ETIMEDOUT)
        errno=ERRNO_USE_GAI_ERRNO;
-    PrintMessage(Warning,"Unknown host '%s' for server [%!s].",NULL);
+    PrintMessage(Warning,"Unknown host '%s' for server [%!s].",hoststr);
     return(-1);
    }
 
@@ -180,7 +198,7 @@ int OpenServerSocket(char *host,int port)
 
        if(bind(s,ss->ai_addr,server->ai_addrlen)==-1)
          {
-          PrintMessage(Warning,"Failed to bind %s server socket to '%s' port '%d' [%!s].",ss->ai_family==AF_INET?"IPv4":"IPv6",host,port);
+          PrintMessage(Warning,"Failed to bind %s server socket to '%s' port '%d' [%!s].",ss->ai_family==AF_INET?"IPv4":"IPv6",hoststr,port);
           freeaddrinfo(server);
           return(-1);
          }
@@ -209,7 +227,7 @@ int AcceptConnect(int socket)
 {
  int s;
 
- s=accept(socket,(struct sockaddr*)0,(int*)0);
+ s=accept(socket,(struct sockaddr*)0,(socklen_t*)0);
 
  if(s==-1)
     PrintMessage(Warning,"Failed to accept on IPv4/IPv6 server socket [%!s].");
@@ -235,7 +253,8 @@ int AcceptConnect(int socket)
 int SocketRemoteName(int socket,char **name,char **ipname,int *port)
 {
  struct sockaddr_in6 server;
- int length=sizeof(server),retval;
+ socklen_t length=sizeof(server);
+ int retval;
 
  retval=getpeername(socket,(struct sockaddr*)&server,&length);
  if(retval==-1)
@@ -271,7 +290,8 @@ int SocketRemoteName(int socket,char **name,char **ipname,int *port)
 int SocketLocalName(int socket,char **name,char **ipname,int *port)
 {
  struct sockaddr_in6 server;
- int length=sizeof(server),retval;
+ socklen_t length=sizeof(server);
+ int retval;
 
  retval=getsockname(socket,(struct sockaddr*)&server,&length);
  if(retval==-1)
@@ -521,7 +541,7 @@ start:
 
   struct sockaddr *addr The address of the host.
 
-  int len The length of the address.
+  size_t len The length of the address.
 
   char **host Returns the hostname.
 
@@ -530,7 +550,7 @@ start:
   char **port Returns the port number.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int getnameinfo_or_timeout(struct sockaddr *addr,int len,char **host,char **ip,char **port)
+static int getnameinfo_or_timeout(struct sockaddr *addr,size_t len,char **host,char **ip,char **port)
 {
  struct sigaction action;
  static char _host[NI_MAXHOST],_ip[INET6_ADDRSTRLEN],_port[12];
@@ -654,7 +674,7 @@ static int connect_or_timeout(int sockfd,struct addrinfo *addr)
 
     if(retval>0)
       {
-       int arglen=sizeof(int);
+       socklen_t arglen=sizeof(int);
 
        if(getsockopt(sockfd,SOL_SOCKET,SO_ERROR,&retval,&arglen)<0)
           retval=errno;

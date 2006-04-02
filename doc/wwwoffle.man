@@ -1,17 +1,17 @@
-.\" $Header: /home/amb/wwwoffle/doc/RCS/wwwoffle.man 2.18 2003/12/03 13:52:58 amb Exp $
+.\" $Header: /home/amb/wwwoffle/doc/RCS/wwwoffle.man 2.20 2006/02/12 14:20:03 amb Exp $
 .\"
-.\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+.\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
 .\"
 .\"  Manual page for wwwoffle
 .\"
 .\"  Written by Andrew M. Bishop
 .\"
-.\"  This file Copyright 1997,98,99,2000,01,02,03 Andrew M. Bishop
+.\"  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
 .\"  It may be distributed under the GNU Public License, version 2, or
 .\"  any higher version.  See section COPYING of the GNU Public license
 .\"  for conditions under which this file may be redistributed.
 .\"
-.TH wwwoffle 1 "December 3, 2003"
+.TH wwwoffle 1 "February 12, 2006"
 
 .SH NAME
 
@@ -119,7 +119,7 @@ that requests are to be fetched immediately.
 .B \-autodial
 Tell the wwwoffled proxy server that the computer can become online to the
 internet if required for requests that are not already cached, but that pages
-that are in the cache do not require any netwrok access.  This is intended for
+that are in the cache do not require any network access.  This is intended for
 use with dial-on-demand systems (using diald for example).
 .TP
 .B \-offline
@@ -223,19 +223,19 @@ to the request.
 .TP
 .B \-c <config-file>
 Specifies the name of the configuration file that contains the server host name,
-port number and authorisation password.  This is required for the -online,
--offline, -fetch, -config and -purge options if a password is set.  The user
-must have read access to the configuration file to be able to use the command if
-a password is set.
-(See the StartUp and LocalHost section of wwwoffle.conf(5) for more information
-on setting the server host name, ports and password.)
+port numbers and authorisation password.  This is required for the -online,
+-autodial, -offline, -fetch, -config, -dump, -purge, -status and -kill options
+if a password is set.  The user must have read access to the configuration file
+to be able to use the command if a password is set.  (See the StartUp and
+LocalHost section of wwwoffle.conf(5) for more information on setting the server
+host name, ports and password.)
 .TP
 .B \-p <host>[:<port>]
-Sets the hostname and port number that is to be ued for the connection to the
-proxy server.  For the -online, -offline, -fetch, -config and -purge option this
-must be the WWWOFFLE daemon port, for the url options it must be the http proxy
-server port.  If no -p option is specified then the compiled in defaults are
-used.
+Sets the hostname and port number that is to be used for the connection to the
+proxy server.  For the -online, -autodial, -offline, -fetch, -config, -dump,
+-purge, -status and -kill options this must be the WWWOFFLE control port, for
+the URL options it must be the WWWOFFLE HTTP proxy server port.  If no -p option
+is specified then the compile-time defaults are used.
 
 .P
 When the
@@ -273,13 +273,13 @@ as the configuration file like the -c option (for example
 .TP
 2.
 The WWWOFFLE_PROXY variable can also be set to the hostname and the port number
-as would be used with the -p option (for example localhost:8080).
+that would be used with the -p option (for example localhost:8080).
 .TP
 3.
 The third possibility is to set the variable to the hostname and the two port
-numbers for the HTTP proxy port and the WWWOFFLE control port (for example
-localhost:8080:8081).  This way it will work with both types of command (proxy
-access and control).
+numbers for the WWWOFFLE HTTP proxy port and the WWWOFFLE control port (for
+example localhost:8080:8081).  This way it will work with both types of commands
+(proxy access and control).
 
 .SH SEE ALSO
 
@@ -287,4 +287,4 @@ wwwoffled(8), wwwoffle.conf(5), diald(8).
 
 .SH AUTHOR
 
-Andrew M. Bishop 1996,97,98,99,2000,01,02,03 (amb@gedanken.demon.co.uk)
+Andrew M. Bishop 1996,97,98,99,2000,01,02,03,04,05,06 (amb@gedanken.demon.co.uk)

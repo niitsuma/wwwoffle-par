@@ -5,9 +5,11 @@
 
 Available WWWOFFLE Variables (all with a '$' prefix).
 
-localhost = The hostname of the server running wwwoffled (='$localhost').
+localurl  = The root URL of the server running wwwoffled (='$localurl').
 version   = The version of the WWWOFFLE server (='$version').
 url       = The URL that the request was for (='$url').
+proto     = The protocol used for this cached page (='$proto')
+hostport  = The hostname and port number for this cached page (='$hostport')
 cached    = A flag to indicate if the file is cached (='$cached').
 head1     = The unmodified headers of the request.
 head2     = The modified headers of the request.
@@ -16,7 +18,7 @@ head2     = The modified headers of the request.
 
 <HEAD>
 <TITLE>WWWOFFLE Cached Page Information</TITLE>
-<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
+<LINK href="$localurl/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
 <BODY class="wwwoffle-message">
@@ -33,6 +35,8 @@ head2     = The modified headers of the request.
 
 <H1 align="center">WWWOFFLE Cached Page Information</H1>
 
+$proto?=https{$cachedhttps=$cached}{$cachedhttps=}
+
 $cached?{
 This page details the information that is available about the URL
 <b><tt><a href="%html[url]">$url</a></tt></b> that is available in the
@@ -42,7 +46,7 @@ WWWOFFLE cache.
 
 The cached header contains the following items (before WWWOFFLE has modified it
 according to the
-<a href="http://$localhost/README.CONF.html#CensorHeader">CensorHeader</a>
+<a href="$localurl/README.CONF.html#CensorHeader">CensorHeader</a>
 section of the configuration file, but after removing any headers for
 compression or chunked encoding).
 <p>
@@ -53,7 +57,7 @@ compression or chunked encoding).
 
 The header that would be sent to the browser would contain the following items
 (after WWWOFFLE has modified it according to the
-<a href="http://$localhost/README.CONF.html#CensorHeader">CensorHeader</a>
+<a href="$localurl/README.CONF.html#CensorHeader">CensorHeader</a>
 section of the configuration file, but excluding any headers for compression or
 chunked encoding or content length that might be used).
 <p>
@@ -61,7 +65,15 @@ chunked encoding or content length that might be used).
 <pre>
 %html[head2]
 </pre>
+}{}
 
+$cachedhttps?{
+<h2><a href="/certificates/real?$hostport">SSL Certificate</a></h2>
+
+The SSL certificate that was sent from the server with this page.
+}{}
+
+$cached?{
 <h2><a href="/info/content?%encode[url]">Contents</a></h2>
 
 The contents of the page like links, images, stylesheets etc.
@@ -83,8 +95,8 @@ available in the WWWOFFLE cache.
 <hr class="wwwoffle-footer">
 <div class="wwwoffle-footer" align="center">
 WWWOFFLE - [ \
-<a href="http://$localhost/Welcome.html" title="An introduction to WWWOFFLE">Welcome Page</a>| \
-<a href="http://$localhost/FAQ.html" title="Frequently Asked Questions about WWWOFFLE">FAQ</a> \
+<a href="$localurl/Welcome.html" title="An introduction to WWWOFFLE">Welcome Page</a>| \
+<a href="$localurl/FAQ.html" title="Frequently Asked Questions about WWWOFFLE">FAQ</a> \
 ] - WWWOFFLE
 </div>
 

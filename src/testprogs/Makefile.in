@@ -28,8 +28,8 @@ LDFLAGS=@LDFLAGS@
 
 ########
 
-INCLUDE=@ZLIB_INC@
-LIBRARY=@LIBS@ @ZLIB_LIB@ @ETR_SOCKET_LIBS@
+INCLUDE=@ZLIB_INC@ @GNUTLS_INC@
+LIBRARY=@LIBS@ @ZLIB_LIB@ @GNUTLS_LIB@ @ETR_SOCKET_LIBS@
 
 COMPILE=$(CC) -c $(CFLAGS)
 
@@ -61,13 +61,13 @@ distclean : clean
 ######## PROGRAMS ########
 
 TEST_DOC_OBJ=test-doc.o \
-	     ../http.o ../ftp.o ../finger.o ../ssl.o \
+	     ../http.o ../https.o ../ftp.o ../finger.o ../ssl.o \
 	     ../document.o ../html.o ../css.o ../xml.o ../vrml.o ../javaclass.o \
 	     ../messages.o ../local.o ../cgi.o \
 	     ../parse.o ../spool.o \
 	     ../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
-	     ../io.o ../iopriv.o ../iozlib.o ../iochunk.o \
-	     ../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../md5.o
+	     ../io.o ../iopriv.o ../iozlib.o ../iognutls.o ../iochunk.o \
+	     ../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../certificates.o ../md5.o
 
 test-doc : $(TEST_DOC_OBJ)
 	$(LINK) $(TEST_DOC_OBJ) -o $@ $(LIBRARY)
@@ -75,12 +75,12 @@ test-doc : $(TEST_DOC_OBJ)
 ####
 
 TEST_MSG_OBJ=test-msg.o \
-	     ../http.o ../ftp.o ../finger.o ../ssl.o \
+	     ../http.o ../https.o ../ftp.o ../finger.o ../ssl.o \
 	     ../messages.o ../local.o ../cgi.o \
 	     ../parse.o ../spool.o \
 	     ../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
-	     ../io.o ../iopriv.o ../iozlib.o ../iochunk.o \
-	     ../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../md5.o
+	     ../io.o ../iopriv.o ../iozlib.o ../iognutls.o ../iochunk.o \
+	     ../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../certificates.o ../md5.o
 
 test-msg : $(TEST_MSG_OBJ)
 	$(LINK) $(TEST_MSG_OBJ) -o $@ $(LIBRARY)
@@ -88,13 +88,13 @@ test-msg : $(TEST_MSG_OBJ)
 ####
 
 TEST_MODIFY_OBJ=test-modify.o \
-	       	../http.o ../ftp.o ../finger.o ../ssl.o \
-	       	../htmlmodify.o \
-	       	../messages.o ../local.o ../cgi.o \
-	       	../parse.o ../spool.o \
-	       	../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
-	       	../io.o ../iopriv.o ../iozlib.o ../iochunk.o \
-	       	../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../md5.o
+	        ../http.o ../https.o ../ftp.o ../finger.o ../ssl.o \
+	        ../htmlmodify.o \
+	        ../messages.o ../local.o ../cgi.o \
+	        ../parse.o ../spool.o \
+	        ../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
+	        ../io.o ../iopriv.o ../iozlib.o ../iognutls.o ../iochunk.o \
+	        ../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../certificates.o ../md5.o
 
 test-modify : $(TEST_MODIFY_OBJ)
 	$(LINK) $(TEST_MODIFY_OBJ) -o $@ $(LIBRARY)
@@ -102,13 +102,13 @@ test-modify : $(TEST_MODIFY_OBJ)
 ####
 
 TEST_GIF_OBJ=test-gif.o \
-	     ../http.o ../ftp.o ../finger.o ../ssl.o \
+	     ../http.o ../https.o ../ftp.o ../finger.o ../ssl.o \
 	     ../gifmodify.o \
 	     ../messages.o ../local.o ../cgi.o \
 	     ../parse.o ../spool.o \
 	     ../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
-	     ../io.o ../iopriv.o ../iozlib.o ../iochunk.o \
-	     ../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../md5.o
+	     ../io.o ../iopriv.o ../iozlib.o ../iognutls.o ../iochunk.o \
+	     ../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../certificates.o ../md5.o
 
 test-gif : $(TEST_GIF_OBJ)
 	$(LINK) $(TEST_GIF_OBJ) -o $@ $(LIBRARY)
@@ -116,12 +116,12 @@ test-gif : $(TEST_GIF_OBJ)
 ####
 
 TEST_IO_OBJ=test-io.o \
-	    ../http.o ../ftp.o ../finger.o ../ssl.o \
+	    ../http.o ../https.o ../ftp.o ../finger.o ../ssl.o \
 	    ../messages.o ../local.o ../cgi.o \
 	    ../parse.o ../spool.o \
 	    ../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
-	    ../io.o ../iopriv.o ../iozlib.o ../iochunk.o \
-	    ../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../md5.o
+	    ../io.o ../iopriv.o ../iozlib.o ../iognutls.o ../iochunk.o \
+	    ../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto.o ../sockets.o ../certificates.o ../md5.o
 
 test-io : $(TEST_IO_OBJ)
 	$(LINK) $(TEST_IO_OBJ) -o $@ $(LIBRARY)

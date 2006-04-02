@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/sockets4.c 2.25 2004/01/17 16:29:37 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/sockets4.c 2.27 2005/10/15 18:00:57 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   IPv4 Socket manipulation routines.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04,05 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -51,8 +51,8 @@
 
 static void sigalarm(int signum);
 static struct hostent /*@null@*/ *gethostbyname_or_timeout(char *name);
-static struct hostent /*@null@*/ *gethostbyaddr_or_timeout(char *addr,int len,int type);
-static int connect_or_timeout(int sockfd,struct sockaddr *serv_addr,int addrlen);
+static struct hostent /*@null@*/ *gethostbyaddr_or_timeout(char *addr,size_t len,int type);
+static int connect_or_timeout(int sockfd,struct sockaddr *serv_addr,size_t addrlen);
 
 /* Local variables */
 
@@ -198,7 +198,7 @@ int AcceptConnect(int socket)
 {
  int s;
 
- s=accept(socket,(struct sockaddr*)0,(int*)0);
+ s=accept(socket,(struct sockaddr*)0,(socklen_t*)0);
 
  if(s==-1)
     PrintMessage(Warning,"Failed to accept on server socket [%!s].");
@@ -224,7 +224,8 @@ int AcceptConnect(int socket)
 int SocketRemoteName(int socket,char **name,char **ipname,int *port)
 {
  struct sockaddr_in server;
- int length=sizeof(server),retval;
+ socklen_t length=sizeof(server);
+ int retval;
  static char host[MAXHOSTNAMELEN],ip[16];
  struct hostent* hp=NULL;
 
@@ -274,7 +275,8 @@ int SocketRemoteName(int socket,char **name,char **ipname,int *port)
 int SocketLocalName(int socket,char **name,char **ipname,int *port)
 {
  struct sockaddr_in server;
- int length=sizeof(server),retval;
+ socklen_t length=sizeof(server);
+ int retval;
  static char host[MAXHOSTNAMELEN],ip[16];
  struct hostent* hp=NULL;
 
@@ -560,12 +562,12 @@ start:
 
   char *addr The address of the host.
 
-  int len The length of the address.
+  size_t len The length of the address.
 
   int type The type of the address.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static struct hostent *gethostbyaddr_or_timeout(char *addr,int len,int type)
+static struct hostent *gethostbyaddr_or_timeout(char *addr,size_t len,int type)
 {
  struct hostent *hp;
  struct sigaction action;
@@ -620,10 +622,10 @@ start:
 
   struct sockaddr *serv_addr The address information.
 
-  int addrlen The length of the address information.
+  size_t addrlen The length of the address information.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int connect_or_timeout(int sockfd,struct sockaddr *serv_addr,int addrlen)
+static int connect_or_timeout(int sockfd,struct sockaddr *serv_addr,size_t addrlen)
 {
  int noblock,flags;
  int retval;
@@ -661,7 +663,7 @@ static int connect_or_timeout(int sockfd,struct sockaddr *serv_addr,int addrlen)
 
     if(retval>0)
       {
-       int arglen=sizeof(int);
+       socklen_t arglen=sizeof(int);
 
        if(getsockopt(sockfd,SOL_SOCKET,SO_ERROR,&retval,&arglen)<0)
           retval=errno;

@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/control.c 2.62 2004/11/06 13:47:26 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/control.c 2.69 2005/12/11 10:06:19 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   The HTML interactive control pages.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -55,9 +55,9 @@ static void DeleteControlPage(int fd,URL *Url,/*@null@*/ Body *request_body);
 static void DeleteMultipleControlPages(int fd,URL *Url,/*@null@*/ Body *request_body);
 static void ControlAuthFail(int fd,char *url);
 
-static void delete_req(int fd,char *req,int all,/*@null@*/ char *username,/*@null@*/ char *password,int count);
-static void delete_mon(int fd,char *mon,int all,/*@null@*/ char *username,/*@null@*/ char *password,int count);
-static void delete_url(int fd,char *url,int all,/*@null@*/ char *username,/*@null@*/ char *password,int count);
+static void delete_req(int fd,char *req,int all,/*@null@*/ char *username,/*@null@*/ char *password);
+static void delete_mon(int fd,char *mon,int all,/*@null@*/ char *username,/*@null@*/ char *password);
+static void delete_url(int fd,char *url,int all,/*@null@*/ char *username,/*@null@*/ char *password);
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -97,9 +97,9 @@ void ControlPage(int fd,URL *Url,Body *request_body)
    {action=Purge;command="-purge";}
  else if(!strcmp(newpath,"status"))
    {action=Status;command="-status";}
- else if(!strncmp(newpath,"delete-multiple",15))
+ else if(!strncmp(newpath,"delete-multiple",(size_t)15))
     action=DeleteMultiple;
- else if(!strncmp(newpath,"delete",6))
+ else if(!strncmp(newpath,"delete",(size_t)6))
     action=Delete;
  else if(!strcmp(newpath,"edit"))
     action=Edit;
@@ -126,7 +126,7 @@ void ControlPage(int fd,URL *Url,Body *request_body)
          {
           for(argsp=args;*argsp;argsp++)
             {
-             if(!strncmp(*argsp,"hash=",5) && (*argsp)[5])
+             if(!strncmp(*argsp,"hash=",(size_t)5) && (*argsp)[5])
                 hashash=1;
              else
                 PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",*argsp,Url->name);
@@ -191,7 +191,7 @@ void ControlPage(int fd,URL *Url,Body *request_body)
 
 static void ActionControlPage(int fd,Action action,char *command)
 {
- char *localhost=GetLocalHost(0);
+ char *localhost=GetLocalHost();
  char *buffer=NULL;
  int error=0;
  int socket=OpenClientSocket(localhost,ConfigInteger(WWWOFFLE_Port));
@@ -208,8 +208,7 @@ static void ActionControlPage(int fd,Action action,char *command)
    }
 
  init_io(socket);
- configure_io_read(socket,ConfigInteger(SocketTimeout),0,0);
- configure_io_write(socket,ConfigInteger(SocketTimeout),0,0);
+ configure_io_timeout(socket,ConfigInteger(SocketTimeout),ConfigInteger(SocketTimeout));
 
  HTMLMessageHead(fd,200,"WWWOFFLE Control Page",
                  "Cache-Control","no-cache",
@@ -274,9 +273,6 @@ static void DeleteControlPage(int fd,URL *Url,Body *request_body)
 
  /* Decide what sort of deletion is required. */
 
- if(strlen(Url->path+9)>=10 && !strncmp(Url->path+9+10,"-all",4))
-    all=1;
-
  if(Url->args && *Url->args!='!')
     args=SplitFormArgs(Url->args);
  else if(request_body)
@@ -290,35 +286,31 @@ static void DeleteControlPage(int fd,URL *Url,Body *request_body)
    {
     for(argsp=args;*argsp;argsp++)
       {
-       if(!strncmp(*argsp,"hash=",5))
+       if(!strncmp(*argsp,"hash=",(size_t)5))
           hash=URLDecodeFormArgs(&(*argsp)[5]);
-       else if(!strncmp(*argsp,"username=",9))
+       else if(!strncmp(*argsp,"username=",(size_t)9))
           username=&(*argsp)[9];
-       else if(!strncmp(*argsp,"password=",9))
+       else if(!strncmp(*argsp,"password=",(size_t)9))
           password=&(*argsp)[9];
-       else if(!strncmp(*argsp,"url=",4))
+       else if(!strncmp(*argsp,"url=",(size_t)4))
           page=TrimArgs(URLDecodeFormArgs(&(*argsp)[4]));
        else
           PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",*argsp,Url->name);
       }
    }
 
- if(!strncmp(Url->path+9,"delete-url",10))
+ if(!strcmp(Url->path+9,"delete/url-all"))
+   {url=page;all=1;}
+ else if(!strcmp(Url->path+9,"delete/url"))
     url=page;
- else if(!strncmp(Url->path+9,"delete-mon",10))
-   {
+ else if(!strcmp(Url->path+9,"delete/mon-all"))
+   {mon="all";all=1;}
+ else if(!strcmp(Url->path+9,"delete/mon"))
     mon=page;
-
-    if(all)
-       mon="all";
-   }
- else if(!strncmp(Url->path+9,"delete-req",10))
-   {
+ else if(!strcmp(Url->path+9,"delete/req-all"))
+   {req="all";all=1;}
+ else if(!strcmp(Url->path+9,"delete/req"))
     req=page;
-
-    if(all)
-       req="all";
-   }
 
  /* Do the required deletion. */
 
@@ -346,7 +338,7 @@ static void DeleteControlPage(int fd,URL *Url,Body *request_body)
        URL *hashUrl=SplitURL(req);
 
        if(username)
-          AddURLPassword(hashUrl,username,password);
+          AddPasswordURL(hashUrl,username,password);
 
        realhash=HashOutgoingSpoolFile(hashUrl);
 
@@ -356,18 +348,17 @@ static void DeleteControlPage(int fd,URL *Url,Body *request_body)
     if(hash && req && (!realhash || strcmp(hash,realhash)))
       {
        HTMLMessageBody(fd,"ControlDelete-Body",
-                       "count","",
                        "url",all?"":req,
                        "all",all?"yes":"",
                        "error",realhash?"Hash does not match":"Request already deleted",
                        NULL);
       }
     else if(req)
-       delete_req(fd,req,all,username,password,0);
+       delete_req(fd,req,all,username,password);
     else if(mon)
-       delete_mon(fd,mon,all,username,password,0);
+       delete_mon(fd,mon,all,username,password);
     else if(url)
-       delete_url(fd,url,all,username,password,0);
+       delete_url(fd,url,all,username,password);
 
     HTMLMessageBody(fd,"ControlDelete-Tail",
                     "req",req,
@@ -404,14 +395,17 @@ static void DeleteControlPage(int fd,URL *Url,Body *request_body)
 static void DeleteMultipleControlPages(int fd,URL *Url,Body *request_body)
 {
  char *url=NULL,*req=NULL,*mon=NULL;
+ int all=0;
 
  /* Decide what sort of deletion is required. */
 
- if(!strncmp(Url->path+9,"delete-multiple-url",19))
+ if(!strcmp(Url->path+9,"delete-multiple/url-all"))
+   {all=1;url="yes";}
+ if(!strcmp(Url->path+9,"delete-multiple/url"))
     url="yes";
- else if(!strncmp(Url->path+9,"delete-multiple-mon",19))
+ else if(!strcmp(Url->path+9,"delete-multiple/mon"))
     mon="yes";
- else if(!strncmp(Url->path+9,"delete-multiple-req",19))
+ else if(!strcmp(Url->path+9,"delete-multiple/req"))
     req="yes";
 
  /* Do the required deletion. */
@@ -443,24 +437,22 @@ static void DeleteMultipleControlPages(int fd,URL *Url,Body *request_body)
 
     for(argsp=args;*argsp;argsp++)
       {
-       if(!strncmp(*argsp,"username=",9))
+       if(!strncmp(*argsp,"username=",(size_t)9))
           username=&(*argsp)[9];
-       else if(!strncmp(*argsp,"password=",9))
+       else if(!strncmp(*argsp,"password=",(size_t)9))
           password=&(*argsp)[9];
        else
          {
-          char *equal=strchr(*argsp,'=');
-
-          if(!strncmp(*argsp,"url",3) && equal)
+          if(!strncmp(*argsp,"url=",(size_t)4))
             {
-             char *page=URLDecodeFormArgs(equal+1);
+             char *page=TrimArgs(URLDecodeFormArgs(&(*argsp)[4]));
 
              if(req)
-                delete_req(fd,page,0,username,password,1+(argsp-args));
+                delete_req(fd,page,0,username,password);
              else if(mon)
-                delete_mon(fd,page,0,username,password,1+(argsp-args));
+                delete_mon(fd,page,0,username,password);
              else if(url)
-                delete_url(fd,page,0,username,password,1+(argsp-args));
+                delete_url(fd,page,all,username,password);
 
              free(page);
             }
@@ -512,16 +504,11 @@ static void ControlAuthFail(int fd,char *url)
   char *username The username to add to the URL before trying to delete it.
 
   char *password The password to add to the URL before trying to delete it.
-
-  int count Specifies which of a multiple delete that it is.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void delete_req(int fd,char *req,int all,char *username,char *password,int count)
+static void delete_req(int fd,char *req,int all,char *username,char *password)
 {
  char *err=NULL;
- char count_str[8];
-
- sprintf(count_str,"%d",count);
 
  if(all)
     err=DeleteOutgoingSpoolFile(NULL);
@@ -530,18 +517,14 @@ static void delete_req(int fd,char *req,int all,char *username,char *password,in
     URL *reqUrl=SplitURL(req);
 
     if(username)
-       AddURLPassword(reqUrl,username,password);
+       AddPasswordURL(reqUrl,username,password);
 
-    if(reqUrl->Protocol)
-       err=DeleteOutgoingSpoolFile(reqUrl);
-    else
-       err=strcpy((char*)malloc(24),"Illegal Protocol");
+    err=DeleteOutgoingSpoolFile(reqUrl);
 
     FreeURL(reqUrl);
    }
 
  HTMLMessageBody(fd,"ControlDelete-Body",
-                 "count",count>0?count_str:"",
                  "url",all?"":req,
                  "all",all?"yes":"",
                  "error",err,
@@ -564,16 +547,11 @@ static void delete_req(int fd,char *req,int all,char *username,char *password,in
   char *username The username to add to the URL before trying to delete it.
 
   char *password The password to add to the URL before trying to delete it.
-
-  int count Specifies which of a multiple delete that it is.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void delete_mon(int fd,char *mon,int all,char *username,char *password,int count)
+static void delete_mon(int fd,char *mon,int all,char *username,char *password)
 {
  char *err=NULL;
- char count_str[8];
-
- sprintf(count_str,"%d",count);
 
  if(all)
     err=DeleteMonitorSpoolFile(NULL);
@@ -582,18 +560,14 @@ static void delete_mon(int fd,char *mon,int all,char *username,char *password,in
     URL *monUrl=SplitURL(mon);
 
     if(username)
-       AddURLPassword(monUrl,username,password);
+       AddPasswordURL(monUrl,username,password);
 
-    if(monUrl->Protocol)
-       err=DeleteMonitorSpoolFile(monUrl);
-    else
-       err=strcpy((char*)malloc(24),"Illegal Protocol");
+    err=DeleteMonitorSpoolFile(monUrl);
 
     FreeURL(monUrl);
    }
 
  HTMLMessageBody(fd,"ControlDelete-Body",
-                 "count",count>0?count_str:"",
                  "url",all?"":mon,
                  "all",all?"yes":"",
                  "error",err,
@@ -616,28 +590,19 @@ static void delete_mon(int fd,char *mon,int all,char *username,char *password,in
   char *username The username to add to the URL before trying to delete it.
 
   char *password The password to add to the URL before trying to delete it.
-
-  int count Specifies which of a multiple delete that it is.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void delete_url(int fd,char *url,int all,char *username,char *password,int count)
+static void delete_url(int fd,char *url,int all,char *username,char *password)
 {
  char *err=NULL;
  URL *urlUrl=SplitURL(url);
- char count_str[8];
-
- sprintf(count_str,"%d",count);
 
  if(username)
-    AddURLPassword(urlUrl,username,password);
+    AddPasswordURL(urlUrl,username,password);
 
- if(urlUrl->Protocol)
-    err=DeleteWebpageSpoolFile(urlUrl,!!all);
- else
-    err=strcpy((char*)malloc(24),"Illegal Protocol");
+ err=DeleteWebpageSpoolFile(urlUrl,!!all);
 
  HTMLMessageBody(fd,"ControlDelete-Body",
-                 "count",count>0?count_str:"",
                  "url",url,
                  "all",all?"yes":"",
                  "error",err,

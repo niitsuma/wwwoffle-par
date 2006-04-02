@@ -5,7 +5,7 @@
 
 Available WWWOFFLE Variables (all with a '$' prefix).
 
-localhost = The hostname of the server running wwwoffled (='$localhost').
+localurl  = The root URL of the server running wwwoffled (='$localurl').
 version   = The version of the WWWOFFLE server (='$version').
 section   = The section of the configuration file (= '$section').
 item      = The item in the section of the configuration file (= '$item').
@@ -18,7 +18,7 @@ errmsg    = The error message from making the change.
 
 <HEAD>
 <TITLE>WWWOFFLE - Interaktive Konfigurations-Seite - $section / $item</TITLE>
-<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
+<LINK href="$localurl/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
 <BODY class="wwwoffle-message">
@@ -93,7 +93,7 @@ Die &Auml;nderung schlug fehl und erzeugte folgende Fehlermeldung:
 Die &Auml;nderung wurde erfolgreich durchgef&uuml;hrt.
 <p>
 
-<form action="http://$localhost/control/config" method=post>
+<form action="$localurl/control/config" method=post>
 <input type="hidden" name=action value="config">
 <input type="submit" value="Re-read Configuration"> Sie m&uuml;ssen <tt>wwwoffled</tt> 
 anweisen, die Konfigurations-Datei neu einzulesen, um die &Auml;nderung zu verwenden oder 
@@ -107,9 +107,9 @@ weiter zu ver&auml;ndern.
 <hr class="wwwoffle-footer">
 <div class="wwwoffle-footer" align="center">
 WWWOFFLE - [\
-<a href="http://$localhost/Welcome.html">Willkommensseite</a>| \
-<a href="http://$localhost/README.CONF.html">README.CONF</a>| \
-<a href="http://$localhost/FAQ.html">FAQ</a> \
+<a href="$localurl/Welcome.html">Willkommensseite</a>| \
+<a href="$localurl/README.CONF.html">README.CONF</a>| \
+<a href="$localurl/FAQ.html">FAQ</a> \
 ] - WWWOFFLE
 </div>
 

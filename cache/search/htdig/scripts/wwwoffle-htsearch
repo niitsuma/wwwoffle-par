@@ -15,6 +15,7 @@ PATH=$PATH:/usr/local/cgi-bin
 PATH=$PATH:/usr/local/libexec
 PATH=$PATH:/usr/lib/cgi-bin    # The Debian location
 PATH=$PATH:/opt/www/cgi-bin    # The Suse location
+PATH=$PATH:/srv/www/cgi-bin    # The Suse location
 export PATH
 
 # Do the searching

@@ -1,9 +1,9 @@
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
 #
 # WWWOFFLE Configuration file CONFDIR/wwwoffle.conf
 #
-# Example configuration file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop.
+# Example configuration file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop.
 # They may be distributed under the GNU Public License, version 2, or
 # any higher version.  See section COPYING of the GNU Public license
 # for conditions under which this file may be redistributed.
@@ -12,9 +12,10 @@
 StartUp
 {
  bind-ipv4         = 0.0.0.0
-#bind-ipv6         = ::
+ bind-ipv6         = ::
 
  http-port         = 8080
+ https-port        = 8443
  wwwoffle-port     = 8081
 
  spool-dir         = SPOOLDIR
@@ -40,8 +41,6 @@ Options
  connect-timeout       = 30
 
  connect-retry         = no
-
-# ssl-allow-port        = 443
 
  dir-perm              = 0755
  file-perm             = 0644
@@ -102,6 +101,14 @@ OfflineOptions
 #### Example ####
 # Dont request any URLs at all when offline.
 # <*://*/*> dont-request = yes
+}
+
+
+SSLOptions
+{
+ enable-caching = no
+
+#allow-tunnel = *:443
 }
 
 
@@ -369,6 +376,7 @@ MIMETypes
  .pac     = application/x-ns-proxy-autoconfig
  .pbm     = image/x-portable-bitmap
  .pdf     = application/pdf
+ .pem     = application/x-x509-ca-cert
  .pgm     = image/x-portable-graymap
  .png     = image/png
  .pnm     = image/x-portable-anymap

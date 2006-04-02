@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/headbody.c 1.23 2004/01/11 10:28:20 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/headbody.c 1.25 2005/07/12 17:50:43 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Header and Body handling functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -24,7 +24,7 @@
 
 
 static /*@only@*/ char **split_header_list(char *val);
-static int sort_qval(HeaderListItem *a,HeaderListItem *b);
+static int sort_qval(const HeaderListItem *a,const HeaderListItem *b);
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -32,12 +32,12 @@ static int sort_qval(HeaderListItem *a,HeaderListItem *b);
 
   Header *CreateHeader Returns the new header structure.
 
-  char *line The top line in the original header.
+  const char *line The top line in the original header.
 
   int type The type of header, request=1, reply=0;
   ++++++++++++++++++++++++++++++++++++++*/
 
-Header *CreateHeader(char *line,int type)
+Header *CreateHeader(const char *line,int type)
 {
  Header *new=(Header*)malloc(sizeof(*new));
  char *p=(char*)malloc(strlen(line)+1),*oldp=p;
@@ -155,12 +155,12 @@ Header *CreateHeader(char *line,int type)
 
   Header *head The header structure to add to.
 
-  char *key The key to add or NULL.
+  const char *key The key to add or NULL.
 
-  char *val The value to add.
+  const char *val The value to add.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void AddToHeader(Header *head,char *key,char *val)
+void AddToHeader(Header *head,const char *key,const char *val)
 {
  if(key)
    {
@@ -225,7 +225,7 @@ void AddToHeader(Header *head,char *key,char *val)
 
   Header *head The header to add the line to.
 
-  char *line The raw line of data.
+  char *line The raw line of data (modified in the process).
   ++++++++++++++++++++++++++++++++++++++*/
 
 int AddToHeaderRaw(Header *head,char *line)
@@ -286,10 +286,10 @@ int AddToHeaderRaw(Header *head,char *line)
 
   Header *head The header to change.
 
-  char *url The new URL.
+  const char *url The new URL.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void ChangeURLInHeader(Header *head,char *url)
+void ChangeURLInHeader(Header *head,const char *url)
 {
  head->size-=strlen(head->url);
 
@@ -306,10 +306,10 @@ void ChangeURLInHeader(Header *head,char *url)
 
   Header *head The header to remove the information from.
 
-  char *url A pointer to a string in the header.
+  const char *url A pointer to a string in the header.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void RemovePlingFromHeader(Header *head,char *url)
+void RemovePlingFromHeader(Header *head,const char *url)
 {
  char *pling=strstr(url,"?!")+1;
  char *pling2=strchr(pling+1,'!');
@@ -328,10 +328,10 @@ void RemovePlingFromHeader(Header *head,char *url)
 
   Header *head The header to change.
 
-  char *note The new note.
+  const char *note The new note.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void ChangeNoteInHeader(Header *head,char *note)
+void ChangeNoteInHeader(Header *head,const char *note)
 {
  head->size-=strlen(head->note);
 
@@ -348,10 +348,10 @@ void ChangeNoteInHeader(Header *head,char *note)
 
   Header *head The header to change.
 
-  char *version The new version.
+  const char *version The new version.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void ChangeVersionInHeader(Header *head,char *version)
+void ChangeVersionInHeader(Header *head,const char *version)
 {
  head->size-=strlen(head->version);
 
@@ -368,10 +368,10 @@ void ChangeVersionInHeader(Header *head,char *version)
 
   Header *head The header to remove from.
 
-  char* key The key to look for and remove.
+  const char* key The key to look for and remove.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void RemoveFromHeader(Header *head,char* key)
+void RemoveFromHeader(Header *head,const char* key)
 {
  int i,j;
 
@@ -406,12 +406,12 @@ void RemoveFromHeader(Header *head,char* key)
 
   Header *head The header to remove from.
 
-  char* key The key to look for and remove.
+  const char* key The key to look for and remove.
 
-  char *val The value to look for and remove.
+  const char *val The value to look for and remove.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void RemoveFromHeader2(Header *head,char* key,char *val)
+void RemoveFromHeader2(Header *head,const char* key,const char *val)
 {
  int i;
 
@@ -467,12 +467,12 @@ void RemoveFromHeader2(Header *head,char* key,char *val)
 
   char *GetHeader Returns the value for the header key or NULL if none.
 
-  Header *head The header to search through.
+  const Header *head The header to search through.
 
-  char* key The key to look for.
+  const char* key The key to look for.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *GetHeader(Header *head,char* key)
+char *GetHeader(const Header *head,const char* key)
 {
  int i;
 
@@ -489,14 +489,14 @@ char *GetHeader(Header *head,char* key)
 
   char *GetHeader2 Returns the value for the header key or NULL if none.
 
-  Header *head The header to search through.
+  const Header *head The header to search through.
 
-  char* key The key to look for.
+  const char* key The key to look for.
 
-  char *val The value to look for (which may be in a list).
+  const char *val The value to look for (which may be in a list).
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *GetHeader2(Header *head,char* key,char *val)
+char *GetHeader2(const Header *head,const char* key,const char *val)
 {
  char *retval=NULL;
  int i;
@@ -527,10 +527,10 @@ char *GetHeader2(Header *head,char* key,char *val)
 
   char *HeaderString Returns the header as a string.
 
-  Header *head The header structure to convert.
+  const Header *head The header structure to convert.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *HeaderString(Header *head)
+char *HeaderString(const Header *head)
 {
  char *str,*p;
  int i;
@@ -683,14 +683,14 @@ HeaderList *SplitHeaderList(char *val)
     if(hlist->n>=8)
        hlist->item=(HeaderListItem*)realloc((void*)hlist->item,sizeof(HeaderListItem)*(hlist->n+1));
 
-    hlist->item[hlist->n].val=(char*)malloc((q-*l)+1);
-    strncpy(hlist->item[hlist->n].val,*l,q-*l);
+    hlist->item[hlist->n].val=(char*)malloc((size_t)(q-*l+1));
+    strncpy(hlist->item[hlist->n].val,*l,(size_t)(q-*l));
     hlist->item[hlist->n].val[q-*l]=0;
     hlist->item[hlist->n].qval=qval;
     hlist->n++;
    }
 
- qsort(hlist->item,hlist->n,sizeof(HeaderListItem),(int (*)(const void*,const void*))sort_qval);
+ qsort(hlist->item,(size_t)hlist->n,sizeof(HeaderListItem),(int (*)(const void*,const void*))sort_qval);
 
  free(list);
 
@@ -761,12 +761,12 @@ void FreeHeaderList(HeaderList *hlist)
 
   int sort_qval Returns the sort preference of a and b.
 
-  HeaderListItem *a The first header list item.
+  const HeaderListItem *a The first header list item.
 
-  HeaderListItem *b The second header list item.
+  const HeaderListItem *b The second header list item.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int sort_qval(HeaderListItem *a,HeaderListItem *b)
+static int sort_qval(const HeaderListItem *a,const HeaderListItem *b)
 {
  float aq=a->qval;
  float bq=b->qval;

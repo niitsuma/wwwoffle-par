@@ -5,7 +5,7 @@
 
 Available WWWOFFLE Variables (all with a '$' prefix).
 
-localhost = The hostname of the server running wwwoffled (='$localhost').
+localurl  = The root URL of the server running wwwoffled (='$localurl').
 version   = The version of the WWWOFFLE server (='$version').
 url       = The URL that was asked for (='$url').
 
@@ -16,7 +16,7 @@ $decurl=%decode[url]
 <HEAD>
 <META http-equiv="Content-Type" content="text/html; charset=ISO-8859-2">
 <TITLE>WWWOFFLE - Nielegalna strona odświeżania</TITLE>
-<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
+<LINK href="$localurl/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
 <BODY class="wwwoffle-message">
@@ -41,7 +41,7 @@ jest nielegalna, wybierz poniższy odnośnik, aby przejść do głównej strony intera
 </div>
 
 <div class="wwwoffle-nav" align="center">
-[<a href="http://$localhost/refresh-options/">Wróć do strony odświeżania</a>]
+[<a href="$localurl/refresh-options/">Wróć do strony odświeżania</a>]
 </div>
 
 <!-- Standard WWWOFFLE Message Page Footer Start -->
@@ -49,8 +49,8 @@ jest nielegalna, wybierz poniższy odnośnik, aby przejść do głównej strony intera
 <hr class="wwwoffle-footer">
 <div class="wwwoffle-footer" align="center">
 WWWOFFLE - [ \
-<a href="http://$localhost/Welcome.html">Strona Powitalna</a>| \
-<a href="http://$localhost/FAQ.html">Pytania i Odpowiedzi</a> \
+<a href="$localurl/Welcome.html">Strona Powitalna</a>| \
+<a href="$localurl/FAQ.html">Pytania i Odpowiedzi</a> \
 ] - WWWOFFLE
 </div>
 

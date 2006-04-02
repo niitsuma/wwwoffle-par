@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/search.c 1.33 2004/06/17 18:47:45 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/search.c 1.39 2005/09/04 15:56:20 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
-  Handle the interface to the ht://Dig, mnoGoSearch (UdmSearch) and Namazu search engines.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
+  Handle the interface to the ht://Dig, mnoGoSearch (UdmSearch), Namazu and Hyper Estraier search engines.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -62,6 +62,8 @@
 #include "proto.h"
 
 
+/* Local functions */
+
 static void SearchIndex(int fd,URL *Url);
 static void SearchIndexRoot(int fd);
 static void SearchIndexProtocol(int fd,char *proto);
@@ -71,6 +73,7 @@ static void SearchIndexLastTime(int fd);
 static void HTSearch(int fd,char *args);
 static void mnoGoSearch(int fd,char *args);
 static void Namazu(int fd,char *args);
+static void EstSeek(int fd,char *args);
 
 static void SearchScript(int fd,char *args,char *name,char *script,char *path);
 
@@ -89,7 +92,7 @@ static void SearchScript(int fd,char *args,char *name,char *script,char *path);
 
 void SearchPage(int fd,URL *Url,Header *request_head,Body *request_body)
 {
- if(!strncmp(Url->path+8,"index/",6))
+ if(!strncmp(Url->path+8,"index/",(size_t)6))
     SearchIndex(fd,Url);
  else if(!strcmp(Url->path+8,"htdig/htsearch"))
     HTSearch(fd,Url->args);
@@ -99,13 +102,17 @@ void SearchPage(int fd,URL *Url,Header *request_head,Body *request_body)
     mnoGoSearch(fd,Url->args);
  else if(!strcmp(Url->path+8,"namazu/namazu"))
     Namazu(fd,Url->args);
- else if(!strncmp(Url->path+8,"htdig/",6) && !strchr(Url->path+8+6,'/'))
+ else if(!strcmp(Url->path+8,"hyperestraier/estseek"))
+    EstSeek(fd,Url->args);
+ else if(!strncmp(Url->path+8,"htdig/",(size_t)6) && !strchr(Url->path+8+6,'/'))
     LocalPage(fd,Url,request_head,request_body);
- else if(!strncmp(Url->path+8,"mnogosearch/",12) && !strchr(Url->path+8+12,'/'))
+ else if(!strncmp(Url->path+8,"mnogosearch/",(size_t)12) && !strchr(Url->path+8+12,'/'))
     LocalPage(fd,Url,request_head,request_body);
- else if(!strncmp(Url->path+8,"udmsearch/",10) && !strchr(Url->path+8+10,'/'))
+ else if(!strncmp(Url->path+8,"udmsearch/",(size_t)10) && !strchr(Url->path+8+10,'/'))
     LocalPage(fd,Url,request_head,request_body);
- else if(!strncmp(Url->path+8,"namazu/",7) && !strchr(Url->path+8+7,'/'))
+ else if(!strncmp(Url->path+8,"namazu/",(size_t)7) && !strchr(Url->path+8+7,'/'))
+    LocalPage(fd,Url,request_head,request_body);
+ else if(!strncmp(Url->path+8,"hyperestraier/",(size_t)14) && !strchr(Url->path+8+14,'/'))
     LocalPage(fd,Url,request_head,request_body);
  else if(!strchr(Url->path+8,'/'))
     LocalPage(fd,Url,request_head,request_body);
@@ -240,17 +247,7 @@ static void SearchIndexProtocol(int fd,char *proto)
        continue; /* skip . & .. */
 
     if(!stat(ent->d_name,&buf) && S_ISDIR(buf.st_mode))
-      {
-#if defined(__CYGWIN__)
-       int i;
-
-       for(i=0;ent->d_name[i];i++)
-          if(ent->d_name[i]=='!')
-             ent->d_name[i]=':';
-#endif
-
        write_formatted(fd,"<a href=\"%s/\"> </a>\n",ent->d_name);
-      }
    }
  while((ent=readdir(dir)));
 
@@ -272,9 +269,6 @@ static void SearchIndexProtocol(int fd,char *proto)
 
 static void SearchIndexHost(int fd,char *proto,char *host)
 {
-#if defined(__CYGWIN__)
- int i;
-#endif
  DIR *dir;
  struct dirent* ent;
 
@@ -284,12 +278,6 @@ static void SearchIndexHost(int fd,char *proto,char *host)
     return;
 
  /* Open the spool subdirectory. */
-
-#if defined(__CYGWIN__)
- for(i=0;host[i];i++)
-    if(host[i]==':')
-       host[i]='!';
-#endif
 
  if(chdir(host))
    {ChangeBackToSpoolDir();return;}
@@ -306,22 +294,19 @@ static void SearchIndexHost(int fd,char *proto,char *host)
 
  do
    {
-    char *url;
+    URL *Url;
 
     if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
        continue; /* skip . & .. */
 
-    if(*ent->d_name=='D' && (url=FileNameToURL(ent->d_name)))
+    if(*ent->d_name=='D' && (Url=FileNameToURL(ent->d_name)))
       {
-       URL *Url=SplitURL(url);
-
-       if(Url->Protocol->number==Protocol_HTTP)
+       if(!strcmp(Url->proto,"http"))
           write_formatted(fd,"<a href=\"%s\"> </a>\n",Url->name);
        else
           write_formatted(fd,"<a href=\"/%s/%s\"> </a>\n",Url->proto,Url->hostp);
 
        FreeURL(Url);
-       free(url);
       }
    }
  while((ent=readdir(dir)));
@@ -360,22 +345,19 @@ static void SearchIndexLastTime(int fd)
 
  do
    {
-    char *url;
+    URL *Url;
 
     if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
        continue; /* skip . & .. */
 
-    if(*ent->d_name=='D' && (url=FileNameToURL(ent->d_name)))
+    if(*ent->d_name=='D' && (Url=FileNameToURL(ent->d_name)))
       {
-       URL *Url=SplitURL(url);
-
-       if(Url->Protocol->number==Protocol_HTTP)
+       if(!strcmp(Url->proto,"http"))
           write_formatted(fd,"<a href=\"%s\"> </a>\n",Url->name);
        else
           write_formatted(fd,"<a href=\"/%s/%s\"> </a>\n",Url->proto,Url->hostp);
 
        FreeURL(Url);
-       free(url);
       }
    }
  while((ent=readdir(dir)));
@@ -428,7 +410,28 @@ static void Namazu(int fd,char *args)
 }
 
 
-/* A macro definition that makes environment variable setting a little easier. */
+/*++++++++++++++++++++++++++++++++++++++
+  Perform a Hyper Estraier search using the data from the posted form.
+
+  int fd The file descriptor to write to.
+
+  char *args The arguments of the request.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+static void EstSeek(int fd,char *args)
+{
+ SearchScript(fd,args,"hyperestraier","estseek","search/hyperestraier/scripts/wwwoffle-estseek");
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  A macro definition that makes environment variable setting a little easier.
+
+  variable The environment variable that is to be set.
+
+  value The value of the environment variable.
+  ++++++++++++++++++++++++++++++++++++++*/
+
 #define putenv_var_val(variable,value) \
 { \
   char *envstr=(char *)malloc(sizeof(variable "=")+strlen(value)); \
@@ -437,6 +440,7 @@ static void Namazu(int fd,char *args)
   if(putenv(envstr)==-1) \
      env_err=1; \
 }
+
 
 /*++++++++++++++++++++++++++++++++++++++
   Perform a search using one of the three search methods.
@@ -460,8 +464,8 @@ static void SearchScript(int fd,char *args,char *name,char *script,char *path)
    {
     PrintMessage(Warning,"Cannot fork to call %s search script; [%!s].",name);
 
-    lseek(fd,0,SEEK_SET);
-    ftruncate(fd,0);
+    lseek(fd,(off_t)0,SEEK_SET);
+    ftruncate(fd,(off_t)0);
     reinit_io(fd);
 
     HTMLMessage(fd,500,"WWWOFFLE Server Error",NULL,"ServerError",
@@ -503,7 +507,7 @@ static void SearchScript(int fd,char *args,char *name,char *script,char *path)
        close(cgi_fd);
       }
 
-    if(lseek(STDERR_FILENO,0,SEEK_CUR)==-1 && errno==EBADF) /* stderr is not open */
+    if(lseek(STDERR_FILENO,(off_t)0,SEEK_CUR)==-1 && errno==EBADF) /* stderr is not open */
       {
        cgi_fd=open("/dev/null",O_WRONLY);
 

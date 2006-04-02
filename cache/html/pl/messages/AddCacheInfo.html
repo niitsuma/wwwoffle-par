@@ -2,7 +2,7 @@
 <!-- The following section added by WWWOFFLE -->
 
 <STYLE type="text/css">
-<!-- @import "http://$localhost/wwwoffle.css"; -->
+<!-- @import "$localurl/wwwoffle.css"; -->
 </STYLE>
 
 $unit?=m{$unitstr1=minutê  $unitstr2=minuty   $unitstr=minut   }{}
@@ -32,13 +32,13 @@ $encurl=%encode[url]
 <hr class="wwwoffle-addinfo" />
 <div class="wwwoffle-addinfo" align="center">
 WWWOFFLE - $date ($time $unitstr temu) - [ \
-<a href="http://$localhost/control/delete-url/?url=$encurl">Usuñ</a>| \
-<a href="http://$localhost/refresh/?$encurl">Od¶wie¿</a>: \
-<a href="http://$localhost/refresh-options/?$encurl">Opcje</a>| \
-<a href="http://$localhost/monitor-options/?$encurl">Monitoruj</a>| \
-<a href="http://$localhost/index/url?$encurl">Indeks</a>| \
-<a href="http://$localhost/configuration/url?$encurl">Konfiguruj</a>| \
-<a href="http://$localhost/info/url?$encurl">Info</a> \
+<a href="$localurl/index/url?$encurl">Indeks</a>| \
+<a href="$localurl/refresh/?$encurl">Od¶wie¿</a>: \
+<a href="$localurl/refresh-options/?$encurl">Opcje</a>| \
+<a href="$localurl/monitor-options/?$encurl">Monitoruj</a>| \
+<a href="$localurl/control/delete/url?url=$encurl">Usuñ</a>| \
+<a href="$localurl/configuration/url?$encurl">Konfiguruj</a>| \
+<a href="$localurl/info/url?$encurl">Info</a> \
 ] - WWWOFFLE
 </div>
 <hr class="wwwoffle-addinfo" />

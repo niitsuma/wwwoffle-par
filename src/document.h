@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/document.h 1.11 2004/06/14 18:20:00 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/document.h 1.12 2005/02/27 10:18:08 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8f.
   Header file for document parsing functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1998,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04,05 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -43,6 +43,8 @@ typedef enum _RefType
  RefObject,                     /*+ An included object. +*/
  RefInlineObject,               /*+ An inlined object e.g. VRML: WWWInline, referenced java class. +*/
  RefLink,                       /*+ A link to another page. +*/
+ RefBaseUrl,                    /*+ The base URL. +*/
+ RefMetaRefresh,                /*+ The HTML meta tag refresh URL. +*/
  NRefTypes                      /*+ The number of different reference types. +*/
 }
 RefType;
@@ -53,15 +55,15 @@ DocType ParseDocument(int fd,URL *Url,int all);
 
 void AddReference(/*@null@*/ char* name,RefType type);
 void FinishReferences(void);
-void SetBaseURL(URL *Url);
-char /*@null@*/ /*@observer@*/ **GetReferences(RefType type);
+
+URL /*@null@*/ /*@observer@*/ *GetReference(RefType type);
+URL /*@null@*/ /*@observer@*/ **GetReferences(RefType type);
+
 void ResetReferences(void);
 
 /* In html.c (html.l) */
 
 void ParseHTML(int fd,URL *Url);
-char /*@observer@*/ *MetaRefresh(void);
-char *MetaCharset(void);
 
 /* In css.c (css.l) */
 

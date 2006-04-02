@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/finger.c 1.20 2003/12/14 10:53:53 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/finger.c 1.29 2006/01/08 10:27:21 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Functions for getting URLs using Finger.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1998,99,2000,01,02,03 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04,05,06 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -28,7 +28,7 @@
 
 
 /*+ Set to the name of the proxy if there is one. +*/
-static /*@observer@*/ /*@null@*/ char *proxy=NULL;
+static URL /*@null@*/ /*@only@*/ *proxyUrl=NULL;
 
 /*+ The file descriptor of the server. +*/
 static int server=-1;
@@ -45,38 +45,43 @@ static int server=-1;
 char *Finger_Open(URL *Url)
 {
  char *msg=NULL;
- char *hoststr,*portstr;
+ char *proxy=NULL;
  char *server_host=NULL;
- int server_port=Protocols[Protocol_Finger].defport;
+ int server_port=-1;
 
  /* Sort out the host. */
 
- proxy=ConfigStringURL(Proxies,Url);
- if(IsLocalNetHost(Url->host))
-    proxy=NULL;
+ if(!IsLocalNetHost(Url->host))
+    proxy=ConfigStringURL(Proxies,Url);
 
  if(proxy)
-    server_host=proxy;
+   {
+    if(proxyUrl)
+       FreeURL(proxyUrl);
+    proxyUrl=NULL;
+
+    proxyUrl=CreateURL("http",proxy,"/",NULL,NULL,NULL);
+    server_host=proxyUrl->host;
+    server_port=proxyUrl->port;
+   }
  else
+   {
     server_host=Url->host;
+    server_port=Url->port;
+   }
 
- SplitHostPort(server_host,&hoststr,&portstr);
-
- if(portstr)
-    server_port=atoi(portstr);
+ if(server_port==-1)
+    server_port=DefaultPort(Url);
 
  /* Open the connection. */
 
- server=OpenClientSocket(hoststr,server_port);
+ server=OpenClientSocket(server_host,server_port);
 
  if(server==-1)
-    msg=GetPrintMessage(Warning,"Cannot open the Finger connection to %s port %d; [%!s].",hoststr,server_port);
+    msg=GetPrintMessage(Warning,"Cannot open the Finger connection to %s port %d; [%!s].",server_host,server_port);
 
  init_io(server);
- configure_io_read(server,ConfigInteger(SocketTimeout),0,0);
- configure_io_write(server,ConfigInteger(SocketTimeout),0,0);
-
- RejoinHostPort(server_host,hoststr,portstr);
+ configure_io_timeout(server,ConfigInteger(SocketTimeout),ConfigInteger(SocketTimeout));
 
  return(msg);
 }
@@ -101,11 +106,11 @@ char *Finger_Request(URL *Url,Header *request_head,/*@unused@*/ Body *request_bo
 
  /* Take a simple route if it is proxied. */
 
- if(proxy)
+ if(proxyUrl)
    {
     char *head;
 
-    MakeRequestProxyAuthorised(proxy,request_head);
+    MakeRequestProxyAuthorised(proxyUrl,request_head);
 
     head=HeaderString(request_head);
 
@@ -158,7 +163,7 @@ int Finger_ReadHead(Header **reply_head)
 
  /* Take a simple route if it is proxied. */
 
- if(proxy)
+ if(proxyUrl)
    {
     ParseReply(server,reply_head);
 
@@ -178,14 +183,14 @@ int Finger_ReadHead(Header **reply_head)
 /*++++++++++++++++++++++++++++++++++++++
   Read bytes from the body of the reply for the URL.
 
-  int Finger_ReadBody Returns the number of bytes read on success, -1 on error.
+  ssize_t Finger_ReadBody Returns the number of bytes read on success, -1 on error.
 
   char *s A string to fill in with the information.
 
-  int n The number of bytes to read.
+  size_t n The number of bytes to read.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int Finger_ReadBody(char *s,int n)
+ssize_t Finger_ReadBody(char *s,size_t n)
 {
  return(read_data(server,s,n));
 }
@@ -204,6 +209,10 @@ int Finger_Close(void)
  finish_tell_io(server,&r,&w);
 
  PrintMessage(Inform,"Server bytes; %d Read, %d Written.",r,w); /* Used in audit-usage.pl */
+
+ if(proxyUrl)
+    FreeURL(proxyUrl);
+ proxyUrl=NULL;
 
  return(CloseSocket(server));
 }

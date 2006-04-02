@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include "autoconfig.h"
 #include "io.h"
 #include "errors.h"
 
@@ -31,7 +32,7 @@
 int main(int argc,char **argv)
 {
  char infile[32],outfile[32];
- char buffer[READ_BUFFER_SIZE];
+ char buffer[IO_BUFFER_SIZE];
  int n;
  int count;
 
@@ -67,8 +68,12 @@ int main(int argc,char **argv)
 
     init_io(write_fd);
 
-    if(zlib || chunk)
-       configure_io_write(write_fd,0,zlib?2:0,chunk?1:0);
+#if USE_ZLIB
+    if(zlib)
+       configure_io_zlib(write_fd,-1,zlib?2:0);
+#endif
+    if(chunk)
+       configure_io_chunked(write_fd,-1,chunk?1:0);
 
     do
       {
@@ -121,8 +126,12 @@ int main(int argc,char **argv)
 
     init_io(read_fd);
 
-    if(zlib || chunk)
-       configure_io_read(read_fd,0,zlib?2:0,chunk?1:0);
+#if USE_ZLIB
+    if(zlib)
+       configure_io_zlib(read_fd,zlib?2:0,-1);
+#endif
+    if(chunk)
+       configure_io_chunked(read_fd,chunk?1:0,-1);
 
     do
       {
@@ -242,8 +251,12 @@ int main(int argc,char **argv)
     if(write_fd==-1)
        PrintMessage(Fatal,"Cannot open '%s' for writing [%!s]",outfile);
 
-    if(zlib || chunk)
-       configure_io_read(read_fd,0,zlib?2:0,chunk?1:0);
+#if USE_ZLIB
+    if(zlib)
+       configure_io_zlib(read_fd,zlib?2:0,-1);
+#endif
+    if(chunk)
+       configure_io_chunked(read_fd,chunk?1:0,-1);
 
     do
       {

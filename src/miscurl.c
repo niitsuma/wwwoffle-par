@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/miscurl.c 2.86 2004/09/01 18:02:34 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/miscurl.c 2.108 2006/02/10 18:35:10 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Miscellaneous HTTP / HTML Url Handling functions.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -30,20 +30,26 @@
 
   URL *SplitURL Returns a URL structure containing the information.
 
-  char *url The name of the url to split.
+  const char *url The name of the url to split.
   ++++++++++++++++++++++++++++++++++++++*/
 
-URL *SplitURL(char *url)
+URL *SplitURL(const char *url)
 {
- URL *Url=(URL*)malloc(sizeof(URL));
+ URL *Url;
+ char *proto,*user,*pass,*hostport,*path,*args;
  char *copyurl,*mallocurl=malloc(strlen(url)+2);
- int i=0,n=0;
- char *colon,*slash,*at,*ques,*semi,*temp,root[2];
+ char *colon,*slash,*at,*ques,*hash;
 
  copyurl=mallocurl;
  strcpy(copyurl,url);
 
- /* Protocol */
+ /* Remove any fragment identifiers */
+
+ hash=strchr(copyurl,'#');
+ if(hash)
+    *hash=0;
+
+ /* Protocol = Url->proto */
 
  colon=strchr(copyurl,':');
  slash=strchr(copyurl,'/');
@@ -51,14 +57,13 @@ URL *SplitURL(char *url)
 
  if(slash==copyurl)                     /* /dir/... (local) */
    {
-    Url->proto=(char*)malloc(5);
-    strcpy(Url->proto,"http");
+    proto="http";
    }
- else if(colon && slash && (colon+1)==slash) /* http://... */
+ else if(colon && slash && (colon+1)==slash) /* http:/[/]... */
    {
     *colon=0;
-    Url->proto=(char*)malloc(colon-copyurl+1);
-    strcpy(Url->proto,copyurl);
+    proto=copyurl;
+
     copyurl=slash+1;
     if(*copyurl=='/')
        copyurl++;
@@ -68,177 +73,227 @@ URL *SplitURL(char *url)
    }
  else if(colon && !isdigit(*(colon+1)) &&
          (!slash || colon<slash) &&
-         (!at || (slash && at>slash)))  /* http:www.foo.com/...[:@]... */
+         (!at || (slash && at>slash)))  /* http:www.foo/...[:@]... */
    {
     *colon=0;
-    Url->proto=(char*)malloc(colon-copyurl+1);
-    strcpy(Url->proto,copyurl);
+    proto=copyurl;
+
     copyurl=colon+1;
 
     colon=strchr(copyurl,':');
    }
- else                                   /* www.foo.com:80/... */
+ else                                   /* www.foo:80/... */
    {
-    Url->proto=(char*)malloc(5);
-    strcpy(Url->proto,"http");
+    proto="http";
    }
 
- for(i=0;Url->proto[i];i++)
-    Url->proto[i]=tolower(Url->proto[i]);
-
- Url->Protocol=NULL;
-
- for(i=0;i<NProtocols;i++)
-    if(!strcmp(Protocols[i].name,Url->proto))
-       Url->Protocol=&Protocols[i];
-
- /* Password */
+ /* Username, Password = Url->user, Url->pass */
 
  if(at && at>copyurl && (!slash || slash>at))
    {
     char *at2;
 
-    if(colon && at>colon)               /* user:pass@www.foo.com...[/]... */
+    if(colon && at>colon)               /* user:pass@www.foo...[/]... */
       {
        *colon=0;
-       Url->user=URLDecodeGeneric(copyurl);
+       user=copyurl;
        *at=0;
-       Url->pass=URLDecodeGeneric(colon+1);
+       pass=colon+1;
+
        copyurl=at+1;
       }
-    else if(colon && (at2=strchr(at+1,'@')) && /* user@host:pass@www.foo.com...[/]... */
+    else if(colon && (at2=strchr(at+1,'@')) && /* user@host:pass@www.foo...[/]... */
             at2>colon && at2<slash)            /* [not actually valid, but common]    */
       {
        *colon=0;
-       Url->user=URLDecodeGeneric(copyurl);
+       user=copyurl;
        *at2=0;
-       Url->pass=URLDecodeGeneric(colon+1);
+       pass=colon+1;
+
        copyurl=at2+1;
       }
-    else                               /* user@www.foo.com...[:/]... */
+    else                               /* user@www.foo...[:/]... */
       {
        *at=0;
-       Url->user=URLDecodeGeneric(copyurl);
-       Url->pass=NULL;
+       user=copyurl;
+       pass=NULL;
+
        copyurl=at+1;
       }
    }
  else
    {
-    if(at==copyurl)             /* @www.foo.com... */
+    if(at==copyurl)             /* @www.foo... */
        copyurl++;
 
-    Url->user=NULL;
-    Url->pass=NULL;
+    user=NULL;
+    pass=NULL;
    }
 
- /* Parameters */
+ /* Arguments = Url->args */
 
- semi=strchr(copyurl,';');
  ques=strchr(copyurl,'?');
-
- Url->params=NULL;
-
- if(semi && (!ques || semi<ques)) /* ../path;...[?]... */
-   {
-    *semi++=0;
-
-    if(ques)
-       *ques=0;
-
-    if(*semi)
-       Url->params=URLRecodeFormArgs(semi);
-   }
-
- /* Arguments */
 
  if(ques)                       /* ../path?... */
    {
     *ques++=0;
-    Url->args=URLRecodeFormArgs(ques);
+    args=ques;
+   }
+ else
+    args=NULL;
+
+ /* Pathname = Url->path */
+
+ slash=strchr(copyurl,'/');
+
+ if(slash)                       /* /path/... (local) */ /* www.foo/...[?]... */
+   {
+    path=(char*)malloc(strlen(slash)+1);
+    strcpy(path,slash);
+    *slash=0;
+   }
+ else                           /* www.foo[?]... */
+    path="/";
+
+ /* Hostname:port = Url->hostport */
+
+ if(*copyurl)                   /* www.foo */
+    hostport=copyurl;
+ else                           /* /path/... (local) */
+    hostport=GetLocalHostPort();
+
+ /* Create the URL */
+
+ Url=CreateURL(proto,hostport,path,args,user,pass);
+
+ /* Tidy up */
+
+ free(mallocurl);
+
+ if(hostport!=copyurl)
+    free(hostport);
+
+ if(slash)
+    free(path);
+
+ return(Url);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Create a URL data structure from a set of component parts.
+
+  URL *CreateURL Returns a newly allocated URL.
+
+  const char *proto The URL protocol.
+
+  const char *hostport The URL host and port.
+
+  const char *path The URL path.
+
+  const char *args The URL args (may be NULL).
+
+  const char *user The username (may be NULL);
+
+  const char *pass The password (may be NULL);
+  ++++++++++++++++++++++++++++++++++++++*/
+
+URL *CreateURL(const char *proto,const char *hostport,const char *path,const char *args,const char *user,const char *pass)
+{
+ URL *Url=(URL*)malloc(sizeof(URL));
+ int n=0,i;
+ char *colon,*temp;
+
+ /* proto = Url->proto */
+
+ Url->proto=(char*)malloc(strlen(proto)+1);
+
+ for(i=0;proto[i];i++)
+    Url->proto[i]=tolower(proto[i]);
+ Url->proto[i]=0;
+
+ /* hostport = Url->hostport */
+
+ temp=URLDecodeGeneric(hostport);
+
+ for(i=0;temp[i];i++)
+    if(isalpha(temp[i]))
+       temp[i]=tolower(temp[i]);
+    else if(!isalnum(temp[i]) && temp[i]!=':' && temp[i]!='-' &&
+       temp[i]!='.' && temp[i]!='[' && temp[i]!=']')
+      {temp[i]=0;break;}
+
+ Url->hostport=CanonicaliseHost(temp);
+
+ free(temp);
+
+ /* path = Url->path */
+
+ temp=URLDecodeGeneric(path);
+ CanonicaliseName(temp);
+
+ Url->path=URLEncodePath(temp);
+
+ free(temp);
+
+ /* args = Url->args */
+
+ if(args && *args)
+   {
+    Url->args=URLRecodeFormArgs(args);
     URLReplaceAmp(Url->args);
    }
  else
     Url->args=NULL;
 
- /* Hostname */
+ /* user, pass = Url->user, Url->pass */
 
- if(*copyurl=='/')              /* /path/... (local) */
+ if(user) /* allow empty usernames */
+    Url->user=URLDecodeGeneric(user);
+ else
+    Url->user=NULL;
+
+ if(pass && *pass)
+    Url->pass=URLDecodeGeneric(pass);
+ else
+    Url->pass=NULL;
+
+ /* Hostname, port = Url->host, Url->port */
+
+ if(*Url->hostport=='[')
    {
-    Url->host=GetLocalHost(1);
-    Url->local=1;
-   }
- else                           /* www.foo.com... */
-   {
-    Url->host=copyurl;
-    Url->local=0;
-
-    if(slash && (!ques || slash<ques)) /* www.foo.com/...[?]... */
-       copyurl=slash;
-    else                        /* www.foo.com[?]... */
-      {root[0]='/';root[1]=0;copyurl=root;}
-   }
-
- /* Pathname */
-
- temp=URLDecodeGeneric(copyurl);
- CanonicaliseName(temp);
- Url->path=URLEncodePath(temp);
- free(temp);
-
- /* Hostname (cont) */
-
- if(!Url->local)
-   {
-    *copyurl=0;
-    copyurl=Url->host;
-    Url->host=(char*)malloc(strlen(copyurl)+1);
-    strcpy(Url->host,copyurl);
-   }
-
- for(i=0;Url->host[i];i++)
-    if(!isalnum(Url->host[i]) && Url->host[i]!=':' && Url->host[i]!='-' &&
-       Url->host[i]!='.' && Url->host[i]!='[' && Url->host[i]!=']')
-      {Url->host[i]=0;break;}
-
- if(!Url->host[0])
-   {
-    Url->host=GetLocalHost(1);
-    Url->local=1;
-   }
-
- if(*Url->host=='[')
-   {
-    for(i=0;Url->host[i] && Url->host[i]!=']';i++)
-       ;
-    i++;
+    char *square=strchr(Url->hostport,']');
+    colon=strchr(square,':');
    }
  else
-    for(i=0;Url->host[i] && Url->host[i]!=':';i++)
-       ;
+    colon=strchr(Url->hostport,':');
 
- if(Url->host[i]==':')
-    if(atoi(&Url->host[i+1])==(Url->Protocol?Url->Protocol->defport:80))
-       Url->host[i]=0;
-
- if(!Url->local && IsLocalHost(Url->host,1) && Url->Protocol && Url->Protocol==&Protocols[0])
+ if(colon)
    {
-    free(Url->host);
-    Url->host=GetLocalHost(1);
-    Url->local=1;
+    int defport=DefaultPort(Url);
+    if(defport && atoi(colon+1)==defport)
+       *colon=0;
    }
 
- temp=Url->host;
- Url->host=CanonicaliseHost(Url->host);
- if(Url->host!=temp)
-    free(temp);
+ if(colon && *colon)
+   {
+    Url->host=(char*)malloc(colon-Url->hostport+1);
+    *colon=0;
+    strcpy(Url->host,Url->hostport);
+    *colon=':';
+    Url->port=atoi(colon+1);
+   }
+ else
+   {
+    Url->host=Url->hostport;
+    Url->port=-1;
+   }
 
- /* Canonicalise the URL. */
+ /* Canonical URL = Url->name (and pointers Url->hostp, Url->pathp). */
 
  Url->name=(char*)malloc(strlen(Url->proto)+
-                         strlen(Url->host)+
+                         strlen(Url->hostport)+
                          strlen(Url->path)+
-                         (Url->params?strlen(Url->params):0)+
                          (Url->args?strlen(Url->args):0)+
                          8);
 
@@ -249,26 +304,21 @@ URL *SplitURL(char *url)
 
  Url->hostp=Url->name+n;
 
- strcpy(Url->name+n,Url->host);
- n+=strlen(Url->host);
+ strcpy(Url->name+n,Url->hostport);
+ n+=strlen(Url->hostport);
 
  Url->pathp=Url->name+n;
 
  strcpy(Url->name+n,Url->path);
  n+=strlen(Url->path);
 
- if(Url->params && *Url->params)
-   {
-    strcpy(Url->name+n,";");
-    strcpy(Url->name+n+1,Url->params);
-    n+=strlen(Url->params)+1;
-   }
-
- if(Url->args && *Url->args)
+ if(Url->args)
    {
     strcpy(Url->name+n,"?");
     strcpy(Url->name+n+1,Url->args);
    }
+
+ /* File name = Url->file */
 
  if(Url->user)
    {
@@ -280,7 +330,7 @@ URL *SplitURL(char *url)
                             8);
 
     n=Url->hostp-Url->name;
-    strncpy(Url->file,Url->name,n);
+    strncpy(Url->file,Url->name,(size_t)n);
 
     encuserpass=URLEncodePassword(Url->user);
 
@@ -306,99 +356,19 @@ URL *SplitURL(char *url)
  else
     Url->file=Url->name;
 
- if(Url->Protocol && !Url->Protocol->proxyable)
-   {
-    char *localhost=GetLocalHost(1);
-    Url->link=(char*)malloc(strlen(Url->name)+strlen(localhost)+8);
-    sprintf(Url->link,"http://%s/%s/%s",localhost,Url->proto,Url->hostp);
-    free(localhost);
-   }
- else
-    Url->link=Url->name;
+ /* Host directory = Url->private_dir - Private data */
 
- Url->dir=Url->host;
+ Url->private_dir=NULL;
 
-#if defined(__CYGWIN__)
- if(strchr(Url->host,':'))
-   {
-    Url->dir=(char*)malloc(strlen(Url->host)+1);
+ /* Cache filename = Url->private_file - Private data */
 
-    for(i=0;Url->host[i];i++)
-       if(Url->host[i]==':')
-          Url->dir[i]='!';
-       else
-          Url->dir[i]=Url->host[i];
+ Url->private_file=NULL;
 
-    Url->dir[i]=0;
-   }
-#endif
+ /* Proxyable link = Url->private_link - Private data */
 
- /* end */
-
- free(mallocurl);
+ Url->private_link=NULL;
 
  return(Url);
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Add a password to an existing URL.
-
-  URL *Url The URL to add the username and password to.
-
-  char *user The username.
-
-  char *pass The password.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-void AddURLPassword(URL *Url,char *user,char *pass)
-{
- int n;
- char *encuserpass;
-
- if(Url->user)
-    free(Url->user);
-
- Url->user=(char*)malloc(strlen(user)+1);
- strcpy(Url->user,user);
-
- if(Url->pass)
-    free(Url->pass);
- Url->pass=NULL;
-
- if(pass)
-   {
-    Url->pass=(char*)malloc(strlen(pass)+1);
-    strcpy(Url->pass,pass);
-   }
-
- Url->file=(char*)malloc(strlen(Url->name)+
-                         3*strlen(user)+
-                         (pass?3*strlen(pass):0)+8);
-
- n=Url->hostp-Url->name;
- strncpy(Url->file,Url->name,n);
-
- encuserpass=URLEncodePassword(Url->user);
-
- strcpy(Url->file+n,encuserpass);
- n+=strlen(encuserpass);
-
- free(encuserpass);
-
- if(Url->pass)
-   {
-    encuserpass=URLEncodePassword(Url->pass);
-
-    strcpy(Url->file+n,":");
-    strcpy(Url->file+n+1,encuserpass);
-    n+=strlen(encuserpass)+1;
-
-    free(encuserpass);
-   }
-
- strcpy(Url->file+n,"@");
- strcpy(Url->file+n+1,Url->hostp);
 }
 
 
@@ -410,48 +380,85 @@ void AddURLPassword(URL *Url,char *user,char *pass)
 
 void FreeURL(URL *Url)
 {
- if(Url->name!=Url->link)
-    free(Url->link);
+ if(Url->private_dir && Url->private_dir!=Url->hostport)
+    free(Url->private_dir);
 
- if(Url->name!=Url->file)
+ if(Url->private_file)
+    free(Url->private_file);
+
+ if(Url->private_link && Url->private_link!=Url->name)
+    free(Url->private_link);
+
+ if(Url->file!=Url->name)
     free(Url->file);
-
- if(Url->dir!=Url->host)
-    free(Url->dir);
 
  free(Url->name);
 
- if(Url->proto)  free(Url->proto);
- if(Url->host)   free(Url->host);
- if(Url->path)   free(Url->path);
- if(Url->params) free(Url->params);
- if(Url->args)   free(Url->args);
+ if(Url->host!=Url->hostport)
+    free(Url->host);
 
- if(Url->user)   free(Url->user);
- if(Url->pass)   free(Url->pass);
+ if(Url->proto)    free(Url->proto);
+ if(Url->hostport) free(Url->hostport);
+ if(Url->path)     free(Url->path);
+ if(Url->args)     free(Url->args);
+
+ if(Url->user)     free(Url->user);
+ if(Url->pass)     free(Url->pass);
 
  free(Url);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Convert a url reference from a page to an absolute one.
+  Add a password to an existing URL.
 
-  char *LinkURL Return the linked to URL or the original link if unchanged.
+  URL *Url The URL to add the username and password to.
 
-  URL *Url The page that we are looking at.
+  const char *user The username.
 
-  char *link The link from the page.
+  const char *pass The password.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *LinkURL(URL *Url,char *link)
+void AddPasswordURL(URL *Url,const char *user,const char *pass)
 {
- char *new=link;
+ URL *new,*old;
+
+ old=(URL*)malloc(sizeof(URL));
+ *old=*Url;
+
+ new=CreateURL(old->proto,old->hostport,old->path,old->args,user,pass);
+
+ *Url=*new;
+
+ FreeURL(old);
+ free(new);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Convert a url reference from a page to an absolute one.
+
+  URL *LinkURL Returns a new URL that refers to the link.
+
+  const URL *Url The page that we are looking at.
+
+  const char *link The link from the page.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+URL *LinkURL(const URL *Url,const char *link)
+{
+ URL *newUrl;
+ char *new=NULL;
  char *colon=strchr(link,':');
  char *slash=strchr(link,'/');
 
  if(colon && slash && colon<slash)
     ;
+ else if(*link=='#')
+   {
+    new=(char*)malloc(strlen(Url->name)+2);
+    strcpy(new,Url->name);
+   }
  else if(*link=='/' && *(link+1)=='/')
    {
     new=(char*)malloc(strlen(Url->proto)+strlen(link)+2);
@@ -459,16 +466,18 @@ char *LinkURL(URL *Url,char *link)
    }
  else if(*link=='/')
    {
-    new=(char*)malloc(strlen(Url->proto)+strlen(Url->host)+strlen(link)+4);
-    sprintf(new,"%s://%s%s",Url->proto,Url->host,link);
+    new=(char*)malloc(strlen(Url->proto)+strlen(Url->hostport)+strlen(link)+4);
+    sprintf(new,"%s://%s%s",Url->proto,Url->hostport,link);
    }
- else if(!strncasecmp(link,"mailto:",7))
+ else if(!strncasecmp(link,"mailto:",(size_t)7))
     /* "mailto:" doesn't follow the rule of ':' before '/'. */ ;
+ else if(!strncasecmp(link,"javascript:",(size_t)11))
+    /* "javascript:" doesn't follow the rule of ':' before '/'. */ ;
  else
    {
     int j;
-    new=(char*)malloc(strlen(Url->proto)+strlen(Url->host)+strlen(Url->path)+strlen(link)+4);
-    sprintf(new,"%s://%s%s",Url->proto,Url->host,Url->path);
+    new=(char*)malloc(strlen(Url->proto)+strlen(Url->hostport)+strlen(Url->path)+strlen(link)+4);
+    sprintf(new,"%s://%s%s",Url->proto,Url->hostport,Url->path);
 
     if(*link)
       {
@@ -478,34 +487,40 @@ char *LinkURL(URL *Url,char *link)
 
        strcpy(new+j+1,link);
 
-       CanonicaliseName(new+strlen(Url->proto)+3+strlen(Url->host));
+       CanonicaliseName(new+strlen(Url->proto)+3+strlen(Url->hostport));
       }
    }
 
- return(new);
+ if(!new)
+    newUrl=SplitURL(link);
+ else
+   {
+    newUrl=SplitURL(new);
+    free(new);
+   }
+
+ return(newUrl);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Canonicalise a hostname by converting to lower case, filling in the zeros for IPv6 and converting decimal to dotted quad.
 
-  char *CanonicaliseHost Returns the original argument or a new malloced one.
+  char *CanonicaliseHost Returns the a newly allocated canonical string for the host.
 
-  char *host The original host address.
+  const char *host The original host address.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *CanonicaliseHost(char *host)
+char *CanonicaliseHost(const char *host)
 {
+ char *newhost;
  int hasletter=0,hasdot=0,hascolon=0;
  int i;
 
  for(i=0;host[i];i++)
    {
     if(isalpha(host[i]))
-      {
        hasletter++;
-       host[i]=tolower(host[i]);
-      }
     else if(host[i]=='.')
        hasdot++;
     else if(host[i]==':')
@@ -516,7 +531,8 @@ char *CanonicaliseHost(char *host)
    {
     unsigned int ipv6[8],port=0;
     int cs=0,ce=7;
-    char *newhost=(char*)malloc(48),*ps,*pe;
+    const char *ps,*pe;
+    newhost=(char*)malloc((size_t)48);
 
     ps=host;
     if(*host=='[')
@@ -588,16 +604,22 @@ char *CanonicaliseHost(char *host)
     else
        sprintf(newhost,"[%x:%x:%x:%x:%x:%x:%x:%x]",
                ipv6[0],ipv6[1],ipv6[2],ipv6[3],ipv6[4],ipv6[5],ipv6[6],ipv6[7]);
-
-    return(newhost);
    }
  else if(hasletter)
-    return(host);
+   {
+    newhost=(char*)malloc(strlen(host)+1);
+
+    for(i=0;host[i];i++)
+       newhost[i]=tolower(host[i]);
+
+    newhost[i]=0;
+   }
  else
    {
     unsigned int ipv4[4],port=0;
     char *colon=strchr(host,':');
-    char *newhost=(char*)malloc(24);
+
+    newhost=(char*)malloc((size_t)24);
 
     if(hasdot==0)
       {
@@ -626,9 +648,9 @@ char *CanonicaliseHost(char *host)
        sprintf(newhost,"%u.%u.%u.%u:%u",ipv4[0],ipv4[1],ipv4[2],ipv4[3],port&0xffff);
     else
        sprintf(newhost,"%u.%u.%u.%u",ipv4[0],ipv4[1],ipv4[2],ipv4[3]);
-
-    return(newhost);
    }
+
+ return(newhost);
 }
 
 
@@ -645,7 +667,7 @@ void CanonicaliseName(char *name)
  char *match,*name2;
 
  match=name;
- while((match=strstr(match,"/./")) || !strncmp(match=name,"./",2))
+ while((match=strstr(match,"/./")) || !strncmp(match=name,"./",(size_t)2))
    {
     char *prev=match, *next=match+2;
     while((*prev++=*next++));
@@ -666,7 +688,7 @@ void CanonicaliseName(char *name)
  while((match=strstr(match,"/../")))
    {
     char *prev=match, *next=match+4;
-    if((prev-name2)==2 && !strncmp(name2,"../",3))
+    if((prev-name2)==2 && !strncmp(name2,"../",(size_t)3))
       {name2+=3;match++;continue;}
     while(prev>name2 && *--prev!='/');
     match=prev;
@@ -699,74 +721,8 @@ void CanonicaliseName(char *name)
 
 #else /* as used in wwwoffle */
 
- if(!*name || !strncmp(name,"../",3))
+ if(!*name || !strncmp(name,"../",(size_t)3))
     *name='/',*(name+1)=0;
 
 #endif
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Split a hostname from a port, possibly an IPv6 address like '[01:23::78]:80'.
-
-  char *hostport Specifies the host and port combination, modified by the function.
-
-  char **host Returns a pointer to the host part (e.g. '01:23::78').
-
-  char **port Returns a pointer to the port part (e.g. '80').
-  ++++++++++++++++++++++++++++++++++++++*/
-
-void SplitHostPort(char *hostport,char **host,char **port)
-{
- char *colon;
-
- *port=NULL;
-
- if(*hostport=='[')             /* IPv6 */
-   {
-    char *square=strchr(hostport,']');
-
-    *host=hostport+1;
-
-    if(square)
-      {
-       *square=0;
-       hostport=square+1;
-      }
-    else
-      {
-       *host=hostport;
-       return;
-      }
-   }
- else                           /* IPv4 or name */
-    *host=hostport;
-
- colon=strchr(hostport,':');
-
- if(colon)
-   {
-    *colon=0;
-    *port=colon+1;
-   }
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Rejoin a hostname and a port that was split by SplitHostPort().
-
-  char *hostport Specifies the host and port combination, modified by the function.
-
-  char *host Specifies the host part.
-
-  char *port Specifies the port part.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-void RejoinHostPort(char *hostport,char *host,char *port)
-{
- if(*hostport=='[' && host!=hostport) /* IPv6 */
-    hostport[strlen(hostport)]=']';
-
- if(port)
-    *(port-1)=':';
 }
