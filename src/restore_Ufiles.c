@@ -71,17 +71,23 @@ static void ConvertDir(char *dirname);
 
 static void print_usage_statement(FILE *f)
 {
-  fprintf(f,"Usage: restore_Ufiles  [--test] [-c <config-file>] [-d <full-path-to-spool-dir>] [<dir> ...]\n\n"
+  fprintf(f,"Usage: restore_Ufiles  [--test] [-c <config-file>] [-d <full-path-to-spool-dir>] [-f] [<dir> ...]\n\n"
 	  "Note: the --test option can be used to check (without actually writing any\n"
 	  "      files) whether the urlhashtable is complete, i.e. every cache file has a\n"
 	  "      corresponding entry in the hash table.\n\n"
-	  "      The optional <dir> arguments must be paths relative to the spool\n"
-	  "      directory. These directories are scanned for cache files non-recursively.\n"
+	  "      The optional <dir> arguments are, unless they begin with a \"/\",\n"
+	  "      interpreted relative to the spool directory.\n"
+	  "      These directories are scanned for cache files non-recursively.\n"
 	  "      If no <dir> arguments are specified all the U* files of all cached files\n"
-	  "      are restored.\n");
+	  "      are restored.\n"
+	  "      With the -f option, the <dir> arguments are processed as file names (it\n"
+	  "      is irrelevant whether the files actually exist). The base names are\n"
+	  "      interpreted as base64 encoded hashes, looked up in the url-hash file and\n"
+	  "      the corresponding URLs are written to stdout.\n"
+);
 }
 
-static int test=0;
+static int test=0,foption=0;
 static int exitval=0;
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -125,6 +131,11 @@ int main(int argc,char** argv)
      else
        {fprintf(stderr,"restore_Ufiles: The '-d' argument requires the full path to the spool directory.\n"); exit(1);}
    }
+   else if(!strcmp(argv[1],"-f")) {
+     foption=1;
+     argv += 1;
+     argc -= 1;
+   }
    else {
      fprintf(stderr,"unknown option '%s'\n",argv[1]);
      print_usage_statement(stderr);
@@ -134,10 +145,12 @@ int main(int argc,char** argv)
  if(argc>1) {
    rdirs=argv+1;
    nrdirs=argc-1;
+#if 0
    for(i=0;i<nrdirs;++i)
      if (rdirs[i][0]=='/')
        {fprintf(stderr,"argument '%s' must be relative to the spool directory.\n",rdirs[i]);
         print_usage_statement(stderr);exit(1);}
+#endif
  }
 
  if(!config_file)
@@ -246,98 +259,121 @@ int main(int argc,char** argv)
    PrintMessage(Fatal,"Opening url hash file '%s' failed.\n",urlhash_filename);
    
 
- printf("WWWOFFLE Spool directory is '%s'\n",spool_dir);
+ if(foption) {
+   if(rdirs) {
+     for(i=0;i<nrdirs;++i) {
+       char *fname=rdirs[i];
+       char *slash=strrchr(fname,'/');
+       char *url=FileNameToURL(slash?slash+1:fname);
 
- /* Process the directories containing D* and O* files. */
-
- if(rdirs) {
-   for(i=0;i<nrdirs;++i) {
-     char *rdir=rdirs[i];
-     if(stat(rdir,&buf)) {
-       PrintMessage(Warning,"Cannot stat the '%s' directory [%!s]; not restored.",rdir);
-       exitval=1;
-     }
-     else
-       {
-	 if(!test) printf("Restoring %s\n",rdir);
-
-	 if(chdir(rdir)) {
-	   PrintMessage(Warning,"Cannot change to the '%s' directory [%!s]; restoring failed.",rdir);
-	   exitval=1;
-	 }
-	 else
-	   {
-	     ConvertDir(rdir);
-
-	     ChangeBackToSpoolDir();
-	   }
+       if(url) {
+	 if(!test)
+	   printf("%s\n",url);
        }
+       else {
+	 fprintf(stderr,"Cannot find URL for '%s'.\n",fname);
+	 exitval=1;
+       }
+     }
+   }
+   else {
+     fprintf(stderr,"No file names specified.\n");
+     exitval=1;
    }
  }
  else {
-   for(i=0;i<NProtocols;i++)
-     {
-       char *proto=Protocols[i].name;
+   printf("WWWOFFLE Spool directory is '%s'\n",spool_dir);
 
-       if(stat(proto,&buf))
-	 PrintMessage(Inform,"Cannot stat the '%s' directory [%!s]; not restored.",proto);
+   /* Process the directories containing D* and O* files. */
+
+   if(rdirs) {
+     for(i=0;i<nrdirs;++i) {
+       char *rdir=rdirs[i];
+       if(stat(rdir,&buf)) {
+	 PrintMessage(Warning,"Cannot stat the '%s' directory [%!s]; not restored.",rdir);
+	 exitval=1;
+       }
        else
 	 {
-	   if(!test) printf("Restoring %s\n",proto);
+	   if(!test) printf("Restoring %s\n",rdir);
 
-	   if(chdir(proto)) {
-	     PrintMessage(Warning,"Cannot change to the '%s' directory [%!s]; restoring failed.",proto);
+	   if(chdir(rdir)) {
+	     PrintMessage(Warning,"Cannot change to the '%s' directory [%!s]; restoring failed.",rdir);
 	     exitval=1;
 	   }
 	   else
 	     {
-	       ConvertProto(proto);
+	       ConvertDir(rdir);
 
 	       ChangeBackToSpoolDir();
 	     }
 	 }
      }
+   }
+   else {
+     for(i=0;i<NProtocols;i++)
+       {
+	 char *proto=Protocols[i].name;
 
-#define nspecial 6
-   for(i=0;i<nspecial;i++)
-     {
-       static char *special[nspecial]={"monitor","outgoing","lastout","prevout","lasttime","prevtime"};
-       char *dirname=special[i];
-       int j,n=0;
-
-       if(!strcmp_litbeg(special[i],"prev")) n=NUM_PREVTIME_DIR;
-
-       for(j=1; j<=(n?n:1); ++j) {
-	 char dbuf[sizeof("prevtime")+10];
-
-	 if(n) {
-	   sprintf(dbuf,"%s%u",special[i],(unsigned)j);
-	   dirname=dbuf;
-	 }
-
-	 if(stat(dirname,&buf))
-	   PrintMessage(Inform,"Cannot stat the '%s' directory [%!s]; not restored.",dirname);
+	 if(stat(proto,&buf))
+	   PrintMessage(Inform,"Cannot stat the '%s' directory [%!s]; not restored.",proto);
 	 else
 	   {
-	     if(!test) printf("Restoring %s\n",dirname);
+	     if(!test) printf("Restoring %s\n",proto);
 
-	     if(chdir(dirname)) {
-	       PrintMessage(Warning,"Cannot change to the '%s' directory [%!s]; restoring failed.",dirname);
+	     if(chdir(proto)) {
+	       PrintMessage(Warning,"Cannot change to the '%s' directory [%!s]; restoring failed.",proto);
 	       exitval=1;
 	     }
 	     else
 	       {
-		 ConvertDir(dirname);
+		 ConvertProto(proto);
 
 		 ChangeBackToSpoolDir();
 	       }
 	   }
        }
-     }
+
+#    define nspecial 6
+     for(i=0;i<nspecial;i++)
+       {
+	 static char *special[nspecial]={"monitor","outgoing","lastout","prevout","lasttime","prevtime"};
+	 char *dirname=special[i];
+	 int j,n=0;
+
+	 if(!strcmp_litbeg(special[i],"prev")) n=NUM_PREVTIME_DIR;
+
+	 for(j=1; j<=(n?n:1); ++j) {
+	   char dbuf[sizeof("prevtime")+10];
+
+	   if(n) {
+	     sprintf(dbuf,"%s%u",special[i],(unsigned)j);
+	     dirname=dbuf;
+	   }
+
+	   if(stat(dirname,&buf))
+	     PrintMessage(Inform,"Cannot stat the '%s' directory [%!s]; not restored.",dirname);
+	   else
+	     {
+	       if(!test) printf("Restoring %s\n",dirname);
+
+	       if(chdir(dirname)) {
+		 PrintMessage(Warning,"Cannot change to the '%s' directory [%!s]; restoring failed.",dirname);
+		 exitval=1;
+	       }
+	       else
+		 {
+		   ConvertDir(dirname);
+
+		   ChangeBackToSpoolDir();
+		 }
+	     }
+	 }
+       }
+   }
+   printf("Done.\n");
  }
  urlhash_close();
-
- printf("Done.\n");
 
  return(exitval);
 }
@@ -464,7 +500,10 @@ static void ConvertDir(char *dirname)
 	       unlink(ent->d_name);
 	       exitval=1;
 	     }
-	     close(ufd);
+	     if(close(ufd)) {
+	       PrintMessage(Warning,"Cannot close file '%s/%s' [%!s].",dirname,ent->d_name);
+	       exitval=1;
+	     }
 	   }
 	   else {
 	     PrintMessage(Warning,"Cannot open file '%s/%s' to write [%!s]; disk full?",dirname,ent->d_name);

@@ -660,8 +660,8 @@ static void parse_html(URL *Url)
  tagdata.type=tag_ntags;
  tagdata.nattr=0;
  tagdata.nattr_malloc=16;
- tagdata.attr_type=(int*)calloc(16,sizeof(int));
- tagdata.attr_val=(char**)calloc(16,sizeof(char*));
+ tagdata.attr_type=(int*)malloc(tagdata.nattr_malloc*sizeof(int));
+ tagdata.attr_val=(char**)malloc(tagdata.nattr_malloc*sizeof(char*));
 
  /* The actual parser. */
 
@@ -680,6 +680,8 @@ static void parse_html(URL *Url)
              break;
 
        tagdata.type=tag;
+       for(i=0;i<tagdata.nattr;i++)
+	 if(tagdata.attr_val[i]) free(tagdata.attr_val[i]);
        tagdata.nattr=0;
        break;
 
@@ -758,24 +760,15 @@ static void parse_html(URL *Url)
          {
           if(tagdata.nattr==tagdata.nattr_malloc)
             {
-             tagdata.attr_type=(int*)realloc((void*)tagdata.attr_type,(tagdata.nattr_malloc+1)*sizeof(int));
-             tagdata.attr_val=(char**)realloc((void*)tagdata.attr_val,(tagdata.nattr_malloc+1)*sizeof(char*));
-             tagdata.attr_val[tagdata.nattr_malloc]=NULL;
-             tagdata.nattr_malloc+=1;
+             ++tagdata.nattr_malloc;
+             tagdata.attr_type=(int*)realloc((void*)tagdata.attr_type,(tagdata.nattr_malloc)*sizeof(int));
+             tagdata.attr_val=(char**)realloc((void*)tagdata.attr_val,(tagdata.nattr_malloc)*sizeof(char*));
             }
 
           tagdata.attr_type[tagdata.nattr]=key;
-	  if(tagdata.attr_val[tagdata.nattr]) free(tagdata.attr_val[tagdata.nattr]);
-          if(html_yylval)
-            {
-             tagdata.attr_val[tagdata.nattr]=strdup(html_yylval);
-            }
-          else
-            {
-             tagdata.attr_val[tagdata.nattr]=NULL;
-            }
+	  tagdata.attr_val[tagdata.nattr]=(html_yylval?strdup(html_yylval):NULL);
 
-          tagdata.nattr++;
+          ++tagdata.nattr;
          }
 
        key=att_natts;
@@ -806,7 +799,7 @@ static void parse_html(URL *Url)
 
  /* Delete the tagdata */
 
- for(i=0;i<tagdata.nattr_malloc;i++)
+ for(i=0;i<tagdata.nattr;i++)
     if(tagdata.attr_val[i]) free(tagdata.attr_val[i]);
 
  free(tagdata.attr_type);

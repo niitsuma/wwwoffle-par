@@ -360,7 +360,7 @@ char *HashOutgoingSpoolFile(URL *Url)
      if(read_all(fd,req,req_size)==req_size) {
        md5hash_t h;
        req[req_size]=0;
-       MakeHash(req,&h);
+       MakeHash((unsigned char *)req,&h);
        hash=hashbase64encode(&h,NULL,0);
      }
      else {
@@ -1707,7 +1707,7 @@ char *FileNameToURL(const char *file)
  if(!*file)
    return NULL;
 
- md5hash=(md5hash_t *)Base64Decode(file+1,&hlen,buf,sizeof(buf));
+ md5hash=(md5hash_t *)Base64Decode((unsigned char *)(file+1),&hlen,buf,sizeof(buf));
  if(md5hash && hlen==sizeof(md5hash_t)) {
    path=urlhash_lookup(md5hash);
    if(!path)
@@ -1904,7 +1904,9 @@ void urlhash_close()
  if(munmap(urlhash_start,urlhash_maxsize) == -1)
    PrintMessage(Warning,"Cannot munmap url hash file '%s' [%!s].",urlhash_filename);
 
- close(urlhash_fd);
+ if(close(urlhash_fd)==-1)
+   PrintMessage(Warning,"Cannot close url hash file '%s' [%!s].",urlhash_filename);
+
  urlhash_fd=-1;
 }
 
@@ -1960,7 +1962,7 @@ static size_t urlhash_malloc(size_t sz)
 }
 
 
-int urlhash_add(const unsigned char *url,md5hash_t *h)
+int urlhash_add(const char *url,md5hash_t *h)
 {
   int retval=0;
   volatile unsigned *p;
@@ -2084,7 +2086,7 @@ int FileMarkHash(const char *file)
  if(!*file)
    return 0;
 
- md5hash=(md5hash_t *)Base64Decode(file+1,&hlen,buf,sizeof(buf));
+ md5hash=(md5hash_t *)Base64Decode((unsigned char *)(file+1),&hlen,buf,sizeof(buf));
  if(md5hash && hlen==sizeof(md5hash_t)) {
    return urlhash_markhash(md5hash);
  }
@@ -2148,7 +2150,7 @@ int urlhash_copycompact()
     goto free_return_failed;
   }
 
-  if(write_all(fd,(unsigned char*)hinfo,hinfosize)!=hinfosize) {
+  if(write_all(fd,(char*)hinfo,hinfosize)!=hinfosize) {
     PrintMessage(Warning,"urlhash_copycompact: cannot write to file '%s' [%!s]",urlhash_filename_new);
     goto close_free_return_failed;
   }
@@ -2174,8 +2176,8 @@ int urlhash_copycompact()
 	    unsigned remsize=prevsize-sizeof(next);
 	    cursize += prevsize;
 	    if(np) next=cursize;
-	    if(write_all(fd,(unsigned char*)&next,sizeof(next))!=sizeof(next) ||
-	       write_all(fd,((unsigned char*)prev)+sizeof(next),remsize)!=remsize) {
+	    if(write_all(fd,(char*)&next,sizeof(next))!=sizeof(next) ||
+	       write_all(fd,((char*)prev)+sizeof(next),remsize)!=remsize) {
 	      PrintMessage(Warning,"urlhash_copycompact: cannot write to file '%s' [%!s]",urlhash_filename_new);
 	      goto close_free_return_failed;
 	    }

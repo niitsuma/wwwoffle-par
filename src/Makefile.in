@@ -244,7 +244,7 @@ vrml.o             : vrml.c             autoconfig.h wwwoffle.h io.h misc.h     
 xml.o              : xml.c              autoconfig.h wwwoffle.h io.h misc.h            errors.h                            document.h
 
 gifmodify.o        : gifmodify.c        autoconfig.h wwwoffle.h io.h misc.h                                                document.h
-htmlmodify.o       : htmlmodify.c       autoconfig.h wwwoffle.h io.h misc.h                     config.h                   document.h
+htmlmodify.o       : htmlmodify.c       autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h                   document.h
 
 configdata.o       : configdata.c       autoconfig.h            io.h misc.h            errors.h config.h sockets.h                              configpriv.h
 configedit.o       : configedit.c       autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h                                        configpriv.h

@@ -340,7 +340,7 @@ char *IsAllowedConnectUser(char *userpass)
    found:
      {
        char *colon;
-       isit=Base64Decode(up,NULL,NULL,0);
+       isit=(char *)Base64Decode((unsigned char *)up,NULL,NULL,0);
        colon=strchrnul(isit,':');
        *colon=0;
      }

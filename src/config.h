@@ -262,12 +262,18 @@ extern /*@null@*/ ConfigItem EnableModificationsOnline;
 /*+ The option of a tag that can be added to the bottom of the spooled pages with the date and some buttons. +*/
 extern /*@null@*/ ConfigItem AddCacheInfo;
 
+/*+ An optional local file that can be inserted as a footer. +*/
+extern /*@null@*/ ConfigItem InsertFile;
+
 /*+ The options to modify the anchor tags in the HTML +*/
 extern ConfigItem AnchorModifyBegin[3], /*+ (before the start tag). +*/
                   AnchorModifyEnd[3];   /*+ (after the end tag). +*/
 
 /*+ The option to disable scripts and scripted actions. +*/
 extern /*@null@*/ ConfigItem DisableHTMLScript;
+
+/*+ The option to disable external scripts with URLs in the DontGet list. +*/
+extern /*@null@*/ ConfigItem DisableHTMLDontGetScript;
 
 /*+ The option to disable Java applets. +*/
 extern /*@null@*/ ConfigItem DisableHTMLApplet;

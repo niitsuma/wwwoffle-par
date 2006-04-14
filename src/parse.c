@@ -160,7 +160,7 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
 
 	URL *Url=SplitURL(url);
 
-	pass=user=userpass=Base64Decode(p,NULL,NULL,0);
+	pass=user=userpass=(char *)Base64Decode((unsigned char *)p,NULL,NULL,0);
 	while(*pass && *pass!=':') ++pass;
 
 	if(*pass) *pass++=0; else pass=NULL;
@@ -255,7 +255,7 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
       {
 	md5hash_t h;
 	unsigned char buf[base64enclen(sizeof(md5hash_t))+1];
-	MakeHash((*request_body)->content,&h);
+	MakeHash((unsigned char *)((*request_body)->content),&h);
 	sprintf(p,"!%s:%s.%08lx",(*request_head)->method,hashbase64encode(&h,buf,sizeof(buf)),time(NULL));
       }
     }
@@ -564,7 +564,7 @@ Header *RequestURL(URL *Url,char *referer)
        if(Url->pass) stpcpy(p,Url->pass); else *p=0;
      }
      {
-       char *encoded_userpass= Base64Encode(userpass,userpasslen,NULL,0);
+       char *encoded_userpass= (char *)Base64Encode((unsigned char *)userpass,userpasslen,NULL,0);
        char auth[sizeof("Basic ")+strlen(encoded_userpass)];
        stpcpy(stpcpy(auth,"Basic "),encoded_userpass);
        free(encoded_userpass);
@@ -643,7 +643,7 @@ void ModifyRequest(URL *Url,Header *request_head)
        if(Url->pass) stpcpy(p,Url->pass); else *p=0;
      }
      {
-       char *encoded_userpass= Base64Encode(userpass,userpasslen,NULL,0);
+       char *encoded_userpass= (char *)Base64Encode((unsigned char *)userpass,userpasslen,NULL,0);
        char auth[sizeof("Basic ")+strlen(encoded_userpass)];
        stpcpy(stpcpy(auth,"Basic "),encoded_userpass);
        free(encoded_userpass);
@@ -726,7 +726,7 @@ void MakeRequestProxyAuthorised(char *proxy,Header *request_head)
 
        {char *p=stpcpy(userpass,user); *p++=':'; stpcpy(p,pass); }
        {
-	 char *encoded_userpass= Base64Encode(userpass,userpasslen,NULL,0);
+	 char *encoded_userpass= (char *)Base64Encode((unsigned char *)userpass,userpasslen,NULL,0);
 	 char auth[sizeof("Basic ")+strlen(encoded_userpass)];
 	 stpcpy(stpcpy(auth,"Basic "),encoded_userpass);
 	 free(encoded_userpass);

@@ -226,6 +226,53 @@ int LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
 #endif
 
 
+/* OpenLocalFile opens a local file and returns the file descriptor.
+   char *path: the path to the file (rooted in the WWWOFFLE spool directory).
+*/
+int OpenLocalFile(char *path)
+{
+ int fd=-1;
+ char *file,*decpath;
+ struct stat buf;
+
+ if(path[0]!='/') {
+    PrintMessage(Warning,"Path '%s' to local file should begin with '/'.",path);
+    return -1;
+ }    
+
+ /* Don't allow paths backwards */
+
+ if(strstr(path,"/../"))
+   {
+    PrintMessage(Warning,"Illegal path containing '/../' for the local file '%s'.",path);
+    return -1;
+   }
+
+ /* Get the filename */
+
+ decpath=URLDecodeGeneric(path+1);
+
+ if((file=FindLanguageFile(decpath,&buf))) {
+   if(S_ISREG(buf.st_mode) && buf.st_mode&S_IROTH) {
+     fd=open(file,O_RDONLY|O_BINARY);
+
+     if(fd==-1)
+       PrintMessage(Warning,"Cannot open the local file '%s' [%!s].",file);
+   }
+   else
+     PrintMessage(Warning,"Not a regular file or wrong permissions for the local file '%s'.",file);
+
+   free(file);
+ }
+ else
+    PrintMessage(Warning,"Cannot find a local file with the path '%s'.",path);
+
+ free(decpath);
+
+ return fd;
+}
+
+
 /*++++++++++++++++++++++++++++++++++++++
   Set the language that will be accepted for the messages.
 

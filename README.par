@@ -1,10 +1,10 @@
-	  Alternative WWWOFFLE implementation - version 2.8e-par-5
+	  Alternative WWWOFFLE implementation - version 2.8e-par-6
                              by Paul Rombouts
 	  ========================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
 am making available so other people can run it and/or study the source code.
-Present version is 2.8e-par-5 (I've simply appended my initials to the version
+Present version is 2.8e-par-6 (I've simply appended my initials to the version
 number). Versions 2.8e-par and later introduce an important efficiency
 improvement: the number of files in the spool directory are reduced by nearly
 50% by using a single compact database file to remember the URLs belonging to
@@ -18,11 +18,11 @@ more detail the changes I've made to AMB's code.
 
 Before compiling and installing WWWOFFLE according to AMB's installation
 instructions described in the INSTALL file you must first apply my patch file
-wwwoffled-2.8e-par-5.diff.gz. Use a freshly untarred copy of Andrew Bishop's
+wwwoffled-2.8e-par-6.diff.gz. Use a freshly untarred copy of Andrew Bishop's
 original version 2.8e source, cd into the source directory wwwoffle-2.8e and
 apply the command:
 
-gzip -cd <path_to_patch>/wwwoffle-2.8e-par-5.diff.gz | patch -p2 -N -E
+gzip -cd <path_to_patch>/wwwoffle-2.8e-par-6.diff.gz | patch -p2 -N -E
 
 Note: because I have used GNU extensions you will need to compile with gcc and
 link with glibc. This will not be a problem with most Linux distributions.
@@ -78,6 +78,19 @@ correctly.
 
 
 I've introduced a few extensions to the way WWWOFFLE can be configured:
+
+- New in version 2.8e-par-6: There are two new options for the ModifyHTML
+  section: insert-file and disable-dontget-script. The insert-file option can be
+  used to add the content of a local file at the end of a webpage, without
+  modifications. One of the more powerful applications of this feature is to add
+  your own Javascript to webpages; this allows you to implement most of the
+  possibilities of Greasemonkey, a popular Firefox extension, even on browsers
+  that do not support Greasemonkey (but do support Javascript).
+  The disable-dontget-script option works like the disable-script option, but
+  only disables external scripts with a src attribute that matches the DontGet
+  list. Often the WWWOFFLE replacement of a DontGet URL is not valid Javascript,
+  which can cause distracting error messages in the browser. This can be
+  prevented by enabling disable-dontget-script.
 
 - New in version 2.8e-par-4: I have added support for the SOCKS 4A protocol.
   By default, when connecting through a SOCKS proxy server the destination host
@@ -179,6 +192,16 @@ I've introduced a few extensions to the way WWWOFFLE can be configured:
 The rest of this file lists in some detail some other modifications I've made,
 but you don't have to read it if you simply want to run wwwoffled as you're used
 to.
+
+- In version 2.8e-par-6 I have addressed an issue with double dashes "--" inside
+  HTML comments (see http://www.howtocreate.co.uk/SGMLComments.html). This used
+  to effect WWWOFFLE message pages and HTML pages modified by WWWOFFLE in
+  combination with certain browsers.
+  The replacement-dontget-image option can now be set to none with the expected
+  effect. In the original version of WWWOFFLE this setting would cause WWWOFFLE
+  to crash.
+  I have fixed a problem with a stack in the function modify_html() that could
+  overflow and/or misalign.
 
 - In version 2.8e-par-5 I have extended the SOCKS support to include the finger
   protocol. Also fixed a bug that caused a WWWOFFLE child process to abort

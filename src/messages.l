@@ -569,7 +569,7 @@ static char *get_variable(char *var)
 
 static char *call_function(char *func)
 {
- char *funcname,*var,*val,*result=NULL,*bracket1,*bracket2;
+ char *funcname,*var,*val,*result=NULL,*retval,*bracket1,*bracket2;
 
  if(!(bracket1=strchr(func,'['))) return empty;
  funcname=STRDUPA2(func,bracket1);
@@ -587,14 +587,16 @@ static char *call_function(char *func)
      result=HTMLString(val,1);
    else if(!strcmp(funcname,"htmlitems"))
      result=HTMLString(val,2);
+   else if(!strcmp(funcname,"comment"))
+     result=HTMLcommentstring(val);
  }
 
- val=add_variable(func,result);
+ retval=add_variable(func,result);
 
- if(result && result!=empty)
+ if(result && result!=val)
     free(result);
 
- return(val);
+ return(retval);
 }
 
 

@@ -172,7 +172,7 @@ char *hashbase64encode(md5hash_t *h, unsigned char *buf, unsigned buflen);
 inline static md5hash_t *geturlhash(URL *Url)
 {
   if(!(Url->hashvalid)) {
-    MakeHash(Url->file,&Url->hash);
+    MakeHash((unsigned char *)Url->file,&Url->hash);
     Url->hashvalid=1;
   }
   return &Url->hash;
@@ -180,13 +180,13 @@ inline static md5hash_t *geturlhash(URL *Url)
 
 /* Added by Paul Rombouts:
    Get the base64 encoded string version of the URL hash. */
-inline static char *GetHash(URL *Url,unsigned char *buf, unsigned buflen)
+inline static char *GetHash(URL *Url,char *buf, unsigned buflen)
 {
   if(!(Url->hashvalid)) {
-    MakeHash(Url->file,&Url->hash);
+    MakeHash((unsigned char *)Url->file,&Url->hash);
     Url->hashvalid=1;
   }
-  return hashbase64encode(&Url->hash,buf,buflen);
+  return hashbase64encode(&Url->hash,(unsigned char *)buf,buflen);
 }
 
 #define MAXDATESIZE 32
@@ -204,6 +204,7 @@ void URLReplaceAmp(char *string);
 
 char /*@only@*/ *HTMLString(const char* c,int nbsp);
 char /*@only@*/ *HTML_url(char *url);
+char *HTMLcommentstring(char *c);
 
 
 

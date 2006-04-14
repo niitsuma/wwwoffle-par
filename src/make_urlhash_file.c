@@ -73,8 +73,9 @@ static char *readurlfile(char *file,size_t len);
 static void print_usage_statement(FILE *f)
 {
   fprintf(f,"Usage: make_urlhash_file  [-c <config-file>] [-d <full-path-to-spool-dir>] [<dir>]\n\n"
-	  "Note: The optional <dir> arguments must be paths relative to the spool\n"
-	  "      directory. These directories are scanned for U* files non-recursively.\n"
+	  "Note: The optional <dir> arguments are, unless they begin with a \"/\",\n"
+	  "      interpreted relative to the spool directory.\n"
+	  "      These directories are scanned for U* files non-recursively.\n"
 	  "      If no <dir> arguments are specified all the U* files in the cache are\n"
 	  "      added to the hash table.\n");
 }
@@ -126,10 +127,12 @@ int main(int argc,char** argv)
  if(argc>1) {
    rdirs=argv+1;
    nrdirs=argc-1;
+#if 0
    for(i=0;i<nrdirs;++i)
      if (rdirs[i][0]=='/')
        {fprintf(stderr,"argument '%s' must be relative to the spool directory.\n",rdirs[i]);
         print_usage_statement(stderr);exit(1);}
+#endif
  }
 
  if(!config_file)
@@ -455,7 +458,7 @@ static void ConvertDir(char *dirname)
        else
 	 tpos=-1;
 
-       md5hash=(md5hash_t *)Base64Decode(ent->d_name+1,&hlen,hbuf,sizeof(hbuf));
+       md5hash=(md5hash_t *)Base64Decode((unsigned char *)(ent->d_name+1),&hlen,hbuf,sizeof(hbuf));
 
        if(tpos>=0) ent->d_name[tpos]='~';
 

@@ -367,12 +367,18 @@ ConfigItem EnableHTMLModifications;
 /*+ The option of a tag that can be added to the bottom of the spooled pages with the date and some buttons. +*/
 ConfigItem AddCacheInfo;
 
+/*+ An optional local file that can be inserted as a footer. +*/
+ConfigItem InsertFile;
+
 /*+ The options to modify the anchor tags in the HTML +*/
 ConfigItem AnchorModifyBegin[3], /*+ (before the start tag). +*/
            AnchorModifyEnd[3];   /*+ (after the end tag). +*/
 
 /*+ The option to disable scripts and scripted actions. +*/
 ConfigItem DisableHTMLScript;
+
+/*+ The option to disable external scripts with URLs in the DontGet list. +*/
+ConfigItem DisableHTMLDontGetScript;
 
 /*+ The option to disable Java applets. +*/
 ConfigItem DisableHTMLApplet;
@@ -432,6 +438,7 @@ ConfigItem DisableAnimatedGIF;
 static ConfigItemDef modifyhtml_itemdefs[]={
  {"enable-modify-html"       ,&EnableHTMLModifications    ,1,0,Fixed,Boolean,"no"},
  {"add-cache-info"           ,&AddCacheInfo               ,1,0,Fixed,Boolean,"no"},
+ {"insert-file"              ,&InsertFile                 ,1,0,Fixed,PathName,NULL},
  {"anchor-cached-begin"      ,&AnchorModifyBegin[0]       ,1,0,Fixed,String ,NULL},
  {"anchor-cached-end"        ,&AnchorModifyEnd[0]         ,1,0,Fixed,String ,NULL},
  {"anchor-requested-begin"   ,&AnchorModifyBegin[1]       ,1,0,Fixed,String ,NULL},
@@ -439,6 +446,7 @@ static ConfigItemDef modifyhtml_itemdefs[]={
  {"anchor-not-cached-begin"  ,&AnchorModifyBegin[2]       ,1,0,Fixed,String ,NULL},
  {"anchor-not-cached-end"    ,&AnchorModifyEnd[2]         ,1,0,Fixed,String ,NULL},
  {"disable-script"           ,&DisableHTMLScript          ,1,0,Fixed,Boolean,"no"},
+ {"disable-dontget-script"   ,&DisableHTMLDontGetScript   ,1,0,Fixed,Boolean,"no"},
  {"disable-applet"           ,&DisableHTMLApplet          ,1,0,Fixed,Boolean,"no"},
  {"disable-style"            ,&DisableHTMLStyle           ,1,0,Fixed,Boolean,"no"},
  {"disable-blink"            ,&DisableHTMLBlink           ,1,0,Fixed,Boolean,"no"},

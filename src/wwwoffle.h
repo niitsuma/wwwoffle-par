@@ -138,7 +138,7 @@ void FinishMessages(void);
 /* In local.c */
 
 int LocalPage(int fd,URL *Url,Header *request_head,/*@null@*/ Body *request_body);
-
+int OpenLocalFile(char *path);
 int OpenLanguageFile(char* search);
 void SetLanguage(Header *head);
 

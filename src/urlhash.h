@@ -11,8 +11,8 @@
 typedef struct _urlhash_node {
   unsigned next;        /* offset in bytes w.r.t. urlhash_start to the next hash node. */
   md5hash_t h;
-  unsigned char used;   /* Used to mark nodes during garbage collection. */
-  unsigned char url[1]; /* The url associated with the hash */
+  char used;   /* Used to mark nodes during garbage collection. */
+  char url[1]; /* The url associated with the hash */
 }
 urlhash_node;
 
@@ -40,7 +40,7 @@ extern unsigned urlhash_minsize;
 int urlhash_open();
 void urlhash_close();
 char *urlhash_lookup(md5hash_t *h);
-int urlhash_add(const unsigned char *url,md5hash_t *h);
+int urlhash_add(const char *url,md5hash_t *h);
 int urlhash_clearmarks();
 int urlhash_markhash(md5hash_t *h);
 int urlhash_copycompact();

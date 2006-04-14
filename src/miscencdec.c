@@ -146,7 +146,7 @@ char *URLDecodeFormArgs(const char *str)
 
 char *URLRecodeFormArgs(const char *str)
 {
- int length=0;
+ size_t length=0;
  char *copy;
  char *p; const char *q;
 
@@ -238,7 +238,7 @@ char *URLRecodeFormArgs(const char *str)
 
 char *URLEncodePath(const char *str)
 {
- int length=0;
+ size_t length=0;
  char *copy;
  char *p; const char *q;
 
@@ -296,7 +296,7 @@ char *URLEncodePath(const char *str)
 
 char *URLEncodeFormArgs(const char *str)
 {
- int length=0;
+ size_t length=0;
  char *copy;
  char *p; const char *q;
 
@@ -357,7 +357,7 @@ char *URLEncodeFormArgs(const char *str)
 
 char *URLEncodePassword(const char *str)
 {
- int length=0;
+ size_t length=0;
  char *copy;
  char *p; const char *q;
 
@@ -418,7 +418,7 @@ char **SplitFormArgs(char *str)
 {
  char **args;
  char *copy,*p;
- int i,n=1;
+ unsigned int i,n=1;
 
  copy=strdup(str);
 
@@ -485,7 +485,7 @@ void MakeHash(const unsigned char *args, md5hash_t *h)
  MD5Init (&ctx);
 
  /* Process whole buffer but last len % 64 bytes.  */
- MD5Update (&ctx, args, strlen(args));
+ MD5Update (&ctx, args, strlen((const char *)args));
 
  /* Put result in desired memory area.  */
  MD5Final ((unsigned char *)h, &ctx);
@@ -496,7 +496,7 @@ char *hashbase64encode(md5hash_t *h, unsigned char *buf, unsigned buflen)
 {
  char *hash,*p;
 
- hash=Base64Encode((unsigned char *)h,sizeof(md5hash_t),buf,buflen);
+ hash=(char *)Base64Encode((unsigned char *)h,sizeof(md5hash_t),buf,buflen);
 
  if(hash) {
    for(p=hash;*p;p++)
@@ -744,7 +744,7 @@ static const unsigned char invbase64[256]={
 
 unsigned char *Base64Decode(const unsigned char *str,unsigned *lp, unsigned char *buf, unsigned buflen)
 {
- unsigned l,le=strlen(str);
+ unsigned l,le=strlen((const char *)str);
  unsigned char *decoded;
  unsigned i,j,k;
 
@@ -909,7 +909,7 @@ shift:
 
 char* HTMLString(const char* c,int nbsp)
 {
- int length= 0;
+ size_t length= 0;
  char *result;
  char *p; const char *q;
 
@@ -1030,4 +1030,38 @@ char *HTML_url(char *url)
   free(dec);
 
   return result;
+}
+
+
+/* Make a string safe to use inside an HTML comment (break up '--').
+   char *HTMLcommentstring returns its original argument or a pointer
+   to a newly allocated string.
+ */
+char *HTMLcommentstring(char *c)
+{
+ size_t length=0,dlength=0;
+ char *result;
+ char *p; const char *q;
+
+ for(q=c; *q; ++q) {
+   ++length;
+   if(*q=='-' && *(q+1)=='-')
+     ++dlength;
+ }
+
+ if(!dlength)
+   return c;
+
+ result=p=(char*)malloc(length+dlength+1);
+
+ for(q=c; *q; ++q) {
+   *p++=*q;
+   if(*q=='-' && *(q+1)=='-')
+     *p++=' ';
+ }
+
+ *p=0;
+
+ return(result);
+
 }
