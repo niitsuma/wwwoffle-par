@@ -247,20 +247,11 @@ static int html_yyfd=-1;
 /* Must use static variables since the parser returns often. */
 static char *string=NULL;
 static size_t stringallocsize=0,stringlen=0;
-static int after_tag=INITIAL;
-static int css_after_brace=CSS;
+static int after_tag;
+static int css_after_brace;
 
-inline static void reset_parser()
-{
-  if(string) free(string);
-  string=NULL;
-  stringallocsize=0; stringlen=0;
-  after_tag=INITIAL;
-  css_after_brace=CSS;
-  YY_FLUSH_BUFFER;
-  BEGIN(INITIAL);
-  html_yylval=NULL;
-}
+static void init_parser();
+static void reset_parser();
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -282,6 +273,7 @@ void ParseHTML(int fd,URL *Url)
  meta_refresh=NULL;
 
  html_yyfd=fd;
+ init_parser();
 
  parse_html(Url);
 
@@ -821,6 +813,7 @@ char *HTML_title(int fd)
  char *result=NULL;
 
  html_yyfd=fd;
+ init_parser();
 
  /* Parse HTML until title text is found. */
 
@@ -1067,3 +1060,24 @@ cleanup_return:
  /* <<EOF>>                 { if(string) free(string); string=NULL; stringallocsize=stringlen=0;
                               css_after_brace=CSS; after_tag=INITIAL; YY_FLUSH_BUFFER; BEGIN(INITIAL); html_yylval=NULL; return(0); } */
 %%
+
+static void init_parser()
+{
+  string=NULL;
+  stringallocsize=0; stringlen=0;
+  after_tag=INITIAL;
+  css_after_brace=CSS;
+}
+
+static void reset_parser()
+{
+  if(string) free(string);
+  string=NULL;
+  stringallocsize=0; stringlen=0;
+  after_tag=INITIAL;
+  css_after_brace=CSS;
+  YY_FLUSH_BUFFER;
+  BEGIN(INITIAL);
+  html_yylval=NULL;
+}
+

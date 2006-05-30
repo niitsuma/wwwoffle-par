@@ -614,7 +614,9 @@ inline static char *skip_trailing_blanks(char *string, char *end)
 }
 
 
+#ifndef YY_SKIP_YYWRAP
 #define YY_SKIP_YYWRAP 1 /* Remove error with prototype of ..._yywrap */
+#endif
 #ifndef msg_yywrap
 /*+ Needed in lex but does nothing. +*/
 #define msg_yywrap() 1

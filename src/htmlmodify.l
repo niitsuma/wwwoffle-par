@@ -331,6 +331,21 @@ static /*@null@*/ URL *baseUrl=NULL;
 
 /*+ Set this to disable the output. +*/
 static int disable_output=DISABLE_NONE;
+static int commentout=0;
+
+/* Prepend a string (pre) to an existing string (str).
+   The result is stored in a newly malloced string and assigned to *str.
+   The old value of *str is freed.
+*/
+inline static void str_prepend(const char *pre,char **str)
+{
+  char *oldstr=*str,*newstr;
+  size_t lenpre=strlen(pre), szold=strlen(oldstr)+1;
+  newstr=malloc(lenpre+szold);
+  mempcpy(mempcpy(newstr,pre,lenpre),oldstr,szold);
+  free(oldstr);
+  *str=newstr;
+}
 
 inline static void setbaseUrl(URL *Url)
 {
@@ -653,10 +668,17 @@ void OutputHTMLWithModifications(URL *Url,int spool,char *content_type)
 }
 
 
-/*+ A macro to output the data if valid to do so. +*/
-#define YY_OUTPUT(text) \
-           if(!disable_output && *text) \
-              wwwoffles_write_data(text,strlen(text))
+/*+ A function to output the data if valid to do so. +*/
+static void yy_output(char *text, int commentout)
+{
+  if(!disable_output && *text) {
+    char *copy= (commentout?HTMLcommentstring(text):text);
+    wwwoffles_write_data(copy,strlen(copy));
+    if(copy!=text) free(copy);
+  }
+}
+
+#define YY_OUTPUT(text) yy_output(text,commentout)
 
 /* add_insertfile copies the content of an insert file to the output.
    char *pathname: the path of the file to insert.
@@ -1372,15 +1394,13 @@ static void output_tag(Tag *tag,char *prefix,char *suffix)
    {
     char *attrval;
     YY_OUTPUT(" ");
-    YY_OUTPUT(tag->attr_key[i]);
+    yy_output(tag->attr_key[i],prefix!=NULL);
     if((attrval=tag->attr_val[i]))
       {
-       char *copy= (prefix?HTMLcommentstring(attrval):attrval);
        YY_OUTPUT("=");
        YY_OUTPUT(tag->attr_quote[i]);
-       YY_OUTPUT(copy);
+       yy_output(attrval,prefix!=NULL);
        YY_OUTPUT(tag->attr_quote[i]);
-       if(copy!=attrval) free(copy);
       }
    }
 
@@ -1406,7 +1426,6 @@ static void modify_html(URL *Url)
  HTMLAttributes key=-1;
  int url_cached=0;
  int yychar;
- int disable_key_val;
  char *key_string=NULL,*prefix=NULL,*suffix=NULL,*quote;
  Tag tagdata;
  TagStack tagstack=NULL;
@@ -1494,6 +1513,7 @@ static void modify_html(URL *Url)
 
        reset_tagdata(&tagdata,tag,is_complex_tag(tag)?htmlmodify_yylval:NULL);
 
+       commentout=0;
        prefix=NULL;
 
        switch (tag)
@@ -1604,8 +1624,6 @@ static void modify_html(URL *Url)
 	   break;
 	 default: ;
 	 }
-
-       disable_output&=~DISABLE_PARSE;
 
        YY_OUTPUT("<");
        if(prefix)
@@ -1755,7 +1773,7 @@ static void modify_html(URL *Url)
 	   break;
 	 case tag_script:
 	   if(disable_script)
-	     disable_output|=DISABLE_PARSE;
+	     commentout=1;
 	   else if(disable_dontget_script)
 	     {
 	       disable_output&=~DISABLE_SCRIPT;
@@ -1763,12 +1781,12 @@ static void modify_html(URL *Url)
 	       disabled_dontget_script=handle_script_tag(&tagdata);
 
 	       if(disabled_dontget_script)
-		 disable_output|=DISABLE_PARSE;
+		 commentout=1;
 	     }
 	   break;
 	 case tag_style:
 	   if(disable_style)
-	     disable_output|=DISABLE_PARSE;
+	     commentout=1;
 	   else if(disable_script)
 	     {
 	       disable_output&=~DISABLE_STYLE;
@@ -1776,7 +1794,7 @@ static void modify_html(URL *Url)
 	       disable_style_script=handle_style_script_tag(&tagdata);
 
 	       if(disable_style_script)
-		 disable_output|=DISABLE_PARSE;
+		 commentout=1;
 	     }
 	   break;
 	 default: ;
@@ -1800,8 +1818,6 @@ static void modify_html(URL *Url)
 	quote="";
 
       lex_attr_val:
-       disable_key_val=0;
-
        switch (key)
 	 {
 	 case att_href:
@@ -1855,35 +1871,30 @@ static void modify_html(URL *Url)
 	 case att_onmousemove: case att_onmouseout: case att_onmouseover: case att_onmouseup:
 	 case att_onreset: case att_onselect: case att_onsubmit: case att_onunload:
 	   if(disable_script)       /* Script events */
-	     disable_key_val=1;
+	     {str_prepend("wwwoffledisabled-", &key_string); key=-1;}
 	   break;
 
 	 case att_style:
 	   if(disable_style)       /* Style references */
-	     disable_key_val=1;
+	     {str_prepend("wwwoffledisabled-", &key_string); key=-1;}
 	   break;
 	 default: ;
 	 }
 
        /* Output the attribute and key or not. */
 
-       if(!disable_key_val)
-         {
-	  /* More complicated tags that depend on other attributes are stored and done later. */
-	  if(is_complex_tag(tag))
-	    add_attribute(&tagdata, key,key_string,htmlmodify_yylval,quote);
+       /* More complicated tags that depend on other attributes are stored and done later. */
+       if(is_complex_tag(tag))
+	 add_attribute(&tagdata, key,key_string,htmlmodify_yylval,quote);
 
-          YY_OUTPUT(key_string);
-          if(htmlmodify_yylval)
-            {
-	     char *copy= (prefix?HTMLcommentstring(htmlmodify_yylval):htmlmodify_yylval);
-	     YY_OUTPUT("=");
-	     YY_OUTPUT(quote);
-	     YY_OUTPUT(copy);
-	     YY_OUTPUT(quote);
-	     if(copy!=htmlmodify_yylval) free(copy);
-            }
-         }
+       yy_output(key_string,prefix!=NULL);
+       if(htmlmodify_yylval)
+	 {
+	  YY_OUTPUT("=");
+	  YY_OUTPUT(quote);
+	  yy_output(htmlmodify_yylval,prefix!=NULL);
+	  YY_OUTPUT(quote);
+	 }
 
        key=-1;
        break;
@@ -2128,7 +2139,8 @@ static void handle_high_bit(unsigned char ch)
 
 <SCRIPT_START>{W}+          { YY_OUTPUT(htmlmodify_yytext); }
 <SCRIPT_START>"<"/"/script" { BEGIN(TAG_START); }
-<SCRIPT_START>(.|\n)        { disable_output^=DISABLE_PARSE; YY_OUTPUT("\n<!-- WWWOFFLE (disable-script) - ... -->\n"); disable_output^=DISABLE_PARSE;
+<SCRIPT_START>"<!--"        { commentout=0; YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT); }
+<SCRIPT_START>(.|\n)        { if(commentout) yy_output("<!--\n",0);
                               unput(htmlmodify_yytext[0]); BEGIN(SCRIPT); }
 
 <SCRIPT>\"                  { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT_DQUOTED); }
@@ -2137,7 +2149,8 @@ static void handle_high_bit(unsigned char ch)
 <SCRIPT>"//"                { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT_COMMENT_CPP); }
 <SCRIPT>"*"                 { YY_OUTPUT(htmlmodify_yytext); }
 <SCRIPT>"/"                 { YY_OUTPUT(htmlmodify_yytext); }
-<SCRIPT>"<"/"/script"       { BEGIN(TAG_START); }
+<SCRIPT>"<"/"/script"       { if(commentout) {commentout=0; YY_OUTPUT("//-->\n");}
+                              BEGIN(TAG_START); }
 <SCRIPT>"<"                 { YY_OUTPUT(htmlmodify_yytext); }
 <SCRIPT>[^\'\"</]+          { YY_OUTPUT(htmlmodify_yytext); }
 
@@ -2148,7 +2161,8 @@ static void handle_high_bit(unsigned char ch)
 <SCRIPT_COMMENT_C>[^*]+     { YY_OUTPUT(htmlmodify_yytext); }
 
 <SCRIPT_COMMENT_CPP>[\r\n]  { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT); }
-<SCRIPT_COMMENT_CPP>"<"/"/script" { BEGIN(TAG_START); }
+<SCRIPT_COMMENT_CPP>"<"/"/script" { if(commentout) {commentout=0; YY_OUTPUT("-->\n");}
+                              BEGIN(TAG_START); }
 <SCRIPT_COMMENT_CPP>"<"     { YY_OUTPUT(htmlmodify_yytext); }
 <SCRIPT_COMMENT_CPP>[^\r\n<]+ { YY_OUTPUT(htmlmodify_yytext); }
 
@@ -2166,10 +2180,14 @@ static void handle_high_bit(unsigned char ch)
 
  /* Styles */
 
-<STYLE_START>(.|\n)         { disable_output^=DISABLE_PARSE; YY_OUTPUT("\n<!-- WWWOFFLE (disable-style) - ... -->\n"); disable_output^=DISABLE_PARSE;
+<STYLE_START>{W}+           { YY_OUTPUT(htmlmodify_yytext); }
+<STYLE_START>"<"/"/style"   { BEGIN(TAG_START); }
+<STYLE_START>"<!--"         { commentout=0; YY_OUTPUT(htmlmodify_yytext); BEGIN(STYLE); }
+<STYLE_START>(.|\n)         { if(commentout) yy_output("<!--\n",0);
                               unput(htmlmodify_yytext[0]); BEGIN(STYLE); }
 
-<STYLE>"<"/"/style"         { BEGIN(TAG_START); }
+<STYLE>"<"/"/style"         { if(commentout) {commentout=0; YY_OUTPUT("\n-->\n");}
+                              BEGIN(TAG_START); }
 <STYLE>"<"                  { YY_OUTPUT(htmlmodify_yytext); }
 <STYLE>[^<]+                { YY_OUTPUT(htmlmodify_yytext); }
 
