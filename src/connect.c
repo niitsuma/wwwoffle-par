@@ -103,7 +103,7 @@ void CommandConnect(int client)
  if(strcmp_litbeg(line,"WWWOFFLE "))
    {
     PrintMessage(Warning,"WWWOFFLE Not a command."); /* Used in audit-usage.pl */
-    return;
+    goto cleanup_return;
    }
 
  if(ConfigString(PassWord) || !strcmp_litbeg(&line[9],"PASSWORD "))
@@ -122,7 +122,7 @@ void CommandConnect(int client)
       {
        write_string(client,"WWWOFFLE Incorrect Password\n"); /* Used in wwwoffle.c */
        PrintMessage(Warning,"WWWOFFLE Incorrect Password."); /* Used in audit-usage.pl */
-       return;
+       goto cleanup_return;
       }
 
     if(!(line=read_line(client,line)))
@@ -423,7 +423,7 @@ void ForkRunModeScript(char *filename,char *mode,char *arg,int client)
     else
        execl(filename,filename,mode,NULL);
 
-    PrintMessage(Warning,"Cannot exec the run-%s program '%s' [%!s].",filename);
+    PrintMessage(Warning,"Cannot exec the run-%s program '%s' [%!s].",mode,filename);
     exit(1);
    }
 }

@@ -1,10 +1,10 @@
-	  Alternative WWWOFFLE implementation - version 2.8e-par-7
+	  Alternative WWWOFFLE implementation - version 2.8e-par-8
                              by Paul Rombouts
 	  ========================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
 am making available so other people can run it and/or study the source code.
-Present version is 2.8e-par-7 (I've simply appended my initials to the version
+Present version is 2.8e-par-8 (I've simply appended my initials to the version
 number). Versions 2.8e-par and later introduce an important efficiency
 improvement: the number of files in the spool directory are reduced by nearly
 50% by using a single compact database file to remember the URLs belonging to
@@ -18,11 +18,11 @@ more detail the changes I've made to AMB's code.
 
 Before compiling and installing WWWOFFLE according to AMB's installation
 instructions described in the INSTALL file you must first apply my patch file
-wwwoffled-2.8e-par-7.diff.gz. Use a freshly untarred copy of Andrew Bishop's
+wwwoffled-2.8e-par-8.diff.gz. Use a freshly untarred copy of Andrew Bishop's
 original version 2.8e source, cd into the source directory wwwoffle-2.8e and
 apply the command:
 
-gzip -cd <path_to_patch>/wwwoffle-2.8e-par-7.diff.gz | patch -p2 -N -E
+gzip -cd <path_to_patch>/wwwoffle-2.8e-par-8.diff.gz | patch -p2 -N -E
 
 Note: because I have used GNU extensions you will need to compile with gcc and
 link with glibc. This will not be a problem with most Linux distributions.
@@ -192,6 +192,12 @@ I've introduced a few extensions to the way WWWOFFLE can be configured:
 The rest of this file lists in some detail some other modifications I've made,
 but you don't have to read it if you simply want to run wwwoffled as you're used
 to.
+
+- In version 2.8e-par-8 a memory leak has been fixed which makes the WWWOFFLE
+  server vulnerable to a denial-of-service attack via the wwwoffle control port
+  (leak is also present in the original WWWOFFLE). Also a double-free bug has
+  been fixed which may cause a WWWOFFLE child process to crash (only present in
+  my version of WWWOFFLE).
 
 - In version 2.8e-par-7 when disable-script=yes scripts are commented out in
   HTML documents instead of removed. This enables you to still see javascript

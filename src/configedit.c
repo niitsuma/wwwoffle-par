@@ -370,16 +370,16 @@ close_return:
 
   URL *Url The URL of the page that is being requested.
 
-  char *url The URL specification from the URL argument.
+  char *urlarg The URL specification from the URL argument.
 
   Body *request_body The body of the POST request containing the information.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void ConfigurationItemPage(int fd,int section,int item,URL *Url,char *url,Body *request_body)
+static void ConfigurationItemPage(int fd,int section,int item,URL *Url,char *urlarg,Body *request_body)
 {
  ConfigSection *configsection=CurrentConfig.sections[section];
  ConfigItemDef *itemdef=&configsection->itemdefs[item];
- char *oldurl=url;
+ char *url=NULL;
  char *action=NULL,*entry=NULL;
  char *key=NULL,*val=NULL;
  int edit=0;
@@ -406,6 +406,8 @@ static void ConfigurationItemPage(int fd,int section,int item,URL *Url,char *url
     free(args);
     free(form);
    }
+
+ if(!url) url=urlarg;
 
  /* Display the page to edit the parameters */
 
@@ -621,7 +623,7 @@ static void ConfigurationItemPage(int fd,int section,int item,URL *Url,char *url
     if(newentry) free(newentry);
    }
 
- if(url!=oldurl) free(url);
+ if(url!=urlarg) free(url);
  if(key)    free(key);
  if(val)    free(val);
  if(action) free(action);
