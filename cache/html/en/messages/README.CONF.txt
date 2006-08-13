@@ -64,16 +64,16 @@ file-perm = (octal int)
 The file permissions to use when creating spool files (default=0644). This option overrides the umask of the user and must be in octal starting with a '0'.
 ITEM run-online
 run-online = (filename)
-The name of a program to run when WWWOFFLE is switched to online mode (default=none).  The program is started with a single parameter set to the current mode name "online".
+The full pathname of a program to run when WWWOFFLE is switched to online mode (default=none).  The program is started in the background with a single parameter set to the current mode name "online".
 ITEM run-offline
 run-offline = (filename)
-The name of a program to run when WWWOFFLE is switched to offline mode (default=none).  The program is started with a single parameter set to the current mode name "offline".
+The full pathname of a program to run when WWWOFFLE is switched to offline mode (default=none).  The program is started in the background with a single parameter set to the current mode name "offline".
 ITEM run-autodial
 run-autodial = (filename)
-The name of a program to run when WWWOFFLE is switched to autodial mode (default=none).  The program is started with a single parameter set to the current mode name "autodial".
+The full pathname of a program to run when WWWOFFLE is switched to autodial (default=none).  The program is started in the background with a single parameter set to the current mode name "fetch".
 ITEM run-fetch
 run-fetch = (filename)
-The name of a program to run when a WWWOFFLE fetch starts or stops (default=none).  The program is started with two parameters, the first is the word "fetch" and the second is "start" or "stop".
+The full pathname of a program to run when a WWWOFFLE fetch starts or stops (default=none).  The program is started in the background with two parameters, the first is the word "fetch" and the second is "start" or "stop".
 ITEM lock-files
 lock-files = yes | no
 Enable the use of lock files to stop more than one WWWOFFLE process from downloading the same URL at the same time (default=no).
@@ -272,6 +272,9 @@ Removes the &lt;marquee&gt; tag from HTML to stop scrolling text (default=no).
 ITEM disable-flash
 [<URL-SPEC>] disable-flash = yes | no
 Removes any Shockwave Flash animations (default=no).
+ITEM disable-iframe
+[<URL-SPEC>] disable-iframe = yes | no
+Removes any inline frames (the &lt;iframe&gt; tag) from HTML (default=no).
 ITEM disable-meta-refresh
 [<URL-SPEC>] disable-meta-refresh = yes | no
 Removes any meta tags in the HTML header that re-direct the client to change to another page after an optional delay (default=no).

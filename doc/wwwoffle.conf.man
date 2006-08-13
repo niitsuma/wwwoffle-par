@@ -35,14 +35,14 @@ that they appear in the file is not important\.
 .LP
 The general format of each of the sections is the same\.  The name of the
 section is on a line by itself to mark the start\.  The contents of the section
-are enclosed between a pair of lines containing only the '{' and '}'
-characters or the '[' and ']' characters\.  When the '{' and '}' characters are
-used the lines between contain configuration information\.  When the '[' and
-']' characters are used then there must only be a single non\-empty line
+are enclosed between a pair of lines containing only the \'{\' and \'}\'
+characters or the \'[\' and \']\' characters\.  When the \'{\' and \'}\' characters are
+used the lines between contain configuration information\.  When the \'[\' and
+\']\' characters are used then there must only be a single non\-empty line
 between them that contains the name of a file (in the same directory)
 containing the configuration information for the section\.
 .LP
-Comments are marked by a '#' character at the start of the line and they are
+Comments are marked by a \'#\' character at the start of the line and they are
 ignored\.  Blank lines are also allowed and ignored\.
 .LP
 The phrases 
@@ -53,13 +53,13 @@ for short) and
 .I WILDCARD
 have
 specific meanings in the configuration file and are described at the end\.  Any
-item enclosed in '(' and ')' in the descriptions means that it is a parameter
-supplied by the user, anything enclosed in '[' and ']' is optional, the '|'
+item enclosed in \'(\' and \')\' in the descriptions means that it is a parameter
+supplied by the user, anything enclosed in \'[\' and \']\' is optional, the \'|\'
 symbol is used to denote alternate choices\.  Some options apply to specific
 URLs only, this is indicated by having a 
 .I URL\-SPECIFICATION
 enclosed between
-'<' & '>' in the option, the first 
+\'<\' & \'>\' in the option, the first 
 .I URL\-SPECIFICATION
 to match is used\.  If no
 .I URL\-SPECIFICATION
@@ -73,14 +73,14 @@ running\.
 .TP
 .B bind\-ipv4 = (hostname) | (ip\-address) | none
 Specify the hostname or IP address to bind the HTTP proxy and WWWOFFLE
-control port sockets to using IPv4 (default='0\.0\.0\.0')\.  If 'none' is
+control port sockets to using IPv4 (default=\'0\.0\.0\.0\')\.  If \'none\' is
 specified then no IPv4 socket is bound\.  If this is changed from the
 default value then the first entry in the LocalHost section may need
 to be changed to match\.
 .TP
 .B bind\-ipv6 = (hostname) | (ip\-address) | none
 Specify the hostname or IP address to bind the HTTP proxy and WWWOFFLE
-control port sockets to using IPv6 (default='::')\.  If 'none' is
+control port sockets to using IPv6 (default=\'::\')\.  If \'none\' is
 specified then no IPv6 socket is bound\.  This requires the IPv6
 compilation option\.  If this is changed from the default value then
 the first entry in the LocalHost section may need to be changed to
@@ -162,32 +162,33 @@ try again after a short delay (default=no)\.
 .B dir\-perm = (octal int)
 The directory permissions to use when creating spool directories
 (default=0755)\.  This option overrides the umask of the user and must
-be in octal starting with a '0'\.
+be in octal starting with a \'0\'\.
 .TP
 .B file\-perm = (octal int)
 The file permissions to use when creating spool files (default=0644)\.
 This option overrides the umask of the user and must be in octal
-starting with a '0'\.
+starting with a \'0\'\.
 .TP
 .B run\-online = (filename)
-The name of a program to run when WWWOFFLE is switched to online mode
-(default=none)\.  The program is started with a single parameter set to
-the current mode name "online"\.
+The full pathname of a program to run when WWWOFFLE is switched to
+online mode (default=none)\.  The program is started in the background
+with a single parameter set to the current mode name "online"\.
 .TP
 .B run\-offline = (filename)
-The name of a program to run when WWWOFFLE is switched to offline mode
-(default=none)\.  The program is started with a single parameter set to
-the current mode name "offline"\.
+The full pathname of a program to run when WWWOFFLE is switched to
+offline mode (default=none)\.  The program is started in the background
+with a single parameter set to the current mode name "offline"\.
 .TP
 .B run\-autodial = (filename)
-The name of a program to run when WWWOFFLE is switched to autodial
-mode (default=none)\.  The program is started with a single parameter
-set to the current mode name "autodial"\.
+The full pathname of a program to run when WWWOFFLE is switched to
+autodial (default=none)\.  The program is started in the background with
+a single parameter set to the current mode name "fetch"\.
 .TP
 .B run\-fetch = (filename)
-The name of a program to run when a WWWOFFLE fetch starts or stops
-(default=none)\.  The program is started with two parameters, the first
-is the word "fetch" and the second is "start" or "stop"\.
+The full pathname of a program to run when a WWWOFFLE fetch starts or
+stops (default=none)\.  The program is started in the background with two
+parameters, the first is the word "fetch" and the second is "start" or
+"stop"\.
 .TP
 .B lock\-files = yes | no
 Enable the use of lock files to stop more than one WWWOFFLE process
@@ -211,17 +212,17 @@ Options that control how WWWOFFLE behaves when it is online\.
 .TP
 .B [<URL\-SPEC>] pragma\-no\-cache = yes | no
 Whether to request a new copy of a page if the request from the client
-has 'Pragma: no\-cache' (default=yes)\.  This option takes precedence
+has \'Pragma: no\-cache\' (default=yes)\.  This option takes precedence
 over the request\-changed and request\-changed\-once options\.
 .TP
 .B [<URL\-SPEC>] cache\-control\-no\-cache = yes | no
 Whether to request a new copy of a page if the request from the client
-has 'Cache\-Control: no\-cache' (default=yes)\.  This option takes
+has \'Cache\-Control: no\-cache\' (default=yes)\.  This option takes
 precedence over the request\-changed and request\-changed\-once options\.
 .TP
 .B [<URL\-SPEC>] cache\-control\-max\-age\-0 = yes | no
 Whether to request a new copy of a page if the request from the client
-has 'Cache\-Control: max\-age=0' (default=yes)\.  This option takes
+has \'Cache\-Control: max\-age=0\' (default=yes)\.  This option takes
 precedence over the request\-changed and request\-changed\-once options\.
 .TP
 .B [<URL\-SPEC>] cookies\-force\-refresh = yes | no
@@ -233,7 +234,7 @@ the request\-changed and request\-changed\-once options\.
 While online pages will only be fetched if the cached version is older
 than this specified time in seconds (default=600)\.  Setting this value
 negative will indicate that cached pages are always used while online\.
-Longer times can be specified with a 'm', 'h', 'd' or 'w' suffix for
+Longer times can be specified with a \'m\', \'h\', \'d\' or \'w\' suffix for
 minutes, hours, days or weeks (e\.g\. 10m=600)\.
 .TP
 .B [<URL\-SPEC>] request\-changed\-once = yes | no
@@ -263,7 +264,7 @@ changed (default=yes)\.
 .TP
 .B [<URL\-SPEC>] validate\-with\-etag = yes | no
 When making a conditional request to a server enable the use of the
-HTTP/1\.1 cache validator 'Etag' as well as modification time
+HTTP/1\.1 cache validator \'Etag\' as well as modification time
 (default=yes)\.
 .TP
 .B [<URL\-SPEC>] try\-without\-password = yes | no
@@ -310,21 +311,21 @@ Options that control how WWWOFFLE behaves when it is offline\.
 .TP
 .B [<URL\-SPEC>] pragma\-no\-cache = yes | no
 Whether to request a new copy of a page if the request from the client
-has 'Pragma: no\-cache' (default=yes)\.  This option should be set to
-'no' if when browsing offline all pages are re\-requested by a 'broken'
+has \'Pragma: no\-cache\' (default=yes)\.  This option should be set to
+\'no\' if when browsing offline all pages are re\-requested by a \'broken\'
 browser\.
 .TP
 .B [<URL\-SPEC>] cache\-control\-no\-cache = yes | no
 Whether to request a new copy of a page if the request from the client
-has 'Cache\-Control: no\-cache' (default=yes)\.  This option should be
-set to 'no' if when browsing offline all pages are re\-requested by a
-'broken' browser\.
+has \'Cache\-Control: no\-cache\' (default=yes)\.  This option should be
+set to \'no\' if when browsing offline all pages are re\-requested by a
+\'broken\' browser\.
 .TP
 .B [<URL\-SPEC>] cache\-control\-max\-age\-0 = yes | no
 Whether to request a new copy of a page if the request from the client
-has 'Cache\-Control: max\-age=0' (default=yes)\.  This option should be
-set to 'no' if when browsing offline all pages are re\-requested by a
-'broken' browser\.
+has \'Cache\-Control: max\-age=0\' (default=yes)\.  This option should be
+set to \'no\' if when browsing offline all pages are re\-requested by a
+\'broken\' browser\.
 .TP
 .B [<URL\-SPEC>] confirm\-requests = yes | no
 Whether to return a page requiring user confirmation instead of
@@ -504,6 +505,9 @@ Removes the <marquee> tag from HTML to stop scrolling text
 .B [<URL\-SPEC>] disable\-flash = yes | no
 Removes any Shockwave Flash animations (default=no)\.
 .TP
+.B [<URL\-SPEC>] disable\-iframe = yes | no
+Removes any inline frames (the <iframe> tag) from HTML (default=no)\.
+.TP
 .B [<URL\-SPEC>] disable\-meta\-refresh = yes | no
 Removes any meta tags in the HTML header that re\-direct the client to
 change to another page after an optional delay (default=no)\.
@@ -580,7 +584,7 @@ A hostname or IP address that is always available and is not to be
 cached by WWWOFFLE\.  The host name matching uses 
 .I WILDCARD
 s\.  A host
-can be excluded by appending a '!' to the start of the name, all
+can be excluded by appending a \'!\' to the start of the name, all
 possible aliases and IP addresses for the host are also required\.  All
 entries here are assumed to be reachable even when offline\.  None of
 the hosts named here are cached or fetched via a proxy\.
@@ -594,7 +598,7 @@ A hostname or IP address that is allowed to connect to the server\.
 The host name matching uses 
 .I WILDCARD
 s\.  A host can be excluded by
-appending a '!' to the start of the name, all possible aliases and IP
+appending a \'!\' to the start of the name, all possible aliases and IP
 addresses for the host are also required\.  All of the hosts named in
 LocalHost are also allowed to connect\.
 
@@ -646,7 +650,7 @@ Choose whether to get URLs that match this when doing a recursive
 fetch (default=yes)\.
 .TP
 .B <URL\-SPEC> location\-error = yes | no
-When a URL reply contains a 'Location' header that redirects to a URL
+When a URL reply contains a \'Location\' header that redirects to a URL
 that is not got (specified in this section) then the reply is modified
 to be an error message instead (default=no)\.  This will stop ISP
 proxies from redirecting users to adverts if the advert URLs are
@@ -674,7 +678,7 @@ web servers and the replies that come back from them\.
 .B [<URL\-SPEC>] (header) = yes | no | (string)
 A header field name (e\.g\. From, Cookie, Set\-Cookie, User\-Agent) and
 the string to replace the header value with (default=no)\.  The header
-is case sensitive, and does not have a ':' at the end\.  The value of
+is case sensitive, and does not have a \':\' at the end\.  The value of
 "no" means that the header is unmodified, "yes" or no string can be
 used to remove the header or a string can be used to replace the
 header\.  This only replaces headers it finds, it does not add any new
@@ -728,7 +732,7 @@ files on the built\-in web\-server\.
 The default MIME type (default=text/plain)\.
 .TP
 .B \.(file\-ext) = (mime\-type)/(subtype)
-The MIME type to associate with a file extension\.  The '\.' must be
+The MIME type to associate with a file extension\.  The \'\.\' must be
 included in the file extension\.  If more than one extension matches
 then the longest one is used\.
 
@@ -756,10 +760,10 @@ retrieved\.
 .TP
 .B [<URL\-SPEC>] ssl = (host[:port])
 A proxy server that should be used for Secure Socket Layer (SSL)
-connections e\.g\. https\.  Note that for the <
-.I URL\-SPEC
-> that only the
-host is checked and that the other parts must be '*' 
+connections e\.g\. https\.  Note that for the 
+.I <URL\-SPEC>
+that only the
+host is checked and that the other parts must be \'*\' 
 .I WILDCARD
 s\.
 
@@ -773,8 +777,8 @@ Any requests that match the first
 .I URL\-SPECIFICATION
 are replaced by
 the second 
-.I URL\-SPECIFICATION
-\.  The first 
+.I URL\-SPECIFICATION.
+The first 
 .I URL\-SPECIFICATION
 is a
 wildcard match for the protocol and host/port, the path must match the
@@ -823,8 +827,8 @@ An age of zero means always to delete, negative means not to delete\.
 The 
 .I URL\-SPECIFICATION
 matches only the protocol and host unless
-use\-url is set to true\. Longer times can be specified with a 'w', 'm'
-or 'y' suffix for weeks, months or years (e\.g\. 2w=14)\.
+use\-url is set to true\. Longer times can be specified with a \'w\', \'m\'
+or \'y\' suffix for weeks, months or years (e\.g\. 2w=14)\.
 .TP
 .B [<URL\-SPEC>] compress\-age = (age)
 The maximum age in the cache for URLs that match this to be stored
@@ -833,18 +837,18 @@ of zero means always to compress, negative means never to compress\.
 The 
 .I URL\-SPECIFICATION
 matches only the protocol and host unless
-use\-url is set to true\. Longer times can be specified with a 'w', 'm'
-or 'y' suffix for weeks, months or years (e\.g\. 2w=14)\.
+use\-url is set to true\. Longer times can be specified with a \'w\', \'m\'
+or \'y\' suffix for weeks, months or years (e\.g\. 2w=14)\.
 
 .SH WILDCARD
 
 A 
 .I WILDCARD
-match is one that uses the '*' character to represent any group of
+match is one that uses the \'*\' character to represent any group of
 characters\.
 .LP
 This is basically the same as the command line file matching expressions in
-DOS or the UNIX shell, except that the '*' can match the '/' character\.
+DOS or the UNIX shell, except that the \'*\' can match the \'/\' character\.
 .LP
 For example
 .TP
@@ -877,15 +881,15 @@ The port number on the host (e.g. default of 80 for HTTP).
 .TP
 .B path
 The pathname on the host (e.g. '/bar.html') or a directory name
-(e\.g\. '/foo/')\.
+(e\.g\. \'/foo/\')\.
 .TP
 .B args
 Optional arguments with the URL used for CGI scripts etc.
-(e\.g\. 'search=foo')\.
+(e\.g\. \'search=foo\')\.
 .LP
 For example the WWWOFFLE homepage: http://www\.gedanken\.demon\.co\.uk/wwwoffle/
-The protocol is 'http', the host is 'www\.gedanken\.demon\.co\.uk', the port is
-the default (in this case 80), and the pathname is '/wwwoffle/'\.
+The protocol is \'http\', the host is \'www\.gedanken\.demon\.co\.uk\', the port is
+the default (in this case 80), and the pathname is \'/wwwoffle/\'\.
 .LP
 In general this is written as (proto)://(host)[:(port)]/[(path)][?(args)]
 .LP
@@ -898,7 +902,7 @@ options are the following:
 .TP
 .B *://*/*
 Any protocol, Any host, Any port, Any path, Any args
-(This is that same as saying 'default')\.
+(This is that same as saying \'default\')\.
 .TP
 .B *://*/(path)
 Any protocol, Any host, Any port, Named path, Any args
@@ -926,26 +930,26 @@ The matching of the host, the path and the args use the
 matching that
 is described above\.  The matching of the path has the special condition that a
 .I WILDCARD
-of '/*/foo' will match '/foo' and '/any/path/foo', in other words it
+of \'/*/foo\' will match \'/foo\' and \'/any/path/foo\', in other words it
 matches any path prefix\.
 .LP
 In some sections that accept 
 .I URL\-SPECIFICATION
 s they can be negated by
-inserting the '!' character before it\.  This will mean that the comparison
+inserting the \'!\' character before it\.  This will mean that the comparison
 of a URL with the 
 .I URL\-SPECIFICATION
 will return the logically opposite value
-to what would be returned without the '!'\.  If all of the 
+to what would be returned without the \'!\'\.  If all of the 
 .I URL\-SPECIFICATION
 s
-in a section are negated and '*://*/*' is added to the end then the sense of
+in a section are negated and \'*://*/*\' is added to the end then the sense of
 the whole section is negated\.
 .LP
 In all sections that accept 
 .I URL\-SPECIFICATION
 s the comparison can be made case
-insensitive for the path and arguments part by inserting the '~' character
+insensitive for the path and arguments part by inserting the \'~\' character
 before it\.  (The host and the protocol comparisons are always case
 insensitive)\.
 

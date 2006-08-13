@@ -191,30 +191,31 @@ starting with a '0'.
 <h3><a name="Options_run-online"></a>run-online = (filename)</h3>
 
 <p>
-The name of a program to run when WWWOFFLE is switched to online mode
-(default=none).  The program is started with a single parameter set to
-the current mode name "online".
+The full pathname of a program to run when WWWOFFLE is switched to
+online mode (default=none).  The program is started in the background
+with a single parameter set to the current mode name "online".
 
 <h3><a name="Options_run-offline"></a>run-offline = (filename)</h3>
 
 <p>
-The name of a program to run when WWWOFFLE is switched to offline mode
-(default=none).  The program is started with a single parameter set to
-the current mode name "offline".
+The full pathname of a program to run when WWWOFFLE is switched to
+offline mode (default=none).  The program is started in the background
+with a single parameter set to the current mode name "offline".
 
 <h3><a name="Options_run-autodial"></a>run-autodial = (filename)</h3>
 
 <p>
-The name of a program to run when WWWOFFLE is switched to autodial
-mode (default=none).  The program is started with a single parameter
-set to the current mode name "autodial".
+The full pathname of a program to run when WWWOFFLE is switched to
+autodial (default=none).  The program is started in the background with
+a single parameter set to the current mode name "fetch".
 
 <h3><a name="Options_run-fetch"></a>run-fetch = (filename)</h3>
 
 <p>
-The name of a program to run when a WWWOFFLE fetch starts or stops
-(default=none).  The program is started with two parameters, the first
-is the word "fetch" and the second is "start" or "stop".
+The full pathname of a program to run when a WWWOFFLE fetch starts or
+stops (default=none).  The program is started in the background with two
+parameters, the first is the word "fetch" and the second is "start" or
+"stop".
 
 <h3><a name="Options_lock-files"></a>lock-files = yes | no</h3>
 
@@ -652,6 +653,11 @@ Removes the &lt;marquee&gt; tag from HTML to stop scrolling text
 
 <p>
 Removes any Shockwave Flash animations (default=no).
+
+<h3><a name="ModifyHTML_disable-iframe"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-iframe = yes | no</h3>
+
+<p>
+Removes any inline frames (the &lt;iframe&gt; tag) from HTML (default=no).
 
 <h3><a name="ModifyHTML_disable-meta-refresh"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-meta-refresh = yes | no</h3>
 
