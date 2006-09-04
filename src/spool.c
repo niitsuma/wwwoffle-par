@@ -685,9 +685,11 @@ changedir_back:
   time_t ExistsWebpageSpoolFile Return a the time the page was last accessed if the page exists.
 
   URL *Url The URL to check for.
+
+  int backup A flag to indicate that the backup file is to be checked.
   ++++++++++++++++++++++++++++++++++++++*/
 
-time_t ExistsWebpageSpoolFile(URL *Url)
+time_t ExistsWebpageSpoolFile(URL *Url,int backup)
 {
  struct stat buf;
  int existsD=0;
@@ -704,6 +706,9 @@ time_t ExistsWebpageSpoolFile(URL *Url)
 
  {
    local_URLToFileName(Url,'D',file)
+
+   if(backup)
+     strcat(file,"~");
 
    /* *file='U'; */
    /* existsU=!stat(file,&buf); */

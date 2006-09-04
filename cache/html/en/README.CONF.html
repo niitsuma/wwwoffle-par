@@ -363,6 +363,22 @@ If the remote server replies with an error message or a redirection
 while there is a cached version with status 200 the previously cached 
 version should be kept (default=no).
 
+<h3><a name="OnlineOptions_keep-cache-if-header-matches"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] keep-cache-if-header-matches = (string)</h3>
+
+<p>
+This option is similar to keep-cache-if-not-found, but instead of
+looking at the status code of the reply from the remote server,
+the header lines of the reply are matched against the given string.
+The string is interpreted as a pattern and may contain '*' <a href="#WILDCARD">WILDCARD</a>s.
+If the string contains a ':', the part before the first ':' is matched
+against the keys, and the rest against the values of the header lines.
+If the string doesn't contain a ':', only the keys of the header lines
+are matched against the string. The comparison is case insensitive.
+If a match is found and there is a cached version of the page with
+status 200 that doesn't match the pattern string, the previously 
+cached version is kept.
+(Option added by Paul Rombouts.)
+
 <h3><a name="OnlineOptions_request-compressed-data"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-compressed-data = yes | no | deflate | gzip</h3>
 
 <p>

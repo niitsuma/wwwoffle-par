@@ -299,7 +299,7 @@ static void output_content(int fd,char *type,char **url)
     int dontget,cached,outgoing;
 
     dontget=ConfigBooleanMatchURL(DontGet,Url);
-    cached=ExistsWebpageSpoolFile(Url);
+    cached= (ExistsWebpageSpoolFile(Url,0)!=0);
     outgoing=ExistsOutgoingSpoolFile(Url);
 
     HTMLMessageBody(fd,"InfoContents-Body",

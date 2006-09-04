@@ -28,6 +28,7 @@
 #include "configpriv.h"
 #include "config.h"
 #include "sockets.h"
+#include "headbody.h"
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -787,3 +788,43 @@ int ConfigBooleanMatchProtoHostPort(ConfigItem item,char *proto,char *hostport)
 
  return(0);
 }
+
+
+#ifndef CLIENT_ONLY
+/*++++++++++++++++++++++++++++++++++++++
+  Return the pattern that matches a line in a header.
+
+  char *ConfigHeaderMatch Returns the string value of the pattern.
+
+  ConfigItem item The configuration item to check.
+
+  URL *Url the URL to check for a match against (or NULL to get the match for all URLs).
+
+  
+  ++++++++++++++++++++++++++++++++++++++*/
+
+char *ConfigHeaderMatch(ConfigItem item, URL *Url, Header *header)
+{
+ int i;
+
+ if(!item)
+    return(NULL);
+
+ if(item->itemdef->url_type!=1)
+    PrintMessage(Fatal,"Configuration file error at %s:%d",__FILE__,__LINE__);
+
+ if(item->itemdef->same_key!=1)
+    PrintMessage(Fatal,"Configuration file error at %s:%d",__FILE__,__LINE__);
+
+ for(i=0;i<item->nentries;++i)
+   if(!item->url[i] || (Url && MatchUrlSpecification(item->url[i],Url))) {
+     char *pattern=item->val[i].string;
+
+     if(pattern && MatchHeader(header,pattern))
+       return(pattern);
+   }
+
+ return(NULL);
+}
+
+#endif

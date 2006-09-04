@@ -24,6 +24,7 @@
 #include <ctype.h>
 
 #include "misc.h"
+#include "configpriv.h"
 #include "headbody.h"
 
 
@@ -747,4 +748,46 @@ static int sort_qval(HeaderListItem *a,HeaderListItem *b)
   float aq=a->qval;
   float bq=b->qval;
   return (bq>aq)?1:(bq<aq)?-1:0;
+}
+
+/*++++++++++++++++++++++++++++++++++++++
+  Search through a HTTP header for a key-value combination matching a pattern.
+
+  char *MatchHeader Returns the (first) key-value node matching the pattern.
+
+  Header *head The header to search through.
+
+  char* pattern The pattern to match.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+KeyValueNode *MatchHeader(Header *head,const char* pattern)
+{
+ const char *val=strchr(pattern,':'), *starp=strchr(pattern,'*');
+ KeyValueNode *line;
+
+ if(val) {
+   int len_key=val-pattern;
+   if(starp && starp>val) starp=NULL;
+   do {if(!*++val) {val=NULL;break;}} while(isspace(*val));
+   if(starp) {
+     char key[len_key+1];
+     *((char *)mempcpy(key,pattern,len_key))=0;
+
+     for(line=head->line; line; line=line->next)
+       if(WildcardCaseMatch(line->key,key) && (!val || WildcardCaseMatch(line->val,val)))
+	 return(line);
+   }
+   else {
+     for(line=head->line; line; line=line->next)
+       if(!strncasecmp(line->key,pattern,len_key) && !line->key[len_key] && (!val || WildcardCaseMatch(line->val,val)))
+	 return(line);
+   }
+ }
+ else {
+   for(line=head->line; line; line=line->next)
+     if(WildcardCaseMatch(line->key,pattern))
+       return(line);
+ }
+
+ return(NULL);
 }

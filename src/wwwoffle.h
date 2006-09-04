@@ -53,7 +53,7 @@ char /*@only@*/ /*@null@*/ *DeleteOutgoingSpoolFile(/*@null@*/ URL *Url);
 int OpenWebpageSpoolFile(int rw,URL *Url);
 char /*@only@*/ /*@null@*/ *DeleteWebpageSpoolFile(URL *Url,int all);
 void TouchWebpageSpoolFile(URL *Url,time_t when);
-time_t ExistsWebpageSpoolFile(URL *Url);
+time_t ExistsWebpageSpoolFile(URL *Url,int backup);
 
 void CreateBackupWebpageSpoolFile(URL *Url, int overwrite);
 void RestoreBackupWebpageSpoolFile(URL *Url);
@@ -83,13 +83,14 @@ int FileMarkHash(const char *file);
   A macro to Convert a URL to a filename.
   local_URLToFileName declares filename as an array of char
   and fills it with the file name corresponding to Url.
+  Some extra space is reserved to add a possible ~ suffix.
   Written by Paul Rombouts as a replacement for the function URLToFileName().
   ++++++++++++++++++++++++++++++++++++++*/
 
 #define local_URLToFileName(Url,c,filename)		\
  char filename[base64enclen(sizeof(md5hash_t))+3];	\
  *(filename)=(c);					\
- GetHash(Url,(filename)+1,sizeof(filename)-1);
+ GetHash(Url,(filename)+1,sizeof(filename)-2);
 
 
 int ChangeToSpoolDir(char *dir);
@@ -116,6 +117,7 @@ void MakeRequestNonProxy(URL *Url,Header *request_head);
 int ParseReply(int fd,/*@out@*/ Header **reply_head);
 
 int SpooledPageStatus(URL *Url,int backup);
+Header *SpooledPageHeader(URL *Url,int backup);
 
 int WhichCompression(char *content_encoding);
 int AcceptWhichCompression(HeaderList *list);

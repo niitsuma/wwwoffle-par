@@ -5,11 +5,13 @@
 
 Available WWWOFFLE Variables (all with a '$' prefix).
 
-localhost  = The hostname of the server running wwwoffled (='$localhost').
-version    = The version of the WWWOFFLE server (='$version').
-url        = The URL that was asked for (='%comment[url]').
-replystatus= Status code returned by the remote server (='$replystatus').
-replynote  = The status note returned by the remote server (='$replynote').
+localhost     = The hostname of the server running wwwoffled (='$localhost').
+version       = The version of the WWWOFFLE server (='$version').
+url           = The URL that was asked for (='%comment[url]').
+replystatus   = Status code returned by the remote server (='$replystatus').
+replynote     = The status note returned by the remote server (='$replynote').
+headerpattern = The pattern that matched a header line from the remote server (='%comment[headerpattern]').
+
 
 $decurl=%decode[url]
 $encurl=%encode[url]
@@ -41,7 +43,8 @@ Your request for URL
 </p>
 has not been cached because
 <p class="wwwoffle-error">
-the remote server replied with <b>$replystatus $replynote</b>
+$headerpattern?{a header line from the remote server matched <b>%html[headerpattern]</b>}
+               {the remote server replied with <b>$replystatus $replynote</b>}
 </p>
 This error message has now been deleted from the cache.
 <p>

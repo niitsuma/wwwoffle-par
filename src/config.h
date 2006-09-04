@@ -47,6 +47,7 @@ int ConfigIntegerProtoHostPort(/*@null@*/ ConfigItem item,char *proto,char *host
 
 int ConfigBooleanMatchURL(/*@null@*/ ConfigItem item,URL *Url);
 int ConfigBooleanMatchProtoHostPort(/*@null@*/ ConfigItem item,char *proto,char *hostport);
+char *ConfigHeaderMatch(ConfigItem item, URL *Url, Header *header);
 
 
 /* StartUp section */
@@ -174,6 +175,10 @@ extern /*@null@*/ ConfigItem TimeoutDownloadKeep;
 /*+ The option to keep previously cached pages instead of overwriting
     them with an error message from the remote server. +*/
 extern /*@null@*/ ConfigItem KeepCacheIfNotFound;
+
+/*+ The option to keep previously cached pages instead of overwriting
+    them with a page that has a header line that matches a given pattern. +*/
+extern /*@null@*/ ConfigItem KeepCacheIfHeaderMatches;
 
 /*+ The option to request from the server compressed content encoding. +*/
 extern /*@null@*/ ConfigItem RequestCompressedData;

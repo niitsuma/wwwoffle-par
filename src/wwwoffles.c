@@ -62,6 +62,17 @@ inline static int is_wwwoffle_error_message(Header *head)
 			!strcasecmp(head->note,"WWWOFFLE Requested Resource Gone")));
 }
 
+inline static int keepspoolfile(URL *Url,int backup)
+{
+  int retval=0;
+  Header *spooled_head=SpooledPageHeader(Url,backup);
+  if(spooled_head) {
+    retval= (spooled_head->status==200 && !ConfigHeaderMatch(KeepCacheIfHeaderMatches,Url,spooled_head));
+    FreeHeader(spooled_head);
+  }
+  return retval;
+}
+
 
 /*+ The mode of operation of the server. +*/
 typedef enum _Mode
@@ -690,7 +701,7 @@ int wwwoffles(int online,int fetching,int client)
 
        else if(mode==Real || mode==SpoolOrReal)
          {
-	  if(ConfigBooleanURL(KeepCacheIfNotFound,newUrl) && SpooledPageStatus(newUrl,0)==200) {
+	  if(ConfigBooleanURL(KeepCacheIfNotFound,newUrl) && keepspoolfile(newUrl,0)) {
 	    PrintMessage(Debug,"keep-cache-if-not-found is enabled for '%s', keeping the spool file as backup.",newUrl->name);
 	    CreateBackupWebpageSpoolFile(newUrl,1);
 	  }
@@ -698,7 +709,7 @@ int wwwoffles(int online,int fetching,int client)
 	    char *err=DeleteWebpageSpoolFile(newUrl,0);
 	    if(err) free(err);
 	  }
-		  
+
           if(is_client_wwwoffle)
              mode=Real;
           else
@@ -979,12 +990,12 @@ int wwwoffles(int online,int fetching,int client)
    ----------------------------------------*/
 
  outgoing_exists=ExistsOutgoingSpoolFile(Url);
- spool_exists=ExistsWebpageSpoolFile(Url);
+ spool_exists=ExistsWebpageSpoolFile(Url,0);
 
  if(Urlpw)
    {
     outgoing_exists_pw=ExistsOutgoingSpoolFile(Urlpw);
-    spool_exists_pw=ExistsWebpageSpoolFile(Urlpw);
+    spool_exists_pw=ExistsWebpageSpoolFile(Urlpw,0);
 
     /* In one of the spool modes we can only return one page, with or without. */
 
@@ -1332,8 +1343,8 @@ passwordagain:
 	   GetHeader2(request_head,"Pragma","no-cache")) ||
 	  (ConfigBooleanURL(online?CacheControlNoCacheOnline:CacheControlNoCacheOffline,Url) &&
 	   GetHeader2(request_head,"Cache-Control","no-cache")) ||
-	  (ConfigBooleanURL(online?CacheControlMaxAge0Online:CacheControlMaxAge0Offline,Url) && 
-	    ({char* maxage_val=GetHeader2Val(request_head,"Cache-Control","max-age"); 
+	  (ConfigBooleanURL(online?CacheControlMaxAge0Online:CacheControlMaxAge0Offline,Url) &&
+	    ({char* maxage_val=GetHeader2Val(request_head,"Cache-Control","max-age");
 	      maxage_val && atol(maxage_val)==0;}))))
    {
     if(conditional_request_ims)
@@ -1627,7 +1638,9 @@ passwordagain:
  if(mode==Real || mode==Fetch)
    {
     if(spool_exists)
-       CreateBackupWebpageSpoolFile(Url,0);
+      CreateBackupWebpageSpoolFile(Url,0);
+    else
+      spool_exists=ExistsWebpageSpoolFile(Url,1);
 
     spool=OpenWebpageSpoolFile(0,Url);
 
@@ -1931,6 +1944,7 @@ passwordagain:
     char *content_encoding=NULL;
 #endif
     char *transfer_encoding=NULL;
+    char *headerpattern;
 
     /* Get the header */
 
@@ -2137,10 +2151,15 @@ passwordagain:
 
     /* If the status is an error but we want to keep existing page. */
 
-    else if((mode==Fetch || mode==Real) && reply_status>=300 &&
-	    ConfigBooleanURL(KeepCacheIfNotFound,Url) && SpooledPageStatus(Url,1)==200)
+    else if((mode==Fetch || mode==Real) &&
+	    (headerpattern=NULL,(reply_status>=300 && ConfigBooleanURL(KeepCacheIfNotFound,Url)) ||
+	     (headerpattern=ConfigHeaderMatch(KeepCacheIfHeaderMatches,Url,reply_head)))
+	    && keepspoolfile(Url,1))
       {
-	PrintMessage(Debug,"Reply status for '%s' was %d, keeping backup spool file.",Url->name,reply_status);
+	if(headerpattern)
+	  PrintMessage(Debug,"Reply header for '%s' matches '%s', keeping backup spool file.",Url->name,headerpattern);
+	else
+	  PrintMessage(Debug,"Reply status for '%s' was %d, keeping backup spool file.",Url->name,reply_status);
 
 	lseek(spool,0,SEEK_SET);
 	ftruncate(spool,0);
@@ -2154,6 +2173,7 @@ passwordagain:
 		      "url",Url->name,
 		      "replystatus",status,
 		      "replynote",reply_head->note,
+		      "headerpattern",headerpattern,
 		      NULL);
 	}
 	DeleteLockWebpageSpoolFile(Url);
@@ -2493,7 +2513,7 @@ passwordagain:
 	   char *errmsg=errno==ERRNO_USE_IO_ERRNO?strdup("DataCorrupt"):
 	                errno==ETIMEDOUT?strdup("TimeoutTransfer"):
 	                x_asprintf("Error reading reply body from remote host [%s].",strerror(errno));
-			       
+
           lseek(spool,0,SEEK_SET);
           ftruncate(spool,0);
           reinit_io(spool);

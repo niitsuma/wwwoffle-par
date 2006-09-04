@@ -93,6 +93,7 @@ void ReplaceOrAddInHeader(Header *head,const char *key,const char *val);  /* Add
 /*@null@*/ /*@observer@*/ char *GetHeader(Header *head,const char* key);
 /*@null@*/ /*@observer@*/ char *GetHeader2(Header *head,const char* key,const char *val);
 /*@null@*/ /*@observer@*/ char *GetHeader2Val(Header *head,const char* key,const char *subkey);
+KeyValueNode *MatchHeader(Header *head,const char* pattern);
 /*@only@*/ char *GetHeaderCombined(Header *head,const char* key);
 
 /*@only@*/ char *HeaderString(Header *head,int *size);

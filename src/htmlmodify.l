@@ -491,7 +491,6 @@ inline static void free_tagdata(Tag *tagdata)
   free(tagdata->attr_key);
   free(tagdata->attr_val);
   free(tagdata->attr_quote);
-
 }
 
 /* Some functions for handling tag stacks. */
@@ -532,26 +531,21 @@ static int toptagstack(TagStack s,HTMLTags endtag)
 /* Remove the first stack node of the matching tag type and return its value. */
 static int poptagstack(TagStack *s,HTMLTags endtag)
 {
-  TagStack p, q;
+  TagStack p, *q;
   HTMLTags tag=endtag2tag(endtag);
 
   if(tag<0)
     return 0;
 
-  p= *s; q=NULL;
-  while(p) {
-    TagStack next= p->next;
+  q= s;
+  while((p= *q)) {
     if(p->type==tag) {
       int retval= p->disabled;
-      if(!q)
-	*s= next;
-      else
-	q->next=next;
+      *q= p->next;
       free(p);
       return retval;
     }
-    q=p;
-    p=next;
+    q= &p->next;
   }
 
   return 0;
@@ -672,7 +666,7 @@ void OutputHTMLWithModifications(URL *Url,int spool,char *content_type)
 static void yy_output(char *text, int commentout)
 {
   if(!disable_output && *text) {
-    char *copy= (commentout?HTMLcommentstring(text):text);
+    char *copy= ((commentout>0)?HTMLcommentstring(text):text);
     wwwoffles_write_data(copy,strlen(copy));
     if(copy!=text) free(copy);
   }
@@ -1230,12 +1224,14 @@ static void handle_meta_tag(Tag *tag,int disable_meta_refresh,int disable_meta_r
  /* Check for interesting meta tags */
 
  for(i=0;i<tag->nattr;i++)
-    if(tag->attr_type[i]==att_http_equiv && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"Refresh"))
+   if(tag->attr_type[i]==att_http_equiv && tag->attr_val[i]) {
+     if(!strcasecmp_litbeg(tag->attr_val[i],"Refresh"))
        is_meta_http_equiv_refresh=1;
-    else if(tag->attr_type[i]==att_http_equiv && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"Set-Cookie"))
+     else if(!strcasecmp_litbeg(tag->attr_val[i],"Set-Cookie"))
        is_meta_http_equiv_set_cookie=1;
-    else if(tag->attr_type[i]==att_http_equiv && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"Content-Type"))
+     else if(!strcasecmp_litbeg(tag->attr_val[i],"Content-Type"))
        is_meta_http_equiv_content_type=1;
+   }
 
  /* Handle if they are refresh ones. */
 
@@ -1841,7 +1837,7 @@ static void modify_html(URL *Url)
 
 		     if(!Url->Protocol)
 		       url_cached=0;
-		     else if(ExistsWebpageSpoolFile(Url) || IsLocalNetHost(Url->host))
+		     else if(ExistsWebpageSpoolFile(Url,0) || IsLocalNetHost(Url->host))
 		       url_cached=1;
 		     else if(ExistsOutgoingSpoolFile(Url))
 		       url_cached=2;
@@ -2087,9 +2083,8 @@ static void handle_high_bit(unsigned char ch)
                COMMENT is not strictly correct, but works better than the real thing. */
 
 <COMMENT>"--"{W}*">"        { YY_OUTPUT(htmlmodify_yytext); BEGIN(INITIAL); /* htmlmodify_yylval=string; return(LEX_COMMENT); */ }
-<COMMENT>">"                |
 <COMMENT>"-"                |
-<COMMENT>[^->]+             { YY_OUTPUT(htmlmodify_yytext); /* append_string(htmlmodify_yytext); */ }
+<COMMENT>[^-]+              { YY_OUTPUT(htmlmodify_yytext); /* append_string(htmlmodify_yytext); */ }
 
 <COMMENT_BAD>">"            { YY_OUTPUT(htmlmodify_yytext); BEGIN(INITIAL); /* htmlmodify_yylval=string; return(LEX_COMMENT); */ }
 <COMMENT_BAD>[^>]+          { YY_OUTPUT(htmlmodify_yytext); /* append_string(htmlmodify_yytext); */ }
@@ -2125,55 +2120,59 @@ static void handle_high_bit(unsigned char ch)
 
  /* Quoted strings */
 
-<DQUOTED>\\\"               |
-<DQUOTED>\\                 { append_string(htmlmodify_yytext); }
 <DQUOTED>\"                 { BEGIN(TAG); htmlmodify_yylval=string; return(LEX_ATTR_VAL_DQ); }
-<DQUOTED>[^\\\"]+           { append_string(htmlmodify_yytext); }
+<DQUOTED>[^\"]+             { append_string(htmlmodify_yytext); }
 
-<SQUOTED>\\\'               |
-<SQUOTED>\\                 { append_string(htmlmodify_yytext); }
 <SQUOTED>\'                 { BEGIN(TAG); htmlmodify_yylval=string; return(LEX_ATTR_VAL_SQ); }
-<SQUOTED>[^\\\']+           { append_string(htmlmodify_yytext); }
+<SQUOTED>[^\']+             { append_string(htmlmodify_yytext); }
 
  /* Scripts */
 
 <SCRIPT_START>{W}+          { YY_OUTPUT(htmlmodify_yytext); }
 <SCRIPT_START>"<"/"/script" { BEGIN(TAG_START); }
-<SCRIPT_START>"<!--"        { commentout=0; YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT); }
-<SCRIPT_START>(.|\n)        { if(commentout) yy_output("<!--\n",0);
+<SCRIPT_START>"<!--"        { if(commentout>0) commentout=-1; YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT); }
+<SCRIPT_START>(.|\n)        { if(commentout>0) yy_output("<!--\n",0);
                               unput(htmlmodify_yytext[0]); BEGIN(SCRIPT); }
 
+<SCRIPT>\\\"                |
+<SCRIPT>\\\'                |
+<SCRIPT>\\                  { YY_OUTPUT(htmlmodify_yytext); }
 <SCRIPT>\"                  { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT_DQUOTED); }
 <SCRIPT>\'                  { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT_SQUOTED); }
 <SCRIPT>"/*"                { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT_COMMENT_C); }
 <SCRIPT>"//"                { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT_COMMENT_CPP); }
-<SCRIPT>"*"                 { YY_OUTPUT(htmlmodify_yytext); }
 <SCRIPT>"/"                 { YY_OUTPUT(htmlmodify_yytext); }
-<SCRIPT>"<"/"/script"       { if(commentout) {commentout=0; YY_OUTPUT("//-->\n");}
+<SCRIPT>"<"/"/script"       { if(commentout>0) {commentout=0; YY_OUTPUT("//-->\n");}
                               BEGIN(TAG_START); }
-<SCRIPT>"<"                 { YY_OUTPUT(htmlmodify_yytext); }
-<SCRIPT>[^\'\"</]+          { YY_OUTPUT(htmlmodify_yytext); }
+<SCRIPT>"<"                 |
+<SCRIPT>[^\\\'\"</]+        { YY_OUTPUT(htmlmodify_yytext); }
 
  /* Comments in scripts, C or C++ style */
 
 <SCRIPT_COMMENT_C>"*"+"/"   { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT); }
-<SCRIPT_COMMENT_C>"*"+      { YY_OUTPUT(htmlmodify_yytext); }
+<SCRIPT_COMMENT_C>"*"+      |
 <SCRIPT_COMMENT_C>[^*]+     { YY_OUTPUT(htmlmodify_yytext); }
 
 <SCRIPT_COMMENT_CPP>[\r\n]  { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT); }
-<SCRIPT_COMMENT_CPP>"<"/"/script" { if(commentout) {commentout=0; YY_OUTPUT("-->\n");}
+<SCRIPT_COMMENT_CPP>"<"/"/script" { if(commentout>0) {commentout=0; YY_OUTPUT("-->\n");}
                               BEGIN(TAG_START); }
 <SCRIPT_COMMENT_CPP>"<"     { YY_OUTPUT(htmlmodify_yytext); }
-<SCRIPT_COMMENT_CPP>[^\r\n<]+ { YY_OUTPUT(htmlmodify_yytext); }
+ /* The following is not strictly correct, see previous remarks about COMMENT. */
+<SCRIPT_COMMENT_CPP>"-"+"-"[ \t]*">" { YY_OUTPUT(htmlmodify_yytext);
+                              if(commentout<0) {commentout=1; BEGIN(SCRIPT_START);}}
+<SCRIPT_COMMENT_CPP>"-"+    |
+<SCRIPT_COMMENT_CPP>[^-<\r\n]+ { YY_OUTPUT(htmlmodify_yytext); }
 
  /* Quoted strings in scripts - assume they follow usual rules */
 
-<SCRIPT_DQUOTED>\\\"        { YY_OUTPUT(htmlmodify_yytext); }
+<SCRIPT_DQUOTED>\\\"        |
+<SCRIPT_DQUOTED>\\\\        |
 <SCRIPT_DQUOTED>\\          { YY_OUTPUT(htmlmodify_yytext); }
 <SCRIPT_DQUOTED>\"          { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT); }
 <SCRIPT_DQUOTED>[^\\\"]+    { YY_OUTPUT(htmlmodify_yytext); }
 
-<SCRIPT_SQUOTED>\\\'        { YY_OUTPUT(htmlmodify_yytext); }
+<SCRIPT_SQUOTED>\\\'        |
+<SCRIPT_SQUOTED>\\\\        |
 <SCRIPT_SQUOTED>\\          { YY_OUTPUT(htmlmodify_yytext); }
 <SCRIPT_SQUOTED>\'          { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT); }
 <SCRIPT_SQUOTED>[^\\\']+    { YY_OUTPUT(htmlmodify_yytext); }
@@ -2182,14 +2181,17 @@ static void handle_high_bit(unsigned char ch)
 
 <STYLE_START>{W}+           { YY_OUTPUT(htmlmodify_yytext); }
 <STYLE_START>"<"/"/style"   { BEGIN(TAG_START); }
-<STYLE_START>"<!--"         { commentout=0; YY_OUTPUT(htmlmodify_yytext); BEGIN(STYLE); }
-<STYLE_START>(.|\n)         { if(commentout) yy_output("<!--\n",0);
+<STYLE_START>"<!--"         { if(commentout>0) commentout=-1; YY_OUTPUT(htmlmodify_yytext); BEGIN(STYLE); }
+<STYLE_START>(.|\n)         { if(commentout>0) yy_output("<!--\n",0);
                               unput(htmlmodify_yytext[0]); BEGIN(STYLE); }
 
-<STYLE>"<"/"/style"         { if(commentout) {commentout=0; YY_OUTPUT("\n-->\n");}
+<STYLE>"<"/"/style"         { if(commentout>0) {commentout=0; YY_OUTPUT("\n-->\n");}
                               BEGIN(TAG_START); }
 <STYLE>"<"                  { YY_OUTPUT(htmlmodify_yytext); }
-<STYLE>[^<]+                { YY_OUTPUT(htmlmodify_yytext); }
+<STYLE>"-"+"-"[ \t]*">"     { YY_OUTPUT(htmlmodify_yytext);
+                              if(commentout<0) {commentout=1; BEGIN(STYLE_START);}}
+<STYLE>"-"+                 |
+<STYLE>[^-<]+               { YY_OUTPUT(htmlmodify_yytext); }
 
  /* End of file */
 

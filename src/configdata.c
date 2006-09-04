@@ -209,6 +209,10 @@ ConfigItem TimeoutDownloadKeep;
 /*+ The option to keep cached pages in case of an error message from the remote server. +*/
 ConfigItem KeepCacheIfNotFound;
 
+/*+ The option to keep cached pages in case the page from the remote server
+    has a header line that matches a given pattern. +*/
+ConfigItem KeepCacheIfHeaderMatches;
+
 /*+ The option to request from the server compressed content encoding. +*/
 ConfigItem RequestCompressedData;
 
@@ -233,6 +237,7 @@ static ConfigItemDef onlineoptions_itemdefs[]={
  {"intr-download-percent"  ,&IntrDownloadPercent      ,1,0,Fixed,Percentage,"80" },
  {"timeout-download-keep"  ,&TimeoutDownloadKeep      ,1,0,Fixed,Boolean   ,"no" },
  {"keep-cache-if-not-found",&KeepCacheIfNotFound      ,1,0,Fixed,Boolean   ,"no" },
+ {"keep-cache-if-header-matches",&KeepCacheIfHeaderMatches,1,1,Fixed,String,NULL },
  {"request-compressed-data",&RequestCompressedData    ,1,0,Fixed,CompressSpec,"yes"},
  {"request-chunked-data"   ,&RequestChunkedData       ,1,0,Fixed,Boolean   ,"yes"}
 };

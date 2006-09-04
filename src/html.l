@@ -890,9 +890,8 @@ cleanup_return:
                COMMENT is not strictly correct, but works better than the real thing. */
 
 <COMMENT>"--"{W}*">"        { BEGIN(INITIAL); /* html_yylval=string; return(LEX_COMMENT); */ }
-<COMMENT>">"                |
 <COMMENT>"-"                |
-<COMMENT>[^->]+             { /* append_string(yytext); */ }
+<COMMENT>[^-]+              { /* append_string(yytext); */ }
 
 <COMMENT_BAD>">"            { BEGIN(INITIAL); /* html_yylval=string; return(LEX_COMMENT); */ }
 <COMMENT_BAD>[^>]+          { /* append_string(yytext); */ }
@@ -930,31 +929,29 @@ cleanup_return:
 
  /* Quoted strings */
 
-<DQUOTED>\\\"               |
-<DQUOTED>\\                 { append_string(yytext); }
 <DQUOTED>\"                 { BEGIN(TAG); html_yylval=string; return(LEX_ATTR_VAL_DQ); }
 <DQUOTED>[\r\n]+            { }
-<DQUOTED>[^\\\"\r\n]+       { append_string(yytext); }
+<DQUOTED>[^\"\r\n]+         { append_string(yytext); }
 
-<SQUOTED>\\\'               |
-<SQUOTED>\\                 { append_string(yytext); }
 <SQUOTED>\'                 { BEGIN(TAG); html_yylval=string; return(LEX_ATTR_VAL_SQ); }
 <SQUOTED>[\r\n]+            { }
-<SQUOTED>[^\\\'\r\n]+       { append_string(yytext); }
+<SQUOTED>[^\'\r\n]+         { append_string(yytext); }
 
  /* Scripts */
 
 <SCRIPT_START>(.|\n)        { unput(yytext[0]); BEGIN(SCRIPT); }
 
+<SCRIPT>\\\"                { }
+<SCRIPT>\\\'                { }
+<SCRIPT>\\                  { }
 <SCRIPT>\"                  { BEGIN(SCRIPT_DQUOTED); }
 <SCRIPT>\'                  { BEGIN(SCRIPT_SQUOTED); }
 <SCRIPT>"/*"                { BEGIN(SCRIPT_COMMENT_C); }
 <SCRIPT>"//"                { BEGIN(SCRIPT_COMMENT_CPP); }
-<SCRIPT>"*"                 { }
 <SCRIPT>"/"                 { }
 <SCRIPT>"<"/"/script"       { BEGIN(TAG_START); }
 <SCRIPT>"<"                 { }
-<SCRIPT>[^\'\"</]+          { }
+<SCRIPT>[^\\\'\"</]+        { }
 
  /* Comments in scripts, C or C++ style */
 
@@ -970,11 +967,13 @@ cleanup_return:
  /* Quoted strings in scripts - assume they follow usual rules */
 
 <SCRIPT_DQUOTED>\\\"        { }
+<SCRIPT_DQUOTED>\\\\        { }
 <SCRIPT_DQUOTED>\\          { }
 <SCRIPT_DQUOTED>\"          { BEGIN(SCRIPT); }
 <SCRIPT_DQUOTED>[^\\\"]+    { }
 
 <SCRIPT_SQUOTED>\\\'        { }
+<SCRIPT_SQUOTED>\\\\        { }
 <SCRIPT_SQUOTED>\\          { }
 <SCRIPT_SQUOTED>\'          { BEGIN(SCRIPT); }
 <SCRIPT_SQUOTED>[^\\\']+    { }

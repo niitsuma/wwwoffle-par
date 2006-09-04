@@ -849,6 +849,41 @@ int SpooledPageStatus(URL *Url,int backup)
 
 
 /*++++++++++++++++++++++++++++++++++++++
+  Get the header of a spooled page.
+
+  Header *SpooledPageHeader Returns the spooled header.
+
+  URL *Url The URL of the page.
+
+  int backup A flag to indicate that the backup file is to be used.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+Header *SpooledPageHeader(URL *Url,int backup)
+{
+ Header *spooled_head=NULL;
+ int spool;
+
+ if(backup)
+    spool=OpenBackupWebpageSpoolFile(Url);
+ else
+    spool=OpenWebpageSpoolFile(1,Url);
+
+ if(spool!=-1)
+   {
+
+    init_io(spool);
+
+    ParseReply(spool,&spooled_head);
+
+    finish_io(spool);
+    close(spool);
+   }
+
+ return(spooled_head);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
   Decide which type of content compression was used.
 
   int WhichCompression Returns the compression method, 1 for deflate and 2 for gzip.
