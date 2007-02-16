@@ -76,7 +76,7 @@ run-fetch = (filename)
 The full pathname of a program to run when a WWWOFFLE fetch starts or stops (default=none).  The program is started in the background with two parameters, the first is the word "fetch" and the second is "start" or "stop".
 ITEM lock-files
 lock-files = yes | no
-Enable the use of lock files to stop more than one WWWOFFLE process from downloading the same URL at the same time (default=no).
+Enable the use of lock files to stop more than one WWWOFFLE process from downloading the same URL at the same time (default=no).  Disabling the lock-files may result in incomplete pages being displayed or many copies being downloaded if multiple requests are made for the same URL at the same time.
 ITEM reply-compressed-data
 reply-compressed-data = yes | no
 If the replies that are made to the client are to contain compressed data when requested (default=no).  Requires zlib compilation option.
