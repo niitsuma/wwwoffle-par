@@ -1,12 +1,12 @@
 #!/bin/sh
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
 #
 # A Perl script to get audit information from the standard error output.
 #
 # Written by Andrew M. Bishop
 #
-# This file Copyright 1998,99,2000,01,02,03 Andrew M. Bishop
+# This file Copyright 1998,99,2000,01,02,03,05,06 Andrew M. Bishop
 # It may be distributed under the GNU Public License, version 2, or
 # any higher version.  See section COPYING of the GNU Public license
 # for conditions under which this file may be redistributed.
@@ -64,7 +64,7 @@ print "# ### ---------------- -------- -------- ---- ---- -------- -------\n";
 
 while(<STDIN>)
   {
-   if(/^wwwoffled\[([0-9]+)\]/)
+   if(/^wwwoffled\[([0-9]+)\]/ || /wwwoffled\[([0-9]+)\]:/)
        {
         if(/Timestamp: ([a-zA-Z0-9 :]+)/)
             {
@@ -78,13 +78,13 @@ while(<STDIN>)
             {
              &PrintLine(mode => "X", host => $host, string => "WWWOFFLE Bad Connection($1)");
             }
-        elsif(/HTTP Proxy connection from host ([^ ]+) /)
+        elsif(/HTTPS? Proxy connection from host ([^ ]+) /)
             {
              $host=$1;
             }
-        elsif(/HTTP Proxy connection rejected from host ([^ ]+) /)
+        elsif(/(HTTPS?) Proxy connection rejected from host ([^ ]+) /)
             {
-             &PrintLine(mode => "X", host => $1, string => "HTTP Proxy Host Connection Rejected");
+             &PrintLine(mode => "X", host => $2, string => "$1 Proxy Host Connection Rejected");
             }
         elsif(/WWWOFFLE Connection from host ([^ ]+) /)
             {
@@ -112,14 +112,14 @@ while(<STDIN>)
              undef %{$piddata[$pid]};
             }
        }
-   elsif(/^wwwoffles\[([0-9]+)\]/)
+   elsif(/^wwwoffles\[([0-9]+)\]/ || /wwwoffles\[([0-9]+)\]:/)
        {
         $pid=$1;
 
-        if(/: (URL|SSL)=\'([^\']+)/)
+        if(/: (URL|SSL[^=]*)=\'([^\']+)/)
             {
-             if($1 eq "SSL") {$url="$2 (SSL)";}
-             if($1 eq "URL") {$url=$2;}
+             $url=$2;
+             if($1 =~ "SSL") {$url.=" (SSL)";}
              ${$piddata[$pid]}{string}=$url;
              ${$piddata[$pid]}{status}="I";
             }

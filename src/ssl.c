@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/ssl.c 1.21 2004/02/24 19:26:03 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/ssl.c 1.32 2006/01/10 19:25:38 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   SSL (Secure Socket Layer) Tunneling functions.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1998,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2004,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -16,6 +18,10 @@
 #include "autoconfig.h"
 
 #include <stdlib.h>
+#include <string.h>
+
+#include <sys/types.h>
+#include <unistd.h>
 
 #if TIME_WITH_SYS_TIME
 # include <sys/time.h>
@@ -41,16 +47,14 @@
 
 
 /*+ Set to the name of the proxy if there is one. +*/
-static /*@null@*/ /*@observer@*/ char *proxy=NULL;
-static /*@null@*/ /*@observer@*/ char *sproxy=NULL;
-static int socksremotedns=0;
+static URL /*@null@*/ /*@only@*/ *proxyUrl=NULL;
 
 /*+ The file descriptor of the server. +*/
 static int server=-1;
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Open a connection to get a URL using SSL tunneling.
+  Open a connection to get a URL using SSL tunnelling.
 
   char *SSL_Open Returns NULL on success, a useful message on error.
 
@@ -60,35 +64,33 @@ static int server=-1;
 char *SSL_Open(URL *Url)
 {
  char *msg=NULL;
+ char *proxy=NULL,*sproxy=NULL;
  char *server_host=NULL;
  int server_port=0;
  char *socks_host=NULL;
  int socks_port=0;
+ int socksremotedns=0;
 
  /* Sort out the host. */
 
- if(IsLocalNetHost(Url->host)) {
-   proxy=NULL;
-   sproxy=NULL;
-   socksremotedns=0;
- }
- else {
+ if(!IsLocalNetHost(Url->host)) {
    proxy=ConfigStringURL(SSLProxy,Url);
    sproxy=ConfigStringURL(SocksProxy,Url);
    socksremotedns=ConfigBooleanURL(SocksRemoteDNS,Url);
- }     
+ }
 
+ if(proxyUrl) {
+   FreeURL(proxyUrl);
+   proxyUrl=NULL;
+ }
  if(proxy) {
-   char *hoststr, *portstr; int hostlen;
-
-   SplitHostPort(proxy,&hoststr,&hostlen,&portstr);
-   server_host=strndupa(hoststr,hostlen);
-   if(portstr)
-     server_port=atoi(portstr);
+   proxyUrl=CreateURL("http",proxy,"/",NULL,NULL,NULL);
+   server_host=proxyUrl->host;
+   server_port=proxyUrl->portnum;
  }
  else {
    server_host=Url->host;
-   if(Url->port) server_port=Url->portnum;
+   server_port=Url->portnum;
  }
 
 
@@ -108,8 +110,7 @@ char *SSL_Open(URL *Url)
     else
       {
        init_io(server);
-       configure_io_read(server,ConfigInteger(SocketTimeout),0,0);
-       configure_io_write(server,ConfigInteger(SocketTimeout),0,0);
+       configure_io_timeout_rw(server,ConfigInteger(SocketTimeout));
       }
    }
  else
@@ -135,13 +136,13 @@ char *SSL_Request(int client,URL *Url,Header *request_head)
 {
  char *msg=NULL;
 
- if(proxy)
+ if(proxyUrl)
    {
-     char *head; int headlen;
+    char *head; size_t headlen;
 
     ModifyRequest(Url,request_head);
 
-    MakeRequestProxyAuthorised(proxy,request_head);
+    MakeRequestProxyAuthorised(proxyUrl,request_head);
 
     ChangeURLInHeader(request_head,Url->hostport);
 
@@ -172,8 +173,9 @@ void SSL_Transfer(int client)
  int nfd=client>server?client+1:server+1;
  fd_set readfd;
  struct timeval tv;
- int n,nc,ns;
- char buffer[READ_BUFFER_SIZE];
+ int n;
+ ssize_t nc,ns;
+ char buffer[IO_BUFFER_SIZE];
 
  do
    {
@@ -196,19 +198,18 @@ void SSL_Transfer(int client)
 
     if(FD_ISSET(client,&readfd))
       {
-       nc=read_data(client,buffer,READ_BUFFER_SIZE);
+       nc=read_data(client,buffer,IO_BUFFER_SIZE);
        if(nc>0)
           nc=write_data(server,buffer,nc);
       }
     if(FD_ISSET(server,&readfd))
       {
-       ns=read_data(server,buffer,READ_BUFFER_SIZE);
+       ns=read_data(server,buffer,IO_BUFFER_SIZE);
        if(ns>0)
           ns=write_data(client,buffer,ns);
       }
    }
  while(nc>0 || ns>0);
- return;
 }
 
 
@@ -220,6 +221,16 @@ void SSL_Transfer(int client)
 
 int SSL_Close(void)
 {
- finish_io(server);
+ unsigned long r,w;
+
+ if(finish_tell_io(server,&r,&w)<0)
+   PrintMessage(Inform,"Error finishing IO on socket with remote host [%!s].");
+
+ PrintMessage(Inform,"Server bytes; %lu Read, %lu Written.",r,w); /* Used in audit-usage.pl */
+
+ if(proxyUrl)
+    FreeURL(proxyUrl);
+ proxyUrl=NULL;
+
  return(CloseSocket(server));
 }

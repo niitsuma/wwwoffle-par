@@ -5,8 +5,10 @@
   Socket function header file.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
   This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2004,2005,2006 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -24,9 +26,8 @@ int OpenServerSocket(char* host,int port);
 int AcceptConnect(int socket);
 
 int SocketRemoteName(int socket,/*@out@*/ /*@null@*/ char **name,/*@out@*/ /*@null@*/ char **ipname,/*@out@*/ /*@null@*/ int *port);
-#if 0
 int SocketLocalName(int socket,/*@out@*/ /*@null@*/ char **name,/*@out@*/ /*@null@*/ char **ipname,/*@out@*/ /*@null@*/ int *port);
-#endif
+
 int /*@alt void@*/ CloseSocket(int socket);
 int /*@alt void@*/ ShutdownSocket(int socket);
 
@@ -54,7 +55,7 @@ void SetConnectTimeout(int timeout);
 */
 #define SETSOCKSHOSTPORT(sproxy,host,port,shost,sport)		\
 {								\
-  char *tmp_hoststr, *tmp_portstr; int tmp_hostlen;		\
+  char *tmp_hoststr, *tmp_portstr; size_t tmp_hostlen;		\
 								\
   (shost)=(host);						\
   (sport)=(port);						\

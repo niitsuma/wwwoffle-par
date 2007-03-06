@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/iopriv.c 1.4 2004/01/17 16:29:37 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/iopriv.c 1.8 2006/10/02 18:43:17 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9b.
   Private functions for file input and output.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  Parts of this file Copyright (C) 2004,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -16,6 +18,7 @@
 #include "autoconfig.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 #include <sys/types.h>
 #include <unistd.h>
@@ -56,10 +59,10 @@ static void sigalarm(int signum);
 
   io_buffer *create_io_buffer The io_buffer to create.
 
-  int size The size to allocate.
+  size_t size The size to allocate.
   ++++++++++++++++++++++++++++++++++++++*/
 
-io_buffer *create_io_buffer(int size)
+io_buffer *create_io_buffer(size_t size)
 {
  io_buffer *new=(io_buffer*)calloc(1,sizeof(io_buffer));
 
@@ -67,6 +70,28 @@ io_buffer *create_io_buffer(int size)
  new->size=size;
 
  return(new);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Resize an io_buffer structure.
+
+  io_buffer *resize_io_buffer The io_buffer to resize.
+
+  size_t size The new size to allocate.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+io_buffer *resize_io_buffer(io_buffer *buffer,size_t size)
+{
+ if(!buffer)
+   buffer=(io_buffer*)calloc(1,sizeof(io_buffer));
+ else if(buffer->size>=size)
+   return buffer;
+
+ buffer->data=(char*)realloc((void*)buffer->data,size);
+ buffer->size=size;
+
+ return buffer;
 }
 
 
@@ -87,18 +112,18 @@ void destroy_io_buffer(io_buffer *buffer)
 /*++++++++++++++++++++++++++++++++++++++
   Read some data from a file descriptor and buffer it with a timeout.
 
-  int io_read_with_timeout Returns the number of bytes read.
+  ssize_t io_read_with_timeout Returns the number of bytes read.
 
   int fd The file descriptor to read from.
 
   io_buffer *out The IO buffer to output the data.
 
-  int timeout The maximum time to wait for data (or 0 for no timeout).
+  unsigned timeout The maximum time to wait for data to be read (or 0 for no timeout).
   ++++++++++++++++++++++++++++++++++++++*/
 
-int io_read_with_timeout(int fd,io_buffer *out,int timeout)
+ssize_t io_read_with_timeout(int fd,io_buffer *out,unsigned timeout)
 {
- int n;
+ ssize_t n;
 
  if(iobuf_isempty(out)) iobuf_reset(out);
  if(out->rear>=out->size)
@@ -106,6 +131,7 @@ int io_read_with_timeout(int fd,io_buffer *out,int timeout)
 
  if(timeout)
    {
+    int n;
     fd_set readfd;
     struct timeval tv;
 
@@ -154,18 +180,19 @@ static void sigalarm(/*@unused@*/ int signum)
 /*++++++++++++++++++++++++++++++++++++++
   Write some data to a file descriptor from a buffer with a timeout.
 
-  int io_write_with_timeout Returns the number of bytes written or negative on error.
+  ssize_t io_write_with_timeout Returns the number of bytes written or negative on error.
 
   int fd The file descriptor to write to.
 
   io_buffer *in The IO buffer with the input data.
 
-  int timeout The maximum time to wait for data (or 0 for no timeout).
+  unsigned timeout The maximum time to wait for data to be written (or 0 for no timeout).
   ++++++++++++++++++++++++++++++++++++++*/
 
-int io_write_with_timeout(int fd,io_buffer *in,int timeout)
+ssize_t io_write_with_timeout(int fd,io_buffer *in,unsigned timeout)
 {
- int n;
+ size_t numbytes,n,limit;
+ ssize_t m;
  struct sigaction action;
 
  if(iobuf_isempty(in))
@@ -173,40 +200,55 @@ int io_write_with_timeout(int fd,io_buffer *in,int timeout)
 
 start:
 
+ numbytes=iobuf_numbytes(in);
+ n=0;
+
  if(!timeout)
    {
-    n=write_all(fd,iobuf_datastart(in),iobuf_numbytes(in));
-    if(n>0) in->front += n;
+    m=write_all(fd,iobuf_datastart(in),numbytes);
+    if(m<0) return m;
+    in->front += m;
+    n += m;
     return(n);
    }
 
- action.sa_handler = sigalarm;
- sigemptyset(&action.sa_mask);
- action.sa_flags = 0;
- if(sigaction(SIGALRM, &action, NULL) != 0)
-   {
-    PrintMessage(Warning, "Failed to set SIGALRM; cancelling timeout for writing.");
-    timeout=0;
-    goto start;
+ limit = (numbytes>4*IO_BUFFER_SIZE)?IO_BUFFER_SIZE:4*IO_BUFFER_SIZE;
+ 
+ do {
+   size_t nb=numbytes-n;
+
+   if(nb>limit) nb=limit;
+
+   action.sa_handler = sigalarm;
+   sigemptyset(&action.sa_mask);
+   action.sa_flags = 0;
+   if(sigaction(SIGALRM, &action, NULL) != 0)
+     {
+       PrintMessage(Warning, "Failed to set SIGALRM; cancelling timeout for writing.");
+       timeout=0;
+       goto start;
+     }
+
+   if(setjmp(write_jmp_env)) {
+     m=-1;
+     errno=ETIMEDOUT;
+   }
+   else {
+     alarm(timeout);
+     m=write_all(fd,iobuf_datastart(in),nb);
    }
 
- alarm(timeout);
+   alarm(0);
+   action.sa_handler = SIG_IGN;
+   sigemptyset(&action.sa_mask);
+   action.sa_flags = 0;
+   if(sigaction(SIGALRM, &action, NULL) != 0)
+     PrintMessage(Warning, "Failed to clear SIGALRM.");
 
- if(setjmp(write_jmp_env))
-   {
-    n=-1;
-    errno=ETIMEDOUT;
-   }
- else
-    n=write_all(fd,iobuf_datastart(in),iobuf_numbytes(in));
+   if(m<0) return m;
+   in->front += m;
+   n += m;
+ } while(n<numbytes);
 
- alarm(0);
- action.sa_handler = SIG_IGN;
- sigemptyset(&action.sa_mask);
- action.sa_flags = 0;
- if(sigaction(SIGALRM, &action, NULL) != 0)
-    PrintMessage(Warning, "Failed to clear SIGALRM.");
-
- if(n>0) in->front += n;
  return(n);
 }

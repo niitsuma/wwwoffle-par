@@ -1,12 +1,12 @@
-# $Header: /home/amb/wwwoffle/src/RCS/Makefile.in 1.26 2004/09/28 16:25:30 amb Exp $
+# $Header: /home/amb/wwwoffle/src/RCS/Makefile.in 1.33 2006/01/31 19:02:32 amb Exp $
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
 #
 # Source Makefile.
 #
 # Written by Andrew M. Bishop
 #
-# This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
+# This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
 # It may be distributed under the GNU Public License, version 2, or
 # any higher version.  See section COPYING of the GNU Public license
 # for conditions under which this file may be redistributed.
@@ -43,21 +43,21 @@ LEX=@LEX@
 
 ifeq ($(LEX),flex)
 # Optimal flex options for a very fast but large HTML parser.
-LEXFLAGS=-i -L -p -B -F -8 -s
+LEXFLAGS=-i -p -B -F -8 -s
 
 # Use this if you have flex but want a smaller but slower HTML parser.
-#LEXFLAGS=-i -L -p -B
+#LEXFLAGS=-i -p -B
 else
 # Fallback options if you have lex and not flex.
-LEXFLAGS=-i -L
+LEXFLAGS=-i
 endif
 
 PERL=@PERL@
 
 ########
 
-INCLUDE=@ZLIB_INC@
-LIBRARY=@LIBS@ @ZLIB_LIB@ @ETR_SOCKET_LIBS@
+INCLUDE=@ZLIB_INC@ @GNUTLS_INC@
+LIBRARY=@LIBS@ @ZLIB_LIB@ @GNUTLS_LIB@ @ETR_SOCKET_LIBS@
 
 COMPILE=$(CC) -c $(CFLAGS)
 
@@ -68,11 +68,9 @@ LINK=$(LD) $(LDFLAGS)
 compile :: wwwoffled \
 	   wwwoffle \
 	   wwwoffle-tools \
-	   convert-cache \
 	   make_urlhash_file \
 	   conv_urlhash_file \
-	   restore_Ufiles \
-	   uncompress-cache
+	   restore_Ufiles
 
 compile :: local_test.o
 	@cd testprogs && $(MAKE) compile
@@ -91,6 +89,9 @@ install-unix :
 	ln -sf wwwoffle-tools $(bindir)/wwwoffle-read
 	ln -sf wwwoffle-tools $(bindir)/wwwoffle-write
 	ln -sf wwwoffle-tools $(bindir)/wwwoffle-hash
+	ln -sf wwwoffle-tools $(bindir)/wwwoffle-fsck
+	ln -sf wwwoffle-tools $(bindir)/wwwoffle-gzip
+	ln -sf wwwoffle-tools $(bindir)/wwwoffle-gunzip
 	[ -x $(sbindir) ] || $(INSTALL) -d -m 755 $(sbindir)
 	$(INSTALL) -s -m 755 wwwoffled $(sbindir)
 
@@ -104,6 +105,9 @@ install-win32 :
 	$(INSTALL) -c -m 755 wwwoffle-tools.exe $(bindir)/wwwoffle-read.exe
 	$(INSTALL) -c -m 755 wwwoffle-tools.exe $(bindir)/wwwoffle-write.exe
 	$(INSTALL) -c -m 755 wwwoffle-tools.exe $(bindir)/wwwoffle-hash.exe
+	$(INSTALL) -c -m 755 wwwoffle-tools.exe $(bindir)/wwwoffle-fsck.exe
+	$(INSTALL) -c -m 755 wwwoffle-tools.exe $(bindir)/wwwoffle-gzip.exe
+	$(INSTALL) -c -m 755 wwwoffle-tools.exe $(bindir)/wwwoffle-gunzip.exe
 	$(INSTALL) -c -m 755 wwwoffled.exe $(bindir)
 	-[ -f cygwin1.dll ] && $(INSTALL) -c -m 755 cygwin1.dll $(bindir)
 	-[ -f cygz.dll ]    && $(INSTALL) -c -m 755 cygz.dll    $(bindir)
@@ -117,7 +121,7 @@ install-win32 :
 ######## CLEAN UP ########
 
 clean ::
-	-rm -f wwwoffle wwwoffled wwwoffle-tools convert-cache make_urlhash_file conv_urlhash_file restore_Ufiles uncompress-cache
+	-rm -f wwwoffle wwwoffled wwwoffle-tools make_urlhash_file conv_urlhash_file restore_Ufiles
 	-rm -f css.c html.c htmlmodify.c messages.c xml.c vrml.c miscencdec.c
 	-rm -f core *.o
 
@@ -136,12 +140,12 @@ distclean :: clean
 ######## PROGRAMS ########
 
 WWWOFFLE_OBJ=wwwoffle.o \
-             refresh_client.o \
-             parse_client.o \
-             document.o html.o css.o xml.o vrml.o javaclass.o \
-             configrdwr.o configmisc.o configdata.o configfunc_client.o \
-	     io.o iopriv.o iozlib.o iochunk.o \
-             errors.o miscurl.o miscencdec.o headbody.o proto_client.o sockets.o md5.o
+	     refresh_client.o \
+	     parse_client.o \
+	     document.o html.o css.o xml.o vrml.o javaclass.o \
+	     configrdwr.o configmisc.o configdata.o configfunc_client.o \
+	     io_client.o iopriv.o iozlib.o iochunk.o \
+	     errors.o miscurl.o miscencdec.o headbody.o proto_client.o sockets.o md5.o
 
 wwwoffle : $(WWWOFFLE_OBJ)
 	$(LINK) $(WWWOFFLE_OBJ) -o $@ $(LIBRARY)
@@ -149,15 +153,15 @@ wwwoffle : $(WWWOFFLE_OBJ)
 ####
 
 WWWOFFLED_OBJ=wwwoffled.o wwwoffles.o \
-	      http.o ftp.o finger.o ssl.o \
+	      http.o https.o ftp.o finger.o ssl.o \
 	      document.o html.o css.o xml.o vrml.o javaclass.o \
 	      gifmodify.o htmlmodify.o \
-	      connect.o control.o controledit.o search.o index.o info.o monitor.o \
-              messages.o local.o cgi.o \
-              parse.o purge.o refresh.o spool.o \
+	      connect.o control.o controledit.o search.o index.o info.o certinfo.o monitor.o \
+	      messages.o local.o cgi.o \
+	      parse.o purge.o refresh.o spool.o \
 	      configrdwr.o configmisc.o configdata.o configfunc.o configedit.o \
-	      io.o iopriv.o iozlib.o iochunk.o \
-	      errors.o miscurl.o miscencdec.o headbody.o proto.o sockets.o md5.o
+	      io.o iopriv.o iozlib.o iognutls.o iochunk.o \
+	      errors.o miscurl.o miscencdec.o headbody.o proto.o certificates.o sockets.o md5.o
 
 wwwoffled : $(WWWOFFLED_OBJ)
 	$(LINK) $(WWWOFFLED_OBJ) -o $@ $(LIBRARY)
@@ -168,7 +172,7 @@ WWWOFFLE_TOOLS_OBJ=wwwoffle-tools.o \
 	           spool.o \
 	           parse_client.o \
 	           configrdwr.o configmisc.o configdata.o configfunc_client.o \
-	           io.o iopriv.o iozlib.o iochunk.o \
+	           io_client.o iopriv.o iozlib.o iochunk.o \
 	           errors.o miscurl.o miscencdec.o headbody.o proto_client.o sockets.o md5.o
 
 wwwoffle-tools : $(WWWOFFLE_TOOLS_OBJ)
@@ -176,38 +180,18 @@ wwwoffle-tools : $(WWWOFFLE_TOOLS_OBJ)
 
 ####
 
-CONVERT_OBJ=convert-cache.o \
-	    parse_client.o \
-	    configrdwr.o configmisc.o configdata.o configfunc_client.o \
-	    io.o iopriv.o iozlib.o iochunk.o \
-	    errors.o miscurl.o miscencdec.o headbody.o proto_client.o sockets.o spool.o md5.o
-
-convert-cache : $(CONVERT_OBJ)
-	$(LINK) $(CONVERT_OBJ) -o $@ $(LIBRARY)
-
 URLHASHFILE_OBJ= \
 	    configrdwr.o configmisc.o configdata.o configfunc_client.o \
-	    io.o iopriv.o iozlib.o iochunk.o \
+	    io_client.o iopriv.o iozlib.o iochunk.o \
 	    errors.o miscurl.o miscencdec.o proto_client.o sockets.o spool.o md5.o
 
 make_urlhash_file conv_urlhash_file restore_Ufiles: %: %.o $(URLHASHFILE_OBJ)
 	$(LINK) $^ -o $@ $(LIBRARY)
 
-####
-
-UNCOMPRESS_OBJ=uncompress-cache.o \
-	       parse_client.o \
-	       configrdwr.o configmisc.o configdata.o configfunc_client.o \
-	       io.o iopriv.o iozlib.o iochunk.o \
-	       errors.o miscurl.o miscencdec.o headbody.o proto_client.o sockets.o spool.o md5.o
-
-uncompress-cache : $(UNCOMPRESS_OBJ)
-	$(LINK) $(UNCOMPRESS_OBJ) -o $@ $(LIBRARY)
-
 ######## OBJECT FILES ########
 
 
-wwwoffle.o $(WWWOFFLED_OBJ) wwwoffle-tools.o convert-cache.o make_urlhash_file.o conv_urlhash_file.o restore_Ufiles.o uncompress-cache.o: %.o : %.c
+wwwoffle.o $(WWWOFFLED_OBJ) wwwoffle-tools.o make_urlhash_file.o conv_urlhash_file.o restore_Ufiles.o: %.o : %.c
 	$(COMPILE) $< -o $@ $(INCLUDE)
 
 %_client.o: %.c
@@ -216,22 +200,23 @@ wwwoffle.o $(WWWOFFLED_OBJ) wwwoffle-tools.o convert-cache.o make_urlhash_file.o
 %_test.o: %.c
 	$(COMPILE) -DTEST_ONLY $< -o $@ $(INCLUDE)
 
-#                  #                    autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h sockets.h proto.h document.h version.h configpriv.h iopriv.h md5.h
+# wwwoffle.c wwwoffled.c wwwoffles.c wwwoffle-tools.c proto.c http.c https.c finger.c ftp.c ssl.c document.c html.c css.c javaclass.c vrml.c xml.c gifmodify.c htmlmodify.c configdata.c configedit.c configfunc.c configmisc.c configrdwr.c connect.c control.c controledit.c index.c info.c certinfo.c monitor.c refresh.c search.c cgi.c local.c messages.c parse.c purge.c spool.c io.c iochunk.c iognutls.c iopriv.c iozlib.c errors.c headbody.c miscencdec.c miscurl.c certificates.c sockets.c md5.c
+#                  #                    autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h sockets.h proto.h document.h version.h configpriv.h iopriv.h certificates.h md5.h
 
-wwwoffle.o         : wwwoffle.c         autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h sockets.h         document.h version.h
-wwwoffled.o        : wwwoffled.c        autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h sockets.h                    version.h
+wwwoffle.o         : wwwoffle.c         autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h sockets.h proto.h document.h version.h
+wwwoffled.o        : wwwoffled.c        autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h sockets.h                    version.h                       certificates.h
 wwwoffles.o        : wwwoffles.c        autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h sockets.h proto.h document.h version.h
 
-wwwoffle-tools.o   : wwwoffle-tools.c   autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h                              version.h
+wwwoffle-tools.o   : wwwoffle-tools.c   autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h                              version.h
 
-convert-cache.o    : convert-cache.c    autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h                              version.h
 make_urlhash_file.o: make_urlhash_file.c autoconfig.h wwwoffle.h io.h misc.h           errors.h config.h           proto.h            version.h
 conv_urlhash_file.o: conv_urlhash_file.c autoconfig.h wwwoffle.h io.h misc.h           errors.h config.h           proto.h            version.h
 restore_Ufiles.o   : restore_Ufiles.c   autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h           proto.h            version.h
 
-uncompress-cache.o : uncompress-cache.c autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h                              version.h
-
+proto_client.o \
+proto.o            : proto.c            autoconfig.h                 misc.h            errors.h config.h           proto.h
 http.o             : http.c             autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h sockets.h proto.h
+https.o            : https.c            autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h sockets.h proto.h                                            certificates.h
 finger.o           : finger.c           autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h sockets.h proto.h
 ftp.o              : ftp.c              autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h sockets.h proto.h
 ssl.o              : ssl.c              autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h sockets.h proto.h
@@ -244,23 +229,24 @@ vrml.o             : vrml.c             autoconfig.h wwwoffle.h io.h misc.h     
 xml.o              : xml.c              autoconfig.h wwwoffle.h io.h misc.h            errors.h                            document.h
 
 gifmodify.o        : gifmodify.c        autoconfig.h wwwoffle.h io.h misc.h                                                document.h
-htmlmodify.o       : htmlmodify.c       autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h                   document.h
+htmlmodify.o       : htmlmodify.c       autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h           proto.h document.h
 
 configdata.o       : configdata.c       autoconfig.h            io.h misc.h            errors.h config.h sockets.h                              configpriv.h
 configedit.o       : configedit.c       autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h                                        configpriv.h
 configfunc_client.o \
 configfunc.o       : configfunc.c       autoconfig.h                 misc.h headbody.h errors.h config.h sockets.h                              configpriv.h
 configmisc.o       : configmisc.c       autoconfig.h                 misc.h            errors.h                                                 configpriv.h
-configrdwr.o       : configrdwr.c       autoconfig.h            io.h misc.h            errors.h config.h                                        configpriv.h
+configrdwr.o       : configrdwr.c       autoconfig.h            io.h misc.h            errors.h config.h           proto.h                      configpriv.h
 
 connect.o          : connect.c          autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h sockets.h                    version.h
 control.o          : control.c          autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h sockets.h
 controledit.o      : controledit.c      autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h
 index.o            : index.c            autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h           proto.h document.h
 info.o             : info.c             autoconfig.h wwwoffle.h io.h misc.h headbody.h          config.h                   document.h
+certinfo.o         : certinfo.c         autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h                                                              certificates.h
 monitor.o          : monitor.c          autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h
 refresh_client.o \
-refresh.o          : refresh.c          autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h                   document.h
+refresh.o          : refresh.c          autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h           proto.h document.h
 search.o           : search.c           autoconfig.h wwwoffle.h io.h misc.h            errors.h                    proto.h
 
 cgi.o              : cgi.c              autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h sockets.h                    version.h
@@ -271,24 +257,26 @@ messages.o         : messages.c         autoconfig.h wwwoffle.h io.h misc.h head
 parse_client.o \
 parse.o            : parse.c            autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h                              version.h
 purge.o            : purge.c            autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h           proto.h
-spool.o            : spool.c            autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h
+spool.o            : spool.c            autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h                                                                             md5.h
 
+io_client.o \
 io.o               : io.c               autoconfig.h            io.h                   errors.h                                                              iopriv.h
 iochunk.o          : iochunk.c          autoconfig.h            io.h misc.h            errors.h                                                              iopriv.h
+iognutls.o         : iognutls.c         autoconfig.h            io.h misc.h            errors.h                                                              iopriv.h certificates.h
 iopriv.o           : iopriv.c           autoconfig.h            io.h                   errors.h                                                              iopriv.h
 iozlib.o           : iozlib.c           autoconfig.h            io.h misc.h            errors.h                                                              iopriv.h
 
 errors.o           : errors.c           autoconfig.h            io.h misc.h            errors.h
 headbody.o         : headbody.c         autoconfig.h                 misc.h headbody.h                                                          configpriv.h
-miscencdec.o       : miscencdec.c       autoconfig.h                 misc.h                                                                                           md5.h
+miscencdec.o       : miscencdec.c       autoconfig.h                 misc.h                                                                                                          md5.h
 miscurl.o          : miscurl.c          autoconfig.h                 misc.h                     config.h           proto.h
-proto_client.o \
-proto.o            : proto.c            autoconfig.h                 misc.h                                        proto.h
 
-sockets.o          : sockets.c          autoconfig.h            io.h misc.h            errors.h config.h sockets.h                              configpriv.h               \
+certificates.o     : certificates.c     autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h                                                              certificates.h
+
+sockets.o          : sockets.c          autoconfig.h            io.h misc.h            errors.h config.h sockets.h                              configpriv.h                              \
                      sockets4.c sockets6.c
 
-md5.o              : md5.c                                                                                                                                            md5.h
+md5.o              : md5.c                                                                                                                                                           md5.h
 
 connect.o conv_urlhash_file.o make_urlhash_file.o purge.o restore_Ufiles.o spool.o wwwoffled.o: urlhash.h
 

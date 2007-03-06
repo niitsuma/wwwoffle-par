@@ -2,12 +2,12 @@
 <HTML>
 
 <HEAD>
-<TITLE>WWWOFFLE - Configuration File - Version 2.8e</TITLE>
+<TITLE>WWWOFFLE - Configuration File - Version 2.9</TITLE>
 </HEAD>
 
 <BODY>
 
-<h1>WWWOFFLE - Configuration File - Version 2.8e</h1>
+<h1>WWWOFFLE - Configuration File - Version 2.9</h1>
 
 
 <h2><a name="Introduction"></a>Introduction</h2>
@@ -76,6 +76,14 @@ match.
 An integer specifying the port number for the HTTP proxy to use
 (default=8080).  This is the port number that must be specified in the
 client to connect to the WWWOFFLE proxy.
+
+<h3><a name="StartUp_https-port"></a>https-port = (port)</h3>
+
+<p>
+An integer specifying the port number for the HTTPS proxy to use
+(default=8443).  This is the port number can be used to access the
+WWWOFFLE internal pages or proxy function.  Requires gnutls compilation
+option.
 
 <h3><a name="StartUp_wwwoffle-port"></a>wwwoffle-port = (port)</h3>
 
@@ -166,14 +174,6 @@ to be made before giving up (default=30).
 If a connection cannot be made to a remote server then WWWOFFLE should
 try again after a short delay (default=no).
 
-<h3><a name="Options_ssl-allow-port"></a>ssl-allow-port = (integer)</h3>
-
-<p>
-A port number that is allowed to be proxied for Secure Socket Layer
-(SSL) connections, e.g. https.  This option should be set to 443 to
-allow https, there can be more than one ssl-port entry for other ports
-as required.
-
 <h3><a name="Options_dir-perm"></a>dir-perm = (octal int)</h3>
 
 <p>
@@ -191,36 +191,40 @@ starting with a '0'.
 <h3><a name="Options_run-online"></a>run-online = (filename)</h3>
 
 <p>
-The name of a program to run when WWWOFFLE is switched to online mode
-(default=none).  The program is started with a single parameter set to
-the current mode name "online".
+The full pathname of a program to run when WWWOFFLE is switched to
+online mode (default=none).  The program is started in the background
+with a single parameter set to the current mode name "online".
 
 <h3><a name="Options_run-offline"></a>run-offline = (filename)</h3>
 
 <p>
-The name of a program to run when WWWOFFLE is switched to offline mode
-(default=none).  The program is started with a single parameter set to
-the current mode name "offline".
+The full pathname of a program to run when WWWOFFLE is switched to
+offline mode (default=none).  The program is started in the background
+with a single parameter set to the current mode name "offline".
 
 <h3><a name="Options_run-autodial"></a>run-autodial = (filename)</h3>
 
 <p>
-The name of a program to run when WWWOFFLE is switched to autodial
-mode (default=none).  The program is started with a single parameter
-set to the current mode name "autodial".
+The full pathname of a program to run when WWWOFFLE is switched to
+autodial (default=none).  The program is started in the background with
+a single parameter set to the current mode name "fetch".
 
 <h3><a name="Options_run-fetch"></a>run-fetch = (filename)</h3>
 
 <p>
-The name of a program to run when a WWWOFFLE fetch starts or stops
-(default=none).  The program is started with two parameters, the first
-is the word "fetch" and the second is "start" or "stop".
+The full pathname of a program to run when a WWWOFFLE fetch starts or
+stops (default=none).  The program is started in the background with two
+parameters, the first is the word "fetch" and the second is "start" or
+"stop".
 
 <h3><a name="Options_lock-files"></a>lock-files = yes | no</h3>
 
 <p>
-Enable the use of lock files to stop more than one WWWOFFLE process
-from downloading the same URL at the same time (default=no).
+Enable the use of lock files to stop more than one WWWOFFLE process from
+downloading the same URL at the same time (default=no).  Disabling the
+lock-files may result in incomplete pages being displayed or many copies
+being downloaded if multiple requests are made for the same URL at the
+same time.
 
 <h3><a name="Options_reply-compressed-data"></a>reply-compressed-data = yes | no</h3>
 
@@ -249,19 +253,29 @@ Options that control how WWWOFFLE behaves when it is online.
 
 <p>
 Whether to request a new copy of a page if the request from the client
-has 'Pragma: no-cache' (default=yes).
+has 'Pragma: no-cache' (default=yes).  This option takes precedence
+over the request-changed and request-changed-once options.
 
 <h3><a name="OnlineOptions_cache-control-no-cache"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] cache-control-no-cache = yes | no</h3>
 
 <p>
 Whether to request a new copy of a page if the request from the client
-has 'Cache-Control: no-cache' (default=yes).
+has 'Cache-Control: no-cache' (default=yes).  This option takes
+precedence over the request-changed and request-changed-once options.
 
 <h3><a name="OnlineOptions_cache-control-max-age-0"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] cache-control-max-age-0 = yes | no</h3>
 
 <p>
 Whether to request a new copy of a page if the request from the client
-has 'Cache-Control: max-age=0' (default=yes).
+has 'Cache-Control: max-age=0' (default=yes).  This option takes
+precedence over the request-changed and request-changed-once options.
+
+<h3><a name="OnlineOptions_cookies-force-refresh"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] cookies-force-refresh = yes | no</h3>
+
+<p>
+Whether to force the refresh of a page if the request from the client
+contains a cookie (default=no).  This option takes precedence over
+the request-changed and request-changed-once options.
 
 <h3><a name="OnlineOptions_request-changed"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-changed = (time)</h3>
 
@@ -432,6 +446,55 @@ automatically recording requests made while offline (default=no).
 
 <p>
 Do not request any URLs that match this when offline (default=no).
+
+<h2><a name="SSLOptions"></a>SSLOptions</h2>
+
+<p>
+Options that control how WWWOFFLE behaves when a connection is made to it for a
+Secure Sockets Layer (SSL) server.  Normally only tunnelling (with no decryption
+or caching of the data) is possible.  When WWWOFFLE is compiled with the gnutls
+library it is possible configure WWWOFFLE to decrypt, cache and re-encrypt the
+connections.
+
+<h3><a name="SSLOptions_enable-caching"></a>enable-caching = yes | no</h3>
+
+<p>
+If caching (involving decryption and re-encryption) of Secure Sockets
+Layer (SSL) server connections is allowed (default = no).
+
+<h3><a name="SSLOptions_allow-tunnel"></a>allow-tunnel = (host[:port])</h3>
+
+<p>
+A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an SSL server that can
+be connected to using WWWOFFLE as a tunnelling proxy (no caching or
+decryption of the data) (default is no hosts or ports allowed).  This
+option should be set to *:443 to allow https to the default port number.
+There can be more than one option for other ports or hosts as required.
+This option takes precedence over the allow-cache option.
+
+<h3><a name="SSLOptions_disallow-tunnel"></a>disallow-tunnel = (host[:port])</h3>
+
+<p>
+A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an SSL server that can
+not be connected to using WWWOFFLE as a tunnelling proxy.  There can be
+more than one option for other ports or hosts as required.  This option
+takes precedence over the allow-tunnel option.
+
+<h3><a name="SSLOptions_allow-cache"></a>allow-cache = (host[:port])</h3>
+
+<p>
+A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an SSL server that can
+be connected to using WWWOFFLE as a caching proxy (decryption of the
+data) (default is no hosts or ports allowed).  This option should be set
+to *:443 to allow https to the default port number.  There can be more
+than one option for other ports or hosts as required.
+
+<h3><a name="SSLOptions_disallow-cache"></a>disallow-cache = (host[:port])</h3>
+
+<p>
+A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an SSL server that can
+not be connected to using WWWOFFLE as a caching proxy.  This option
+takes precedence over the allow-cache option.
 
 <h2><a name="FetchOptions"></a>FetchOptions</h2>
 
@@ -637,6 +700,11 @@ Removes the &lt;marquee&gt; tag from HTML to stop scrolling text
 
 <p>
 Removes any Shockwave Flash animations (default=no).
+
+<h3><a name="ModifyHTML_disable-iframe"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-iframe = yes | no</h3>
+
+<p>
+Removes any inline frames (the &lt;iframe&gt; tag) from HTML (default=no).
 
 <h3><a name="ModifyHTML_disable-meta-refresh"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-meta-refresh = yes | no</h3>
 
@@ -1086,10 +1154,10 @@ section (default=no).
 
 <p>
 The maximum age in the cache for URLs that match this (default=14).
-An age of zero means not to keep, negative means not to delete.  The
-<a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> matches only the protocol and host unless use-url is
-set to true. Longer times can be specified with a 'w', 'm' or 'y'
-suffix for weeks, months or years (e.g. 2w=14).
+An age of zero means always to delete, negative means not to delete.
+The <a href="#URL-SPECIFICATION">URL-SPECIFICATION</a> matches only the protocol and host unless
+use-url is set to true. Longer times can be specified with a 'w', 'm'
+or 'y' suffix for weeks, months or years (e.g. 2w=14).
 
 <h3><a name="Purge_compress-age"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] compress-age = (age)</h3>
 

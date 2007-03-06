@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/index.c 2.96 2004/09/28 16:25:30 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/index.c 2.107 2005/11/09 19:48:24 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Generate an index of the web pages that are cached in the system.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -77,20 +79,20 @@ FileIndex;
 typedef struct {
   FileIndex *first;
   FileIndex **last;
-  int n;
+  unsigned n;
 }
 filelist_t;
 
 /*+ The method of sorting used. +*/
-static char *sorttype[]={"none"  ,
-                         "mtime" ,
-                         "atime" ,
-                         "dated" ,
-                         "alpha" ,
-                         "domain",
-                         "type"  ,
-                         "random",
-                         "none"  };
+static const char* const sorttype[]={"none"  ,
+                                     "mtime" ,
+                                     "atime" ,
+                                     "dated" ,
+                                     "alpha" ,
+                                     "domain",
+                                     "type"  ,
+                                     "random",
+                                     "none"  };
 
 /*+ An enumerated type for the sort modes. +*/
 typedef enum _SortMode
@@ -121,7 +123,7 @@ typedef enum _index_t {
 }
 index_t;
 
-static char *index_head[]= {
+static const char* const index_head[]= {
   NULL,
   "IndexProtocol-Head",
   "IndexHost-Head",
@@ -133,7 +135,7 @@ static char *index_head[]= {
   "IndexLastOut-Head"
 };
   
-static char *index_body[]= {
+static const char* const index_body[]= {
   "IndexRoot-Body",
   "IndexProtocol-Body",
   "IndexHost-Body",
@@ -145,7 +147,7 @@ static char *index_body[]= {
   "IndexLastOut-Body"
 };
   
-static char *index_tail[]= {
+static const char* const index_tail[]= {
   NULL,
   "IndexProtocol-Tail",
   "IndexHost-Tail",
@@ -157,7 +159,7 @@ static char *index_tail[]= {
   "IndexLastOut-Tail"
 };
   
-static ConfigItem *indexlistconf[]= {
+static ConfigItem* const indexlistconf[]= {
   NULL,
   NULL,
   &IndexListHost,
@@ -177,8 +179,6 @@ static void IndexRoot(int fd);
 static void IndexProtocol(int fd,char *proto,SortMode mode,int allopt);
 static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mode,int allopt,int titleopt);
 
-static int is_indexed(URL *Url,ConfigItem config);
-
 static void add_dir(filelist_t *l,char *name,SortMode mode);
 static void add_file(filelist_t *l,char *name,SortMode mode);
 
@@ -194,6 +194,22 @@ static char *webpagetitle(URL *Url);
 
 
 /*++++++++++++++++++++++++++++++++++++++
+  Check if the specified URL is to be indexed.
+
+  int is_indexed Return true if it is to be indexed.
+
+  URL *Url The URL to check.
+
+  index_t indextype The type of index that is being checked.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+inline static int is_indexed(URL *Url,index_t indextype)
+{
+ return(ConfigBooleanURL(IndexListAny,Url) && ConfigBooleanURL(*indexlistconf[indextype],Url));
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
   Generate an index of the pages that are in the cache.
 
   int fd The file descriptor to write the output to.
@@ -206,7 +222,6 @@ void IndexPage(int fd,URL *Url)
  char *newpath;
  char *proto=NULL,*host="";
  SortMode sort=NSortModes,s;
- Protocol *protocol=NULL;
  index_t indextype;
  int delopt=0,refopt=0,monopt=0,allopt=0,confopt=0,infoopt=0,titleopt=0;
  int i;
@@ -216,15 +231,15 @@ void IndexPage(int fd,URL *Url)
     if(Url->args)
       {
        char *url=URLDecodeFormArgs(Url->args);
-       URL *indexUrl=SplitURL(Url->args);
-       char *localhost=GetLocalHost(1);
-       char *relocate=x_asprintf("http://%s/index/%s/%s/?sort=%s",localhost,indexUrl->proto,indexUrl->hostport,sorttype[Alpha]);
+       URL *indexUrl=SplitURL(url);
+       char *localurl=GetLocalURL();
+       char *relocate=x_asprintf("%s/index/%s/%s?sort=%s",localurl,indexUrl->proto,indexUrl->hostport,sorttype[Alpha]);
        HTMLMessage(fd,302,"WWWOFFLE Index URL Redirect",relocate,"Redirect",
                    "location",relocate,
                    NULL);
 
        free(relocate);
-       free(localhost);
+       free(localurl);
        FreeURL(indexUrl);
        free(url);
       }
@@ -248,12 +263,12 @@ void IndexPage(int fd,URL *Url)
 
  proto=newpath;
 
- for(i=0;i<NProtocols;++i)
-    if(!strcmp(proto,Protocols[i].name))
-      {protocol=&Protocols[i]; break;}
-
  {
-   int nprev;
+   int protocol=0,nprev;
+
+   for(i=0;i<NProtocols;++i)
+     if(!strcmp(proto,Protocols[i].name))
+       {protocol=i+1; break;}
 
    indextype=
      protocol                           ? (*host ? indexhost: indexprotocol):
@@ -316,15 +331,15 @@ void IndexPage(int fd,URL *Url)
                 NULL);
  else if(sort==NSortModes)
    {
-    char *localhost=GetLocalHost(1);
-    char *relocate=x_asprintf("http://%s%s?sort=%s",localhost,Url->path,sorttype[0]);
+    char *localurl=GetLocalURL();
+    char *relocate=x_asprintf("%s%s?sort=%s",localurl,Url->path,sorttype[0]);
 
     HTMLMessage(fd,302,"WWWOFFLE Unknown Sort Index Redirect",relocate,"Redirect",
                 "location",relocate,
                 NULL);
 
     free(relocate);
-    free(localhost);
+    free(localurl);
    }
  else
    {
@@ -404,7 +419,7 @@ static void IndexProtocol(int fd,char *proto,SortMode mode,/*@unused@*/ int allo
 {
  DIR *dir;
  struct dirent* ent;
- char total[12],indexed[12],notindexed[12];
+ char total[MAX_INT_STR+1];
  int lastdays=0,lasthours=0;
  filelist_t l; FileIndex *p;
 
@@ -464,7 +479,7 @@ static void IndexProtocol(int fd,char *proto,SortMode mode,/*@unused@*/ int allo
 
  /* Output the page. */
 
- sprintf(total,"%d",l.n);
+ sprintf(total,"%u",l.n);
 
  HTMLMessageBody(fd,"IndexProtocol-Head",
                  "proto",proto,
@@ -492,12 +507,7 @@ static void IndexProtocol(int fd,char *proto,SortMode mode,/*@unused@*/ int allo
 
  if(out_err==-1) return;
 
- sprintf(indexed   ,"%d",l.n);
- sprintf(notindexed,"%d",0);
-
  HTMLMessageBody(fd,"IndexProtocol-Tail",
-                 "indexed",indexed,
-                 "notindexed",notindexed,
                  NULL);
 }
 
@@ -523,8 +533,9 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
 {
  DIR *dir;
  struct dirent* ent;
- int i,nindexed=0;
- char total[12],indexed[12],notindexed[12],date[MAXDATESIZE];
+ unsigned nindexed=0;
+ char total[MAX_INT_STR+1],indexed[MAX_INT_STR+1],notindexed[MAX_INT_STR+1],
+      date[MAXDATESIZE];
  int lastdays=0,lasthours=0;
  struct stat buf;
  filelist_t l; FileIndex *p;
@@ -538,10 +549,12 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
  /* Open the subdirectory. */
 
 #if defined(__CYGWIN__)
- if(proto)
-   for(i=0;name[i];i++)
-     if(name[i]==':')
-       name[i]='!';
+ if(proto) {
+   char *p;
+   for(p=name;*p;++p)
+     if(*p==':')
+       *p='!';
+ }
 #endif
 
  if(chdir(name))
@@ -559,10 +572,12 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
    HTMLMessageBody(fd,"IndexError-Body",NULL);return;}
 
 #if defined(__CYGWIN__)
- if(proto)
-   for(i=0;name[i];i++)
-     if(name[i]=='!')
-       name[i]=':';
+ if(proto) {
+   char *p;
+   for(p=name;*p;++p)
+     if(*p=='!')
+       *p=':';
+ }
 #endif
 
  switch (indextype) {
@@ -617,7 +632,7 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
 
  /* Output the page. */
 
- sprintf(total,"%d",l.n);
+ sprintf(total,"%u",l.n);
 
  switch (indextype) {
  case indexhost:
@@ -648,32 +663,13 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
  default:;
  }
 
- p=l.first; i=0;
+ p=l.first;
  while(p)
    {
      FileIndex *next;
 
-     if(out_err!=-1 && (allopt || is_indexed(p->url,*indexlistconf[indextype])))
+     if(out_err!=-1 && (allopt || is_indexed(p->url,indextype)))
       {
-       int last,next;
-       char laststr[12],nextstr[12];
-       char count[12];
-
-       sprintf(count,"%d",i);
-
-       if(indextype==indexmonitor) {
-	 MonitorTimes(p->url,&last,&next);
-
-	 if(last>=(366*24))
-	   sprintf(laststr,"365+");
-	 else
-	   sprintf(laststr,"%d:%d",last/24,last%24);
-	 if(next>=(366*24))
-	   sprintf(nextstr,"365+");
-	 else
-	   sprintf(nextstr,"%d:%d",next/24,next%24);
-       }
-
        if(mode==Dated)
           dated_separator(fd,p,&lastdays,&lasthours);
 
@@ -683,20 +679,33 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
 	 if(titleopt) item=webpagetitle(p->url);
 	 if(!item)    item=HTML_url(indextype==indexhost?p->url->pathp:p->url->name);
 
-	 if(indextype==indexmonitor)
+	 if(indextype==indexmonitor) {
+	   int last,next;
+	   char laststr[MAX_INT_STR+3+1],nextstr[MAX_INT_STR+3+1];
+
+	   MonitorTimes(p->url,&last,&next);
+
+	   if(last>=(366*24))
+	     sprintf(laststr,"365+");
+	   else
+	     sprintf(laststr,"%d:%d",last/24,last%24);
+	   if(next>=(366*24))
+	     sprintf(nextstr,"365+");
+	   else
+	     sprintf(nextstr,"%d:%d",next/24,next%24);
+
 	   HTMLMessageBody(fd,index_body[indextype],
-			   "count",count,
 			   "url",p->url->name,
-			   "link",p->url->link,
+			   "link",ProxyableLink(p->url),
 			   "item",item,
 			   "last",laststr,
 			   "next",nextstr,
 			   NULL);
+	 }
 	 else
 	   HTMLMessageBody(fd,index_body[indextype],
-			   "count",count,
 			   "url",p->url->name,
-			   "link",p->url->link,
+			   "link",ProxyableLink(p->url),
 			   "item",item,
 			   NULL);
 
@@ -710,34 +719,17 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
     next=p->next;
     free(p);
     p=next;
-    ++i;
    }
 
  if(out_err==-1) return;
 
- sprintf(indexed   ,"%d",nindexed);
- sprintf(notindexed,"%d",l.n-nindexed);
+ sprintf(indexed   ,"%u",nindexed);
+ sprintf(notindexed,"%u",l.n-nindexed);
 
  HTMLMessageBody(fd,index_tail[indextype],
                  "indexed",indexed,
                  "notindexed",notindexed,
                  NULL);
-}
-
-
-/*++++++++++++++++++++++++++++++++++++++
-  Check if the specified URL is to be indexed.
-
-  int is_indexed Return true if it is to be indexed.
-
-  URL *Url The URL to check.
-
-  ConfigItem config The special configuration for type of index that is being checked.
-  ++++++++++++++++++++++++++++++++++++++*/
-
-static int is_indexed(URL *Url,ConfigItem config)
-{
- return(ConfigBooleanURL(config,Url) && ConfigBooleanURL(IndexListAny,Url));
 }
 
 
@@ -804,7 +796,6 @@ static void add_dir(filelist_t *l,char *name,SortMode mode)
 
 static void add_file(filelist_t *l,char *name,SortMode mode)
 {
- char *url=NULL;
  URL *Url;
  struct stat buf;
  FileIndex *new;
@@ -818,19 +809,19 @@ static void add_file(filelist_t *l,char *name,SortMode mode)
  if(!S_ISREG(buf.st_mode))
    return;
 
- url=FileNameToURL(name);
+ Url=FileNameToURL(name);
 
- if(!url)
+ if(!Url)
     return;
 
  new=(FileIndex*)malloc(sizeof(FileIndex));
 
  new->next=NULL;
- new->url=Url=SplitURL(url);
+ new->url=Url;
  new->name=Url->name;
 
  if(mode==Domain)
-   new->host=Url->host;
+   new->host=Url->hostport;
  else if(mode==Type)
    {
      char *p=strchrnul(Url->path,0);
@@ -853,8 +844,6 @@ static void add_file(filelist_t *l,char *name,SortMode mode)
  *(l->last)=new;
  l->last= &(new->next);
  ++(l->n);
-
- /* free(url); */
 }
 
 
@@ -876,7 +865,7 @@ static void dated_separator(int fd,FileIndex *fi,int *lastdays,int *lasthours)
 
  if(*lastdays!=-1 && *lastdays<days)
    {
-    char daystr[12];
+    char daystr[MAX_INT_STR+1];
     sprintf(daystr,"%d",days-*lastdays);
 
     HTMLMessageBody(fd,"IndexSeparator-Body",
@@ -1094,12 +1083,13 @@ static char *webpagetitle(URL *Url)
  int fd;
 
  {
-   char name[strlen(Url->proto)+strlen(Url->dir)+base64enclen(sizeof(md5hash_t))+sizeof("//D")];
+   char *urldir=URLToDirName(Url);
+   char name[strlen(Url->proto)+strlen(urldir)+base64enclen(sizeof(md5hash_t))+sizeof("//D")];
    char *p;
 
    p=stpcpy(name,Url->proto);
    *p++='/';
-   p=stpcpy(p,Url->dir);
+   p=stpcpy(p,urldir);
    *p++='/';
    *p++='D';
    GetHash(Url,p,base64enclen(sizeof(md5hash_t))+1);
@@ -1118,12 +1108,8 @@ static char *webpagetitle(URL *Url)
      if(status==200) {
        if((title= GetHeader(spooled_head,"Title")))
 	 title= HTMLString(title,0);
-       else {
-	 char *type= GetHeader(spooled_head,"Content-Type");
-
-	 if(type && !strcmp_litbeg(type,"text/html"))
-	   title=HTML_title(fd);
-       }
+       else if(GetHeader2(spooled_head,"Content-Type","text/html"))
+	 title= HTML_title(fd);
      }
 
      FreeHeader(spooled_head);

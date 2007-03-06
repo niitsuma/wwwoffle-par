@@ -5,7 +5,7 @@
 
 WWWOFFLE : Variables disponibles (mettre le prefixe '$').
 
-localhost = Le serveur sur lequel wwwoffled tourne (='$localhost').
+localurl  = Le URL du serveur sur lequel wwwoffled tourne (='$localurl').
 version   = The version of the WWWOFFLE server (='$version').
 body      = Le corps de la requete (='$body').
 
@@ -13,7 +13,7 @@ body      = Le corps de la requete (='$body').
 
 <HEAD>
 <TITLE>WWWOFFLE - Erreur du Formulaire de Suivi</TITLE>
-<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
+<LINK href="$localurl/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
 <BODY class="wwwoffle-message">
@@ -44,7 +44,7 @@ La r&eacute;ponse au formulaire envoy&eacute;e par votre navigateur ne poss&egra
 </div>
 
 <div class="wwwoffle-nav" align="center">
-[<a href="http://$localhost/monitor-options/">Retour &agrave; la Page de Suivi</a>]
+[<a href="$localurl/monitor-options/">Retour &agrave; la Page de Suivi</a>]
 </div>
 
 <!-- Standard WWWOFFLE Message Page Footer Start -->
@@ -52,8 +52,8 @@ La r&eacute;ponse au formulaire envoy&eacute;e par votre navigateur ne poss&egra
 <hr class="wwwoffle-footer">
 <div class="wwwoffle-footer" align="center">
 WWWOFFLE - [ \
-<a href="http://$localhost/Welcome.html">Page d'accueil</a>| \
-<a href="http://$localhost/FAQ.html">FAQ</a> \
+<a href="$localurl/Welcome.html">Page d'accueil</a>| \
+<a href="$localurl/FAQ.html">FAQ</a> \
 ] - WWWOFFLE
 </div>
 

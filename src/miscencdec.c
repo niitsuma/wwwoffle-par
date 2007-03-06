@@ -4,14 +4,16 @@
    Edit miscencdec.c.pre instead.
 */
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/miscencdec.c 1.9 2004/01/11 10:28:20 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/miscencdec.c 1.15 2006/01/15 10:13:18 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Miscellaneous HTTP / HTML Encoding & Decoding functions.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -246,13 +248,13 @@ char *URLEncodePath(const char *str)
    The characters in the range 0x00-0x1f and 0x7f-0xff are always disallowed.
    The '%' character is always disallowed because it is the quote character.
    RFC 1738 section 2.2 calls " <>"#%{}|\^~[]`" unsafe characters, I make an exception for '~'.
-   RFC 1738 section 2.2 calls ";/?:@=&" reserved characters, I make an exception for "/:=".
+   RFC 1738 section 2.2 calls ";/?:@=&" reserved characters, I make an exception for ";/:=".
    I disallow "'" because it may lead to confusion.
  */
 
  static const unsigned char allowed[256/8]= {
    0x00,0x00,0x00,0x00  /*                                */
-  ,0x12,0xff,0xff,0x27  /* !  $   ()*+,-./0123456789:  =  */
+  ,0x12,0xff,0xff,0x2f  /* !  $   ()*+,-./0123456789:; =  */
   ,0xfe,0xff,0xff,0x87  /* ABCDEFGHIJKLMNOPQRSTUVWXYZ    _*/
   ,0xfe,0xff,0xff,0x47  /* abcdefghijklmnopqrstuvwxyz   ~ */
   ,0x00,0x00,0x00,0x00  /*                                */
@@ -411,10 +413,10 @@ char *URLEncodePassword(const char *str)
 
   char **SplitFormArgs Returns an array of pointers into a copy of the string.
 
-  char *str The form data or arguments to split.
+  const char *str The form data or arguments to split.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char **SplitFormArgs(char *str)
+char **SplitFormArgs(const char *str)
 {
  char **args;
  char *copy,*p;
@@ -473,11 +475,12 @@ char *TrimArgs(char *str)
 
   MakeHash Returns a binary hash that can be converted to a string with hashbase64encode().
 
-  const char *args The arguments.
+  const char *args The sequence of chars to hash.
+  unsigned len The length of the sequence of chars.
   md5hash_t *h  The computed hash value.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void MakeHash(const unsigned char *args, md5hash_t *h)
+void MakeHash(const char *args, unsigned len, md5hash_t *h)
 {
  struct MD5Context ctx;
 
@@ -485,7 +488,7 @@ void MakeHash(const unsigned char *args, md5hash_t *h)
  MD5Init (&ctx);
 
  /* Process whole buffer but last len % 64 bytes.  */
- MD5Update (&ctx, args, strlen((const char *)args));
+ MD5Update (&ctx, (const unsigned char *)args, len);
 
  /* Put result in desired memory area.  */
  MD5Final ((unsigned char *)h, &ctx);
@@ -510,10 +513,10 @@ char *hashbase64encode(md5hash_t *h, unsigned char *buf, unsigned buflen)
 
 
 /*+ Conversion from time_t to date string and back (day of week). +*/
-static const char *weekdays[7]={"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+static const char* const weekdays[7]={"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
 
 /*+ Conversion from time_t to date string and back (month of year). +*/
-static const char *months[12]={"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
+static const char* const months[12]={"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -653,49 +656,45 @@ time_t DateToTimeT(const char *date)
 
   DurationToString_r writes the string into a buffer pointed to by its last argument.
 
-  const long duration The duration in seconds.
+  const time_t duration The duration in seconds.
   char *buf  A pointer to the buffer to hold the result.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void DurationToString_r(const long duration,char *buf)
+void DurationToString_r(const time_t duration,char *buf)
 {
  char *p=buf;
- long weeks,days,hours,minutes,seconds=duration;
+ time_t weeks,days,hours,minutes,seconds=duration;
 
- weeks=seconds/(3600*24*7);
- seconds-=(3600*24*7)*weeks;
+ if(seconds>=0) {
+   weeks=seconds/(3600*24*7);
+   seconds-=(3600*24*7)*weeks;
 
- days=seconds/(3600*24);
- seconds-=(3600*24)*days;
+   days=seconds/(3600*24);
+   seconds-=(3600*24)*days;
 
- hours=seconds/(3600);
- seconds-=(3600)*hours;
+   hours=seconds/(3600);
+   seconds-=(3600)*hours;
 
- minutes=seconds/(60);
- seconds-=(60)*minutes;
+   minutes=seconds/(60);
+   seconds-=(60)*minutes;
 
- if(weeks>4)
-    p+=sprintf(p,"%ldw",weeks);
- else
-   {days+=7*weeks;weeks=0;}
+   if(weeks>4)
+     p+=sprintf(p,"%uw ",(unsigned)weeks);
+   else
+     {days+=7*weeks;weeks=0;}
 
- if(days)
-    p+=sprintf(p,"%s%ldd",weeks?" ":"",days);
+   if(days)
+     p+=sprintf(p,"%ud ",(unsigned)days);
 
- if(hours || minutes || seconds)
-   {
-    if(days || weeks)
-       *p++=' ';
-    if(hours && !minutes && !seconds)
-       p+=sprintf(p,"%ldh",hours);
-    else if(!seconds)
-       p+=sprintf(p,"%02ld:%02ld",hours,minutes);
-    else
-       p+=sprintf(p,"%02ld:%02ld:%02ld",hours,minutes,seconds);
-   }
+   if(seconds)
+     p+=sprintf(p,"%02u:%02u:%02u ",(unsigned)hours,(unsigned)minutes,(unsigned)seconds);
+   else if(minutes)
+     p+=sprintf(p,"%02u:%02u ",(unsigned)hours,(unsigned)minutes);
+   else if(hours)
+     p+=sprintf(p,"%uh ",(unsigned)hours);
+ }
 
- sprintf(p," (%lds)",duration);
-
+ sprintf(p,"(%lds)",(long)duration);
 }
 
 
@@ -732,21 +731,20 @@ static const unsigned char invbase64[256]={
 
   unsigned char *Base64Decode Return a string containing the decoded version.
 
-  const char *str The string to be decoded.
+  const unsigned char *str The string to be decoded.
 
-  int *lp Returns the length of the decoded string.
+  size_t *lp Returns the length of the decoded string.
 
   unsigned char *buf  If buf is not null, the result is stored in buf,
                       otherwise an malloced buffer is used.
 
-  unsigned buflen  The size of buf.
+  size_t buflen  The size of buf.
   ++++++++++++++++++++++++++++++++++++++*/
 
-unsigned char *Base64Decode(const unsigned char *str,unsigned *lp, unsigned char *buf, unsigned buflen)
+unsigned char *Base64Decode(const unsigned char *str,size_t *lp, unsigned char *buf, size_t buflen)
 {
- unsigned l,le=strlen((const char *)str);
+ size_t i,j,k,l,le=strlen((const char *)str);
  unsigned char *decoded;
- unsigned i,j,k;
 
  while(--le>=0 && str[le]=='=');
 
@@ -767,7 +765,7 @@ unsigned char *Base64Decode(const unsigned char *str,unsigned *lp, unsigned char
  for(i=j=0; j<le; i+=3,j+=4)
    {
     unsigned long s=0;
-    unsigned klim;
+    size_t klim;
     int off;
 
     klim=j+4;
@@ -793,22 +791,21 @@ unsigned char *Base64Decode(const unsigned char *str,unsigned *lp, unsigned char
 
   const char *str The string to be encoded.
 
-  int l The length of the string to be encoded.
+  size_t l The length of the string to be encoded.
 
   unsigned char *buf  If buf is not null, the result is stored in buf,
                       otherwise an malloced buffer is used.
 
-  unsigned buflen  The size of buf.
+  size_t buflen  The size of buf.
   ++++++++++++++++++++++++++++++++++++++*/
 
-unsigned char *Base64Encode(const unsigned char *str,unsigned l, unsigned char *buf, unsigned buflen)
+unsigned char *Base64Encode(const unsigned char *str,size_t l, unsigned char *buf, size_t buflen)
 {
- unsigned le=(4*l+2)/3;  /* ceil((4./3.)*l) */
+ size_t i,j,k,le=(4*l+2)/3;  /* ceil((4./3.)*l) */
  unsigned char *encoded;
- unsigned i,j,k;
 
  {
-   unsigned reslen=4*((le+3)/4);
+   size_t reslen=4*((le+3)/4);
    if(buf) {
      if(reslen>=buflen) return NULL;
      encoded=buf;
@@ -822,7 +819,7 @@ unsigned char *Base64Encode(const unsigned char *str,unsigned l, unsigned char *
  for(i=j=0; i<l; i+=3,j+=4)
    {
     unsigned long s=0;
-    unsigned klim;
+    size_t klim;
     int off;
 
     klim=i+3;

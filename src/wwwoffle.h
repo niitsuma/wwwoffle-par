@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle.h 2.103 2004/01/17 16:22:18 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle.h 2.116 2006/07/21 17:38:50 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9a.
   A header file for all of the programs wwwoffle, wwwoffled.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -15,6 +17,8 @@
 
 #ifndef WWWOFFLE_H
 #define WWWOFFLE_H    /*+ To stop multiple inclusions. +*/
+
+#include "autoconfig.h"
 
 #if TIME_WITH_SYS_TIME
 # include <sys/time.h>
@@ -28,6 +32,22 @@
 #endif
 
 #include "misc.h"
+
+#if USE_IPV6
+#define NUMIPPROT 2
+#else
+#define NUMIPPROT 1
+#endif
+
+typedef enum _socktype {
+  wwwoffle_sock
+ ,http_sock
+#if USE_GNUTLS
+ ,https_sock
+#endif
+ ,numsocktype
+}
+socktype;
 
 
 /* In connect.c */
@@ -44,8 +64,10 @@ int PurgeCache(int fd);
 
 /* In spool.c */
 
-int OpenOutgoingSpoolFile(int rw);
-void CloseOutgoingSpoolFile(int fd,URL *Url);
+int OpenNewOutgoingSpoolFile(void);
+void CloseNewOutgoingSpoolFile(int fd,URL *Url);
+int OpenExistingOutgoingSpoolFile(/*@out@*/ URL **Url);
+
 int ExistsOutgoingSpoolFile(URL *Url);
 char /*@null@*/ *HashOutgoingSpoolFile(URL *Url);
 char /*@only@*/ /*@null@*/ *DeleteOutgoingSpoolFile(/*@null@*/ URL *Url);
@@ -65,7 +87,7 @@ void DeleteLockWebpageSpoolFile(URL *Url);
 int ExistsLockWebpageSpoolFile(URL *Url);
 
 int CreateLastTimeSpoolFile(URL *Url);
-char /*@only@*/ /*@null@*/ *DeleteLastTimeSpoolFile(char *name);
+char /*@only@*/ /*@null@*/ *DeleteLastTimeSpoolFile(const char *name);
 void CycleLastTimeSpoolFile(void);
 void CycleLastOutSpoolFile(void);
 
@@ -76,7 +98,9 @@ char /*@only@*/ /*@null@*/ *DeleteMonitorSpoolFile(/*@null@*/ URL *Url);
 int CreateTempSpoolFile(void);
 void CloseTempSpoolFile(int fd);
 
-char *FileNameToURL(const char *file);
+char *FileNameToUrl(const char *file);
+inline static URL *FileNameToURL(const char *file) {char *url=FileNameToUrl(file); return url?SplitURL(url):NULL;}
+
 int FileMarkHash(const char *file);
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -87,32 +111,42 @@ int FileMarkHash(const char *file);
   Written by Paul Rombouts as a replacement for the function URLToFileName().
   ++++++++++++++++++++++++++++++++++++++*/
 
-#define local_URLToFileName(Url,c,filename)		\
+#define local_URLToFileName(Url,c,p,filename)		\
  char filename[base64enclen(sizeof(md5hash_t))+3];	\
  *(filename)=(c);					\
- GetHash(Url,(filename)+1,sizeof(filename)-2);
+ GetHash(Url,(filename)+1,sizeof(filename)-2);		\
+ if(p) {						\
+   filename[CACHE_HASHED_NAME_LEN+1]='~';		\
+   filename[CACHE_HASHED_NAME_LEN+2]=0;			\
+ }
 
+#ifdef __CYGWIN__
+char /*@observer@*/ *URLToDirName(URL *Url);
+#else
+inline static char *URLToDirName(URL *Url) {return Url->hostport;}
+#endif
 
-int ChangeToSpoolDir(char *dir);
+int ChangeToSpoolDir(const char *dir);
 int /*@alt void@*/ ChangeBackToSpoolDir(void);
 int CloseSpoolDir();
 
 
 /* In parse.c */
 
-char /*@null@*/ *ParseRequest(int fd,/*@out@*/ Header **request_head,/*@out@*/ Body **request_body);
+URL /*@null@*/ *ParseRequest(int fd,/*@out@*/ Header **request_head,/*@out@*/ Body **request_body);
 
-int RequireChanges(int fd,URL *Url,char **ims,char **inm);
-int IsModified(int fd,Header *request_head);
-char *MovedLocation(URL *Url,Header *reply_head);
-Header *RequestURL(URL *Url,/*@null@*/ char *referer);
+int RequireForced(const Header *request_head,const URL *Url,int online);
+int RequireChanges(int fd,const URL *Url,char **ims,char **inm);
+int IsModified(int fd,const Header *request_head);
+URL /*@null@*/ *MovedLocation(const URL *Url,const Header *reply_head);
+Header *RequestURL(const URL *Url,/*@null@*/ const URL *refererUrl);
 
 void FinishParse(void);
 
-void ModifyRequest(URL *Url,Header *request_head);
+void ModifyRequest(const URL *Url,Header *request_head);
 
-void MakeRequestProxyAuthorised(char *proxy,Header *request_head);
-void MakeRequestNonProxy(URL *Url,Header *request_head);
+void MakeRequestProxyAuthorised(const URL *proxyUrl,Header *request_head);
+void MakeRequestNonProxy(const URL *Url,Header *request_head);
 
 int ParseReply(int fd,/*@out@*/ Header **reply_head);
 
@@ -122,18 +156,18 @@ Header *SpooledPageHeader(URL *Url,int backup);
 int WhichCompression(char *content_encoding);
 int AcceptWhichCompression(HeaderList *list);
 
-void ModifyReply(URL *Url,Header *reply_head);
+void ModifyReply(const URL *Url,Header *reply_head);
 
 
 /* In messages.c (messages.l) */
 
-extern int out_err;
+extern ssize_t out_err;
 extern int head_only;
 void SetMessageOptions(int compressed,int chunked);
-void HTMLMessage(int fd,int status_val,char *status_str,/*@null@*/ char *location,char *template, ...);
-void HTMLMessageHead(int fd,int status_val,char *status_str, ...);
-void HTMLMessageBody(int fd,char *template, ...);
-char /*@observer@*/ *HTMLMessageString(char *template, ...);
+void HTMLMessage(int fd,int status_val,const char *status_str,/*@null@*/ const char *location,const char *template, ...);
+void HTMLMessageHead(int fd,int status_val,const char *status_str, ...);
+void HTMLMessageBody(int fd,const char *template, ...);
+char /*@observer@*/ *HTMLMessageString(const char *template, ...);
 void FinishMessages(void);
 
 
@@ -160,6 +194,15 @@ void IndexPage(int fd,URL *Url);
 void InfoPage(int fd,URL *Url,Header *request_head,/*@null@*/ Body *request_body);
 
 
+#if USE_GNUTLS
+
+/* In certinfo.c */
+
+void CertificatesPage(int fd,URL *Url,Header *request_head);
+
+#endif
+
+
 /* In control.c */
 
 void ControlPage(int fd,URL *Url,/*@null@*/ Body *request_body);
@@ -177,10 +220,10 @@ void ConfigurationPage(int fd,URL *Url,/*@null@*/ Body *request_body);
 
 /* In refresh.c */
 
-char /*@null@*/ *RefreshPage(int fd,URL *Url,/*@null@*/ Body *request_body,int *recurse);
+URL /*@null@*/ *RefreshPage(int fd,URL *Url,/*@null@*/ Body *request_body,int *recurse);
 void DefaultRecurseOptions(URL *Url,Header *head);
 int RecurseFetch(URL *Url);
-int RecurseFetchRelocation(URL *Url,char *location);
+int RecurseFetchRelocation(URL *Url,URL *locationUrl);
 char /*@only@*/ *CreateRefreshPath(URL *Url,char *limit,int depth,
                                    int force,
                                    int stylesheets,int images,int frames,int scripts,int objects);
@@ -198,8 +241,8 @@ void MonitorTimes(URL *Url,/*@out@*/ int *last,/*@out@*/ int *next);
 
 int wwwoffles(int online,int fetching,int client);
 
-int wwwoffles_read_data(/*@out@*/ char *data,int len);
-int wwwoffles_write_data(/*@in@*/ char *data,int len);
+ssize_t wwwoffles_read_data(/*@out@*/ char *data,size_t len);
+ssize_t wwwoffles_write_data(/*@in@*/ const char *data,size_t len);
 
 
 /* In search.c */

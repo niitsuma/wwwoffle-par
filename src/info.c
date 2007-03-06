@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/info.c 1.17 2004/11/29 19:11:46 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/info.c 1.25 2006/04/07 18:05:04 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9a.
   Generate information about the contents of the web pages that are cached in the system.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 2002,03,04 Andrew M. Bishop
+  This file Copyright 2002,03,04,05,06 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -44,8 +46,8 @@ static void InfoCachedPage(int fd,URL *Url,int which);
 
 static void InfoCached(int fd,int spool,URL *Url,/*@null@*/ Header *spooled_head);
 static void InfoContents(int fd,int spool,URL *Url,Header *spooled_head);
-static void output_content(int fd,char *type,char **url);
-static int sort_alpha(char **a,char **b);
+static void output_content(int fd,char *type,URL **url);
+static int sort_alpha(URL **a,URL **b);
 static void InfoSource(int fd,int spool,URL *Url,/*@null@*/ Header *spooled_head);
 
 static void InfoRequestPage(int fd,URL *Url);
@@ -66,7 +68,7 @@ static void InfoRequestedPage(int fd,URL *Url,Header *request_head,/*@null@*/ Bo
 
 void InfoPage(int fd,URL *Url,Header *request_head,Body *request_body)
 {
- if(!Url->local)
+ if(!IsLocalHost(Url))
     InfoRequestedPage(fd,Url,request_head,request_body);
  else if(!strcmp(Url->path,"/info/request") && Url->args)
     InfoRequestPage(fd,Url);
@@ -113,16 +115,10 @@ static void InfoCachedPage(int fd,URL *Url,int which)
      ParseReply(spool,&spooled_head);
 
 #if USE_ZLIB
-     if(spooled_head && GetHeader2(spooled_head,"Pragma","wwwoffle-compressed"))
+     if(spooled_head && GetHeader(spooled_head,"Content-Encoding") && RemoveFromHeader2(spooled_head,"Pragma","wwwoffle-compressed"))
        {
-	 char *content_encoding;
-
-	 if((content_encoding=GetHeader(spooled_head,"Content-Encoding")))
-	   {
-	     RemoveFromHeader(spooled_head,"Content-Encoding");
-	     RemoveFromHeader2(spooled_head,"Pragma","wwwoffle-compressed");
-	     configure_io_read(spool,-1,2,0);
-	   }
+	 RemoveFromHeader(spooled_head,"Content-Encoding");
+	 configure_io_zlib(spool,2,-1);
        }
 #endif
    }
@@ -166,7 +162,7 @@ static void InfoCached(int fd,int spool,URL *Url,Header *spooled_head)
 
  if(spooled_head)
    {
-    int headlen;
+    size_t headlen;
 
     head1=HeaderString(spooled_head,&headlen);
     head1[headlen-4]=0;
@@ -180,6 +176,8 @@ static void InfoCached(int fd,int spool,URL *Url,Header *spooled_head)
 
  HTMLMessage(fd,200,"WWWOFFLE Info Cached",NULL,"InfoCached",
              "url",Url->name,
+             "proto",Url->proto,
+             "hostport",Url->hostport,
              "cached",(spool!=-1 && spooled_head)?"yes":"",
              "head1",head1,
              "head2",head2,
@@ -204,23 +202,28 @@ static void InfoCached(int fd,int spool,URL *Url,Header *spooled_head)
 
 static void InfoContents(int fd,int spool,URL *Url,Header *spooled_head)
 {
- HTMLMessage(fd,200,"WWWOFFLE Info Cached",NULL,"InfoContents-Head",
-             "url",Url->name,
-             "cached",(spool!=-1 && spooled_head)?"yes":"",
-             NULL);
+ HTMLMessageHead(fd,200,"WWWOFFLE Info Cached",
+                 NULL);
+
+ if(out_err==-1 || head_only) return;
+
+ HTMLMessageBody(fd,"InfoContents-Head",
+		 "url",Url->name,
+		 "cached",(spool!=-1 && spooled_head)?"yes":"",
+		 NULL);
 
  if(out_err!=-1 && spool!=-1 && spooled_head)
    {
-    char **list,*refresh;
+    URL **list,*refresh;
 
     lseek(spool,0,SEEK_SET);
     reinit_io(spool);
 
     ParseDocument(spool,Url,1);
 
-    if((refresh=MetaRefresh()))
+    if((refresh=GetReference(RefMetaRefresh)))
       {
-       char *list[2];
+       URL *list[2];
 
        list[0]=refresh;
        list[1]=NULL;
@@ -281,34 +284,35 @@ static void InfoContents(int fd,int spool,URL *Url,Header *spooled_head)
 
   char *type The type of the content.
 
-  char **url The list of URLs for the type of content.
+  URL **url The list of URLs for the type of content.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void output_content(int fd,char *type,char **url)
+static void output_content(int fd,char *type,URL **url)
 {
- int i,count;
+ unsigned i,count;
 
  for(count=0;url[count];count++)
     ;
 
- qsort(url,count,sizeof(char*),(int (*)(const void*,const void*))sort_alpha);
+ qsort(url,count,sizeof(URL*),(int (*)(const void*,const void*))sort_alpha);
 
  for(i=0;i<count;i++)
    {
-    URL *Url=SplitURL(url[i]);
-    int dontget,cached,outgoing;
+    char *status;
+    URL *Url=url[i],*aliasUrl=GetAliasURL(Url),*testUrl=aliasUrl?aliasUrl:Url;
 
-    dontget=ConfigBooleanMatchURL(DontGet,Url);
-    cached= (ExistsWebpageSpoolFile(Url,0)!=0);
-    outgoing=ExistsOutgoingSpoolFile(Url);
+    status=ConfigBooleanMatchURL(DontGet,testUrl)?"X":
+      (ExistsWebpageSpoolFile(testUrl,0) || IsLocalNetHost(testUrl->host))?"+":
+      ExistsOutgoingSpoolFile(testUrl)?"~":"-";
+
+    if(aliasUrl) FreeURL(aliasUrl);
 
     HTMLMessageBody(fd,"InfoContents-Body",
                     "type",type,
-                    "refurl",url[i],
-                    "status",dontget?"X":cached?"+":outgoing?"~":"-",
+                    "refurl",Url->name,
+                    "status",status,
                     NULL);
 
-    FreeURL(Url);
     if(out_err==-1) break;
    }
 }
@@ -319,14 +323,14 @@ static void output_content(int fd,char *type,char **url)
 
   int sort_alpha Returns the comparison of the pointers to strings.
 
-  char **a A pointer to the first URL string.
+  URL **a A pointer to the first URL.
 
-  char **b A pointer to the second URL string.
+  URL **b A pointer to the second URL.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int sort_alpha(char **a,char **b)
+static int sort_alpha(URL **a,URL **b)
 {
- return(strcmp(*a,*b));
+ return(strcmp((*a)->file,(*b)->file));
 }
 
 
@@ -360,18 +364,23 @@ static void InfoSource(int fd,int spool,URL *Url,Header *spooled_head)
       }
    }
 
- HTMLMessage(fd,200,"WWWOFFLE Info Cached",NULL,"InfoSource-Head",
-             "url",Url->name,
-             "cached",(spool!=-1 && spooled_head)?"yes":"",
-             "text",text?"yes":"no",
-             NULL);
+ HTMLMessageHead(fd,200,"WWWOFFLE Info Cached",
+                 NULL);
+
+ if(out_err==-1 || head_only) return;
+
+ HTMLMessageBody(fd,"InfoSource-Head",
+		 "url",Url->name,
+		 "cached",(spool!=-1 && spooled_head)?"yes":"",
+		 "text",text?"yes":"no",
+		 NULL);
 
  if(out_err!=-1 && text && spool!=-1 && spooled_head)
    {
-    int n;
-    char buffer[READ_BUFFER_SIZE+1];
+    ssize_t n;
+    char buffer[IO_BUFFER_SIZE+1];
 
-    while((n=read_data(spool,buffer,READ_BUFFER_SIZE))>0)
+    while((n=read_data(spool,buffer,IO_BUFFER_SIZE))>0)
       {
        char *html;
 
@@ -429,7 +438,7 @@ static void InfoRequestPage(int fd,URL *Url)
 static void InfoRequestedPage(int fd,URL *Url,Header *request_head,Body *request_body)
 {
  char *head1,*head2;
- int headlen;
+ size_t headlen;
 
  head1=HeaderString(request_head,&headlen);
  head1[headlen-4]=0;

@@ -24,7 +24,7 @@
 int main(int argc,char **argv)
 {
  URL *Url;
- char **list,*refresh;
+ URL **list,*refresh;
  int j;
 
  if(argc==1)
@@ -49,36 +49,36 @@ int main(int argc,char **argv)
 
  ParseDocument(0,Url,1);
 
- if((refresh=MetaRefresh()))
-    printf("Refresh = %s\n",refresh);
+ if((refresh=GetReference(RefMetaRefresh)))
+    printf("Refresh = %s\n",refresh->file);
 
  if((list=GetReferences(RefStyleSheet)))
     for(j=0;list[j];j++)
-       printf("StyleSheet = %s\n",list[j]);
+       printf("StyleSheet = %s\n",list[j]->file);
 
  if((list=GetReferences(RefImage)))
     for(j=0;list[j];j++)
-       printf("Image = %s\n",list[j]);
+       printf("Image = %s\n",list[j]->file);
 
  if((list=GetReferences(RefFrame)))
     for(j=0;list[j];j++)
-       printf("Frame = %s\n",list[j]);
+       printf("Frame = %s\n",list[j]->file);
 
  if((list=GetReferences(RefScript)))
     for(j=0;list[j];j++)
-       printf("Script = %s\n",list[j]);
+       printf("Script = %s\n",list[j]->file);
 
  if((list=GetReferences(RefObject)))
     for(j=0;list[j];j++)
-       printf("Object = %s\n",list[j]);
+       printf("Object = %s\n",list[j]->file);
 
  if((list=GetReferences(RefInlineObject)))
     for(j=0;list[j];j++)
-       printf("InlineObject = %s\n",list[j]);
+       printf("InlineObject = %s\n",list[j]->file);
 
  if((list=GetReferences(RefLink)))
     for(j=0;list[j];j++)
-       printf("Link = %s\n",list[j]);
+       printf("Link = %s\n",list[j]->file);
 
  FreeURL(Url);
 

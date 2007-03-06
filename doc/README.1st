@@ -1,4 +1,4 @@
-          WWWOFFLE - World Wide Web Offline Explorer - Version 2.7
+          WWWOFFLE - World Wide Web Offline Explorer - Version 2.9
           ========================================================
 
 
@@ -17,9 +17,6 @@ doc/README
 doc/INSTALL
 doc/README.lang             [Non-English versions]
 doc/README.CONF
-doc/README.htdig
-doc/README.mnogosearch
-doc/README.namazu
 doc/README.win32            [Win32 users]
 
 
@@ -28,14 +25,6 @@ If you have used WWWOFFLE before:
 doc/NEWS
 doc/CHANGES.CONF
 doc/README.CONF
-doc/README.htdig
-doc/README.mnogosearch
-doc/README.namazu
-
-
-If you have used WWWOFFLE before and are upgrading from version 2.5:
-
-doc/CONVERT
 
 
 If you want to know how to install the program or change compile time options:
@@ -45,6 +34,7 @@ doc/README.lang             [Non-English versions]
 doc/README.htdig
 doc/README.mnogosearch
 doc/README.namazu
+doc/README.hyperestraier
 doc/README.win32            [Win32 users]
 
 
@@ -56,6 +46,7 @@ doc/README
 doc/README.htdig
 doc/README.mnogosearch
 doc/README.namazu
+doc/README.hyperestraier
 
 
 If you want to know how to configure the program:
@@ -67,6 +58,7 @@ doc/CHANGES.CONF
 doc/README.htdig
 doc/README.mnogosearch
 doc/README.namazu
+doc/README.hyperestraier
 
 
 If you want to customise the error message and other pages:
@@ -85,29 +77,41 @@ The location and purpose of the sources of information are as listed below.
 
 Files in the doc directory (see also the language specific subdirectories):
 
+ANNOUNCE           The announcement release for this version of WWWOFFLE.
+
+COPYING            The WWWOFFLE licence (the GNU General Public Licence).
+
 NEWS               A list of the changes in functionality in previous versions.
+
+INSTALL            Help on installing the program and the compile-time options.
 
 README             The main README file, usual README stuff about the program.
 README.1st         This file - a meta-index.
+
 README.CONF        Help on the format of the config file.
+CHANGES.CONF       A list of the config file changes from version 1.3 to now.
+
 README.PWD         Information about how password protected pages are stored.
 README.URL         Information about how URLs are processed (decoding/encoding).
 README.compress    Information about the problems with using cache compression.
-README.win32       Information about the Win32 version of WWWOFFLE.
-README.htdig       A description of how to use ht://Dig to search the cache.
-README.mnogosearch A description of how to use mnoGoSearch to search the cache.
-README.namazu      A description of how to use namazu to search the cache.
+README.https       Information about https, SSL/TLS, certificates and trust.
+
 README.lang        A description of the non-English language web-page versions.
 
-INSTALL            Help on installing the program and the compile-time options.
-CONVERT            Help on converting a cache from previous version to current.
-CHANGES.CONF       A list of the config file changes from version 1.3 to now.
+README.htdig         How to use ht://Dig to search the cache.
+README.mnogosearch   How to use mnoGoSearch to search the cache.
+README.namazu        How to use namazu to search the cache.
+README.hyperestraier How to use Hyper Estraier to search the cache.
 
-Manual pages:
+README.win32       Information about the Win32 version of WWWOFFLE.
+
+
+Manual pages (installed names listed, files are in doc directory):
 
 wwwoffle(1)        The wwwoffle user interface program UNIX manual page.
 wwwoffle.conf(5)   The wwwoffle.conf configuration file UNIX manual page.
 wwwoffled(8)       The wwwoffled server demon program UNIX manual page.
+
 
 Other files:
 

@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/connect.c 2.47 2004/01/11 10:28:49 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/connect.c 2.50 2005/08/19 18:00:49 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Handle WWWOFFLE connections received by the demon.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1996,97,98,99,2000,01,02,03 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,05 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2004,2005,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -51,8 +53,7 @@ extern time_t OnlineTime;
 extern time_t OfflineTime;
 
 /*+ The server sockets that we listen on +*/
-extern int http_fd[2],          /*+ for the HTTP connections. +*/
-           wwwoffle_fd[2];      /*+ for the WWWOFFLE connections. +*/
+extern int socks_fd[numsocktype][NUMIPPROT];
 
 /*+ The online / offline / autodial status. +*/
 extern int online;
@@ -270,7 +271,7 @@ void CommandConnect(int client)
       }
     else
       {
-       int purge_ok;
+       int purge_ok,i,*fdp;
 
        InitErrorHandler(NULL,-1,-1);  /* Change nothing except pid */
 
@@ -280,13 +281,13 @@ void CommandConnect(int client)
           CloseSocket(fetch_fd);
          }
 
-       /* These four sockets don't need finish_io() calling because they never
+       /* These six sockets don't need finish_io() calling because they never
           had init_io() called, they are just bound to a port listening. */
 
-       if(http_fd[0]!=-1) CloseSocket(http_fd[0]);
-       if(http_fd[1]!=-1) CloseSocket(http_fd[1]);
-       if(wwwoffle_fd[0]!=-1) CloseSocket(wwwoffle_fd[0]);
-       if(wwwoffle_fd[1]!=-1) CloseSocket(wwwoffle_fd[1]);
+       for(i=0,fdp=socks_fd[0]; i<numsocktype*NUMIPPROT; ++i) {
+	 int fd= *fdp++;
+	 if(fd!=-1) CloseSocket(fd);
+       }
 
        write_string(client,"WWWOFFLE Purge Starting.\n");
        PrintMessage(Important,"WWWOFFLE Purge."); /* Used in audit-usage.pl */
@@ -398,19 +399,21 @@ void ForkRunModeScript(char *filename,char *mode,char *arg,int client)
    {PrintMessage(Warning,"Cannot fork to run the run-%s program [%!s].",mode);return;}
  else if(!pid) /* The child */
    {
+    int i,*fdp;
+
     if(fetch_fd!=-1)
       {
        finish_io(fetch_fd);
        CloseSocket(fetch_fd);
       }
 
-    /* These four sockets don't need finish_io() calling because they never
+    /* These six sockets don't need finish_io() calling because they never
        had init_io() called, they are just bound to a port listening. */
 
-    if(http_fd[0]!=-1) CloseSocket(http_fd[0]);
-    if(http_fd[1]!=-1) CloseSocket(http_fd[1]);
-    if(wwwoffle_fd[0]!=-1) CloseSocket(wwwoffle_fd[0]);
-    if(wwwoffle_fd[1]!=-1) CloseSocket(wwwoffle_fd[1]);
+    for(i=0,fdp=socks_fd[0]; i<numsocktype*NUMIPPROT; ++i) {
+      int fd= *fdp++;
+      if(fd!=-1) CloseSocket(fd);
+    }
 
     if(client!=fetch_fd)
       {
@@ -470,7 +473,7 @@ void ForkServer(int fd)
    }
  else /* The child */
    {
-    int status;
+    int status,i,*fdp;
 
     if(fetch_fd!=-1 && fetch_fd!=fd)
       {
@@ -478,13 +481,13 @@ void ForkServer(int fd)
        CloseSocket(fetch_fd);
       }
 
-    /* These four sockets don't need finish_io() calling because they never
+    /* These six sockets don't need finish_io() calling because they never
        had init_io() called, they are just bound to a port listening. */
 
-    if(http_fd[0]!=-1) CloseSocket(http_fd[0]);
-    if(http_fd[1]!=-1) CloseSocket(http_fd[1]);
-    if(wwwoffle_fd[0]!=-1) CloseSocket(wwwoffle_fd[0]);
-    if(wwwoffle_fd[1]!=-1) CloseSocket(wwwoffle_fd[1]);
+    for(i=0,fdp=socks_fd[0]; i<numsocktype*NUMIPPROT; ++i) {
+      int fd= *fdp++;
+      if(fd!=-1) CloseSocket(fd);
+    }
 
     status=wwwoffles(online,fetcher,fd);
 

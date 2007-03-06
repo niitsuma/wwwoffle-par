@@ -5,7 +5,7 @@
 
 Available WWWOFFLE Variables (all with a '$' prefix).
 
-localhost   = The hostname of the server running wwwoffled (='$localhost').
+localurl    = The root URL of the server running wwwoffled (='$localurl').
 version     = The version of the WWWOFFLE server (='$version').
 section     = The section of the configuration file (= '$section').
 item        = The item in the section of the configuration file (= '$item').
@@ -34,7 +34,7 @@ nallowed    = The number of entries that are allowed (1 or any) (= '$nallowed').
 
 <HEAD>
 <TITLE>WWWOFFLE - Interaktive Konfigurations-Seite - $section / $item</TITLE>
-<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
+<LINK href="$localurl/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
 <BODY class="wwwoffle-message">
@@ -49,7 +49,7 @@ nallowed    = The number of entries that are allowed (1 or any) (= '$nallowed').
 <!-- Standard WWWOFFLE Message Page Header End -->
 
 <p align="center">
-<a href="http://$localhost/configuration/$section$url?{?%encode[url]}{}">^^^ $section ^^^</a>
+<a href="$localurl/configuration/$section$url?{?%encode[url]}{}">^^^ $section ^^^</a>
 <br>
 <a href="$previtem?{$previtem}{no-name}$url?{?%encode[url]}{}">&lt;&lt;&lt; $previtem?{$previtem}{<i>no-name</i>} &lt;&lt;&lt;</a>
 &nbsp;&nbsp;&nbsp; $item?{$item}{<i>no-name</i>} &nbsp;&nbsp;&nbsp;
@@ -176,10 +176,19 @@ $val_type?=HostAndPort{
 $val_type?=HostAndPortOrNone{
 <input type="text" value="$_val" size="20" name="val">
 }{}
+$val_type?=HostWild{
+<input type="text" value="$_val" size="20" name="val">
+}{}
+$val_type?=HostAndPortWild{
+<input type="text" value="$_val" size="20" name="val">
+}{}
 $val_type?=UserPass{
 <input type="text" value="$_val" size="20" name="val">
 }{}
 $val_type?=Url{
+<input type="text" value="$_val" size="30" name="val">
+}{}
+$val_type?=UrlWild{
 <input type="text" value="$_val" size="30" name="val">
 }{}
 $val_type?=UrlSpecification{

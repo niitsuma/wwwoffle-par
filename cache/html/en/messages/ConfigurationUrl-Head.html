@@ -5,7 +5,7 @@
 
 Available WWWOFFLE Variables (all with a '$' prefix).
 
-localhost = The hostname of the server running wwwoffled (='$localhost').
+localurl  = The root URL of the server running wwwoffled (='$localurl').
 version   = The version of the WWWOFFLE server (='$version').
 wildcard  = A flag to indicate if there is a wildcard set (='$wildcard').
 url       = The URL that this applies to (= '%comment[url]').
@@ -13,7 +13,6 @@ proto     = The URL protocol (= '$proto').
 host      = The URL host (= '$host').
 port      = The URL host port (= '$port').
 path      = The URL path (= '$path').
-params    = The URL params (= '$params').
 args      = The URL args (= '$args').
 
 $htmlurl=%html[url]
@@ -22,13 +21,12 @@ $htmlproto=%html[proto]
 $htmlhost=%html[host]
 $htmlport=%html[port]
 $htmlpath=%html[path]
-$htmlparams=%html[params]
 $htmlargs=%html[args]
 -->
 
 <HEAD>
 <TITLE>WWWOFFLE - Interactive Configuration Page - URL $decurl</TITLE>
-<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
+<LINK href="$localurl/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
 <BODY class="wwwoffle-message">
@@ -56,7 +54,7 @@ You can use the URL listed above or you can make a more general URL using
 wildcard options as shown in the form below.
 
 <p>
-<form action="http://$localhost/configuration/editurl" method="POST">
+<form action="$localurl/configuration/editurl" method="POST">
 
 <p>
 Protocol:
@@ -102,19 +100,6 @@ $path?=/*{}{
   <option value="OTHER">Other (e.g. /foo/* or /*.bar); specify --&gt;</option>
 </select>
 [other: <input type="text" value="$htmlpath" size="32" name="path_other">]
-
-<p>
-Parameters:
-<select name="params">
-  <option value=";*" $params?=;*{selected}{}>Any parameters</option>
-  <option value="" $params?{}{selected}>Any or none</option>
-  <option value=";" $params?=;{selected}{}>No parameters</option>
-$params?=;{}$params?=;*{}$params?{
-  <option value="$htmlparams" selected>$htmlparams</option>
-}{}
-  <option value="OTHER">Other (e.g. ;foo=bar); specify --&gt;</option>
-</select>
-[other: <input type="text" value="$htmlparams" size="32" name="params_other">]
 
 <p>
 Arguments:

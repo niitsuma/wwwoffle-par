@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/local.c 1.11 2004/01/11 10:28:20 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/local.c 1.16 2006/07/21 17:38:50 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9a.
   Serve the local web-pages and handle the language selection.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1998,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -44,15 +46,19 @@
 #include "config.h"
 
 
-/*+ Need this for Win32 to use binary mode +*/
 #ifndef O_BINARY
+/*+ A work-around for needing O_BINARY with Win32 to use binary mode. +*/
 #define O_BINARY 0
 #endif
 
 
-static char *FindLanguageFile(char* search, struct stat *buf);
-static char /*@null@*/ /*@observer@*/ **get_languages(int *ndirs);
+/* Local functions */
 
+static char /*@null@*/ /*@observer@*/ **get_languages(int *ndirs);
+static char /*@null@*/ *find_language_file(char* search, struct stat *buf);
+
+
+/* Local variables */
 
 /*+ The language header that the client sent. +*/
 static HeaderList /*@null@*/ /*@only@*/ *accept_languages=NULL;
@@ -95,7 +101,7 @@ int LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
 
  path=URLDecodeGeneric(Url->path+1);
 
- if((file=FindLanguageFile(path,&buf)))
+ if((file=find_language_file(path,&buf)))
    {
     if(S_ISREG(buf.st_mode) && buf.st_mode&S_IROTH)
       {
@@ -141,13 +147,13 @@ int LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
                 HTMLMessageHead(fd,304,"WWWOFFLE Not Modified",
                                 "Content-Length","0",
 				NULL);
-		if(out_err==-1)
-		  PrintMessage(Warning,"Cannot write local page '%s' to client [%!s].",file);
+		/* if(out_err==-1)
+		     PrintMessage(Inform,"Cannot write local page '%s' to client [%!s].",file); */
 	     }
              else
                {
 		 {
-		   char date[MAXDATESIZE]; char length[24];
+		   char date[MAXDATESIZE]; char length[MAX_INT_STR+1];
 
 		   RFC822Date_r(buf.st_mtime,1,date);
 		   sprintf(length,"%lu",(unsigned long)buf.st_size);
@@ -160,18 +166,18 @@ int LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
 		 }
 
 		 if(out_err==-1)
-		   PrintMessage(Warning,"Cannot write local page '%s' to client [%!s].",file);
+		   PrintMessage(Inform,"Cannot write local page '%s' to client [%!s].",file);
 		 else if(!head_only) {
-		   char buffer[READ_BUFFER_SIZE];
-		   int n;
+		   char buffer[IO_BUFFER_SIZE];
+		   ssize_t n;
 		   for(;;) {
-		     n=read_data(htmlfd,buffer,READ_BUFFER_SIZE);
+		     n=read_data(htmlfd,buffer,IO_BUFFER_SIZE);
 		     if(n<0)
 		       PrintMessage(Warning,"Cannot read local page '%s' [%!s].",file);
 		     if(n<=0)
 		       break;
 		     if(write_data(fd,buffer,n)<0) {
-		       PrintMessage(Warning,"Cannot write local page '%s' to client [%!s].",file);
+		       PrintMessage(Inform,"Cannot write local page '%s' to client [%!s].",file);
 		       break;
 		     }
 		   }
@@ -187,21 +193,21 @@ int LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
       }
     else if(S_ISDIR(buf.st_mode))
       {
-       char *localhost=GetLocalHost(1);
-       char *dir=(char*)malloc(strlen(Url->path)+strlen(localhost)+sizeof("http:///index.html"));
+       char *localurl=GetLocalURL();
+       char *dir=(char*)malloc(strlen(localurl)+strlen(Url->path)+sizeof("/index.html"));
        char *p;
 
        PrintMessage(Debug,"Using the local directory '%s'.",file);
 
-       p=stpcpy(stpcpy(stpcpy(dir,"http://"),localhost),Url->path);
-       if(*(p-1)!='/') *p++='/';
+       p=stpcpy(stpcpy(dir,localurl),Url->path);
+       if(p==dir || *(p-1)!='/') *p++='/';
        stpcpy(p,"index.html");
        HTMLMessage(fd,302,"WWWOFFLE Local Dir Redirect",dir,"Redirect",
                    "location",dir,
                    NULL);
 
        free(dir);
-       free(localhost);
+       free(localurl);
 
        found=1;
       }
@@ -252,7 +258,7 @@ int OpenLocalFile(char *path)
 
  decpath=URLDecodeGeneric(path+1);
 
- if((file=FindLanguageFile(decpath,&buf))) {
+ if((file=find_language_file(decpath,&buf))) {
    if(S_ISREG(buf.st_mode) && buf.st_mode&S_IROTH) {
      fd=open(file,O_RDONLY|O_BINARY);
 
@@ -274,41 +280,38 @@ int OpenLocalFile(char *path)
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Set the language that will be accepted for the messages.
+  Set (or reset) the languages that will be accepted for the messages.
 
-  Header *head The header.
+  Header *head The header (may be NULL).
   ++++++++++++++++++++++++++++++++++++++*/
 
 void SetLanguage(Header *head)
 {
-  HeaderList *accept_list=GetHeaderList(head,"Accept-Language");
-  if(accept_list)
-    {
-      if(accept_languages) FreeHeaderList(accept_languages);
-      if(lang_dirs) {
-	int i;
-	for(i=0;i<num_lang_dirs;++i)
-	  free(lang_dirs[i]);
-	free(lang_dirs);
-      }
+  if(accept_languages) FreeHeaderList(accept_languages);
+  accept_languages= (head?GetHeaderList(head,"Accept-Language"):NULL);
 
-      accept_languages=accept_list;
-      num_lang_dirs=-1;   /* negative value signals accept_language has changed */
-      lang_dirs=NULL;
-    }
+  if(lang_dirs) {
+    int i;
+    for(i=0;i<num_lang_dirs;++i)
+      free(lang_dirs[i]);
+    free(lang_dirs);
+  }
+
+  num_lang_dirs=0;
+  lang_dirs=NULL;
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Find the language specific message file.
 
-  char *FindLanguageFile Returns the file name or NULL.
+  char *find_language_file Returns the file name or NULL.
 
   char* search The name of the file to search for (e.g. 'messages/foo.html' or 'local/bar.html').
   struct stat *buf  Information about the attributes of the file.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static char *FindLanguageFile(char* search, struct stat *buf)
+static char *find_language_file(char* search, struct stat *buf)
 {
  char *file=NULL;
  int idir=0;
@@ -369,13 +372,13 @@ int OpenLanguageFile(char* search)
 
  /* Find the file. */
 
- file=FindLanguageFile(search,&buf);
+ file=find_language_file(search,&buf);
 
  if(file)
    {
-     fd=open(file,O_RDONLY|O_BINARY);
+    fd=open(file,O_RDONLY|O_BINARY);
 
-     free(file);
+    free(file);
    }
 
  return(fd);
@@ -392,33 +395,33 @@ int OpenLanguageFile(char* search)
 
 static char **get_languages(int *ndirs)
 {
-  if(num_lang_dirs<0)  /* negative value signals that accept_languages has changed */
+ if(accept_languages)
    {
+    int i;
+
+    if(lang_dirs) {for(i=0;i<num_lang_dirs;++i) free(lang_dirs[i]);}
     num_lang_dirs=0;
+    lang_dirs=(char**)realloc(lang_dirs,sizeof(char*)*(accept_languages->n));
 
-    if(accept_languages)
+    for(i=0;i<accept_languages->n;++i)
       {
-       int i;
+	HeaderListItem *item=&(accept_languages->item[i]);
+	if(item->qval>0 && isalpha(*(item->val)) && !strchr(item->val,'/'))
+	  {
+	    char *p,*q;
 
-       lang_dirs=(char**)malloc(sizeof(char*)*(accept_languages->n));
-
-       for(i=0;i<accept_languages->n;++i)
-	 {
-	   HeaderListItem *item=&(accept_languages->item[i]);
-	   if(item->qval>0 && isalpha(*(item->val)) && !strchr(item->val,'/'))
-	     {
-	       char *p,*q;
-
-	       lang_dirs[num_lang_dirs++]= p= (char*)malloc(strlen(item->val)+sizeof("html//"));
-	       p= stpcpy(p,"html/");
-	       q= item->val;
-	       while(*q && isalpha(*q))
-		 *p++=tolower(*q++);
-	       *p++='/';
-	       *p=0;
-	     }
-	 }
+	    lang_dirs[num_lang_dirs++]= p= (char*)malloc(strlen(item->val)+sizeof("html//"));
+	    p= stpcpy(p,"html/");
+	    q= item->val;
+	    while(*q && isalpha(*q))
+	      *p++=tolower(*q++);
+	    *p++='/';
+	    *p=0;
+	  }
       }
+
+    FreeHeaderList(accept_languages);
+    accept_languages=NULL;
    }
 
  *ndirs=num_lang_dirs;

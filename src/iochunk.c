@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/iochunk.c 1.9 2004/01/17 16:29:37 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/iochunk.c 1.18 2006/10/02 18:43:17 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9b.
   Functions for file input and output with compression.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  Parts of this file Copyright (C) 2004,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -28,23 +30,25 @@
 #include "errors.h"
 
 
-/*+ The chunked encoding/compression error number. +*/
-extern int io_errno;
+/*+ The minimum chunk size to output (use same size as WRITE_BUFFER_SIZE).. +*/
+#define MIN_CHUNK_SIZE (IO_BUFFER_SIZE/4)
 
-/*+ The chunked encoding/compression error message string. +*/
-extern char *io_strerror;
-
-
-/*+ The minimum chunk size to output. +*/
-#define MIN_CHUNK_SIZE (READ_BUFFER_SIZE/4)
+/* Decoding states */
+typedef enum _iochunk_state_t {
+  iochunk_null,
+  doing_head,
+  doing_chunk,
+  doing_trailer,
+  iochunk_done
+} iochunk_state_t;
 
 
 /* Local functions */
 
-static int parse_chunk_head(io_chunk *context,char *buffer,int n);
-static int parse_chunk_trailer(io_chunk *context,char *buffer,int n);
+static int parse_chunk_head(io_chunk *context,const char *buffer,size_t n);
+static int parse_chunk_trailer(io_chunk *context,const char *buffer,size_t n);
 
-static void set_error(char *msg);
+static void set_error(const char *msg);
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -59,7 +63,7 @@ io_chunk *io_init_chunk_encode(void)
 {
  io_chunk *context=(io_chunk*)calloc(1,sizeof(io_chunk));
 
- context->chunk_buffer=(char*)malloc(MIN_CHUNK_SIZE);
+ context->chunk_buffer=create_io_buffer(MIN_CHUNK_SIZE);
 
  return(context);
 }
@@ -77,7 +81,8 @@ io_chunk *io_init_chunk_decode(void)
 {
  io_chunk *context=(io_chunk*)calloc(1,sizeof(io_chunk));
 
- context->doing_head=3;         /* already skipped the first CRLF */
+ context->state=doing_head;
+ context->ht_bytenr=3;         /* already skipped the first CRLF */
 
  return(context);
 }
@@ -91,7 +96,7 @@ io_chunk *io_init_chunk_decode(void)
 
 void destroy_io_chunk(io_chunk *context)
 {
-  if(context->chunk_buffer) free(context->chunk_buffer);
+  if(context->chunk_buffer) destroy_io_buffer(context->chunk_buffer);
   free(context);
 }
 
@@ -110,9 +115,11 @@ void destroy_io_chunk(io_chunk *context)
 
 int io_chunk_encode(io_buffer *in,io_chunk *context,io_buffer *out)
 {
- int chunk_size;
+ io_buffer *chunk_buffer=context->chunk_buffer;
+ size_t nchunkbuf,chunk_size;
 
- chunk_size=context->chunk_buffer_len;
+ if(iobuf_isempty(chunk_buffer)) iobuf_reset(chunk_buffer);
+ chunk_size=nchunkbuf=iobuf_numbytes(chunk_buffer);
 
  if(in) {
    int numbytes=iobuf_numbytes(in);
@@ -120,41 +127,47 @@ int io_chunk_encode(io_buffer *in,io_chunk *context,io_buffer *out)
 
    /* If insufficient data buffer internally */
 
-   if(chunk_size<MIN_CHUNK_SIZE)
+   if(chunk_size<chunk_buffer->size && chunk_buffer->rear+numbytes<=chunk_buffer->size)
      {
-       memcpy(context->chunk_buffer+context->chunk_buffer_len,iobuf_datastart(in),numbytes);
+       memcpy(chunk_buffer->data+chunk_buffer->rear,iobuf_datastart(in),numbytes);
        in->front += numbytes;
-       context->chunk_buffer_len += numbytes;
+       chunk_buffer->rear += numbytes;
 
        return(0);
      }
  }
 
- /* Don't output a chunk smaller than the minimum. */
  if(iobuf_isempty(out)) iobuf_reset(out);
- if((out->size-out->rear)<(chunk_size+16))
-    chunk_size=(out->size-out->rear)-16;
+ {
+   size_t remout=out->size-out->rear;
+   /* unsigned arithmetic, be careful. */
+   if(remout<MAXCHUNKPADDING) return 0;
+   remout -= MAXCHUNKPADDING;
+   if(chunk_size>remout)
+     chunk_size=remout;
+ }
 
- if(chunk_size<(in?MIN_CHUNK_SIZE:context->chunk_buffer_len))
+ /* Don't output a chunk smaller than the minimum. */
+ if(chunk_size<(in?chunk_buffer->size:nchunkbuf))
    return(0);
 
- /* assertion: chunk_size>=context->chunk_buffer_len */
+ /* assertion: chunk_size>= nchunkbuf */
 
- out->rear += sprintf(out->data+out->rear,"%x\r\n",chunk_size);
+ out->rear += sprintf(out->data+out->rear,"%x\r\n",(unsigned)chunk_size);
 
  /* Output all of the internal buffer. */
 
- if(context->chunk_buffer_len>0)
+ if(nchunkbuf>0)
    {
-    memcpy(out->data+out->rear,context->chunk_buffer,context->chunk_buffer_len);
-    out->rear += context->chunk_buffer_len;
-    chunk_size -= context->chunk_buffer_len;
-    context->chunk_buffer_len=0;
+    memcpy(out->data+out->rear,iobuf_datastart(chunk_buffer),nchunkbuf);
+    chunk_buffer->front += nchunkbuf;
+    out->rear += nchunkbuf;
+    chunk_size -= nchunkbuf;
    }
 
  /* If there is more to output then use the input buffer */
 
- if(in && chunk_size>0)
+ if(chunk_size>0)
    {
     memcpy(out->data+out->rear,iobuf_datastart(in),chunk_size);
     in->front += chunk_size;
@@ -182,7 +195,7 @@ int io_chunk_encode(io_buffer *in,io_chunk *context,io_buffer *out)
 
 int io_chunk_decode(io_buffer *in,io_chunk *context,io_buffer *out)
 {
- int numbytes;
+ size_t numbytes;
 
  /* If there is no input data then we have finished early. */
 
@@ -196,35 +209,35 @@ int io_chunk_decode(io_buffer *in,io_chunk *context,io_buffer *out)
      numbytes=iobuf_numbytes(in);
     /* If parsing a header then do that */
 
-    if(context->doing_head)
+    if(context->state==doing_head)
       {
        int nb=parse_chunk_head(context,iobuf_datastart(in),numbytes);
 
-       if(nb<0)
+       if(nb<0) /* error */
           return(nb);
 
        in->front += nb;
-       if(nb==numbytes)
+       if(nb==numbytes) /* read all bytes, need more */
           return(0);
       }
 
     /* else if parsing a trailer then do that */
 
-    else if(context->doing_trailer)
+    else if(context->state==doing_trailer)
       {
        int nb=parse_chunk_trailer(context,iobuf_datastart(in),numbytes);
 
-       if(nb<0)
+       if(nb<0) /* error */
           return(nb);
 
        in->front += nb;
-       if(nb==numbytes)
-          return(0);
+       if(nb==numbytes) /* read all bytes, may need more */
+          return(context->state==iochunk_done);
       }
 
     /* else if parsing a chunk do that */
 
-    else if(context->doing_chunk)
+    else if(context->state==doing_chunk)
       {
        int chunk_size=numbytes;
 
@@ -234,8 +247,11 @@ int io_chunk_decode(io_buffer *in,io_chunk *context,io_buffer *out)
        if(chunk_size>context->remain)
           chunk_size=context->remain;
 
-       if(chunk_size>(out->size-out->rear))
-          chunk_size=out->size-out->rear;
+       {
+	 size_t remout=out->size-out->rear;
+	 if(chunk_size>remout)
+	   chunk_size=remout;
+       }
 
        if(chunk_size>0)
          {
@@ -247,8 +263,8 @@ int io_chunk_decode(io_buffer *in,io_chunk *context,io_buffer *out)
 
           if(context->remain==0)
             {
-             context->doing_chunk=0;
-             context->doing_head=1;
+             context->state=doing_head;
+             context->ht_bytenr=1;
             }
          }
       }
@@ -277,10 +293,12 @@ int io_chunk_decode(io_buffer *in,io_chunk *context,io_buffer *out)
 
 int io_finish_chunk_encode(io_chunk *context,io_buffer *out)
 {
- if(context->chunk_buffer_len) {
+ io_buffer *chunk_buffer=context->chunk_buffer;
+
+ if(!iobuf_isempty(chunk_buffer)) {
    io_chunk_encode(NULL,context,out);
 
-   if(context->chunk_buffer_len)
+   if(!iobuf_isempty(chunk_buffer))
      return(1);
  }
 
@@ -316,10 +334,10 @@ int io_finish_chunk_decode(io_chunk *context,/*@unused@*/ io_buffer *out)
 
 
 /*+ For conversion from hex string to integer. +*/
-static unsigned char unhexstring[64]={ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0,  /* 0x30-0x3f "0123456789:;<=>?" */
-                                       0,10,11,12,13,14,15, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x40-0x4f "@ABCDEFGHIJKLMNO" */
-                                       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x50-0x5f "PQRSTUVWXYZ[\]^_" */
-                                       0,10,11,12,13,14,15, 0, 0, 0, 0, 0, 0, 0, 0, 0}; /* 0x60-0x6f "`abcdefghijklmno" */
+static const unsigned char unhexstring[64]={ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0,  /* 0x30-0x3f "0123456789:;<=>?" */
+                                             0,10,11,12,13,14,15, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x40-0x4f "@ABCDEFGHIJKLMNO" */
+                                             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  /* 0x50-0x5f "PQRSTUVWXYZ[\]^_" */
+                                             0,10,11,12,13,14,15, 0, 0, 0, 0, 0, 0, 0, 0, 0}; /* 0x60-0x6f "`abcdefghijklmno" */
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -329,32 +347,32 @@ static unsigned char unhexstring[64]={ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0,
 
   io_chunk *context The chunk context information.
 
-  char *buffer The buffer of new data.
+  const char *buffer The buffer of new data.
 
-  int n The amount of new data.
+  size_t n The amount of new data.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int parse_chunk_head(io_chunk *context,char *buffer,int n)
+static int parse_chunk_head(io_chunk *context,const char *buffer,size_t n)
 {
- unsigned char *p0=buffer,*p=buffer;
+ const unsigned char *p0=(const unsigned char *)buffer,*p=(const unsigned char *)buffer;
 
  while(n>0)
    {
-    switch(context->doing_head)
+    switch(context->ht_bytenr)
       {
       case 1:                   /* CR from previous chunk */
        if(*p!='\r')
          {set_error("not chunked encoding; not CR");return(-1);}
-       context->doing_head++;n--;p++;
+       context->ht_bytenr++;n--;p++;
        break;
       case 2:                   /* LF from previous chunk */
        if(*p!='\n')
          {set_error("not chunked encoding; not LF");return(-1);}
-       context->doing_head++;n--;p++;
+       context->ht_bytenr++;n--;p++;
        break;
       case 3:                   /* length byte 1 */
        if(isxdigit(*p))
-         {context->doing_head++;context->remain=unhexstring[*p-48];}
+         {context->ht_bytenr++;context->remain=unhexstring[*p-48];}
        else if(*p==' ')
           ;
        else
@@ -365,9 +383,9 @@ static int parse_chunk_head(io_chunk *context,char *buffer,int n)
        if(isxdigit(*p))
           context->remain=(context->remain<<4)+unhexstring[*p-48];
        else if(*p==';')
-          context->doing_head=5;
+          context->ht_bytenr=5;
        else if(*p=='\r')
-          context->doing_head=6;
+          context->ht_bytenr=6;
        else if(*p==' ')
           ;
        else
@@ -376,12 +394,12 @@ static int parse_chunk_head(io_chunk *context,char *buffer,int n)
        break;
       case 5:                   /* chunk extension */
        if(*p=='\r')
-          context->doing_head=6;
+          context->ht_bytenr=6;
        n--;p++;
        break;
       case 6:                   /* LF */
        if(*p=='\n')
-          context->doing_head=0;
+          context->ht_bytenr=0;
        else
          {set_error("not chunked encoding; not LF");return(-1);}
        n--;p++;
@@ -391,12 +409,14 @@ static int parse_chunk_head(io_chunk *context,char *buffer,int n)
       }
    }
 
- if(context->doing_head==0)
+ if(context->ht_bytenr==0)
    {
     if(context->remain)
-       context->doing_chunk=1;
-    else
-       context->doing_trailer=1;
+       context->state=doing_chunk;
+    else {
+       context->state=doing_trailer;
+       context->ht_bytenr=1;
+    }
    }
 
  return(p-p0);
@@ -410,50 +430,53 @@ static int parse_chunk_head(io_chunk *context,char *buffer,int n)
 
   io_chunk *context The chunk context information.
 
-  char *buffer The buffer of new data.
+  const char *buffer The buffer of new data.
 
-  int n The amount of new data.
+  size_t n The amount of new data.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int parse_chunk_trailer(io_chunk *context,char *buffer,int n)
+static int parse_chunk_trailer(io_chunk *context,const char *buffer,size_t n)
 {
- unsigned char *p0=buffer,*p=buffer;
+ const unsigned char *p0=(const unsigned char *)buffer,*p=(const unsigned char *)buffer;
 
  while(n>0)
    {
-    switch(context->doing_trailer)
+    switch(context->ht_bytenr)
       {
       case 1:                   /* trailer text first char */
        if(*p=='\r')
          {
-          context->doing_trailer=4;
+          context->ht_bytenr=4;
           break;
          }
-       context->doing_trailer++;n--;p++;
+       context->ht_bytenr++;n--;p++;
        break;
       case 2:                   /* trailer text other chars or CR */
        if(*p=='\r')
-          context->doing_trailer++;
+          context->ht_bytenr++;
        n--;p++;
        break;
       case 3:                   /* trailer text LF */
        if(*p!='\n')
          {set_error("not chunked encoding; not LF");return(-1);}
-       context->doing_trailer=1;
+       context->ht_bytenr=1;
        n--;p++;
        break;
       case 4:                   /* final CR */
-       context->doing_trailer++;n--;p++;
+       context->ht_bytenr++;n--;p++;
        break;
       case 5:                   /* final LF */
        if(*p!='\n')
          {set_error("not chunked encoding; not LF");return(-1);}
-       context->doing_trailer=0;n--;p++;
+       context->ht_bytenr=0;n--;p++;
        break;
       case 0:                   /* finished */
        n=0;
       }
    }
+
+ if(context->ht_bytenr==0)
+   context->state=iochunk_done;
 
  return(p-p0);
 }
@@ -462,10 +485,10 @@ static int parse_chunk_trailer(io_chunk *context,char *buffer,int n)
 /*++++++++++++++++++++++++++++++++++++++
   Set the error status when there is a chunk decoding error.
 
-  char *msg The error message.
+  const char *msg The error message.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void set_error(char *msg)
+static void set_error(const char *msg)
 {
  errno=ERRNO_USE_IO_ERRNO;
 

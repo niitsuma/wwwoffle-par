@@ -264,7 +264,7 @@ int main(int argc,char** argv)
      for(i=0;i<nrdirs;++i) {
        char *fname=rdirs[i];
        char *slash=strrchr(fname,'/');
-       char *url=FileNameToURL(slash?slash+1:fname);
+       char *url=FileNameToUrl(slash?slash+1:fname);
 
        if(url) {
 	 if(!test)
@@ -344,7 +344,7 @@ int main(int argc,char** argv)
 	 if(!strcmp_litbeg(special[i],"prev")) n=NUM_PREVTIME_DIR;
 
 	 for(j=1; j<=(n?n:1); ++j) {
-	   char dbuf[sizeof("prevtime")+10];
+	   char dbuf[sizeof("prevtime")+MAX_INT_STR];
 
 	   if(n) {
 	     sprintf(dbuf,"%s%u",special[i],(unsigned)j);
@@ -487,7 +487,7 @@ static void ConvertDir(char *dirname)
     if(!stat(ent->d_name,&buf) && S_ISREG(buf.st_mode) &&
        (*ent->d_name=='D' || *ent->d_name=='O') )
       {
-       char *url=FileNameToURL(ent->d_name);
+       char *url=FileNameToUrl(ent->d_name);
 
        if(url) {
 	 if(!test) {

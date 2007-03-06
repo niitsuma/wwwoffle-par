@@ -1,4 +1,4 @@
-          WWWOFFLE - World Wide Web Offline Explorer - Version 2.7
+          WWWOFFLE - World Wide Web Offline Explorer - Version 2.9
           ========================================================
 
 
@@ -27,49 +27,20 @@ program that are described in this document; installation, digging and
 searching.
 
 
-Installing ht://Dig
--------------------
+Getting ht://Dig
+----------------
 
-Note: If you already have version 3.1.0b4 or later of htdig installed and
-      working then you can skip this section, but see the next section.
+ht://Dig is available from the web site
 
-To be able to use this program it must be installed.  The instructions below
-give a step-by-step guide to this process assuming that version 3.1.0b4 of
-ht://Dig is used, later versions should also work.
+        http://www.htdig.org/
 
-1) Get the ht://Dig source code
+You need to have version 3.1.0b4 or later of htdig.
 
-Download the source for the ht://Dig programs from
-
-        http://www.htdig.org/files/
+No special compile-time configuration of htdig is required to be able to use it
+with WWWOFFLE.
 
 
-2) Unpack the source code
-
-Use
-
-        tar -xvzf htdig-3.1.0b4.tar.gz
-
-to create the directory htdig-3.1.0b4 with the program source files in.
-
-
-3) Configure the ht://Dig program
-
-Move to the htdig-3.1.0b4 directory and run the configuration program
-
-        cd htdig-3.1.0b4
-        ./configure
-
-
-4) Compile ht://Dig
-
-Run make to compile htdig
-
-        make
-        make install
-
-This will compile and install it.  Any problems at this stage will require the
-use of the ht://Dig documentation to solve.
+I tested with version 3.1.6 using the official Debian package.
 
 
 Configure ht://Dig to run with WWWOFFLE

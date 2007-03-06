@@ -5,7 +5,7 @@
 
 Available WWWOFFLE Variables (all with a '$' prefix).
 
-localhost = The hostname of the server running wwwoffled (='$localhost').
+localurl  = The root URL of the server running wwwoffled (='$localurl').
 version   = The version of the WWWOFFLE server (='$version').
 type      = The type of index that was asked for (='$type').
             One of: '' outgoing, monitor, lasttime, prevtime, lastout, prevout,
@@ -32,18 +32,19 @@ $type?=prevtime{<TITLE>WWWOFFLE Index - Previous Time Online Pages ($subtype)</T
 $type?=lastout {<TITLE>WWWOFFLE Index - Last Time Outgoing Pages</TITLE>}
 $type?=prevout {<TITLE>WWWOFFLE Index - Previous Time Outgoing Pages ($subtype)</TITLE>}
 $type?=http    {<TITLE>WWWOFFLE Index - $type://$subtype</TITLE>}
+$type?=https   {<TITLE>WWWOFFLE Index - $type://$subtype</TITLE>}
 $type?=ftp     {<TITLE>WWWOFFLE Index - $type://$subtype</TITLE>}
 $type?=finger  {<TITLE>WWWOFFLE Index - $type://$subtype</TITLE>}
 $type?         {<TITLE>WWWOFFLE Index - $type</TITLE>}
                {<TITLE>WWWOFFLE Index - Main Index</TITLE>}
-<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
+<LINK href="$localurl/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
 <BODY class="wwwoffle-message">
 
 $typesubtype=$type$subtype
 $type?=prevtime{$type=$type$subtype $subtype=} $type?=prevout{$type=$type$subtype $subtype=}{}
-$typesubtype?=http{$type=$type/} $typesubtype?=ftp{$type=$type/} $typesubtype?=finger{$type=$type/}{}
+$typesubtype?=http{$type=$type/} $typesubtype?=https{$type=$type/} $typesubtype?=ftp{$type=$type/} $typesubtype?=finger{$type=$type/}{}
 $subtype?{$subtype=/$subtype}{}
 
 <!-- Standard WWWOFFLE Message Page Header Start -->
@@ -65,6 +66,7 @@ $type?=monitor {<strong>[Monitored]</strong>}         {<a href="/index/monitor/?
 $type?=lasttime{<strong>[Last&nbsp;Time]</strong>}    {<a href="/index/lasttime/?sort=$sort$delete$refresh$monitor$all$config$info$title" title="View the pages that were fetched last time online">[Last&nbsp;Time]</a>}
 $type?=lastout {<strong>[Last&nbsp;Outgoing]</strong>}{<a href="/index/lastout/?sort=$sort$delete$refresh$monitor$all$config$info$title" title="View the requests that were fetched the last time online">[Last&nbsp;Outgoing]</a>}
 $type?=http/   {<strong>[http]</strong>}              {<a href="/index/http/?sort=$sort$delete$refresh$monitor$all$config$info$title" title="List all of the HTTP servers that have pages cached">[http]</a>}
+$type?=https/  {<strong>[https]</strong>}             {<a href="/index/https/?sort=$sort$delete$refresh$monitor$all$config$info$title" title="List all of the HTTP servers that have pages cached">[https]</a>}
 $type?=ftp/    {<strong>[ftp]</strong>}               {<a href="/index/ftp/?sort=$sort$delete$refresh$monitor$all$config$info$title" title="List all of the FTP servers that have pages cached">[ftp]</a>}
 $type?=finger/ {<strong>[finger]</strong>}            {<a href="/index/finger/?sort=$sort$delete$refresh$monitor$all$config$info$title" title="List all of the Finger servers that have pages cached">[finger]</a>}
 <br>

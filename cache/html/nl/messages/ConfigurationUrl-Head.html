@@ -5,7 +5,7 @@
 
 Available WWWOFFLE Variables (all with a '$' prefix).
 
-localhost = The hostname of the server running wwwoffled (='$localhost').
+localurl  = The root URL of the server running wwwoffled (='$localurl').
 version   = The version of the WWWOFFLE server (='$version').
 wildcard  = A flag to indicate if there is a wildcard set (='$wildcard').
 url       = The URL that this applies to (= '$url').
@@ -19,7 +19,7 @@ args      = The URL args (= '$args').
 
 <HEAD>
 <TITLE>WWWOFFLE - Interactieve Configuratie Pagina - URL $url</TITLE>
-<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
+<LINK href="$localurl/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
 <BODY class="wwwoffle-message">
@@ -48,7 +48,7 @@ algemene URL maken met wildcards (jokers), zoals in het formulier hieronder
 getoond.
 
 <p>
-<form action="http://$localhost/configuration/editurl" method="POST">
+<form action="$localurl/configuration/editurl" method="POST">
 
 <p>
 Protocol:

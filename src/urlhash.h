@@ -1,3 +1,16 @@
+/***************************************
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d-par.
+  Header file for URL hash table functions.
+
+  Written by Paul A. Rombouts.
+
+  This file Copyright (C) 2005  Paul A. Rombouts
+  It may be distributed under the GNU Public License, version 2, or
+  any higher version.  See section COPYING of the GNU Public license
+  for conditions under which this file may be redistributed.
+  ***************************************/
+
+
 #ifndef URLHASH_H
 #define URLHASH_H    /*+ To stop multiple inclusions. +*/
 

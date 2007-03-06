@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/iozlib.c 1.15 2004/01/17 16:27:51 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/iozlib.c 1.24 2006/10/02 18:43:17 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9b.
   Functions for file input and output with compression.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  Parts of this file Copyright (C) 2004,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -31,29 +33,33 @@
 #include "errors.h"
 
 
-/*+ The chunked encoding/compression error number. +*/
-extern int io_errno;
-
-/*+ The chunked encoding/compression error message string. +*/
-extern char *io_strerror;
-
-
 #if USE_ZLIB
 
+typedef enum _iozlib_state_t {
+  iozlib_null,
+  deflate_start,
+  doing_deflate,
+  deflate_done,
+  inflate_start,
+  doing_head,
+  doing_body,
+  doing_tail,
+  inflate_done
+} iozlib_state_t;
+
+
 /*+ The gzip header required to be output for compression +*/
-static char gzip_head[10]={0x1f,0x8b,8,0,0,0,0,0,0,0xff};
+static const unsigned char gzip_head[10]={0x1f,0x8b,8,0,0,0,0,0,0,0xff};
 
 
 /* Local functions */
 
 static void guess_init_zlib_uncompress(io_zlib *context,io_buffer *in);
 
-static int parse_gzip_head(io_zlib *context,char *buffer,int n);
-static int parse_gzip_tail(io_zlib *context,char *buffer,int n);
+static int parse_gzip_head(io_zlib *context,const char *buffer,size_t n);
+static int parse_gzip_tail(io_zlib *context,const char *buffer,size_t n);
 
-static void set_zerror(char *msg);
-
-#endif
+static void set_zerror(int err,const char *msg);
 
 
 /*--------------------------------------------------------------------------------
@@ -102,38 +108,26 @@ static void set_zerror(char *msg);
 
 io_zlib *io_init_zlib_compress(int type)
 {
-#if USE_ZLIB
-
  io_zlib *context=(io_zlib*)calloc(1,sizeof(io_zlib));
+ int err;
 
  context->type=1950+type; /* use the RFC number 0=zlib, 1=deflate, 2=gzip */
 
  if(context->type==1950) /* zlib */
-    io_errno=deflateInit(&context->stream,Z_DEFAULT_COMPRESSION);
+    err=deflateInit(&context->stream,Z_DEFAULT_COMPRESSION);
  else
-    io_errno=deflateInit2(&context->stream,Z_DEFAULT_COMPRESSION,Z_DEFLATED,-MAX_WBITS,MAX_MEM_LEVEL,Z_DEFAULT_STRATEGY);
+    err=deflateInit2(&context->stream,Z_DEFAULT_COMPRESSION,Z_DEFLATED,-MAX_WBITS,MAX_MEM_LEVEL,Z_DEFAULT_STRATEGY);
 
- if(io_errno!=Z_OK)
+ if(err!=Z_OK)
    {
-    set_zerror(context->stream.msg);
+    set_zerror(err,context->stream.msg);
     free(context);
     return(NULL);
    }
 
- if(context->type==1952) /* gzip */
-   {
-    context->insert_head=1;
-
-    context->crc=crc32(0L,Z_NULL,0);
-   }
+ context->state=deflate_start;
 
  return(context);
-
-#else /* !USE_ZLIB */
-
- return(NULL);
-
-#endif /* USE_ZLIB */
 }
 
 
@@ -147,8 +141,6 @@ io_zlib *io_init_zlib_compress(int type)
 
 io_zlib *io_init_zlib_uncompress(int type)
 {
-#if USE_ZLIB
-
  io_zlib *context=(io_zlib*)calloc(1,sizeof(io_zlib));
 
  context->type=1950+type; /* use the RFC number 0=zlib, 1=deflate, 2=gzip */
@@ -157,16 +149,26 @@ io_zlib *io_init_zlib_uncompress(int type)
     the specified compression method may be wrong. */
 
  return(context);
-
-#else /* !USE_ZLIB */
-
- return(NULL);
-
-#endif /* USE_ZLIB */
 }
 
 
-#if USE_ZLIB
+/*++++++++++++++++++++++++++++++++++++++
+  Destroy (deallocate) an io_zlib structure.
+
+  io_zlib *context The io_zlib to destroy.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+void destroy_io_zlib(io_zlib *context)
+{
+  if(context->state>=deflate_start && context->state<=deflate_done)
+    deflateEnd(&context->stream);
+  else if(context->state>=inflate_start && context->state<=inflate_done)
+    inflateEnd(&context->stream);
+
+  free(context);
+}
+
+
 /*++++++++++++++++++++++++++++++++++++++
   Initialise the uncompression context information based on guessing the real data format.
 
@@ -177,9 +179,9 @@ io_zlib *io_init_zlib_uncompress(int type)
 
 static void guess_init_zlib_uncompress(io_zlib *context,io_buffer *in)
 {
- unsigned char *bytes=iobuf_datastart(in);
- int numbytes=iobuf_numbytes(in);
- int type=1951;
+ unsigned char *bytes=(unsigned char*)iobuf_datastart(in);
+ size_t numbytes=iobuf_numbytes(in);
+ int type=1951,err;
 
  /* Guess the format of the data */
 
@@ -228,13 +230,13 @@ static void guess_init_zlib_uncompress(io_zlib *context,io_buffer *in)
  context->type=type;
 
  if(context->type==1950) /* zlib */
-    io_errno=inflateInit(&context->stream);
+    err=inflateInit(&context->stream);
  else
-    io_errno=inflateInit2(&context->stream,-MAX_WBITS);
+    err=inflateInit2(&context->stream,-MAX_WBITS);
 
- if(io_errno!=Z_OK)
+ if(err!=Z_OK)
    {
-    set_zerror(context->stream.msg);
+    set_zerror(err,context->stream.msg);
     return;
    }
 
@@ -242,18 +244,14 @@ static void guess_init_zlib_uncompress(io_zlib *context,io_buffer *in)
    {
     context->crc=crc32(0L,Z_NULL,0);
 
-    context->doing_head=1;
-    context->doing_body=0;
+    context->state=doing_head;
+    context->ht_bytenr=1;
    }
  else
    {
-    context->doing_head=0;
-    context->doing_body=1;
+    context->state=doing_body;
    }
-
- context->doing_tail=0;
 }
-#endif
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -270,45 +268,50 @@ static void guess_init_zlib_uncompress(io_zlib *context,io_buffer *in)
 
 int io_zlib_compress(io_buffer *in,io_zlib *context,io_buffer *out)
 {
-#if USE_ZLIB
- int numbytes;
+ size_t numbytes;
+ int err;
 
  if(iobuf_isempty(out)) iobuf_reset(out);
 
- if(context->insert_head)
-   {
-    if((out->size-out->rear)<sizeof(gzip_head))
+ if(context->state==deflate_start) {
+   if(context->type==1952) {
+     /* Insert gzip head */
+     if((out->size-out->rear)<sizeof(gzip_head))
        return(0);
 
-    memcpy(out->data+out->rear,gzip_head,sizeof(gzip_head));
+     memcpy(out->data+out->rear,gzip_head,sizeof(gzip_head));
 
-    out->rear+=sizeof(gzip_head);
+     out->rear+=sizeof(gzip_head);
 
-    context->insert_head=0;
+     context->crc=crc32(0L,Z_NULL,0);
    }
 
+   context->state=doing_deflate;
+ }     
+
  numbytes=iobuf_numbytes(in);
- context->stream.next_in=iobuf_datastart(in);
+ context->stream.next_in=(unsigned char*)iobuf_datastart(in);
  context->stream.avail_in=numbytes;
 
- context->stream.next_out=out->data+out->rear;
+ context->stream.next_out=(unsigned char*)(out->data+out->rear);
  context->stream.avail_out=out->size-out->rear;
 
- io_errno=deflate(&context->stream,Z_NO_FLUSH);
+ if(context->stream.avail_out==0)
+   return 0;
 
- if(io_errno!=Z_STREAM_END && io_errno!=Z_OK)
+ err=deflate(&context->stream,Z_NO_FLUSH);
+
+ if(err!=Z_STREAM_END && err!=Z_OK)
    {
-    set_zerror(context->stream.msg);
+    set_zerror(err,context->stream.msg);
     return(-1);
    }
 
  if(context->type==1952) /* gzip */
-   context->crc=crc32(context->crc,iobuf_datastart(in),numbytes-context->stream.avail_in);
+   context->crc=crc32(context->crc,(unsigned char*)iobuf_datastart(in),numbytes-context->stream.avail_in);
 
  in->front = in->rear-context->stream.avail_in;
  out->rear = out->size-context->stream.avail_out;
-
-#endif /* USE_ZLIB */
 
  return(0);
 }
@@ -328,32 +331,32 @@ int io_zlib_compress(io_buffer *in,io_zlib *context,io_buffer *out)
 
 int io_zlib_uncompress(io_buffer *in,io_zlib *context,io_buffer *out)
 {
-#if USE_ZLIB
- int numbytes=iobuf_numbytes(in);
+ size_t numbytes=iobuf_numbytes(in);
+ int err;
 
  /* If zlib is not initialised then gather bytes and try to guess. */
 
- if(!context->stream.state)
+ if(!context->state)
    {
     if(numbytes==0)
-      {io_errno=-1;set_zerror("no data");return(-1);}
+      return(1);
 
-    if(numbytes<=12 && numbytes!=context->lastlen)
+    if(numbytes<=12 && numbytes!=context->ht_bytenr)
       {
-       context->lastlen=numbytes;
+       context->ht_bytenr=numbytes;
        return(0);
       }
 
     guess_init_zlib_uncompress(context,in);
 
-    if(!context->stream.state)
-      {io_errno=-1;set_zerror("cannot initialise zlib uncompression");return(-1);}
+    if(!context->state)
+      {set_zerror(-1,"cannot initialise zlib uncompression");return(-1);}
    }
 
  /* Process the head, tail or body. */
 
  numbytes=iobuf_numbytes(in);
- if(context->doing_head) /* gzip */
+ if(context->state==doing_head) /* gzip */
    {
     int nb=parse_gzip_head(context,iobuf_datastart(in),numbytes);
 
@@ -364,7 +367,7 @@ int io_zlib_uncompress(io_buffer *in,io_zlib *context,io_buffer *out)
     if(nb==numbytes) /* read all bytes, need more */
        return(0);
    }
- else if(context->doing_tail) /* gzip */
+ else if(context->state==doing_tail) /* gzip */
    {
     int nb=parse_gzip_tail(context,iobuf_datastart(in),numbytes);
 
@@ -377,39 +380,39 @@ int io_zlib_uncompress(io_buffer *in,io_zlib *context,io_buffer *out)
     else /* bytes remaining, junk */
        return(1);
    }
- else if(!context->doing_body)
+ else if(context->state!=doing_body)
     return(1);
 
  numbytes=iobuf_numbytes(in);
- context->stream.next_in=iobuf_datastart(in);
+ context->stream.next_in=(unsigned char*)iobuf_datastart(in);
  context->stream.avail_in=numbytes;
 
  if(iobuf_isempty(out)) iobuf_reset(out);
- context->stream.next_out=out->data+out->rear;
+ context->stream.next_out=(unsigned char*)(out->data+out->rear);
  context->stream.avail_out=out->size-out->rear;
 
- io_errno=inflate(&context->stream,Z_SYNC_FLUSH);
+ err=inflate(&context->stream,Z_SYNC_FLUSH);
 
- if(io_errno!=Z_STREAM_END && io_errno!=Z_OK)
+ if(err==Z_STREAM_END)
    {
-    set_zerror(context->stream.msg);
+    context->state=inflate_done;
+    if(context->type==1952) { /* gzip */
+       context->state=doing_tail;
+       context->ht_bytenr=1;
+    }
+   }
+ else if(err!=Z_OK)
+   {
+    set_zerror(err,context->stream.msg);
     return(-1);
    }
 
- if(io_errno==Z_STREAM_END)
-   {
-    context->doing_body=0;
-    if(context->type==1952) /* gzip */
-       context->doing_tail=1;
-   }
 
  if(context->type==1952) /* gzip */
-    context->crc=crc32(context->crc,out->data+out->rear,out->size-out->rear-context->stream.avail_out);
+   context->crc=crc32(context->crc,(unsigned char*)(out->data+out->rear),out->size-out->rear-context->stream.avail_out);
 
  in->front = in->rear-context->stream.avail_in;
  out->rear = out->size-context->stream.avail_out;
-
-#endif /* USE_ZLIB */
 
  return(0);
 }
@@ -427,18 +430,26 @@ int io_zlib_uncompress(io_buffer *in,io_zlib *context,io_buffer *out)
 
 int io_finish_zlib_compress(io_zlib *context,io_buffer *out)
 {
-#if USE_ZLIB
-
+ int err;
  /* Finish deflating the buffer and writing it. */
 
- context->stream.next_in="";
+ context->stream.next_in=(unsigned char*)"";
  context->stream.avail_in=0;
 
  if(iobuf_isempty(out)) iobuf_reset(out);
+ context->stream.next_out=(unsigned char*)(out->data+out->rear);
  context->stream.avail_out=out->size-out->rear;
- context->stream.next_out=out->data+out->rear;
 
- io_errno=deflate(&context->stream,Z_FINISH);
+ if(context->stream.avail_out==0)
+    return(1);
+
+ err=deflate(&context->stream,Z_FINISH);
+
+ if(err!=Z_STREAM_END && err!=Z_OK)
+   {
+    set_zerror(err,context->stream.msg);
+    return(-1);
+   }
 
  out->rear=out->size-context->stream.avail_out;
 
@@ -466,21 +477,16 @@ int io_finish_zlib_compress(io_zlib *context,io_buffer *out)
     out->rear+=8;
    }
 
- io_errno=deflateEnd(&context->stream);
+ err=deflateEnd(&context->stream);
+ context->state=0;
 
- if(io_errno!=Z_OK)
+ if(err!=Z_OK)
    {
-    set_zerror(context->stream.msg);
+    set_zerror(err,context->stream.msg);
     return(-1);
    }
 
  return(0);
-
-#else /* !USE_ZLIB */
-
- return(-2);
-
-#endif /* USE_ZLIB */
 }
 
 
@@ -496,27 +502,20 @@ int io_finish_zlib_compress(io_zlib *context,io_buffer *out)
 
 int io_finish_zlib_uncompress(io_zlib *context,/*@unused@*/ io_buffer *out)
 {
-#if USE_ZLIB
+ int err;
 
- io_errno=inflateEnd(&context->stream);
+ err=inflateEnd(&context->stream);
+ context->state=0;
 
- if(io_errno!=Z_OK)
+ if(err!=Z_OK)
    {
-    set_zerror(context->stream.msg);
+    set_zerror(err,context->stream.msg);
     return(-1);
    }
 
  return(0);
-
-#else /* !USE_ZLIB */
-
- return(-2);
-
-#endif /* USE_ZLIB */
 }
 
-
-#if USE_ZLIB
 
 /*++++++++++++++++++++++++++++++++++++++
   Parse a gzip header.
@@ -525,40 +524,40 @@ int io_finish_zlib_uncompress(io_zlib *context,/*@unused@*/ io_buffer *out)
 
   io_zlib *context The zlib context information.
 
-  char *buffer The buffer of new data.
+  const char *buffer The buffer of new data.
 
-  int n The amount of new data.
+  size_t n The amount of new data.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int parse_gzip_head(io_zlib *context,char *buffer,int n)
+static int parse_gzip_head(io_zlib *context,const char *buffer,size_t n)
 {
- unsigned char *p0=buffer,*p=buffer;
+ const unsigned char *p=(const unsigned char*)buffer;
 
  if(n==0)
-   {io_errno=-1;set_zerror("truncated gzip header");return(-1);}
+   {set_zerror(-1,"truncated gzip header");return(-1);}
 
  while(n>0)
    {
-    switch(context->doing_head)
+    switch(context->ht_bytenr)
       {
       case 1:                   /* magic byte 1 */
        if(*p!=0x1f)
-         {io_errno=-1;set_zerror("not gzip format");return(-1);}
-       context->doing_head++;n--;p++;
+         {set_zerror(-1,"not gzip format");return(-1);}
+       context->ht_bytenr++;n--;p++;
        break;
       case 2:                   /* magic byte 2 */
        if(*p!=0x8b)
-         {io_errno=-1;set_zerror("not gzip format");return(-1);}
-       context->doing_head++;n--;p++;
+         {set_zerror(-1,"not gzip format");return(-1);}
+       context->ht_bytenr++;n--;p++;
        break;
       case 3:                   /* method byte */
        if(*p!=Z_DEFLATED)
-         {io_errno=-1;set_zerror("not gzip format");return(-1);}
-       context->doing_head++;n--;p++;
+         {set_zerror(-1,"not gzip format");return(-1);}
+       context->ht_bytenr++;n--;p++;
        break;
       case 4:                   /* flag byte */
        context->head_flag=*p;
-       context->doing_head++;n--;p++;
+       context->ht_bytenr++;n--;p++;
        break;
       case 5:                   /* time byte 0 */
       case 6:                   /* time byte 1 */
@@ -566,55 +565,55 @@ static int parse_gzip_head(io_zlib *context,char *buffer,int n)
       case 8:                   /* time byte 3 */
       case 9:                   /* xflags */
       case 10:                  /* os flag */
-       context->doing_head++;n--;p++;
+       context->ht_bytenr++;n--;p++;
        break;
       case 11:                  /* extra field length byte 1 */
        if(!(context->head_flag&0x04))
-         {context->doing_head=14;break;}
+         {context->ht_bytenr=14;break;}
        context->head_extra_len=*p;
-       context->doing_head++;n--;p++;
+       context->ht_bytenr++;n--;p++;
        break;
       case 12:                  /* extra field length byte 2 */
        context->head_extra_len+=*p<<8;
-       context->doing_head++;n--;p++;
+       context->ht_bytenr++;n--;p++;
        break;
       case 13:                  /* extra field bytes */
        if(context->head_extra_len==0)
-          context->doing_head++;
+          context->ht_bytenr++;
        context->head_extra_len--;
        n--;p++;
        break;
       case 14:                  /* orig name bytes */
        if(!(context->head_flag&0x08))
-         {context->doing_head++;break;}
+         {context->ht_bytenr++;break;}
        if(*p==0)
-          context->doing_head++;
+          context->ht_bytenr++;
        n--;p++;
        break;
       case 15:                  /* comment bytes */
        if(!(context->head_flag&0x10))
-         {context->doing_head++;break;}
+         {context->ht_bytenr++;break;}
        if(*p==0)
-          context->doing_head++;
+          context->ht_bytenr++;
        n--;p++;
        break;
       case 16:                  /* head crc byte 1 */
        if(!(context->head_flag&0x02))
-         {context->doing_head=0;break;}
-       context->doing_head++;n--;p++;
+         {context->ht_bytenr=0;break;}
+       context->ht_bytenr++;n--;p++;
        break;
       case 17:                  /* head crc byte 2 */
-       context->doing_head=0;n--;p++;
+       context->ht_bytenr=0;n--;p++;
        break;
       case 0:                   /* finished */
        n=0;
       }
    }
 
- if(context->doing_head==0)
-    context->doing_body=1;
+ if(context->ht_bytenr==0)
+    context->state=doing_body;
 
- return(p-p0);
+ return(p-(const unsigned char*)buffer);
 }
 
 
@@ -625,78 +624,82 @@ static int parse_gzip_head(io_zlib *context,char *buffer,int n)
 
   io_zlib *context The zlib context information.
 
-  char *buffer The buffer of new data.
+  const char *buffer The buffer of new data.
 
-  int n The amount of new data.
+  size_t n The amount of new data.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int parse_gzip_tail(io_zlib *context,char *buffer,int n)
+static int parse_gzip_tail(io_zlib *context,const char *buffer,size_t n)
 {
- unsigned char *p0=buffer,*p=buffer;
+ const unsigned char *p=(const unsigned char*)buffer;
 
  if(n==0)
-   {io_errno=-1;set_zerror("truncated gzip tail");return(-1);}
+   {set_zerror(-1,"truncated gzip tail");return(-1);}
 
  while(n>0)
    {
-    switch(context->doing_tail)
+    switch(context->ht_bytenr)
       {
       case 1:                   /* crc byte 1 */
        context->tail_crc=(unsigned long)*p;
-       context->doing_tail++;n--;p++;
+       context->ht_bytenr++;n--;p++;
        break;
       case 2:                   /* crc byte 2 */
        context->tail_crc+=(unsigned long)*p<<8;
-       context->doing_tail++;n--;p++;
+       context->ht_bytenr++;n--;p++;
        break;
       case 3:                   /* crc byte 3 */
        context->tail_crc+=(unsigned long)*p<<16;
-       context->doing_tail++;n--;p++;
+       context->ht_bytenr++;n--;p++;
        break;
       case 4:                   /* crc byte 4 */
        context->tail_crc+=(unsigned long)*p<<24;
-       context->doing_tail++;n--;p++;
+       context->ht_bytenr++;n--;p++;
        if(context->tail_crc!=context->crc)
-         {io_errno=-1;set_zerror("gzip crc error");return(-1);}
+         {set_zerror(-1,"gzip crc error");return(-1);}
        break;
       case 5:                   /* length byte 1 */
        context->tail_len=(unsigned long)*p;
-       context->doing_tail++;n--;p++;
+       context->ht_bytenr++;n--;p++;
        break;
       case 6:                   /* length byte 2 */
        context->tail_len+=(unsigned long)*p<<8;
-       context->doing_tail++;n--;p++;
+       context->ht_bytenr++;n--;p++;
        break;
       case 7:                   /* length byte 3 */
        context->tail_len+=(unsigned long)*p<<16;
-       context->doing_tail++;n--;p++;
+       context->ht_bytenr++;n--;p++;
        break;
       case 8:                   /* length byte 4 */
        context->tail_len+=(unsigned long)*p<<24;
-       context->doing_tail=0;n--;p++;
+       context->ht_bytenr=0;n--;p++;
        if(context->tail_len!=context->stream.total_out)
-         {io_errno=-1;set_zerror("gzip length error");return(-1);}
+         {set_zerror(-1,"gzip length error");return(-1);}
        break;
       case 0:                   /* finished */
        n=0;
       }
    }
 
- return(p-p0);
+ if(context->ht_bytenr==0)
+   context->state=inflate_done;
+
+ return(p-(const unsigned char*)buffer);
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Set the error status when there is a compression error.
 
-  char *msg The error message.
+  const char *msg The error message.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void set_zerror(char *msg)
+static void set_zerror(int err,const char *msg)
 {
  if(!msg)
     msg="Unknown error";
 
+ io_errno=err;
  errno=ERRNO_USE_IO_ERRNO;
 
  if(io_strerror)

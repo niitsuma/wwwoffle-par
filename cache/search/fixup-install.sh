@@ -10,7 +10,7 @@ localhost=$2
 
 #
 
-searches="htdig mnogosearch namazu"
+searches="htdig mnogosearch namazu hyperestraier"
 
 #
 

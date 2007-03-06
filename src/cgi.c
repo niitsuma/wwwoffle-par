@@ -1,13 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/cgi.c 1.18 2004/06/17 18:47:45 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/cgi.c 1.26 2005/10/11 18:34:15 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   CGI Execution functions.
   ******************/ /******************
   Written by Paul A. Rombouts
   Modified by Andrew M. Bishop
 
-  This file Copyright 2002,03,04 Paul A. Rombouts & Andrew M. Bishop
+  This file Copyright 2002,03,04,05 Paul A. Rombouts & Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -22,15 +22,6 @@
 #include <ctype.h>
 
 #include <unistd.h>
-/* The following declarations should be contained in unistd.h, but for some reason there are not on my system.
-   I list them here to avoid distracting warning messages when compiling with the -Wall option. */
-#if HAVE_GETRESUID
-int getresuid(uid_t *ruid, uid_t *euid, uid_t *suid);
-#endif
-#if HAVE_GETRESGID
-int getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid);
-#endif
-
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -85,7 +76,7 @@ extern char *proxy_user;
 extern int online;          /*+ The online / offline / autodial status. +*/
 
 
-/* A macro definition that makes environment variable setting a little easier. */
+/* Some macro definitions that makes environment variable setting a little easier. */
 #define putenv_string(str)			\
 {						\
   if(putenv(str) == -1) {			\
@@ -120,7 +111,7 @@ static int putenv_request(char *file, URL *Url, Header *request_head, /*@null@*/
   putenv_string("SERVER_SOFTWARE=WWWOFFLE/" WWWOFFLE_VERSION);
 
   {
-    char *localhost=GetLocalHost(0);
+    char *localhost=GetLocalHost();
 #   undef  CLEANUP_HANDLER
 #   define CLEANUP_HANDLER free(localhost)
     putenv_var_val("SERVER_NAME",localhost);
@@ -134,7 +125,7 @@ static int putenv_request(char *file, URL *Url, Header *request_head, /*@null@*/
   putenv_var_val("SERVER_PROTOCOL",request_head->version);
 
   {
-    char portstr[12];
+    char portstr[MAX_INT_STR+1];
     sprintf(portstr,"%d",ConfigInteger(HTTP_Port));
     putenv_var_val("SERVER_PORT",portstr);
   }
@@ -230,13 +221,13 @@ static int putenv_request(char *file, URL *Url, Header *request_head, /*@null@*/
 
   if(request_body)
     {
-      char length[12];
-      sprintf(length,"%d",request_body->length);
+      char length[MAX_INT_STR+1];
+      sprintf(length,"%lu",(unsigned long)request_body->length);
       putenv_var_val("CONTENT_LENGTH",length);
     }
 
   {
-    char onlinestr[12];
+    char onlinestr[MAX_INT_STR+1];
     sprintf(onlinestr,"%d",online);
     putenv_var_val("ONLINE",onlinestr);
   }

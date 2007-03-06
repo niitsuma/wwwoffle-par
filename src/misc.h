@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/misc.h 2.44 2004/01/17 16:22:18 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/misc.h 2.61 2006/01/08 10:27:22 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Miscellaneous HTTP / HTML functions.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -23,8 +25,23 @@
 #include <ctype.h>
 #include <stdint.h>
 
-/*+ A forward definition of the protocol type. +*/
-typedef struct _Protocol *ProtocolP;
+#include <unistd.h>
+
+#if TIME_WITH_SYS_TIME
+# include <sys/time.h>
+# include <time.h>
+#else
+# if HAVE_SYS_TIME_H
+#  include <sys/time.h>
+# else
+#  include <time.h>
+# endif
+#endif
+
+
+/*+ The longest string needed to contain an integer. +*/
+#define MAX_INT_STR 20  /* to hold a 64-bit unsigned long: 18446744073709551615ULL */
+#define MAX_HEX_STR 16  /* to hold a 64-bit hex respresentation. */
 
 typedef struct {
   uint32_t elem[4];
@@ -35,49 +52,50 @@ md5hash_t;
 /*+ A URL data type. +*/
 typedef struct _URL
 {
- char *name;                    /*+ The canonical URL for the object. +*/
+ char *name;                    /*+ The canonical URL for the object without the username/password. +*/
 
- char *link;                    /*+ A URL that will work for browsers (may point to name). +*/
-
- char *file;                    /*+ The URL that is used for generating the filename (may point to name). +*/
+ char *file;                    /*+ The URL that is used for generating the filename with the username/password (may point to name). +*/
 
  char *hostp;                   /*+ A pointer to the host in the url. +*/
  char *pathp;                   /*+ A pointer to the path in the url. +*/
  char *pathendp;                /*+ A pointer to the end of the path in url +*/
 
  char *proto;                   /*+ The protocol. +*/
- char *hostport;                /*+ host and port combination +*/
- char *host;                    /*+ The host (may point to hostport) +*/
- char *port;                    /*+ The port (points inside hostport, or is null) +*/
- int   portnum;                 /*+ The port (integer representation) +*/
+ char *hostport;                /*+ The host name and port number. +*/
  char *path;                    /*+ The path. +*/
- char *params;                  /*+ The parameters. +*/
  char *args;                    /*+ The arguments (also known as the query in RFCs). +*/
 
- ProtocolP Protocol;            /*+ The protocol. +*/
+ char *user;                    /*+ The username if supplied (or else NULL). +*/
+ char *pass;                    /*+ The password if supplied (or else NULL). +*/
 
- char *user;                    /*+ The username if supplied. +*/
- char *pass;                    /*+ The password if supplied. +*/
+ char *host;                    /*+ The host only part without the port (may point to hostport). +*/
+ char *port;                    /*+ The port if supplied (points inside hostport, or is null) +*/
+ int   portnum;                 /*+ The port (integer representation) +*/
 
- char *dir;                     /*+ The directory name for the host to avoid using ':' on Win32 (may point to host). +*/
+ char *private_link;            /*+ A local URL for non-proxyable protocols (may point to name).  Private data. +*/
+
+#ifdef __CYGWIN__
+ char *private_dir;             /*+ The directory name for the host to avoid using ':' on Win32 (may point to hostport).  Private data. +*/
+#endif
 
  md5hash_t hash;                /*+ The (binary) hash value used to make the filename for this URL +*/
  char hashvalid;                /*+ Set to true if the hash field contains the correct hash value. +*/
-
- char local;                    /*+ Set to true if the host is the localhost. +*/
 }
 URL;
+
 
 /*+ A request or reply header type. +*/
 typedef struct _Header Header;
 
+
 /*+ A request or reply body type. +*/
 typedef struct _Body
 {
- int length;                    /*+ The length of the content. +*/
+ size_t length;                 /*+ The length of the content. +*/
  char content[0];               /*+ The content itself. +*/
 }
 Body;
+
 
 /*+ A header value split into a list. +*/
 typedef struct _HeaderList HeaderList;
@@ -85,17 +103,30 @@ typedef struct _HeaderList HeaderList;
 
 /* in miscurl.c */
 
-URL /*@only@*/ /*@unique@*/ *SplitURL(const char *url);
-void ChangeURLPassword(URL *Url,/*@null@*/ char *user,/*@null@*/ char *pass);
-URL *CopyURL(URL *Url);
+URL *SplitURL(const char *url);
+
+#define REPLACEURLPROTO     1
+#define REPLACEURLHOSTPORT  2
+#define REPLACEURLPATH      4
+#define REPLACEURLARGS      8
+#define REPLACEURLUSER     16
+#define REPLACEURLPASS     32
+#define REPLACEURLALL (REPLACEURLPROTO|REPLACEURLHOSTPORT|REPLACEURLPATH|REPLACEURLARGS|REPLACEURLUSER|REPLACEURLPASS)
+
+URL /*@special@*/ *MakeModifiedURL(const URL *Url,int modflags,const char *proto,const char *hostport,const char *path,/*@null@*/ const char *args,/*@null@*/ const char *user,/*@null@*/ const char *pass) /*@allocates result@*/ /*@defines result->name,result->link,result->dir,result->file,result->hostp,result->pathp,result->proto,result->hostport,result->path,result->args,result->user,result->pass,result->host,result->port,result->private_link,result->private_dir,result->private_file@*/;
+
+#define CreateURL(proto,hostport,path,args,user,pass) MakeModifiedURL(NULL,REPLACEURLALL,proto,hostport,path,args,user,pass)
+#define CopyURL(Url) MakeModifiedURL(Url,0,NULL,NULL,NULL,NULL,NULL,NULL)
+
 void FreeURL(/*@special@*/ URL *Url) /*@releases Url@*/;
 
-char *LinkURL(URL *Url,char *link);
+void ChangePasswordURL(URL *Url,/*@null@*/ const char *user,/*@null@*/ const char *pass);
+URL /*@special@*/ *LinkURL(const URL *Url,const char *link) /*@allocates result@*/ /*@defines result->name,result->link,result->dir,result->file,result->hostp,result->pathp,result->proto,result->hostport,result->path,result->args,result->user,result->pass,result->host,result->port,result->private_link,result->private_dir,result->private_file@*/;
 
-char *CanonicaliseHost(char *host);
+char /*@special@*/ *CanonicaliseHost(const char *host) /*@allocates result@*/;
 void CanonicaliseName(char *name);
 
-inline static void SplitHostPort(char *hostport,char **host,int *hostlen,char **port)
+inline static void SplitHostPort(char *hostport,char **host,size_t *hostlen,char **port)
 {
   *port=NULL;
   if(*hostport=='[') {   /* IPv6 */
@@ -117,23 +148,6 @@ inline static void SplitHostPort(char *hostport,char **host,int *hostlen,char **
   }
 }
 
-inline static char *ExtractPort(char *hostport)
-{
-  if(*hostport=='[') {   /* IPv6 */
-    char *square=strchr(hostport,']');
-    if(square) {
-      if(*(square+1)==':') return square+2;
-    }
-  }
-  else {
-    char *colon=strchr(hostport,':');
-    if(colon)
-      return colon+1;
-  }
-
-  return NULL;
-}
-
 
 /* In miscencdec.c */
 
@@ -146,7 +160,7 @@ char /*@only@*/ *URLEncodePath(const char *str);
 char /*@only@*/ *URLEncodeFormArgs(const char *str);
 char /*@only@*/ *URLEncodePassword(const char *str);
 
-char /*@only@*/ **SplitFormArgs(char *str);
+char /*@only@*/ **SplitFormArgs(const char *str);
 
 char *TrimArgs(/*@returned@*/ char *str);
 
@@ -164,7 +178,8 @@ inline static int md5_cmp(md5hash_t *a, md5hash_t *b)
   return 0;
 }
 
-void MakeHash(const unsigned char *args, /*@out@*/ md5hash_t *h);
+void MakeHash(const char *args, unsigned len, /*@out@*/ md5hash_t *h);
+inline static void MakeStrHash(const char *args, md5hash_t *h) {MakeHash(args,strlen(args),h);}
 char *hashbase64encode(md5hash_t *h, unsigned char *buf, unsigned buflen);
 
 /* Added by Paul Rombouts:
@@ -172,7 +187,7 @@ char *hashbase64encode(md5hash_t *h, unsigned char *buf, unsigned buflen);
 inline static md5hash_t *geturlhash(URL *Url)
 {
   if(!(Url->hashvalid)) {
-    MakeHash((unsigned char *)Url->file,&Url->hash);
+    MakeStrHash(Url->file,&Url->hash);
     Url->hashvalid=1;
   }
   return &Url->hash;
@@ -183,7 +198,7 @@ inline static md5hash_t *geturlhash(URL *Url)
 inline static char *GetHash(URL *Url,char *buf, unsigned buflen)
 {
   if(!(Url->hashvalid)) {
-    MakeHash((unsigned char *)Url->file,&Url->hash);
+    MakeStrHash(Url->file,&Url->hash);
     Url->hashvalid=1;
   }
   return hashbase64encode(&Url->hash,(unsigned char *)buf,buflen);
@@ -194,11 +209,14 @@ inline static char *GetHash(URL *Url,char *buf, unsigned buflen)
 void RFC822Date_r(time_t t,int utc,char *buf);
 char /*@observer@*/ *RFC822Date(time_t t,int utc);
 time_t DateToTimeT(const char *date);
-void DurationToString_r(const long duration,char *buf);
+void DurationToString_r(const time_t duration,char *buf);
 
-unsigned char /*@only@*/ *Base64Decode(const unsigned char *str,/*@out@*/ unsigned *lp, unsigned char *buf, unsigned buflen);
-unsigned char /*@only@*/ *Base64Encode(const unsigned char *str,unsigned l, unsigned char *buf, unsigned buflen);
+unsigned char /*@only@*/ *Base64Decode(const unsigned char *str,/*@out@*/ size_t *lp, unsigned char *buf, size_t buflen);
+unsigned char /*@only@*/ *Base64Encode(const unsigned char *str,size_t l, unsigned char *buf, size_t buflen);
+#define base64declenmax(n) ((3*(n))/4)
 #define base64enclen(n) ((((n)+2)/3)*4)
+/*+ The length of the hash created for a cached name +*/
+#define CACHE_HASHED_NAME_LEN ((4*sizeof(md5hash_t)+2)/3)
 
 void URLReplaceAmp(char *string);
 

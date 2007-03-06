@@ -1,4 +1,4 @@
-          WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e
+          WWWOFFLE - World Wide Web Offline Explorer - Version 2.9b
           =========================================================
 
 
@@ -24,6 +24,7 @@ While Online
     - Conditional fetching to only get pages that have changed.
         - Based on expiration date, time since last fetched or once per session.
     - Non cached support for SSL (Secure Socket Layer e.g. https).
+    - Caching for https connections. (compile time option).
     - Can be used with one or more external proxies based on web page.
     - Control which pages cannot be accessed.
         - Allow replacement of blocked pages.
@@ -82,9 +83,10 @@ Convenience
         - Source code unmodified by WWWOFFLE.
     - Automatic proxy configuration with Proxy Auto-Config file.
     - Searchable cache with the addition of the ht://Dig, mnoGoSearch
-      (UdmSearch) or Namazu programs.
-    - Built in simple web-server for local pages.
-        - Allows CGI scripts
+      (UdmSearch), Namazu or Hyper Estraier programs.
+    - Built in simple web-server for local pages
+        - HTTP and HTTPS access (compile time option).
+        - Allows CGI scripts.
     - Timeouts to stop proxy lockups
         - DNS name lookups.
         - Remote server connection.
@@ -121,6 +123,7 @@ Security
         - Host access configured by hostname or IP address.
         - Optional proxy authentication for user level access control.
     - Optional password control for proxy management functions.
+    - HTTPS access to all proxy management web pages (compile time option).
     - Can censor incoming and outgoing HTTP headers to maintain user privacy.
 
 Configuration
@@ -133,25 +136,34 @@ Configuration
 Changes
 -------
 
-Since version 2.8d:
+Since version 2.9a:
 
 Bug Fixes:
- Remove some spurious error messages.  Fetching of an aliased page now works.
- Updated some documentation.  Improve display of page contents on info page.
+ Fix some string allocations.  Don't delete the lasttime cached spool file if
+ page was fetched in this session.  Fix HTML parsing of '\' inside or outside
+ quoted strings.  Make sure that files are truncated when opened.  Display
+ non-empty value in monitor page hour-of-day setting for default value.  Some
+ documentation updates.
 
 New Features:
- The wwwoffle-mv program now allows changing the URL path.
- Added a new option cache-control-max-age-0 to ignore 'Cache-Control: max-age=0'.
- Handle HEAD requests more intelligently when online.
+ Expired SSL certificates are deleted and replaced.
+
+
+*NOTE* *This only applies if WWWOFFLE is compiled with SSL/https support*
+       WWWOFFLE creates SSL certificates with a 1 year expiry period.  When they
+       expire web browsers will start to give errors.  If the WWWOFFLE root
+       Certificate Authority certificate expires then all sites will give SSL
+       errors.  Deleting the existing WWWOFFLE CA certificate from the browser
+       and installing the new one will fix this problem (the WWWOFFLE CA
+       certificate can be loaded from https://localhost:8443/certificates/root).
 
 
 Availability
 ------------
 
-Version 2.8e uploaded, but may not be available yet
+Version 2.9b uploaded
 
-FTP  server: ftp://ftp.ibiblio.org/pub/Linux/apps/www/servers/wwwoffle-2.8e.tgz
-HTTP server: http://www.gedanken.demon.co.uk/download-wwwoffle/wwwoffle-2.8e.tgz
+HTTP server: http://www.gedanken.demon.co.uk/download-wwwoffle/wwwoffle-2.9b.tgz
 
 Web page: http://www.gedanken.demon.co.uk/wwwoffle/
 
@@ -159,8 +171,8 @@ Web page: http://www.gedanken.demon.co.uk/wwwoffle/
 Author & Copyright
 ------------------
 
-This program is copyright Andrew M. Bishop 1996,97,98,99,2000,01,02,03,04,05
-(amb@gedanken.demon.co.uk) and distributed under GPL.
+This program is copyright Andrew M. Bishop 1996-2007 (amb@gedanken.demon.co.uk)
+and distributed under GPL.
 
 email: amb@gedanken.demon.co.uk
 [Please put wwwoffle in the subject line]

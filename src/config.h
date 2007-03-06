@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/config.h 2.103 2004/11/22 19:13:55 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/config.h 2.115 2006/04/06 18:13:38 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9a.
   Configuration file management functions.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -38,16 +40,12 @@ int ConfigInteger(/*@null@*/ ConfigItem item);
 #define ConfigBoolean(item) (ConfigInteger(item)!=0)
 /*@observer@*/ /*@null@*/ char *ConfigString(/*@null@*/ ConfigItem item);
 
-int ConfigIntegerURL(/*@null@*/ ConfigItem item,/*@null@*/ URL *Url);
-int ConfigIntegerProtoHostPort(/*@null@*/ ConfigItem item,char *proto,char *hostport);
+int ConfigIntegerURL(/*@null@*/ ConfigItem item,/*@null@*/ const URL *Url);
 #define ConfigBooleanURL(item,Url) (ConfigIntegerURL(item,Url)!=0)
-#define ConfigBooleanProtoHostPort(item,proto,hostport) (ConfigIntegerProtoHostPort(item,proto,hostport)!=0)
-/*@observer@*/ /*@null@*/ char *ConfigStringURL(/*@null@*/ ConfigItem item,/*@null@*/ URL *Url);
-/*@observer@*/ /*@null@*/ char *ConfigStringProtoHostPort(/*@null@*/ ConfigItem item,char *proto,char *hostport);
+/*@observer@*/ /*@null@*/ char *ConfigStringURL(/*@null@*/ ConfigItem item,/*@null@*/ const URL *Url);
 
-int ConfigBooleanMatchURL(/*@null@*/ ConfigItem item,URL *Url);
-int ConfigBooleanMatchProtoHostPort(/*@null@*/ ConfigItem item,char *proto,char *hostport);
-char *ConfigHeaderMatch(ConfigItem item, URL *Url, Header *header);
+int ConfigBooleanMatchURL(/*@null@*/ ConfigItem item,const URL *Url);
+char *ConfigHeaderMatch(ConfigItem item, const URL *Url, Header *header);
 
 
 /* StartUp section */
@@ -60,6 +58,9 @@ extern /*@null@*/ ConfigItem Bind_IPv6;
 
 /*+ The port number to use for the HTTP proxy port. +*/
 extern /*@null@*/ ConfigItem HTTP_Port;
+
+/*+ The port number to use for the HTTPS proxy port. +*/
+extern /*@null@*/ ConfigItem HTTPS_Port;
 
 /*+ The port number to use for the wwwoffle port. +*/
 extern /*@null@*/ ConfigItem WWWOFFLE_Port;
@@ -101,9 +102,6 @@ extern /*@null@*/ ConfigItem ConnectTimeout;
 /*+ The option to retry a failed connection. +*/
 extern /*@null@*/ ConfigItem ConnectRetry;
 
-/*+ The list of allowed SSL port numbers. +*/
-extern /*@null@*/ ConfigItem SSLAllowPort;
-
 /*+ The permissions for creation of +*/
 extern /*@null@*/ ConfigItem DirPerm,             /*+ directories. +*/
                              FilePerm;            /*+ files. +*/
@@ -137,6 +135,9 @@ extern /*@null@*/ ConfigItem CacheControlNoCacheOnline;
 
 /*+ The option to allow or ignore the 'Cache-Control: max-age=0' request online. +*/
 extern /*@null@*/ ConfigItem CacheControlMaxAge0Online;
+
+/*+ The option to force a refresh if the request contains a cookie when online. +*/
+extern /*@null@*/ ConfigItem CookiesForceRefreshOnline;
 
 /*+ The maximum age of a cached page to use in preference while online. +*/
 extern /*@null@*/ ConfigItem RequestChanged;
@@ -203,6 +204,24 @@ extern /*@null@*/ ConfigItem ConfirmRequests;
 
 /*+ The list of URLs not to request. +*/
 extern /*@null@*/ ConfigItem DontRequestOffline;
+
+
+/* SSLOptions section */
+
+/*+ The option to allow caching of SSL connections. +*/
+extern /*@null@*/ ConfigItem SSLEnableCaching;
+
+/*+ The list of allowed SSL hosts and port numbers when tunneling. +*/
+extern /*@null@*/ ConfigItem SSLAllowTunnel;
+
+/*+ The list of disallowed SSL hosts and port numbers when tunneling. +*/
+extern /*@null@*/ ConfigItem SSLDisallowTunnel;
+
+/*+ The list of allowed SSL hosts and port numbers when caching. +*/
+extern /*@null@*/ ConfigItem SSLAllowCache;
+
+/*+ The list of disallowed SSL hosts and port numbers when caching. +*/
+extern /*@null@*/ ConfigItem SSLDisallowCache;
 
 
 /* FetchOptions section */
@@ -294,6 +313,9 @@ extern /*@null@*/ ConfigItem DisableHTMLMarquee;
 
 /*+ The option to disable Shockwave Flash animations. +*/
 extern /*@null@*/ ConfigItem DisableHTMLFlash;
+
+/*+ The option to disable any <iframe> tags. +*/
+extern /*@null@*/ ConfigItem DisableHTMLIFrame;
 
 /*+ The option to disable (or modify) any <meta http-equiv=Refresh content=""> tags. +*/
 extern /*@null@*/ ConfigItem DisableHTMLMetaRefresh;
@@ -482,50 +504,52 @@ extern /*@null@*/ ConfigItem PurgeCompressAges;
 
 /* Options Section */
 
-int IsSSLAllowedPort(int port);
-int IsCGIAllowed(char *path);
+int IsSSLAllowed(URL *Url,int cached);
+int IsCGIAllowed(const char *path);
 
 
 /* LocalHost Section */
 
-char /*@special@*/ *GetLocalHost(int port) /*@defines result@*/;
-int IsLocalHostPort(char *hostport);
+void SetLocalPort(int port);
+char /*@special@*/ *GetLocalHost(void) /*@defines result@*/;
+char /*@special@*/ *GetLocalHostPort(void) /*@defines result@*/;
+char /*@special@*/ *GetLocalURL(void) /*@defines result@*/;
+int IsLocalHost(const URL *Url);
 
 
 /* LocalNet Section */
 
-int IsLocalNetHost(char *host);
-int IsLocalNetHostPort(char *hostport);
+int IsLocalNetHost(const char *host);
 
 
 /* AllowedConnectHosts Section */
 
-int IsAllowedConnectHost(char *host);
+int IsAllowedConnectHost(const char *host);
 
 
 /* AllowedConnectUsers Section */
 
-/*@null@*/ char *IsAllowedConnectUser(/*@null@*/ char *userpass);
-
+/*@null@*/ char *IsAllowedConnectUser(/*@null@*/ const char *userpass);
+#define IsAllowedConnectAllUsers (AllowedConnectUsers==NULL)
 
 /* DontCompress section */
 
-int NotCompressed(/*@null@*/ char *mime_type,/*@null@*/ char *path);
+int NotCompressed(/*@null@*/ const char *mime_type,/*@null@*/ const char *path);
 
 
 /* CensorHeader Section */
 
-char *CensoredHeader(ConfigItem confitem,URL *Url,char *key,/*@returned@*/ char *val);
+char *CensoredHeader(ConfigItem confitem,const URL *Url,const char *key,/*@returned@*/ char *val);
 
 
 /* MIMETypes Section */
 
-char /*@observer@*/ *WhatMIMEType(char *path);
+char /*@observer@*/ *WhatMIMEType(const char *path);
 
 
 /* Alias Section */
 
-int IsAliased(char *proto,char *hostport,char *path,/*@out@*/ char **new_proto,/*@out@*/ char **new_hostport,/*@out@*/ char **new_path);
+URL /*@null@*/ *GetAliasURL(const URL *Url);
 
 
 #endif /* CONFIG_H */

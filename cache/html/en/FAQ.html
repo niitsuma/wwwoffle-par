@@ -2,17 +2,17 @@
 <HTML>
 
 <HEAD>
-<TITLE>WWWOFFLE VERSION 2.8 - FREQUENTLY ASKED QUESTIONS AND ANSWERS</TITLE>
+<TITLE>WWWOFFLE VERSION 2.9 - FREQUENTLY ASKED QUESTIONS AND ANSWERS</TITLE>
 </HEAD>
 
 <BODY>
 
-<h1>WWWOFFLE VERSION 2.8 - FREQUENTLY ASKED QUESTIONS AND ANSWERS</h1>
+<h1>WWWOFFLE VERSION 2.9 - FREQUENTLY ASKED QUESTIONS AND ANSWERS</h1>
 
 <p>
 
 This file contains a list of frequently asked questions and their answers
-relating to WWWOFFLE version 2.8.
+relating to WWWOFFLE version 2.9.
 
 Not all of the questions here are real users questions, some of them have been
 made up to give some help to people trying to use the program who find that the
@@ -72,7 +72,7 @@ about this new version then you will by definition not find the answer here.
 
 This FAQ is also available on the WWWOFFLE homepage along with much other
 information about the program.
-<a href="http://www.gedanken.demon.co.uk/wwwoffle/version-2.8/">http://www.gedanken.demon.co.uk/wwwoffle/version-2.8/</a>
+<a href="http://www.gedanken.demon.co.uk/wwwoffle/version-2.9/">http://www.gedanken.demon.co.uk/wwwoffle/version-2.9/</a>
 <hr>
 <h2><a name="Section-1">Section 1 - What does WWWOFFLE do (and what it doesn't)</a></h2>
 <p>
@@ -94,7 +94,8 @@ finger : Yes
 https : Yes
         Since version 2.4 there has been support for transparent proxying of
         Secure Socket Layer (SSL) connections (this does not cache the data).
-        This includes the https protocol.
+        Since version 2.9 there has been optional compile-compile time support
+        for caching of https connections.
 </pre>
 <h3><a name="Q-1.2">Q 1.2   Does WWWOFFLE run on systems other than UNIX?</a></h3>
 <pre>
@@ -228,7 +229,7 @@ Proxy Authentication
    Proxy Authentication method, there is the added security risks of this.  It
    is basically the same as for the configuration file password, the usernames
    and passwords are in plaintext in the configuration file and the password is
-   send to the server using the same trivial encryption method.
+   sent to the server using the same trivial encryption method.
 
 WWWOFFLE server uid/gid
    The uid and gid of the wwwoffled server process can be controlled by the
@@ -255,10 +256,19 @@ The built in web server
    root (see WWWOFFLE server uid/gid item above).
 
 Accessing the cache
-   There is in general no problem with allowing users access to the cache
-   provided it is read only (but see URLs with password below).  The only
-   concern is that if purging is done using the access time of the files then
-   running grep on the cache will spoil this.
+   If users have read access to the cache then they will be able to read the
+   data that was stored for all users.  If users have write access to the cache
+   they will be able to insert data into the cache for any URL and to modify the
+   timestamps on files which may interfere with the purging operations.
+   Without read access to the cache the data is available only to any user who
+   knows the URL that the data was accessed from.  The indexes and the search
+   functions will help to make this data visible to all users if they are
+   enabled.
+
+Log Files
+   The WWWOFFLE log files may contain information about the URLs that have been
+   requested and the username / password that has been used.  This depends on
+   the log levels that are used and the permissions on the log files.
 
 URLs with Passwords
    The URLs that use usernames and passwords need to be stored in the cache.
@@ -266,6 +276,9 @@ URLs with Passwords
    uses a username/password in it can show up in the log file (with Debug or
    ExtraDebug levels only).  The files in the cache also contain the username/
    password information and should be made inaccessible to users for that reason.
+   The username and password are not available in the cache indexes or in the
+   results of the cache search functions although the contents of the pages will
+   be included in the search database.
 
 Accessing The Server
    Access to the WWWOFFLE server on the proxy port 8080 is limited to the IP
@@ -276,13 +289,26 @@ Accessing The Server
    being rejected.  This can lead to a denial of service attack where
    unauthorised hosts can keep WWWOFFLE busy and deny valid accesses.
 
-   If you are using Linux kernel v2.2 (v2.4 is different) then the ipchains
-   utility can be used to deny access to the proxy ports (see the ipchains HOWTO
-   for kernel compilation details).  The following two commands will prevent
-   access from anywhere other than localhost, use them with care!
+Secure Socket Layer Connections
+   By default the configuration file does not allow caching or tunnelling of
+   Secure Socket Layer (SSL) connections.
+   Changing options in the configuration file can allow tunnelling of
+   connections, this means that WWWOFFLE cannot see or store the decrypted
+   version of the data that is transfered.  There are no security problems with
+   this except for the possibility that the hostname and port number of the
+   secure server and may be stored in the log files.
+   If WWWOFFLE is compiled with the gnutls library then it is possible to
+   decrypt and re-encrypt the data and cache the un-encrypted data.  The data is
+   stored un-encrypted on the disk and may be more sensitive than other data.
+   Any read access to the cache or the use of the cache indexes can allow the
+   presence and contents of this data to be visible.
 
-   /sbin/ipchains -A input -i lo --dport 8080:8081 -p tcp -j ACCEPT
-   /sbin/ipchains -A input       --dport 8080:8081 -p tcp -j DENY -l
+SSL Certificates
+   To allow the caching of SSL connections and access to the WWWOFFLE cache
+   through https URLs there are a series of encryption keys and associated
+   certificates stored on the disk.  Access to the certificates for the WWWOFFLE
+   server will allow interception of the encrypted data or impersonation of the
+   WWWOFFLE server.
 </pre>
 <h3><a name="Q-2.5">Q 2.5   How can I have different configurations for different groups of users?</a></h3>
 <pre>
@@ -919,7 +945,7 @@ again.
 <h3><a name="Q-6.1">Q 6.1   Who wrote WWWOFFLE, When and Why?</a></h3>
 <pre>
 The WWWOFFLE program was written by Andrew M. Bishop &lt;amb@gedanken.demon.co.uk&gt;
-in 1996,97,98,99,2000,01,02.
+in 1996,97,98,99,2000,01,02,03,04,05,06.
 
 There is a WWWOFFLE home-page on the World Wide Web, available via the author's
 home-page at <a href="http://www.gedanken.demon.co.uk/">http://www.gedanken.demon.co.uk/</a> .  This is kept updated with news
@@ -950,7 +976,9 @@ new program features are the new configuration editing pages and the automatic
 selection of translated messages based on browser settings.  Version 2.8
 released in September 2003 includes the ability to use HTTP/1.1 chunked encoding
 and better support for compression.  The internally generated HTML pages are now
-HTML 4.01 compliant and include a stylesheet for easier customisation.
+HTML 4.01 compliant and include a stylesheet for easier customisation.  Version
+2.9 has a re-write of large parts of the internal code.  Also included is the
+option to compile with the gnutls library and allow caching of SSL connections.
 
 The Win32 version of the program was made possible by version beta-20 of the
 Cygwin development kit at the end of October 1998 when version 2.3e of WWWOFFLE

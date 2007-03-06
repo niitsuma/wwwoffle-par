@@ -1,17 +1,17 @@
-.\" $Header: /home/amb/wwwoffle/doc/RCS/wwwoffled.man 2.14 2003/12/04 19:49:19 amb Exp $
+.\" $Header: /home/amb/wwwoffle/doc/RCS/wwwoffled.man 2.15 2005/10/12 18:18:58 amb Exp $
 .\"
-.\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+.\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
 .\"
 .\"  Manual page for wwwoffled
 .\"
 .\"  Written by Andrew M. Bishop
 .\"
-.\"  This file Copyright 1997,98,99,2000,01,02,03 Andrew M. Bishop
+.\"  This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
 .\"  It may be distributed under the GNU Public License, version 2, or
 .\"  any higher version.  See section COPYING of the GNU Public license
 .\"  for conditions under which this file may be redistributed.
 .\"
-.TH wwwoffled 8 "December 4th, 2003"
+.TH wwwoffled 8 "October 12, 2005"
 
 .SH NAME
 
@@ -55,7 +55,7 @@ The pages that are stored in the cache can be indexed by using the URL
 http://localhost:8080/index/ to get a list of the hosts that have cached pages.
 The index allows sorting of the pages into time or alphabetical order, by
 following links from this page.  There is also indexes available showing the
-pages that have beem modified in the last week, those fetched last time online
+pages that have been modified in the last week, those fetched last time online
 and those requests that are waiting to be fetched next time online.
 .LP
 The functions available from the wwwoffle(1) program for fetching URLs are also
@@ -112,4 +112,4 @@ wwwoffle(1), wwwoffle.conf(5)
 
 .SH AUTHOR
 
-Andrew M. Bishop 1996,97,98,99,2000,01,02,03 (amb@gedanken.demon.co.uk)
+Andrew M. Bishop 1996,97,98,99,2000,01,02,03,04,05 (amb@gedanken.demon.co.uk)

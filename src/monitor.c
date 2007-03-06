@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/monitor.c 1.54 2004/09/28 16:25:30 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/monitor.c 1.60 2006/12/17 13:14:06 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   The functions for monitoring URLs.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1998,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2004,2005,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -61,10 +63,13 @@
 #include "errors.h"
 
 
-/*+ Need this for Win32 to use binary mode +*/
 #ifndef O_BINARY
+/*+ A work-around for needing O_BINARY with Win32 to use binary mode. +*/
 #define O_BINARY 0
 #endif
+
+
+/* Local functions */
 
 static void MonitorFormShow(int fd,char *request_args);
 static void MonitorFormParse(int fd,URL *Url,char *request_args,/*@null@*/ Body *request_body);
@@ -140,7 +145,7 @@ static void MonitorFormShow(int fd,char *request_args)
    }
 
  if(!strcmp(HofD,"100000000000000000000000"))
-    strcpy(hofdstr,"");
+    strcpy(hofdstr,"0");
  else
    {
     *hofdstr=0;
@@ -203,7 +208,7 @@ static void MonitorFormParse(int fd,URL *Url,char *request_args,Body *request_bo
  char mofy[13]="NNNNNNNNNNNN",*dofm=NULL,dofw[8]="NNNNNNN",*hofd=NULL;
  char MofY[13],DofM[32],DofW[8],HofD[25];
 
- if(!request_args && !request_body)
+ if((request_body && !request_body->length) || (!request_body && !request_args))
    {
     HTMLMessage(fd,404,"WWWOFFLE Monitor Form Error",NULL,"MonitorFormError",
                 "body",NULL,
@@ -407,11 +412,12 @@ static void MonitorFormParse(int fd,URL *Url,char *request_args,Body *request_bo
  else
    {
     Header *new_request_head=RequestURL(monUrl,NULL);
-    char *head=HeaderString(new_request_head,NULL);
+    size_t headlen;
+    char *head=HeaderString(new_request_head,&headlen);
 
     init_io(mfd);
 
-    write_string(mfd,head);
+    write_data(mfd,head,headlen);
 
     finish_io(mfd);
     close(mfd);
@@ -457,16 +463,15 @@ void RequestMonitoredPages(void)
 
  do
    {
-     struct stat buf; char *url;
+    struct stat buf; URL *Url;
 
     if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
        continue; /* skip . & .. */
 
     if(stat(ent->d_name,&buf))
       {PrintMessage(Inform,"Cannot stat file 'monitor/%s'; [%!s] race condition?",ent->d_name);return;}
-    else if(S_ISREG(buf.st_mode) && *ent->d_name=='O' && (url=FileNameToURL(ent->d_name)))
+    else if(S_ISREG(buf.st_mode) && *ent->d_name=='O' && (Url=FileNameToURL(ent->d_name)))
       {
-       URL *Url=SplitURL(url);
        int last,next;
 
        ChangeBackToSpoolDir();
@@ -482,7 +487,7 @@ void RequestMonitoredPages(void)
           int ifd=open(ent->d_name,O_RDONLY|O_BINARY);
 
           if(ifd==-1)
-             PrintMessage(Warning,"Cannot open monitored file 'monitor/%s' to read [%!s].",ent->d_name);
+             PrintMessage(Warning,"Cannot open monitored file 'monitor/%s' to read; [%!s].",ent->d_name);
           else
             {
              int ofd;
@@ -491,28 +496,26 @@ void RequestMonitoredPages(void)
 
              ChangeBackToSpoolDir();
 
-             ofd=OpenOutgoingSpoolFile(0);
+             ofd=OpenNewOutgoingSpoolFile();
 
              if(ofd==-1)
-                PrintMessage(Warning,"Cannot open outgoing spool file for monitored URL '%s'; [%!s].",url);
+                PrintMessage(Warning,"Cannot open outgoing spool file for monitored URL '%s'; [%!s].",Url->name);
              else
                {
-		int n;
-                char buffer[READ_BUFFER_SIZE];
-                /* URL *Url=SplitURL(url); */
+		ssize_t n;
+                char buffer[IO_BUFFER_SIZE];
 
                 init_io(ofd);
 
-                while((n=read_data(ifd,buffer,READ_BUFFER_SIZE))>0)
+                while((n=read_data(ifd,buffer,IO_BUFFER_SIZE))>0)
 		  if(write_data(ofd,buffer,n)<0) {
 		    PrintMessage(Warning,"Cannot write to outgoing file; disk full?");
 		    break;
 		  }
 
                 finish_io(ofd);
-                CloseOutgoingSpoolFile(ofd,Url);
+                CloseNewOutgoingSpoolFile(ofd,Url);
 
-                /* FreeURL(Url); */
                }
 
              chdir("monitor");
@@ -521,13 +524,13 @@ void RequestMonitoredPages(void)
              close(ifd);
 
 	     {
-	       local_URLToFileName(Url,'M',file)
-	       utime(file,NULL);
+	       local_URLToFileName(Url,'M',0,file)
+	       if(utime(file,NULL))
+		 PrintMessage(Warning,"Cannot change timestamp of monitored file 'monitor/%s'; [%!s].",file);
 	     }
             }
          }
 
-       /* free(url); */
        FreeURL(Url);
       }
    }

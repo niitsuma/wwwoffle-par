@@ -303,7 +303,7 @@ int main(int argc,char** argv)
        if(!strcmp_litbeg(special[i],"prev")) n=NUM_PREVTIME_DIR;
 
        for(j=1; j<=(n?n:1); ++j) {
-	 char dbuf[sizeof("prevtime")+10];
+	 char dbuf[sizeof("prevtime")+MAX_INT_STR];
 
 	 if(n) {
 	   sprintf(dbuf,"%s%u",special[i],(unsigned)j);
@@ -449,7 +449,7 @@ static void ConvertDir(char *dirname)
       {
        int tpos;
        md5hash_t *md5hash;
-       unsigned hlen;
+       size_t hlen;
        unsigned char hbuf[sizeof(md5hash_t)+1];
 
        tpos=strlen(ent->d_name)-1;

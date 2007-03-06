@@ -14,5 +14,5 @@ cd "$spooldir" || exit
     exit 1
 }
 
-find http ftp finger outgoing lastout prevout* lasttime prevtime* monitor -type f -name 'U*' -print0 |
+find http https ftp finger outgoing lastout prevout* lasttime prevtime* monitor -type f -name 'U*' -print0 |
   xargs -0 -r -e rm

@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/parse.c 2.117 2004/01/17 16:31:45 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/parse.c 2.134 2006/06/25 14:25:11 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Functions to parse the HTTP requests.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1996,97,98,99,2000,01,02,03 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -52,41 +54,42 @@ time_t OnlineTime=0;
 time_t OfflineTime=0;
 
 /*+ Headers from a request that can be re-used in automatically generated requests. +*/
-static char *reusable_headers[]={"User-Agent",
-                                 "Accept",
-                                 "Accept-Charset",
-                                 "Accept-Language",
-                                 "From",
-                                 "Proxy-Authorization"};
+static const char* const reusable_headers[]={"User-Agent",
+					     "Accept",
+					     "Accept-Charset",
+					     "Accept-Language",
+					     "From",
+					     "Proxy-Authorization"};
 
 /*+ Headers that we do not allow the users to censor. +*/
-static char *non_censored_headers[]={"Host",
-                                     "Connection",
-                                     "Proxy-Connection",
-                                     "Authorization",
-				     "Content-Type",
-				     "Content-Encoding",
-				     "Content-Length",
-				     "Transfer-Encoding"};
+static const char* const non_censored_headers[]={"Host",
+						 "Connection",
+						 "Proxy-Connection",
+						 "Authorization",
+						 "Content-Type",
+						 "Content-Encoding",
+						 "Content-Length",
+						 "Transfer-Encoding"};
 
-/*+ Headers that are difficult with HTTP/1.1. +*/
-static char *deleted_http11_headers[]={"If-Match",
-                                       "If-Range",
-                                       "Range",
-                                       "Upgrade",
-                                       "Accept-Encoding",
-                                       "TE"};
+/*+ Headers that we cannot allow to be passed through WWWOFFLE. +*/
+static const char* const deleted_http_headers[]={"If-Match",
+						 "If-Range",
+						 "Range",
+						 "Upgrade",
+						 "Keep-Alive",
+						 "Accept-Encoding",
+						 "TE"};
 
 /*+ The headers from the request that are re-usable. +*/
 static /*@only@*/ Header *reusable_header=NULL;
 
-static void censor_header(ConfigItem confitem,URL *Url,Header *head);  /* Added by Paul Rombouts */
+static void censor_header(ConfigItem confitem,const URL *Url,Header *head);  /* Added by Paul Rombouts */
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Parse the request to the server.
 
-  char *ParseRequest Returns the URL or NULL if it failed.
+  URL *ParseRequest Returns the URL or NULL if it failed.
 
   int fd The file descriptor to read the request from.
 
@@ -95,10 +98,11 @@ static void censor_header(ConfigItem confitem,URL *Url,Header *head);  /* Added 
   Body **request_body Return the body of the request.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *ParseRequest(int fd,Header **request_head,Body **request_body)
+URL *ParseRequest(int fd,Header **request_head,Body **request_body)
 {
- char *url=NULL,*line=NULL,*val;
- int i;
+ URL *Url=NULL;
+ char *line=NULL,*val;
+ unsigned i;
 
  *request_head=NULL;
  *request_body=NULL;
@@ -113,7 +117,7 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
        if(CreateHeader(line,1,request_head)<=0 || !(*request_head)->url)
 	 goto free_return_null;
 
-       url=strdup((*request_head)->url);
+       Url=SplitURL((*request_head)->url);
       }
     else
       if(!AddToHeaderRaw(*request_head,line))
@@ -122,7 +126,7 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
 
  /* Timeout or Connection lost? */
  
- if(!line || !url || !*request_head) {
+ if(!line || !Url || !*request_head) {
    PrintMessage(Warning,"Nothing to read from the wwwoffle proxy socket; timed out or connection lost? [%!s].");
    goto free_return_null;
  }
@@ -133,17 +137,15 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
  /* Find re-usable headers (for recursive requests) */
 
  for(i=0;i<sizeof(reusable_headers)/sizeof(char*);i++)
-    if((val=GetHeader(*request_head,reusable_headers[i])))
-       AddToHeader(reusable_header,reusable_headers[i],val);
+   CopyHeader(*request_head,reusable_header,reusable_headers[i]);
 
  /* Check for firewall operation. */
 
- if((val=GetHeader(*request_head,"Host")) && *url=='/')
+ if((val=GetHeader(*request_head,"Host")) && strcasecmp((*request_head)->method,"CONNECT"))
    {
-    char *oldurl=url;
-    url=(char*)malloc(sizeof("http://")+strlen(val)+strlen(oldurl));
-    stpcpy(stpcpy(stpcpy(url,"http://"),val),oldurl);
-    free(oldurl);
+    URL *oldUrl=Url;
+    Url=MakeModifiedURL(oldUrl,REPLACEURLHOSTPORT,NULL,val,NULL,NULL,NULL,NULL);
+    FreeURL(oldUrl);
    }
 
  /* Check for passwords */
@@ -156,23 +158,16 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
     while(*p && *p==' ') ++p;
     if(*p)
       {
-	char *userpass,*user,*pass;
+	size_t userpass_size=base64declenmax(strlen(p))+1;
+	char userpass[userpass_size];
+	char *user,*pass;
 
-	URL *Url=SplitURL(url);
-
-	pass=user=userpass=(char *)Base64Decode((unsigned char *)p,NULL,NULL,0);
+	pass=user=(char *)Base64Decode((unsigned char *)p,NULL,(unsigned char *)userpass,userpass_size);
 	while(*pass && *pass!=':') ++pass;
 
 	if(*pass) *pass++=0; else pass=NULL;
 
-	ChangeURLPassword(Url,user,pass);
-
-	free(userpass);
-
-	free(url);
-	url=strdup(Url->file);
-
-	FreeURL(Url);
+	ChangePasswordURL(Url,user,pass);
       }
    }
 
@@ -181,51 +176,58 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
    {
     if((val=GetHeader(*request_head,"Content-Length")))
       {
-       int length=atoi(val);
+       int length=atoi(val),nread;
 
        if(length<0)
          {
-          PrintMessage(Warning,"POST or PUT request must have a positive Content-Length header.");
+          PrintMessage(Warning,"POST or PUT request must have a non-negative Content-Length header.");
 	  goto free_return_null;
 	 }
 
        *request_body=CreateBody(length);
 
-       if(length)
-         {
-          int m,l=length;
+       for(nread=0;nread<length;) {
+	 int m=read_data(fd,&(*request_body)->content[nread],length-nread);
+	 if(m<0) {
+	   PrintMessage(Warning,"Error reading body of POST or PUT request [%!s].");
+	   goto free_return_null;
+	 }
+	 if(m==0)
+	   break;
+	 nread += m;
+       }
 
-          do
-            {
-             m=read_data(fd,&(*request_body)->content[length-l],l);
-            }
-          while(m>0 && (l-=m));
-
-          if(l)
-            {
-             PrintMessage(Warning,"POST or PUT request must have same data length as specified in Content-Length header (%d compared to %d).",length,length-l);
-	     goto free_return_null;
-            }
-         }
+       if(nread!=length) {
+	 PrintMessage(Warning,"POST or PUT request must have same data length as specified in Content-Length header (%d compared to %d).",length,nread);
+	 goto free_return_null;
+       }
 
        (*request_body)->content[length]=0;
       }
     else if(GetHeader2(*request_head,"Transfer-Encoding","chunked"))
       {
-       int length=0,m=0;
+	int length,lenalloc;
 
        PrintMessage(Debug,"Client has used chunked encoding.");
-       configure_io_read(fd,-1,-1,1);
+       configure_io_chunked(fd,1,-1);
 
        *request_body=NULL;
 
-       do
-         {
-          length+=m;
-	  *request_body=ReallocBody(*request_body,length+READ_BUFFER_SIZE);
-          m=read_data(fd,&(*request_body)->content[length],READ_BUFFER_SIZE);
-         }
-       while(m>0);
+       for(length=0,lenalloc=0;;) {
+	 int m;
+	 if(length>=lenalloc) {
+	   lenalloc = length + IO_BUFFER_SIZE;
+	   *request_body=ReallocBody(*request_body,lenalloc);
+	 }
+	 m=read_data(fd,&(*request_body)->content[length],lenalloc-length);
+	 if(m<0) {
+	   PrintMessage(Warning,"Error reading body of POST or PUT request [%!s].");
+	   goto free_return_null;
+	 }
+	 if(m==0)
+	   break;
+	 length += m;
+       }
 
        *request_body=ReallocBody(*request_body,length);
        (*request_body)->content[length]=0;
@@ -236,37 +238,106 @@ char *ParseRequest(int fd,Header **request_head,Body **request_body)
        goto free_return_null;
       }
 
-    url=(char*)realloc((void*)url,strlen(url)+sizeof("?!POST:C602nXvTfPwRsL3FLOIrig.12345678"));
-
     {
-      char *p=strchrnul(url,'?');
-      if(*p)
-	{
-	  char *to=strchrnul(p,0),*from=to-1;
-	  char *newp=to+1;
-	  while(from>p)
-	    *to--=*from--;
-	  *to='!';
-	  p=newp;
-	}
-      else
-	*p++='?';
+      md5hash_t h;
+      char buf[base64enclen(sizeof(md5hash_t))+1];
+      size_t argssize;
 
+      MakeHash((*request_body)->content,(*request_body)->length,&h);
+      hashbase64encode(&h,(unsigned char *)buf,sizeof(buf));
+      argssize=strlen((*request_head)->method)+base64enclen(sizeof(md5hash_t))+MAX_HEX_STR+sizeof("!:.");
+      if(Url->args) argssize += strlen(Url->args)+1;
       {
-	md5hash_t h;
-	unsigned char buf[base64enclen(sizeof(md5hash_t))+1];
-	MakeHash((unsigned char *)((*request_body)->content),&h);
-	sprintf(p,"!%s:%s.%08lx",(*request_head)->method,hashbase64encode(&h,buf,sizeof(buf)),time(NULL));
+	char args[argssize];
+	URL *oldUrl;
+      
+	sprintf(Url->args?stpcpy(stpcpy(args,"!"),Url->args):args,
+		"!%s:%s.%08lx",(*request_head)->method,buf,(long)time(NULL));
+	oldUrl=Url;
+	Url=MakeModifiedURL(oldUrl,REPLACEURLARGS,NULL,NULL,NULL,args,NULL,NULL);
+	FreeURL(oldUrl);
       }
     }
    }
 
- return(url);
+ return(Url);
 
 free_return_null:
  if(line) free(line);
- if(url) free(url);
+ if(Url) FreeURL(Url);
  return NULL;
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Decide if a forced refresh of the URL is required based on the header from the client.
+
+  int RequireForced Returns 1 if the page should be refreshed.
+
+  const Header *request_head The head of the HTTP request to modify.
+
+  const URL *Url The URL that is being requested.
+
+  int online The online or offline status.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+int RequireForced(const Header *request_head,const URL *Url,int online)
+{
+ int retval=0;
+ char* maxage_val;
+
+ if(online)
+   {
+    if(ConfigBooleanURL(PragmaNoCacheOnline,Url) &&
+       GetHeader2(request_head,"Pragma","no-cache"))
+      {
+       PrintMessage(Debug,"Requesting URL (Pragma: no-cache).");
+       retval=1;
+      }
+    else if(ConfigBooleanURL(CacheControlNoCacheOnline,Url) &&
+       GetHeader2(request_head,"Cache-Control","no-cache"))
+      {
+       PrintMessage(Debug,"Requesting URL (Cache-Control: no-cache).");
+       retval=1;
+      }
+    else if(ConfigBooleanURL(CacheControlMaxAge0Online,Url) &&
+	    (maxage_val=GetHeader2Val(request_head,"Cache-Control","max-age")) &&
+	    atol(maxage_val)==0)
+      {
+       PrintMessage(Debug,"Requesting URL (Cache-Control: max-age=0).");
+       retval=1;
+      }
+    else if(ConfigBooleanURL(CookiesForceRefreshOnline,Url) &&
+       GetHeader(request_head,"Cookie"))
+      {
+       PrintMessage(Debug,"Requesting URL (Cookie:).");
+       retval=1;
+      }
+   }
+ else
+   {
+    if(ConfigBooleanURL(PragmaNoCacheOffline,Url) &&
+       GetHeader2(request_head,"Pragma","no-cache"))
+      {
+       PrintMessage(Debug,"Requesting URL (Pragma: no-cache).");
+       retval=1;
+      }
+    else if(ConfigBooleanURL(CacheControlNoCacheOffline,Url) &&
+       GetHeader2(request_head,"Cache-Control","no-cache"))
+      {
+       PrintMessage(Debug,"Requesting URL (Cache-Control: no-cache).");
+       retval=1;
+      }
+    else if(ConfigBooleanURL(CacheControlMaxAge0Offline,Url) &&
+	    (maxage_val=GetHeader2Val(request_head,"Cache-Control","max-age")) &&
+	    atol(maxage_val)==0)
+      {
+       PrintMessage(Debug,"Requesting URL (Cache-Control: max-age=0).");
+       retval=1;
+      }
+   }
+
+ return(retval);
 }
 
 
@@ -277,7 +348,7 @@ free_return_null:
 
   int fd The file descriptor of the spooled file.
 
-  URL *Url The URL that is being requested.
+  const URL *Url The URL that is being requested.
 
   char **ims,char **inm If not NULL, these will contain the value fields
   of If-Modified-Since and If-None-Match header lines, that can be used
@@ -285,7 +356,7 @@ free_return_null:
 
   ++++++++++++++++++++++++++++++++++++++*/
 
-int RequireChanges(int fd,URL *Url,char **ims,char **inm)
+int RequireChanges(int fd,const URL *Url,char **ims,char **inm)
 {
  struct stat buf;
  int status,retval=0;
@@ -367,7 +438,7 @@ int RequireChanges(int fd,URL *Url,char **ims,char **inm)
       }
     else 
       {
-       int requestchanged=ConfigIntegerURL(RequestChanged,Url);
+       time_t requestchanged=ConfigIntegerURL(RequestChanged,Url);
 
        if(requestchanged<0 || (now-buf.st_mtime)<requestchanged)
          {
@@ -420,10 +491,10 @@ cleanup_return:
 
   int fd The file descriptor of the spooled file.
 
-  Header *request_head The head of the HTTP request to check.
+  const Header *request_head The head of the HTTP request to check.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int IsModified(int fd,Header *request_head)
+int IsModified(int fd,const Header *request_head)
 {
  int is_modified=1;
  Header *spooled_head=NULL;
@@ -506,17 +577,17 @@ int IsModified(int fd,Header *request_head)
 /*++++++++++++++++++++++++++++++++++++++
   Return the location that the URL has been moved to.
 
-  char *MovedLocation Returns the new URL.
+  URL *MovedLocation Returns the new URL.
 
-  URL *Url The original URL.
+  const URL *Url The original URL.
 
-  Header *reply_head The head of the original HTTP reply.
+  const Header *reply_head The head of the original HTTP reply.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *MovedLocation(URL *Url,Header *reply_head)
+URL *MovedLocation(const URL *Url,const Header *reply_head)
 {
  char *location;
- char *new;
+ URL *new;
 
  location=GetHeader(reply_head,"Location");
 
@@ -524,10 +595,6 @@ char *MovedLocation(URL *Url,Header *reply_head)
     return(NULL);
 
  new=LinkURL(Url,location);
- if(new==location)
-   {
-    new=strdup(location);
-   }
 
  return(new);
 }
@@ -538,15 +605,14 @@ char *MovedLocation(URL *Url,Header *reply_head)
 
   Header *RequestURL Ask for a page.
 
-  URL *Url The URL to get.
+  const URL *Url The URL to get.
 
-  char *referer The Refering URL or NULL if none.
+  const URL *refererUrl The Refering URL or NULL if none.
   ++++++++++++++++++++++++++++++++++++++*/
 
-Header *RequestURL(URL *Url,char *referer)
+Header *RequestURL(const URL *Url,const URL *refererUrl)
 {
  Header *new;
- KeyValueNode *line;
 
  {
    char top[sizeof("GET  HTTP/1.0")+strlen(Url->name)];
@@ -556,7 +622,7 @@ Header *RequestURL(URL *Url,char *referer)
 
  if(Url->user)
    {
-     int userpasslen=strlen(Url->user)+(Url->pass?strlen(Url->pass):0)+1;
+     size_t userpasslen=strlen(Url->user)+(Url->pass?strlen(Url->pass):0)+1;
      char userpass[userpasslen+1];
      {
        char *p=stpcpy(userpass,Url->user);
@@ -564,20 +630,18 @@ Header *RequestURL(URL *Url,char *referer)
        if(Url->pass) stpcpy(p,Url->pass); else *p=0;
      }
      {
-       char *encoded_userpass= (char *)Base64Encode((unsigned char *)userpass,userpasslen,NULL,0);
-       char auth[sizeof("Basic ")+strlen(encoded_userpass)];
-       stpcpy(stpcpy(auth,"Basic "),encoded_userpass);
-       free(encoded_userpass);
+       size_t encuserpasslen=base64enclen(userpasslen);
+       char auth[sizeof("Basic ")+encuserpasslen];
+       Base64Encode((unsigned char *)userpass,userpasslen,(unsigned char *)stpcpy(auth,"Basic "),encuserpasslen+1);
        AddToHeader(new,"Authorization",auth);
      }
    }
 
- if(referer)
-    AddToHeader(new,"Referer",referer);
+ if(refererUrl)
+    AddToHeader(new,"Referer",refererUrl->name);
 
  if(reusable_header)
-   for(line=reusable_header->line; line; line=line->next)
-       AddToHeader(new,line->key,line->val);
+   CopyHeader(reusable_header,new,NULL);
 
  return(new);
 }
@@ -599,14 +663,14 @@ void FinishParse(void)
 /*++++++++++++++++++++++++++++++++++++++
   Modify the request taking into account censoring of header and modified URL.
 
-  URL *Url The actual URL.
+  const URL *Url The actual URL.
 
   Header *request_head The head of the HTTP request possibly with a different URL.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void ModifyRequest(URL *Url,Header *request_head)
+void ModifyRequest(const URL *Url,Header *request_head)
 {
- int j;
+ unsigned j;
  char *referer;
 
  /* Modify the top line of the header. */
@@ -635,7 +699,7 @@ void ModifyRequest(URL *Url,Header *request_head)
 
  if(Url->user)
    {
-     int userpasslen=strlen(Url->user)+(Url->pass?strlen(Url->pass):0)+1;
+     size_t userpasslen=strlen(Url->user)+(Url->pass?strlen(Url->pass):0)+1;
      char userpass[userpasslen+1];
      {
        char *p=stpcpy(userpass,Url->user);
@@ -643,10 +707,9 @@ void ModifyRequest(URL *Url,Header *request_head)
        if(Url->pass) stpcpy(p,Url->pass); else *p=0;
      }
      {
-       char *encoded_userpass= (char *)Base64Encode((unsigned char *)userpass,userpasslen,NULL,0);
-       char auth[sizeof("Basic ")+strlen(encoded_userpass)];
-       stpcpy(stpcpy(auth,"Basic "),encoded_userpass);
-       free(encoded_userpass);
+       size_t encuserpasslen=base64enclen(userpasslen);
+       char auth[sizeof("Basic ")+encuserpasslen];
+       Base64Encode((unsigned char *)userpass,userpasslen,(unsigned char *)stpcpy(auth,"Basic "),encuserpasslen+1);
        ReplaceOrAddInHeader(request_head,"Authorization",auth);
      }
    }
@@ -656,8 +719,8 @@ void ModifyRequest(URL *Url,Header *request_head)
 
  /* Remove some headers */
 
- for(j=0;j<sizeof(deleted_http11_headers)/sizeof(char*);j++)
-    RemoveFromHeader(request_head,deleted_http11_headers[j]);
+ for(j=0;j<sizeof(deleted_http_headers)/sizeof(char*);j++)
+    RemoveFromHeader(request_head,deleted_http_headers[j]);
 
  RemoveFromHeader2(request_head,"Pragma","wwwoffle");
 
@@ -673,7 +736,8 @@ void ModifyRequest(URL *Url,Header *request_head)
    if (ConfigBooleanURL(RefererSelfDir,Url)) {
      char *p=Url->pathendp;
      while(--p>=(Url->pathp) && *p!='/');
-     newval=STRDUPA2(Url->name,p+1);
+     ++p;
+     newval=STRDUPA2(Url->name,p);
      optionname="RefererSelfDir";
    }
    else if(ConfigBooleanURL(RefererSelf,Url)) {
@@ -705,31 +769,30 @@ void ModifyRequest(URL *Url,Header *request_head)
 /*++++++++++++++++++++++++++++++++++++++
   Change the request to one that contains an authorisation string if required.
 
-  char *proxy The name of the proxy.
+  const URL *proxyUrl The URL of the proxy.
 
   Header *request_head The HTTP request head.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void MakeRequestProxyAuthorised(char *proxy,Header *request_head)
+void MakeRequestProxyAuthorised(const URL *proxyUrl,Header *request_head)
 {
  if(ProxyAuthUser && ProxyAuthPass)
    {
     char *user,*pass;
 
-    user=ConfigStringProtoHostPort(ProxyAuthUser,"http",proxy);
-    pass=ConfigStringProtoHostPort(ProxyAuthPass,"http",proxy);
+    user=ConfigStringURL(ProxyAuthUser,proxyUrl);
+    pass=ConfigStringURL(ProxyAuthPass,proxyUrl);
 
     if(user && pass)
       {
-       int userpasslen=strlen(user)+strlen(pass)+1;
+       size_t userpasslen=strlen(user)+strlen(pass)+1;
        char userpass[userpasslen+1];
 
        {char *p=stpcpy(userpass,user); *p++=':'; stpcpy(p,pass); }
        {
-	 char *encoded_userpass= (char *)Base64Encode((unsigned char *)userpass,userpasslen,NULL,0);
-	 char auth[sizeof("Basic ")+strlen(encoded_userpass)];
-	 stpcpy(stpcpy(auth,"Basic "),encoded_userpass);
-	 free(encoded_userpass);
+	 size_t encuserpasslen=base64enclen(userpasslen);
+	 char auth[sizeof("Basic ")+encuserpasslen];
+	 Base64Encode((unsigned char *)userpass,userpasslen,(unsigned char *)stpcpy(auth,"Basic "),encuserpasslen+1);
 	 ReplaceOrAddInHeader(request_head,"Proxy-Authorization",auth);
        }
        return;
@@ -743,12 +806,12 @@ void MakeRequestProxyAuthorised(char *proxy,Header *request_head)
 /*++++++++++++++++++++++++++++++++++++++
   Change the request from one to a proxy to a normal one.
 
-  URL *Url The URL of the request.
+  const URL *Url The URL of the request.
 
   Header *request_head The head of the HTTP request.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void MakeRequestNonProxy(URL *Url,Header *request_head)
+void MakeRequestNonProxy(const URL *Url,Header *request_head)
 {
  /* Remove the full URL and replace it with just the path and args. */
 
@@ -774,8 +837,8 @@ void MakeRequestNonProxy(URL *Url,Header *request_head)
   int ParseReply Return the numeric status of the reply.
 
   int fd The file descriptor to read from.
+
   Header **reply_head Return the head of the HTTP reply.
-  int *reply_head_size: return the size of the head of the reply.
   ++++++++++++++++++++++++++++++++++++++*/
 
 int ParseReply(int fd,Header **reply_head)
@@ -935,12 +998,12 @@ int AcceptWhichCompression(HeaderList *list)
 /*++++++++++++++++++++++++++++++++++++++
   Modify the reply taking into account censoring of the header.
 
-  URL *Url The URL that this reply comes from.
+  const URL *Url The URL that this reply comes from.
 
   Header *reply_head The head of the HTTP reply.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void ModifyReply(URL *Url,Header *reply_head)
+void ModifyReply(const URL *Url,Header *reply_head)
 {
  if(reply_head->version && !strcmp(reply_head->version,"HTTP/1.1"))
    reply_head->version[7]='0';   /* "HTTP/1.1" -> "HTTP/1.0" */
@@ -952,7 +1015,7 @@ void ModifyReply(URL *Url,Header *reply_head)
 
  /* Send errors instead when we see Location headers that send the client to a blocked page. */
  
- if(!Url->local && ConfigBooleanURL(DontGetLocation,Url))
+ if(!IsLocalHost(Url) && ConfigBooleanURL(DontGetLocation,Url))
    {
     char *location;
 
@@ -975,7 +1038,7 @@ void ModifyReply(URL *Url,Header *reply_head)
     An exception is made for an expire date in the past. These should cause browsers
     to delete cookies and we don't want to prevent that */
 
- if(!Url->local && ConfigBooleanURL(SessionCookiesOnly,Url)) {
+ if(!IsLocalHost(Url) && ConfigBooleanURL(SessionCookiesOnly,Url)) {
    KeyValueNode *line;
    for(line=reply_head->line; line; line=line->next) {
      if(!strcasecmp(line->key,"Set-Cookie")) {
@@ -1023,14 +1086,14 @@ void ModifyReply(URL *Url,Header *reply_head)
   censor_header removes or replaces header lines as specifed in the
   CensorIncomingHeader or CensorOutgoingHeader section of the configuration file.
 
-  URL *url: the requested URL.
+  const URL *url: the requested URL.
   Header *head: the header to censor.
 */
 
-static void censor_header(ConfigItem confitem,URL *Url,Header *head)
+static void censor_header(ConfigItem confitem,const URL *Url,Header *head)
 {
  KeyValueNode *prev,*line,*p,*l;
- int j;
+ unsigned j;
  char *censor;
 
  prev=NULL;

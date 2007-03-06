@@ -1,4 +1,4 @@
-          WWWOFFLE - World Wide Web Offline Explorer - Version 2.7
+          WWWOFFLE - World Wide Web Offline Explorer - Version 2.9
           ========================================================
 
 
@@ -19,95 +19,36 @@ to allow indexing of the WWWOFFLE cache.  This is performed directly on the
 files in the cache.
 
 
-Installing Namazu
------------------
+Getting Namazu
+--------------
 
-Note: If you already have version 2 or later of Namazu installed and working
-      then you can skip this section.
-
-To be able to use this program it must be installed.  The instructions below
-give a step-by-step guide to this process assuming that version 2.0.5 of
-Namazu is used, later versions should also work.
-
-1) Get the Namazu source code
-
-Download the source for the Namazu programs from
+Namazu is available from the web site
 
         http://www.namazu.org/
 
+You need to have version 2.0 or later.
 
-2) Unpack the source code
-
-Use
-
-        tar -xvzf namazu-2.0.5.tar.gz
-
-to create the directory namazu-2.0.5 with the program source files in.
+No special compile-time configuration of Namazu is required to be able to use it
+with WWWOFFLE.
 
 
-3) Configure the namazu compilation stage
-
-Move to the namazu-2.0.5 directory and run the configuration program
-
-        cd namazu-2.0.5
-        ./configure
+I tested with version 2.0.5 using the official Debian package.
 
 
-4) Compile
+Getting mknmz-wwwoffle
+----------------------
 
-Run make to compile Namazu
-
-        make
-        make install
-
-This will compile and install it.  Any problems at this stage will require the
-use of the Namazu documentation to solve.
-
-
-Installing mknmz-wwwoffle
--------------------------
-
-Note: If you already have version 0.7 or later of mknmz-wwwoffle installed and
-      working then you can skip this section.
-
-To be able to use this program it must be installed.  The instructions below
-give a step-by-step guide to this process assuming that version 0.7.0 of
-mknmz-wwwoffle is used, later versions should also work.
-
-1) Get the mknmz-wwwoffle source code
-
-Download the source for the mknmz-wwwoffle program from
+The mknmz-wwwoffle program is available from the web site
 
         http://www.naney.org/comp/distrib/mknmz-wwwoffle/
 
+You need to have version 0.7 or later.
 
-2) Unpack the source code
-
-Use
-
-        tar -xvzf mknmz-wwwoffle-0.7.0.tar.gz
-
-to create the directory mknmz-wwwoffle-0.7.0 with the program source files in.
+No special configuration of mknmz-wwwoffle is required to be able to use it with
+WWWOFFLE.
 
 
-3) Configure the mknmz-wwwoffle compilation stage
-
-Move to the mknmz-wwwoffle-0.7.0 directory and run the configuration program
-
-        cd mknmz-wwwoffle-0.7.0
-        ./configure
-
-
-4) Compile
-
-Run make to compile mknmz-wwwoffle
-
-        make
-        make install
-
-This will compile and install it.  Any problems at this stage will require the
-use of the mknmz-wwwoffle documentation to solve.
-
+I tested with version 0.7.2 using a Debian package from the mknmz-wwwoffle site.
 
 
 Configure WWWOFFLE to run with Namazu & mknmz-wwwoffle

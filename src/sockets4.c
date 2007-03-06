@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/sockets4.c 2.25 2004/01/17 16:29:37 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/sockets4.c 2.27 2005/10/15 18:00:57 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   IPv4 Socket manipulation routines.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04,05 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2004,2005,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -67,8 +69,8 @@ socks_hdr_t;
 
 static void sigalarm(int signum);
 static struct hostent /*@null@*/ *gethostbyname_or_timeout(char *name);
-static struct hostent /*@null@*/ *gethostbyaddr_or_timeout(char *addr,int len,int type);
-static int connect_or_timeout(int sockfd,struct sockaddr *serv_addr,int addrlen);
+static struct hostent /*@null@*/ *gethostbyaddr_or_timeout(char *addr,size_t  len,int type);
+static int connect_or_timeout(int sockfd,struct sockaddr *serv_addr,size_t addrlen);
 static int IsLocalAddrPort(struct in_addr a, int port);
 
 /* Local variables */
@@ -248,7 +250,7 @@ int OpenClientSocket(char* host,int port, char *shost,int sport,int socks_remote
      struct passwd *pwd;
      unsigned nmsize;
      char *p;
-     char uidbuf[12];
+     char uidbuf[MAX_INT_STR+1];
 
      uid=getuid();
      pwd=getpwuid(uid);
@@ -479,7 +481,6 @@ int SocketRemoteName(int socket,char **name,char **ipname,int *port)
 }
 
 
-#if 0
 /*++++++++++++++++++++++++++++++++++++++
   Determines the hostname and port number used for a socket on this end.
 
@@ -497,38 +498,45 @@ int SocketRemoteName(int socket,char **name,char **ipname,int *port)
 int SocketLocalName(int socket,char **name,char **ipname,int *port)
 {
  struct sockaddr_in server;
- int length=sizeof(server),retval;
+ socklen_t length=sizeof(server);
+ int retval;
  static char host[MAXHOSTNAMELEN],ip[16];
- struct hostent* hp=NULL;
 
  retval=getsockname(socket,(struct sockaddr*)&server,&length);
  if(retval==-1)
     PrintMessage(Warning,"Failed to get socket local name [%!s].");
  else
    {
-    hp=gethostbyaddr_or_timeout((char*)&server.sin_addr,sizeof(server.sin_addr),AF_INET);
-    if(hp)
-       strcpy(host,hp->h_name);
-    else
-       strcpy(host,inet_ntoa(server.sin_addr));
-
     strcpy(ip,inet_ntoa(server.sin_addr));
 
     if(name)
-       *name=host;
+      {
 #ifdef __CYGWIN__
-    if(!strcmp(ip,"127.0.0.1"))
-       *name="localhost";
+      if(!strcmp(ip,"127.0.0.1"))
+	*name="localhost";
+      else
 #endif
+	{
+	  struct hostent* hp=gethostbyaddr_or_timeout((char*)&server.sin_addr,sizeof(server.sin_addr),AF_INET);
+	  if(hp)
+	    {
+	      strcpy(host,hp->h_name);
+	      *name=host;
+	    }
+	  else
+	    *name=NULL;
+	}
+      }
+
     if(ipname)
        *ipname=ip;
+
     if(port)
        *port=ntohs(server.sin_port);
    }
 
  return(retval);
 }
-#endif
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -789,12 +797,12 @@ start:
 
   char *addr The address of the host.
 
-  int len The length of the address.
+  size_t len The length of the address.
 
   int type The type of the address.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static struct hostent *gethostbyaddr_or_timeout(char *addr,int len,int type)
+static struct hostent *gethostbyaddr_or_timeout(char *addr,size_t len,int type)
 {
  struct hostent *hp;
  struct sigaction action;
@@ -849,10 +857,10 @@ start:
 
   struct sockaddr *serv_addr The address information.
 
-  int addrlen The length of the address information.
+  size_t addrlen The length of the address information.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int connect_or_timeout(int sockfd,struct sockaddr *serv_addr,int addrlen)
+static int connect_or_timeout(int sockfd,struct sockaddr *serv_addr,size_t addrlen)
 {
  int noblock,flags;
  int retval;

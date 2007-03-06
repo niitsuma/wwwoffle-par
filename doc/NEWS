@@ -1,3 +1,153 @@
+Version 2.9b of WWWOFFLE released : Fri Feb 16 09:30:00 2007
+------------------------------------------------------------
+
+Bug Fixes:
+ Fix some string allocations.  Don't delete the lasttime cached spool file if
+ page was fetched in this session.  Fix HTML parsing of '\' inside or outside
+ quoted strings.  Make sure that files are truncated when opened.  Display
+ non-empty value in monitor page hour-of-day setting for default value.  Some
+ documentation updates.
+
+New Features:
+ Expired SSL certificates are deleted and replaced.
+
+
+*NOTE* *This only applies if WWWOFFLE is compiled with SSL/https support*
+       WWWOFFLE creates SSL certificates with a 1 year expiry period.  When they
+       expire web browsers will start to give errors.  If the WWWOFFLE root
+       Certificate Authority certificate expires then all sites will give SSL
+       errors.  Deleting the existing WWWOFFLE CA certificate from the browser
+       and installing the new one will fix this problem (the WWWOFFLE CA
+       certificate can be loaded from https://localhost:8443/certificates/root).
+
+
+Version 2.9a of WWWOFFLE released : Sun Aug 13 10:00:00 2006
+------------------------------------------------------------
+
+Bug Fixes:
+ Fix crash with serving CA certificate.  On the info page show info for the alias
+ if there is one.  Forced refresh headers take precedence over other options
+ again.  Makefile config file installation error messages clarified.  Fix
+ formatting in wwwoffle.conf manual page.  Handle compressed, chunked body of
+ zero length.  Remove 'Keep-Alive' header.  Remove trailing spaces when parsing
+ headers (fixes header censoring).  More fixes for 64-bit compilation.  Fix some
+ allocated string lengths.  Keep '()' characters in attribute values when
+ modifying HTML.
+
+New Features:
+ Added option 'disable-iframe' to ModifyHTML section to disable inline frames.
+
+Programs:
+ The wwwoffle-ls program lists only single URL unless a directory name is used.
+
+
+*NOTE* The change to the wwwoffle-ls program means that the hyperestraier
+       indexing script estwolefind may no longer work.  Edit estwolefind and
+       in the lines that contain 'wwwoffle-ls' replace '://' with '/'.
+
+
+Version 2.9 of WWWOFFLE released : Sun Apr 2 17:00:00 2006
+----------------------------------------------------------
+
+Bug Fixes:
+ Fix script removal tag attribute confusion.  Fix cygwin handling of certificate
+ filenames.  Fix audit-usage.pl so that it works with syslog output.  Make sure
+ trusted certificates have valid dates.  Detect and fetch background images in
+ table cells.  Lower the logging level of some unimportant warning messages.
+
+New Features:
+ Added an option 'cookies-force-refresh' so requests with cookies are refreshed.
+
+
+*NOTE* Read all of the notes for the two beta versions as well.
+
+
+Version 2.9-beta-ssl of WWWOFFLE released : Mon Jan 30 19:00:00 2006
+--------------------------------------------------------------------
+
+Bug Fixes:
+ Fix configure script AC_INIT and tests for sys/mount.h.  Block more Javascript
+ when modifying HTML.  Don't change the URL hash for a POST request when
+ fetching it.  Don't handle parameter separately from path in URL.  Don't split
+ up large writes when no timeout is set.
+
+Internal Code Changes:
+ More changes for integer variables on systems where sizeof(long)!=sizeof(int).
+ Change the configure_io_*() functions for each type of IO not each direction.
+
+New Features:
+ Added ability to make secure browser connection to WWWOFFLE using HTTPS.
+ Added ability to cache SSL connection data (https) (config file options).
+ Added a page to show information about the SSL certificates stored by WWWOFFLE.
+
+Documentation:
+ Add new documentation about HTTPS SSL/TLS security, trust and WWWOFFLE.
+
+
+*NOTE* If you want to enable HTTPS/SSL functions in WWWOFFLE you must enable it
+       when running configure prior to compiling.  It is not enabled by default.
+
+*NOTE* If you have compiled WWWOFFLE with gnutls there will be a delay the first
+       time that wwwoffled is started and the first time each https server is
+       accessed due to the creation of secure encryption keys.
+
+
+Version 2.9-beta of WWWOFFLE released : Sun Nov 6 14:00:00 2005
+---------------------------------------------------------------
+
+Bug Fixes:
+ Fix URL encoding in index pages.  Remove warnings compiling with CYGWIN.  Make
+ the ssl-allow-port config file option work for port 80.  If confirm-requests is
+ enabled don't allow POST/PUT.  Warn if timestamp of monitored file cannot be
+ changed.  Remove fake URL arguments from aliased URL for POST/PUT.  Print
+ internal page headers in ExtraDebug mode.  'wwwoffle -fetch' works in autodial
+ mode.  Avoid config editing pages being cached by browser.  Be more consistent
+ with removing '#' from URLs in all cases.  Handle URLs with URL-encoded
+ hostnames.  Handle purge with age=-1 and min-free or max-size set.  Break
+ socket writes into small pieces for huge data blocks.  Purge from lasttime and
+ prevtime if URL purged from main cache.
+
+Internal Code Changes:
+ Lots of internal modifications to remove years of accumulated ugliness.
+ Source code changes to increase speed and reduce memory size.
+ Use 'const' for fixed data arrays and function parameters where possible.
+ Be careful with integer variables on systems where sizeof(long)!=sizeof(int).
+ Reduce code size if compiling without zlib option.
+
+New Features:
+ Add a new layer of buffering to avoid large number of small network writes.
+ Add checkboxes to protocol indexes (e.g. /index/http) for deleting multiple.
+ Add reset button (and more if javascript) to clear delete checkboxes.
+ Add the ability to use the Hyper Estraier programs to search the cache.
+ Improve the purge output, print more information about what is happening.
+
+Programs:
+ Move the convert-cache and uncompress-cache functions into wwwoffle-tools.
+
+Documentation:
+ Remove the file called CONVERT and all references to ancient WWWOFFLE versions.
+ Add new documentation about Hyper Estraier and update other search documents.
+ Tidy the README.1st file.
+
+
+*NOTE* The configure script will enable IPv6 by default if possible.
+       If you explicitly want it disabled you must do this yourself.
+
+*NOTE* The URLs for deleting cached web pages has changed.
+       For example '/control/delete-url/?xxx' is now '/control/delete/url?xxx'.
+
+*NOTE* The HTML message files no longer have 'localhost' defined, but 'localurl'
+       is used instead (http://$localhost/ -> $localurl/).
+
+
+Version 2.8f of WWWOFFLE never released
+---------------------------------------
+
+Bug Fixes:
+ When modifying HTML check cache status of link aliases.  Fix an error message
+ when executing a change mode script.
+
+
 Version 2.8e of WWWOFFLE released : Sat Jan 29 16:00:00 2005
 ------------------------------------------------------------
 
@@ -9,9 +159,6 @@ New Features:
  The wwwoffle-mv program now allows changing the URL path.
  Added a new option cache-control-max-age-0 to ignore 'Cache-Control: max-age=0'.
  Handle HEAD requests more intelligently when online.
-
-
-*NOTE* See the important notes for version 2.8 as well.
 
 
 Version 2.8d of WWWOFFLE released : Sun Oct 17 14:30:00 2004
@@ -37,9 +184,6 @@ New Options
  Added an HTMLModify option to stop marquee scrolling text in HTML.
 
 
-*NOTE* See the important notes for version 2.8 as well.
-
-
 Version 2.8c of WWWOFFLE released : Sat Jun 12 16:00:00 2004
 ------------------------------------------------------------
 
@@ -56,9 +200,6 @@ Bug Fixes:
  spacing in the monitor form.  Make sure that new temporary files and log file
  have sensible permissions.  Remove possible crash using configuration pages
  adding item to empty section.  Clarify some error messages and documentation.
-
-
-*NOTE* See the important notes for version 2.8 as well.
 
 
 Version 2.8b of WWWOFFLE released : Sat Feb 14 14:30:00 2004
@@ -94,9 +235,6 @@ New Features:
  Add in the keep-cache-if-not-found option (based on Paul Rombouts patch).
 
 
-*NOTE* See the important notes for version 2.8 as well.
-
-
 Version 2.8a of WWWOFFLE released : Tue Dec 2 18:45:00 2003
 -----------------------------------------------------------
 
@@ -113,9 +251,6 @@ New Features:
 
 Documentation:
  Added FAQ question about Content-Length header.
-
-
-*NOTE* See the important notes for version 2.8 as well.
 
 
 Version 2.8 of WWWOFFLE released : Mon Oct 6 18:30:00 2003

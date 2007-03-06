@@ -1,12 +1,12 @@
 #!/bin/sh
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.9a.
 #
-# A Perl script to update the configuration file to version 2.8 standard (from version 2.7).
+# A Perl script to update the configuration file to version 2.9a standard (from version 2.8).
 #
 # Written by Andrew M. Bishop
 #
-# This file Copyright 2000,01,02,03,04 Andrew M. Bishop
+# This file Copyright 2000,01,02,03,04,05,06 Andrew M. Bishop
 # It may be distributed under the GNU Public License, version 2, or
 # any higher version.  See section COPYING of the GNU Public license
 # for conditions under which this file may be redistributed.
@@ -22,84 +22,60 @@ $#ARGV==0 || die "Usage: $0 wwwoffle.conf\n";
 
 $conf=$ARGV[0];
 
-$version="2.8";
+$version="2.9";
 
 $urlspec="[^ \t:<!]+://[^ \t/=]+/?[^ \t=>]*";
 $urlspec1="([^ \t:<!]+)://([^ \t/=]+)(/?[^ \t=>]*)";
 
-# The new options that have been added (since version 2.7).
+# The new options that have been added (since version 2.8).
 
-%new_Options=(
-              "reply-chunked-data *=" , "reply-chunked-data = yes"
+%new_StartUp=(
+              "https-port *=" , "https-port = 8443"
              );
 
-%new_OnlineOptions=(
-                    "pragma-no-cache *="        , "pragma-no-cache = yes",
-                    "cache-control-no-cache *=" , "cache-control-no-cache = yes",
-                    "cache-control-max-age-0 *=", "cache-control-max-age-0 = yes",
-                    "request-conditional *="    , "request-conditional = yes",
-                    "validate-with-etag *="     , "validate-with-etag = yes",
-                    "keep-cache-if-not-found *=", "keep-cache-if-not-found = no",
-                    "request-chunked-data *="   , "request-chunked-data = yes"
-                   );
+%new_SSLOptions=(
+                 "enable-caching *="  , "enable-caching = no",
+                 "allow-tunnel *="    , "#allow-tunnel = *:443"
+                );
 
-%new_OfflineOptions=(
-                     "cache-control-max-age-0 *=", "cache-control-max-age-0 = yes"
-                    );
-
-%new_FetchOptions=(
-                   "icon-images *=" , "icon-images = no"
-                  );
-
-%new_CensorHeader=(
-                   "force-user-agent *=" , "force-user-agent = no"
-                  );
+%new_MIMETypes=(
+                ".pem *="  , ".pem     = application/x-x509-ca-cert"
+               );
 
 %new_ModifyHTML=(
-                 "disable-marquee *="         , "disable-marquee = no",
-                 "disable-meta-set-cookie *=" , "disable-meta-set-cookie = no",
-                 "fix-mixed-cyrillic *="      , "fix-mixed-cyrillic = no"
-                  );
+                "disable-iframe *="  , "disable-iframe = no"
+               );
 
 %new_options=(
-              "Options"        , \%new_Options,
-              "OnlineOptions"  , \%new_OnlineOptions,
-              "OfflineOptions" , \%new_OfflineOptions,
-              "FetchOptions"   , \%new_FetchOptions,
-              "CensorHeader"   , \%new_CensorHeader,
+              "StartUp"        , \%new_StartUp,
+              "SSLOptions"     , \%new_SSLOptions,
+              "MIMETypes"      , \%new_MIMETypes,
               "ModifyHTML"     , \%new_ModifyHTML
               );
 
-# The options that have changed (since version 2.7).
+# The options that have changed (since version 2.8).
 
-%changed_CensorHeader=(
-                       "^#? *(<$urlspec>) *User-Agent *= *WWWOFFLE/[0-9.]+[a-z]*(.*)", " \$1 User-Agent = WWWOFFLE/$version\$2",
-                       "^#? *User-Agent *= *WWWOFFLE/[0-9.]+[a-z]*(.*)"              , " User-Agent = WWWOFFLE/$version\$1",
-                       );
-
-%changed_IndexOptions=(
-                       "^#? *no-lasttime-index *= (yes|true|1)", " create-history-indexes = no",
-                       "^#? *no-lasttime-index *= (no|false|0)", " create-history-indexes = yes"
-                       );
-
-%changed_options=(
-                  "CensorHeader"   , \%changed_CensorHeader,
-                  "IndexOptions"   , \%changed_IndexOptions
-                  );
-
-# The options that have been moved (since version 2.7).
-
-%moved_options=(
-                );
-
-# The options that have been deleted (since version 2.7).
-
-@deleted_ModifyHTML=(
-                     "enable-modify-online *="
+%changed_SSLOptions=(
+                     "ssl-allow-port *= *(.+)\$" , " allow-tunnel = *:\$1"
                     );
 
+%changed_options=(
+                  "SSLOptions"   , \%changed_SSLOptions
+                  );
+
+# The options that have been moved (since version 2.8).
+
+%moved_Options=(
+                "ssl-allow-port *=" , "SSLOptions"
+               );
+
+%moved_options=(
+                "Options"        , \%moved_Options
+                );
+
+# The options that have been deleted (since version 2.8).
+
 %deleted_options=(
-                  "ModifyHTML" , deleted_ModifyHTML
                   );
 
 # The sections in the configuration file.
@@ -109,6 +85,7 @@ $urlspec1="([^ \t:<!]+)://([^ \t/=]+)(/?[^ \t=>]*)";
            "Options"            ,
            "OnlineOptions"      ,
            "OfflineOptions"     ,
+           "SSLOptions"         ,
            "FetchOptions"       ,
            "IndexOptions"       ,
            "ModifyHTML"         ,
@@ -134,6 +111,7 @@ $urlspec1="([^ \t:<!]+)://([^ \t/=]+)(/?[^ \t=>]*)";
           "Options"            , \@Options,
           "OnlineOptions"      , \@OnlineOptions,
           "OfflineOptions"     , \@OfflineOptions,
+          "SSLOptions"         , \@SSLOptions,
           "FetchOptions"       , \@FetchOptions,
           "IndexOptions"       , \@IndexOptions,
           "ModifyHTML"         , \@ModifyHTML,
@@ -169,13 +147,15 @@ if(open(CURR,"<$conf"))
         $lineno++;
         s/\r*\n/\n/;
 
-        if(m/^\# WWWOFFLE - World Wide Web Offline Explorer - (Version 2\.[0-69][a-z]?)/)
+        if(m/^\# WWWOFFLE - World Wide Web Offline Explorer - (Version 2\.[0-7][a-z]?)/)
             {
-             die "\nExisting configuration file is not for version 2.7 or 2.8.\n".
+             die "\nExisting configuration file is not for version 2.8 or 2.9.\n".
                  "(The header line says that it is '$1')\n".
-                 "Try running upgrade-config-2.x-2.5.pl\n".
+                 "Try running upgrade-config-2.0-2.5.pl\n".
                  "     and/or upgrade-config-2.5-2.6.pl\n".
-                 "     and/or upgrade-config-2.6-2.7.pl.\n\n";
+                 "     and/or upgrade-config-2.6-2.7.pl\n".
+                 "     and/or upgrade-config-2.7-2.8.pl\n".
+                 "\n";
             }
         next if(/^[ \t]*\#/);
         next if(/^[ \t]*$/);

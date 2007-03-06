@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT(src/wwwoffle.c)
+AC_INIT(wwwoffle,2.9)
 
 
 dnl Specify the autoconf file.
@@ -25,8 +25,13 @@ dnl Checks for header files.
 AC_HEADER_STDC
 AC_HEADER_DIRENT
 AC_HEADER_TIME
-AC_CHECK_HEADERS(sys/time.h)
-AC_CHECK_HEADERS(sys/param.h sys/mount.h sys/statvfs.h sys/vfs.h)
+AC_CHECK_HEADERS(sys/time.h sys/param.h sys/statvfs.h sys/vfs.h)
+AC_CHECK_HEADERS(sys/mount.h,,,
+[
+#if SYS_PARAM_H
+#include <sys/param.h>
+#endif
+])
 
 
 dnl Checks for typedefs, structures, and compiler characteristics.
@@ -36,7 +41,7 @@ AC_STRUCT_ST_BLOCKS
 AC_STRUCT_ST_BLKSIZE
 
 
-dnl Checks for libraries
+dnl Checks for libraries.
 
 ETR_SOCKET_NSL
 
@@ -85,7 +90,7 @@ else
                 WITH_ZLIB=yes,WITH_ZLIB=no,$ZLIB_LIB)
 
    if test "$WITH_ZLIB" = "no"; then
-      AC_MSG_WARN([Cannot find libz, configuring without compression support])
+      AC_MSG_WARN([Cannot find working libz library, configuring without compression support])
       ZLIB_LIB=
       ZLIB_INC=
       USE_ZLIB=0
@@ -98,32 +103,92 @@ AC_SUBST(ZLIB_LIB)
 AC_SUBST(ZLIB_INC)
 
 
+dnl Checks for using gnutls.
+
+AC_ARG_WITH(gnutls,
+[  --with-gnutls=dir            Set the location of the gnutls header and library],
+WITH_GNUTLS=$withval,WITH_GNUTLS=no)
+
+if test "$WITH_GNUTLS" = "no"; then
+   GNUTLS_INC=
+   GNUTLS_LIB=
+   USE_GNUTLS=0
+else
+   if test "$WITH_GNUTLS" = "yes"; then
+      AC_CHECK_PROG(LIBGNUTLS_CONFIG,libgnutls-config,libgnutls-config)
+
+      if test "$LIBGNUTLS_CONFIG" = ""; then
+         AC_MSG_WARN([Cannot find libgnutls-config program, configuring without SSL/https support])
+         WITH_LIBGNUTLS_CONFIG=0
+      else
+         WITH_LIBGNUTLS_CONFIG=1
+      fi
+   else
+      LIBGNUTLS_CONFIG="$WITH_GNUTLS/bin/libgnutls-config"
+
+      if test -x "$LIBGNUTLS_CONFIG" ; then
+         WITH_LIBGNUTLS_CONFIG=1
+      else
+         AC_MSG_WARN([Cannot find $WITH_GNUTLS/bin/libgnutls-config program, configuring without SSL/https support])
+         WITH_LIBGNUTLS_CONFIG=0
+      fi
+   fi
+
+   if test "$WITH_LIBGNUTLS_CONFIG" = "1"; then
+      GNUTLS_LIB=`$LIBGNUTLS_CONFIG --libs`
+      GNUTLS_INC=`$LIBGNUTLS_CONFIG --cflags`
+      USE_GNUTLS=1
+
+      AC_CHECK_LIB(gnutls, gnutls_check_version,
+                   WITH_GNUTLS=yes,WITH_GNUTLS=no,$GNUTLS_LIB)
+
+      if test "$WITH_GNUTLS" = "no"; then
+         AC_MSG_WARN([Cannot find working libgnutls library, configuring without SSL/https support])
+         GNUTLS_LIB=
+         GNUTLS_INC=
+         USE_GNUTLS=0
+      fi
+   else
+      GNUTLS_LIB=
+      GNUTLS_INC=
+      USE_GNUTLS=0
+   fi
+fi
+
+AC_DEFINE_UNQUOTED(USE_GNUTLS,$USE_GNUTLS)
+
+AC_SUBST(GNUTLS_LIB)
+AC_SUBST(GNUTLS_INC)
+
+
 dnl Checks for using IPv6.
 
 AC_ARG_WITH(ipv6,
 [  --with-ipv6                  Enable the use of IPv6 sockets],
-WITH_IPV6=$withval,WITH_IPV6=no)
+WITH_IPV6=$withval,WITH_IPV6=yes)
 
 if test "$WITH_IPV6" = "no"; then
    USE_IPV6=0
 else
    USE_IPV6=1
 
-   if test "$ac_cv_func_getnameinfo" = "no"; then
-      USE_IPV6=0
-      AC_MSG_ERROR([The IPv6 option was chosen, but the getnameinfo() function is not available])
-   fi
+   AC_MSG_CHECKING(for IPv6 support)
 
-   if test "$ac_cv_func_getaddrinfo" = "no"; then
+   if test "$ac_cv_func_getnameinfo" = "no"; then
+      AC_MSG_RESULT([no, cannot find getnameinfo() function])
       USE_IPV6=0
-      AC_MSG_ERROR([The IPv6 option was chosen, but the getaddrinfo() function is not available])
+   elif test "$ac_cv_func_getaddrinfo" = "no"; then
+      AC_MSG_RESULT([no, cannot find getaddrinfo() function])
+      USE_IPV6=0
+   else
+      AC_MSG_RESULT(yes)
    fi
 fi
 
 AC_DEFINE_UNQUOTED(USE_IPV6,$USE_IPV6)
 
 
-dnl Check for Cygwin
+dnl Check for Cygwin.
 
 AC_CYGWIN
 
@@ -136,7 +201,7 @@ fi
 AC_SUBST(install_win32)
 
 
-dnl The WWWOFFLE specific settings that we need
+dnl The WWWOFFLE specific settings that we need.
 
 AC_ARG_WITH(spooldir,
 [  --with-spooldir=directory    Set the default spool directory],
@@ -163,11 +228,11 @@ AC_SUBST(CONFDIR)
 
 
 AC_ARG_WITH(server,
-[  --with-server=host:port:port Set the default host and HTTP port and WWWOFFLE port],
+[  --with-server=host:port:port:port Set the default host, HTTP port, WWWOFFLE port and HTTPS port],
 SERVER=$withval,)
 
 if test "x$SERVER" = "x"; then
-    SERVER=localhost:8080:8081
+    SERVER=localhost:8080:8081:8443
 fi
 
 LOCALHOST=`echo $SERVER | awk -F: '{print $1}'`
@@ -188,12 +253,19 @@ if test "x$WWWOFFLE_PORT" = "x"; then
     WWWOFFLE_PORT=8081
 fi
 
+HTTPS_PORT=`echo $SERVER | awk -F: '{print $4}'`
+
+if test "x$HTTPS_PORT" = "x"; then
+    HTTPS_PORT=8443
+fi
+
 AC_SUBST(LOCALHOST)
 AC_SUBST(HTTP_PORT)
+AC_SUBST(HTTPS_PORT)
 AC_SUBST(WWWOFFLE_PORT)
 
 
-dnl Language settings
+dnl Language settings.
 
 AC_MSG_CHECKING(the default language)
 
@@ -221,7 +293,7 @@ fi
 AC_SUBST(DEFLANG)
 
 
-dnl Checks for installation location
+dnl Checks for installation location.
 
 
 dnl Create the output files.

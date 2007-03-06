@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/controledit.c 2.33 2004/01/11 10:28:20 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/controledit.c 2.35 2005/03/13 13:55:34 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Configuration file management via a web-page.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2004,2006 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -30,8 +32,9 @@
 #include "errors.h"
 #include "config.h"
 
-/*+ Need this for Win32 to use binary mode +*/
+
 #ifndef O_BINARY
+/*+ A work-around for needing O_BINARY with Win32 to use binary mode. +*/
 #define O_BINARY 0
 #endif
 
@@ -47,6 +50,8 @@ typedef struct _ControlEditSection
 }
 *ControlEditSection;
 
+
+/* Local functions */
 
 static void ControlEditForms(int fd,ControlEditSection *sections);
 static void ControlEditUpdate(int fd,char *section,ControlEditSection *sections);
@@ -325,12 +330,13 @@ static ControlEditSection *read_config_file(void)
 
        if(*name!='/') {
 	 char *basename=name;
-	 int basenamesize=strlen(basename)+1;
+	 size_t basenamesize=strlen(basename)+1;
 	 char *configname=ConfigurationFileName();
 	 char *p=strchrnul(configname,0);
-	 int pathlen;
+	 size_t pathlen;
 	 while(--p>=configname && *p!='/');
-	 pathlen=p+1-configname;
+	 ++p;
+	 pathlen=p-configname;
 	 name=(char*)malloc(pathlen+basenamesize);
 	 mempcpy(mempcpy(name,configname,pathlen),basename,basenamesize);
 	 free(basename);
@@ -441,10 +447,10 @@ static int write_config_file(ControlEditSection *sections)
 
        if(sections[i]->file)
          {
-          char *p=sections[i]->file+strlen(sections[i]->file)-1;
-          while(p>sections[i]->file && *p!='/')
-             p--;
-          write_formatted(conf,"[\n%s\n]\n\n\n",p+1);
+	  char *p=strchrnul(sections[i]->file,0);
+          while(--p>sections[i]->file && *p!='/');
+	  ++p;
+          write_formatted(conf,"[\n%s\n]\n\n\n",p);
          }
        else
          {

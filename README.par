@@ -1,10 +1,10 @@
-	  Alternative WWWOFFLE implementation - version 2.8e-par-9
+	  Alternative WWWOFFLE implementation - version 2.9b-par
                              by Paul Rombouts
-	  ========================================================
+	  ======================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
 am making available so other people can run it and/or study the source code.
-Present version is 2.8e-par-9 (I've simply appended my initials to the version
+Present version is 2.9b-par (I've simply appended my initials to the version
 number). Versions 2.8e-par and later introduce an important efficiency
 improvement: the number of files in the spool directory are reduced by nearly
 50% by using a single compact database file to remember the URLs belonging to
@@ -18,38 +18,44 @@ more detail the changes I've made to AMB's code.
 
 Before compiling and installing WWWOFFLE according to AMB's installation
 instructions described in the INSTALL file you must first apply my patch file
-wwwoffled-2.8e-par-9.diff.gz. Use a freshly untarred copy of Andrew Bishop's
-original version 2.8e source, cd into the source directory wwwoffle-2.8e and
+wwwoffled-2.9b-par.diff.gz. Use a freshly untarred copy of Andrew Bishop's
+original version 2.9b source, cd into the source directory wwwoffle-2.9b and
 apply the command:
 
-gzip -cd <path_to_patch>/wwwoffle-2.8e-par-9.diff.gz | patch -p2 -N -E
+gzip -cd <path_to_patch>/wwwoffle-2.9b-par.diff.gz | patch -p2 -N -E
 
-Note: because I have used GNU extensions you will need to compile with gcc and
-link with glibc. This will not be a problem with most Linux distributions.
-If you get some weird error messages about "Malformed UTF-8 characters" from the
-perl interpreter (this happened to me after I upgraded to Red Hat 9) try again
-after running the command (assuming you use a bash shell):
+Notes:
+1) The current patch breaks IPv6 functionality. Because in version 2.9 IPv6 is
+   enabled by default, you will need to configure using the --without-ipv6
+   option.
 
-  export LANG=${LANG%%.*}
+2) Because I have used GNU extensions you will need to compile with gcc and link
+   with glibc. This will not be a problem with most Linux distributions.
 
-If you want to use an existing WWWOFFLE configuration file then you must make
-the following change to the configuration file before you can run wwwoffled:
-split section CensorHeader into two sections called CensorIncomingHeader and
-CensorOutgoingHeader. These sections should contain only options that apply to
-the censoring of reply headers coming back from servers and request headers sent
-to servers, respectively. The referer-self(-dir) options go into the
-CensorOutgoingHeader section.  Alternatively, if you're not using the
-CensorHeader section at all it is easier to simply delete it in its entirety.
+3) If you get some weird error messages about "Malformed UTF-8 characters" from
+   the perl interpreter (this happened to me with some Red Hat distribitions)
+   try again after running the command (assuming you use a bash shell):
 
-Important: If you want to use an existing WWWOFFLE spool directory you must
-convert the information in the U* files in the cache to a new database file
-called "urlhashtable". You need to execute the following steps as root:
-- First it is recommended that you make a backup copy of your spool directory
-  (don't worry, the conversion is reversible, this is just a precaution).
-- Change to the wwwoffle-2.8e/src directory and run "./make_urlhash_file" .
-- The U* files are no longer needed and just waste disk space. You can run the
-  script "rm_Ufiles.sh" to remove them immediately; otherwise they will
-  removed the next time you run "wwwoffle -purge".
+	export LANG=C
+
+4) If you want to use an existing WWWOFFLE configuration file then you must make
+   the following change to the configuration file before you can run wwwoffled:
+   split section CensorHeader into two sections called CensorIncomingHeader and
+   CensorOutgoingHeader. These sections should contain only options that apply
+   to the censoring of reply headers coming back from servers and request
+   headers sent to servers, respectively. The referer-self(-dir) options go into
+   the CensorOutgoingHeader section. Alternatively, if you're not using the
+   CensorHeader section at all it is easier to simply delete it entirely.
+
+5) Important: If you want to use an existing WWWOFFLE spool directory you must
+   convert the information in the U* files in the cache to a new database file
+   called "urlhashtable". You need to execute the following steps as root:
+   - First it is recommended that you make a backup copy of your spool directory
+     (don't worry, the conversion is reversible, this is just a precaution).
+   - Change to the wwwoffle-2.9b/src directory and run "./make_urlhash_file" .
+   - The U* files are no longer needed and just waste disk space. You can run
+     the script "rm_Ufiles.sh" to remove them immediately; otherwise they will
+     removed the next time you run "wwwoffle -purge".
 
 That's it! You should now be able to run wwwoffled and enjoy the improved
 performance. You should be able to notice that WWWOFFLE accesses the hard disk
@@ -58,23 +64,25 @@ faster. To give you an idea of the speedup: on my system the time to do a
 complete "wwwoffle -purge" with "use-url = yes" has been reduced by a factor
 of 4.
 
-Note: should you want to go back to using AMB's original version, you will have
-to restore the U* files first by running the "restore_Ufiles" utility in the
-wwwoffle-2.8e/src directory.
+Additional notes:
+1) Should you want to go back to using AMB's original version, you will have to
+   restore the U* files first by running the "restore_Ufiles" utility in the
+   wwwoffle-2.9b/src directory.
 
-Note: my patch unfortunately breaks the functionality of the wwwoffle-tools
-(wwwoffle-hash wwwoffle-ls wwwoffle-mv wwwoffle-read wwwoffle-rm
-wwwoffle-write). Since I do not use them myself, I have no immediate plans for
-fixing them. However, if I receive enough requests, I will reconsider.
+2) My patch unfortunately breaks the functionality of the wwwoffle-tools
+   (wwwoffle-fsck wwwoffle-gunzip wwwoffle-gzip wwwoffle-hash wwwoffle-ls
+   wwwoffle-mv wwwoffle-read wwwoffle-rm wwwoffle-write). Since I do not use
+   them myself, I have no immediate plans for fixing them. However, if I receive
+   enough requests, I will reconsider.
 
-Note to users of languages besides English: I've modified some of the WWWOFFLE
-message templates for the English. If you want to use a different language you
-will have to look at the modifications in the templates that have been patched
-and apply these changes to the template files of your own language.
-Alternatively you could simply delete the non-English template files so that the
-English language versions are used instead. wwwoffled will still run without
-these changes, but then some of the configuration pages will not display
-correctly.
+3) Note to users of languages besides English: I've modified some of the
+   WWWOFFLE message templates in the English language directory
+   html/en/messages. If you want to use a different language you will have to
+   look at the modifications in the templates that have been patched and apply
+   these changes to the template files of your own language. Alternatively you
+   could simply delete the non-English template files so that the English
+   language versions are used instead. wwwoffled will still run without these
+   changes, but then some of the configuration pages will not display correctly.
 
 
 I've introduced a few extensions to the way WWWOFFLE can be configured:
@@ -201,6 +209,25 @@ I've introduced a few extensions to the way WWWOFFLE can be configured:
 The rest of this file lists in some detail some other modifications I've made,
 but you don't have to read it if you simply want to run wwwoffled as you're used
 to.
+
+- In version 2.9b-par WWWOFFLE will stop reading from a remote web server after
+  the complete content body has been received, and not wait for the remote
+  server to close the connection. It is possible to tell when the received
+  content is complete if the remote server uses a Content-Length header or
+  chunked encoding. The important advantage of this approach is that WWWOFFLE
+  will no longer time-out waiting for a (buggy) remote server to close the
+  connection if that server ignores the "Connection: close" header. Besides, in
+  my view it is not correct to try to read beyond Content-Length, because
+  anything that a web server might send beyond that should not be considered
+  part of the content body.
+  This approach also makes it safe to add the "Connection: TE" header line
+  required by the HTTP/1.1 specification, without risking connection time-outs
+  with buggy IIS servers. Without this header line "bad-behaviour" PHP scripts
+  may block WWWOFFLE access to some web sites.
+
+- In version 2.9b-par hashes of content bodies are computed correctly even if
+  the content contains null characters. Without this fix WWWOFFLE may not be
+  able to distinguish POST or PUT requests with different content bodies.
 
 - In version 2.8e-par-9 some of the HTML parsing rules have been fixed (in
   src/html.l and src/htmlmodify.l), which improves the ability of WWWOFFLE to

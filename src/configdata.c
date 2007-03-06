@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configdata.c 2.151 2004/12/09 19:02:37 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configdata.c 2.160 2006/04/06 18:13:38 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8e.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Configuration data functions.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -31,8 +33,10 @@
 
 
 #ifndef PATH_MAX
+/*+ The maximum pathname length in characters. +*/
 #define PATH_MAX 4096
 #endif
+
 
 /* StartUp section */
 
@@ -44,6 +48,9 @@ ConfigItem Bind_IPv6;
 
 /*+ The port number to use for the HTTP proxy port. +*/
 ConfigItem HTTP_Port;
+
+/*+ The port number to use for the HTTPS proxy port. +*/
+ConfigItem HTTPS_Port;
 
 /*+ The port number to use for the wwwoffle port. +*/
 ConfigItem WWWOFFLE_Port;
@@ -77,6 +84,7 @@ static ConfigItemDef startup_itemdefs[]={
  {"bind-ipv4"        ,&Bind_IPv4      ,0,0,Fixed,HostOrNone        ,"0.0.0.0"   },
  {"bind-ipv6"        ,&Bind_IPv6      ,0,0,Fixed,HostOrNone        ,"::"        },
  {"http-port"        ,&HTTP_Port      ,0,0,Fixed,PortNumber        ,XSTR(DEF_HTTP_PORT) },
+ {"https-port"       ,&HTTPS_Port     ,0,0,Fixed,PortNumber        ,XSTR(DEF_HTTPS_PORT) },
  {"wwwoffle-port"    ,&WWWOFFLE_Port  ,0,0,Fixed,PortNumber        ,XSTR(DEF_WWWOFFLE_PORT) },
  {"spool-dir"        ,&SpoolDir       ,0,0,Fixed,PathName          ,DEF_SPOOLDIR},
  {"run-uid"          ,&WWWOFFLE_Uid   ,0,0,Fixed,UserId            ,"-1"        },
@@ -110,9 +118,6 @@ ConfigItem ConnectTimeout;
 /*+ The option to retry a failed connection. +*/
 ConfigItem ConnectRetry;
 
-/*+ The list of allowed SSL port numbers. +*/
-ConfigItem SSLAllowPort;
-
 /*+ The permissions for creation of +*/
 ConfigItem DirPerm,             /*+ directories. +*/
            FilePerm;            /*+ files. +*/
@@ -142,7 +147,6 @@ static ConfigItemDef options_itemdefs[]={
  {"dns-timeout"          ,&DNSTimeout         ,0,0,Fixed,TimeSecs   ,"1m"       },
  {"connect-timeout"      ,&ConnectTimeout     ,0,0,Fixed,TimeSecs   ,"30"       },
  {"connect-retry"        ,&ConnectRetry       ,0,0,Fixed,Boolean    ,"no"       },
- {"ssl-allow-port"       ,&SSLAllowPort       ,0,1,Fixed,PortNumber ,NULL       },
  {"dir-perm"             ,&DirPerm            ,0,0,Fixed,FileMode   ,XSTR(DEF_DIR_PERM) },
  {"file-perm"            ,&FilePerm           ,0,0,Fixed,FileMode   ,XSTR(DEF_FILE_PERM) },
  {"run-online"           ,&RunOnline          ,0,0,Fixed,PathName   ,NULL       },
@@ -152,7 +156,7 @@ static ConfigItemDef options_itemdefs[]={
  {"lock-files"           ,&LockFiles          ,0,0,Fixed,Boolean    ,"no"       },
  {"reply-compressed-data",&ReplyCompressedData,0,0,Fixed,Boolean    ,"no"       },
  {"reply-chunked-data"   ,&ReplyChunkedData   ,0,0,Fixed,Boolean    ,"yes"      },
- {"exec-cgi"             ,&ExecCGI            ,0,1,Fixed,Url        ,NULL       }
+ {"exec-cgi"             ,&ExecCGI            ,0,1,Fixed,UrlWild    ,NULL       }
 };
 
 /*+ Options section. +*/
@@ -171,6 +175,9 @@ ConfigItem CacheControlNoCacheOnline;
 
 /*+ The option to allow or ignore the 'Cache-Control: max-age=0' request online. +*/
 ConfigItem CacheControlMaxAge0Online;
+
+/*+ The option to force a refresh if the request contains a cookie when online. +*/
+ConfigItem CookiesForceRefreshOnline;
 
 /*+ The maximum age of a cached page to use in preference while online. +*/
 ConfigItem RequestChanged;
@@ -224,6 +231,7 @@ static ConfigItemDef onlineoptions_itemdefs[]={
  {"pragma-no-cache"        ,&PragmaNoCacheOnline      ,1,0,Fixed,Boolean   ,"yes"},
  {"cache-control-no-cache" ,&CacheControlNoCacheOnline,1,0,Fixed,Boolean   ,"yes"},
  {"cache-control-max-age-0",&CacheControlMaxAge0Online,1,0,Fixed,Boolean   ,"yes"},
+ {"cookies-force-refresh"  ,&CookiesForceRefreshOnline,1,0,Fixed,Boolean   ,"no" },
  {"request-changed"        ,&RequestChanged           ,1,0,Fixed,TimeSecs  ,"10m"},
  {"request-changed-once"   ,&RequestChangedOnce       ,1,0,Fixed,Boolean   ,"yes"},
  {"request-expired"        ,&RequestExpired           ,1,0,Fixed,Boolean   ,"no" },
@@ -278,6 +286,38 @@ static ConfigItemDef offlineoptions_itemdefs[]={
 static ConfigSection offlineoptions_section={"OfflineOptions",
                                              sizeof(offlineoptions_itemdefs)/sizeof(ConfigItemDef),
                                              offlineoptions_itemdefs};
+
+
+/* SSLOptions section */
+
+/*+ The option to allow caching of SSL connections. +*/
+ConfigItem SSLEnableCaching;
+
+/*+ The list of allowed SSL hosts and port numbers when tunneling. +*/
+ConfigItem SSLAllowTunnel;
+
+/*+ The list of disallowed SSL hosts and port numbers when tunneling. +*/
+ConfigItem SSLDisallowTunnel;
+
+/*+ The list of allowed SSL hosts and port numbers when caching. +*/
+ConfigItem SSLAllowCache;
+
+/*+ The list of disallowed SSL hosts and port numbers when caching. +*/
+ConfigItem SSLDisallowCache;
+
+/*+ The item definitions in the SSLOptions section. +*/
+static ConfigItemDef ssloptions_itemdefs[]={
+ {"enable-caching" ,&SSLEnableCaching ,0,0,Fixed,Boolean        ,"no"},
+ {"allow-tunnel"   ,&SSLAllowTunnel   ,0,1,Fixed,HostAndPortWild,NULL},
+ {"disallow-tunnel",&SSLDisallowTunnel,0,1,Fixed,HostAndPortWild,NULL},
+ {"allow-cache"    ,&SSLAllowCache    ,0,1,Fixed,HostAndPortWild,NULL},
+ {"disallow-cache" ,&SSLDisallowCache ,0,1,Fixed,HostAndPortWild,NULL}
+};
+
+/*+ The SSLOptions section. +*/
+static ConfigSection ssloptions_section={"SSLOptions",
+                                         sizeof(ssloptions_itemdefs)/sizeof(ConfigItemDef),
+                                         ssloptions_itemdefs};
 
 
 /* FetchOptions section */
@@ -400,6 +440,9 @@ ConfigItem DisableHTMLMarquee;
 /*+ The option to disable Shockwave Flash animations. +*/
 ConfigItem DisableHTMLFlash;
 
+/*+ The option to disable any <iframe> tags. +*/
+ConfigItem DisableHTMLIFrame;
+
 /*+ The option to disable (or modify) any <meta http-equiv=Refresh content=""> tags. +*/
 ConfigItem DisableHTMLMetaRefresh;
 
@@ -457,6 +500,7 @@ static ConfigItemDef modifyhtml_itemdefs[]={
  {"disable-blink"            ,&DisableHTMLBlink           ,1,0,Fixed,Boolean,"no"},
  {"disable-marquee"          ,&DisableHTMLMarquee         ,1,0,Fixed,Boolean,"no"},
  {"disable-flash"            ,&DisableHTMLFlash           ,1,0,Fixed,Boolean,"no"},
+ {"disable-iframe"           ,&DisableHTMLIFrame          ,1,0,Fixed,Boolean,"no"},
  {"disable-meta-refresh"     ,&DisableHTMLMetaRefresh     ,1,0,Fixed,Boolean,"no"},
  {"disable-meta-refresh-self",&DisableHTMLMetaRefreshSelf ,1,0,Fixed,Boolean,"no"},
  {"replacement-meta-refresh-time",&ReplacementHTMLMetaRefreshTime,1,0,Fixed,TimeSecs,"-1"},
@@ -501,7 +545,7 @@ ConfigItem LocalNet;
 
 /*+ The item definitions in the LocalNet section. +*/
 static ConfigItemDef localnet_itemdefs[]={
- {"",&LocalNet,0,1,Host,None,NULL}
+ {"",&LocalNet,0,1,HostWild,None,NULL}
 };
 
 /*+ The LocalNet section. +*/
@@ -517,7 +561,7 @@ ConfigItem AllowedConnectHosts;
 
 /*+ The item definitions in the AllowedConnectHosts section. +*/
 static ConfigItemDef allowedconnecthosts_itemdefs[]={
- {"",&AllowedConnectHosts,0,1,Host,None,NULL}
+ {"",&AllowedConnectHosts,0,1,HostWild,None,NULL}
 };
 
 /*+ The AllowedConnectHosts section. +*/
@@ -798,6 +842,7 @@ static ConfigSection *sections[]={&startup_section,
                                   &options_section,
                                   &onlineoptions_section,
                                   &offlineoptions_section,
+                                  &ssloptions_section,
                                   &fetchoptions_section,
                                   &indexoptions_section,
                                   &modifyhtml_section,
@@ -886,9 +931,28 @@ void InitConfigurationFile(char *name)
 
 int ReadConfigurationFile(int fd)
 {
+ static int first_time=1;
  char *errmsg;
 
- errmsg=ReadConfigFile();
+ if(first_time)
+   {
+    errmsg=ReadConfigFile(1);
+
+    if(errmsg)
+      {
+       if(fd!=-1)
+          write_string(fd,errmsg);
+       free(errmsg);
+
+       return(1);
+      }
+
+    SetLocalPort(ConfigInteger(HTTP_Port));
+
+    first_time=0;
+   }
+
+ errmsg=ReadConfigFile(0);
 
  if(errmsg)
    {
@@ -898,15 +962,13 @@ int ReadConfigurationFile(int fd)
 
     return(1);
    }
- else
-   {
-    SyslogLevel=ConfigInteger(LogLevel);
 
-    SetDNSTimeout(ConfigInteger(DNSTimeout));
-    SetConnectTimeout(ConfigInteger(ConnectTimeout));
+ SyslogLevel=ConfigInteger(LogLevel);
 
-    return(0);
-   }
+ SetDNSTimeout(ConfigInteger(DNSTimeout));
+ SetConnectTimeout(ConfigInteger(ConnectTimeout));
+
+ return(0);
 }
 
 

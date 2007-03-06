@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configmisc.c 1.23 2004/07/03 14:58:08 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configmisc.c 1.32 2006/01/07 16:10:38 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Configuration file data management functions.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2004,2006 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -31,7 +33,7 @@
 /* Local functions */
 
 static /*@null@*/ char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val);
-static /*@null@*/ char* sprintf_url_spec(UrlSpec *urlspec);
+static /*@null@*/ char* sprintf_url_spec(const UrlSpec *urlspec);
 static /*@null@*/ char *strstrn(const char *phaystack, const char *pneedle, size_t n);
 static /*@null@*/ char *strcasestrn(const char *phaystack, const char *pneedle, size_t n);
 
@@ -262,12 +264,15 @@ void FreeKeysOrValues(KeyOrValue *keyval,ConfigType type, int n)
    case PathName:
    case FileExt:
    case MIMEType:
-   case HostOrNone:
    case Host:
-   case HostAndPortOrNone:
+   case HostOrNone:
    case HostAndPort:
+   case HostAndPortOrNone:
+   case HostWild:
+   case HostAndPortWild:
    case UserPass:
    case Url:
+   case UrlWild:
    for(i=0;i<n;++i)
      if(keyval[i].string)
        free(keyval[i].string);
@@ -285,46 +290,37 @@ void FreeKeysOrValues(KeyOrValue *keyval,ConfigType type, int n)
 
   int MatchUrlSpecification returns 1 if true else 0.
 
-  UrlSpec *spec The URL-SPECIFICATION.
+  const UrlSpec *spec The URL-SPECIFICATION.
 
-  URL *Url  The URL to match.
+  const URL *Url  The URL to match.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int MatchUrlSpecification(UrlSpec *spec,URL *Url)
+int MatchUrlSpecification(const UrlSpec *spec,const URL *Url)
 {
   return((!spec->proto || !strcmp(UrlSpecProto(spec),Url->proto)) &&
 	 (!spec->host || WildcardMatch(Url->host,UrlSpecHost(spec))) &&
 	 (spec->port==-1 || (Url->port? Url->portnum==spec->port : spec->port==0)) &&
 	 (!spec->path || (spec->nocase? WildcardCaseMatch(Url->path,UrlSpecPath(spec)):WildcardMatch(Url->path,UrlSpecPath(spec)))) &&
-	 (!spec->params || (Url->params? (spec->nocase? WildcardCaseMatch(Url->params,UrlSpecParams(spec)):WildcardMatch(Url->params,UrlSpecParams(spec))) : !*UrlSpecParams(spec))) &&
 	 (!spec->args || (Url->args? (spec->nocase? WildcardCaseMatch(Url->args,UrlSpecArgs(spec)):WildcardMatch(Url->args,UrlSpecArgs(spec))) : !*UrlSpecArgs(spec))));
 }
 
 /*++++++++++++++++++++++++++++++++++++++
-  Check if a protocol, host and port match a URL-SPECIFICATION in the config file.
+  Check if the protocol, host and port  of a URL matches
+  a URL-SPECIFICATION in the config file, ignoring the other
+  parts of the URL.
 
   int MatchUrlSpecificationProtoHostPort returns 1 if true else 0.
 
-  UrlSpec *spec The URL-SPECIFICATION.
+  const UrlSpec *spec The URL-SPECIFICATION.
 
-  char *proto The protocol.
-
-  char *hostport The host (and port).
-
+  const URL *Url  The URL to match.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int MatchUrlSpecificationProtoHostPort(UrlSpec *spec,char *proto,char *hostport)
+int MatchUrlSpecificationProtoHostPort(const UrlSpec *spec,const URL *Url)
 {
-  char *hoststr,*portstr; int hostlen;
-
-  if((spec->proto && strcmp(UrlSpecProto(spec),proto)) ||
-     (spec->path) || (spec->params) || (spec->args))
-    return 0;
-
-  SplitHostPort(hostport,&hoststr,&hostlen,&portstr);
-
-  return((!spec->host || WildcardMatchN(hoststr,hostlen,UrlSpecHost(spec))) &&
-	 (spec->port==-1 || (portstr? atoi(portstr)==spec->port : spec->port==0)));
+  return((!spec->proto || !strcmp(UrlSpecProto(spec),Url->proto)) &&
+	 (!spec->host || WildcardMatch(Url->host,UrlSpecHost(spec))) &&
+	 (spec->port==-1 || (Url->port? Url->portnum==spec->port : spec->port==0)));
 }
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -332,34 +328,38 @@ int MatchUrlSpecificationProtoHostPort(UrlSpec *spec,char *proto,char *hostport)
 
   int WildcardMatch returns 1 if there is a match.
 
-  char *string The fixed string that is being matched.
+  const char *string The fixed string that is being matched.
 
-  char *pattern The pattern to match against.
+  const char *pattern The pattern to match against.
+
+  By Paul A. Rombouts <p.a.rombouts@home.nl>, handles more than two '*' using simpler algorithm than previously.
+
+  See also the strstrn() function at the bottom of this file.
   ++++++++++++++++++++++++++++++++++++++*/
 
 int WildcardMatch(const char *string,const char *pattern)
 {
-  int len_patt;
+  size_t lensegment;
   const char *midstr, *endstr;
-  const char *pattstr, *starp=strchr(pattern,'*');
+  const char *starp=strchr(pattern,'*');
 
   if(!starp) return(!strcmp(string,pattern));
 
-  len_patt=starp-pattern;
-  if(strncmp(string,pattern,len_patt)) return 0;
-  midstr=string+len_patt;
+  lensegment=starp-pattern;
+  if(strncmp(string,pattern,lensegment)) return 0;
+  midstr=string+lensegment;
 
-  while(pattstr=starp+1,starp=strchr(pattstr,'*'))
+  while(pattern=starp+1,starp=strchr(pattern,'*'))
     {
       const char *match;
-      len_patt = starp-pattstr;
-      if(!(match = strstrn(midstr,pattstr,len_patt))) return 0;
-      midstr=match+len_patt;
+      lensegment = starp-pattern;
+      if(!(match = strstrn(midstr,pattern,lensegment))) return 0;
+      midstr=match+lensegment;
     }
 
-  endstr= strchrnul(midstr,0)-strlen(pattstr);
+  endstr= strchrnul(midstr,0)-strlen(pattern);
   if(midstr>endstr) return 0;
-  return(!strcmp(endstr,pattstr));
+  return(!strcmp(endstr,pattern));
 }
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -367,73 +367,71 @@ int WildcardMatch(const char *string,const char *pattern)
 
   int WildcardCaseMatch returns 1 if there is a match.
 
-  char *string The fixed string that is being matched.
+  const char *string The fixed string that is being matched.
 
-  char *pattern The pattern to match against.
+  const char *pattern The pattern to match against.
   ++++++++++++++++++++++++++++++++++++++*/
 
 int WildcardCaseMatch(const char *string,const char *pattern)
 {
-  int len_patt;
+  size_t lensegment;
   const char *midstr, *endstr;
-  const char *pattstr, *starp=strchr(pattern,'*');
+  const char *starp=strchr(pattern,'*');
 
   if(!starp) return(!strcasecmp(string,pattern));
 
-  len_patt=starp-pattern;
-  if(strncasecmp(string,pattern,len_patt)) return 0;
-  midstr=string+len_patt;
+  lensegment=starp-pattern;
+  if(strncasecmp(string,pattern,lensegment)) return 0;
+  midstr=string+lensegment;
 
-  while(pattstr=starp+1,starp=strchr(pattstr,'*'))
+  while(pattern=starp+1,starp=strchr(pattern,'*'))
     {
       const char *match;
-      len_patt = starp-pattstr;
-      if(!(match = strcasestrn(midstr,pattstr,len_patt))) return 0;
-      midstr=match+len_patt;
+      lensegment = starp-pattern;
+      if(!(match = strcasestrn(midstr,pattern,lensegment))) return 0;
+      midstr=match+lensegment;
     }
 
-  endstr= strchrnul(midstr,0)-strlen(pattstr);
+  endstr= strchrnul(midstr,0)-strlen(pattern);
   if(midstr>endstr) return 0;
-  return(!strcasecmp(endstr,pattstr));
+  return(!strcasecmp(endstr,pattern));
 }
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Match part of a string against a pattern with '*'s in it.
+  Do a case-insensitive match against part of a pattern with '*'s in it.
 
-  int WildcardMatchN returns 1 if there is a match.
+  int WildcardCaseMatchN returns 1 if there is a match.
 
-  char *string The fixed string that is being matched.
-  int stringlen The length of the part of string to match. (This part must not contain a null char)
+  const char *string The fixed string that is being matched.
 
-  char *pattern The pattern to match against.
+  const char *pattern The pattern to match against.
+  size_t pattlen The length of the part of pattern to match. (This part must not contain a null char)
   ++++++++++++++++++++++++++++++++++++++*/
 
-int WildcardMatchN(const char *string,int stringlen,const char *pattern)
+int WildcardCaseMatchN(const char *string,const char *pattern,size_t pattlen)
 {
-  int len_patt;
+  size_t lensegment;
   const char *midstr, *endstr;
-  const char *pattstr, *starp=strchr(pattern,'*');
+  const char *starp=memchr(pattern,'*',pattlen);
 
-  if(!starp) return(!strncmp(string,pattern,stringlen) && !pattern[stringlen]);
+  if(!starp) return(!strncasecmp(string,pattern,pattlen) && !string[pattlen]);
 
-  len_patt=starp-pattern;
-  if(len_patt>stringlen) return 0;
-  if(strncmp(string,pattern,len_patt)) return 0;
-  midstr=string+len_patt;
+  lensegment=starp-pattern;
+  if(strncasecmp(string,pattern,lensegment)) return 0;
+  midstr=string+lensegment;
 
-  while(pattstr=starp+1,starp=strchr(pattstr,'*'))
+  while(pattern=starp+1,pattlen -= lensegment+1, starp=memchr(pattern,'*',pattlen))
     {
       const char *match;
-      len_patt = starp-pattstr;
-      if(!(match = strstrn(midstr,pattstr,len_patt))) return 0;
-      midstr=match+len_patt;
+      lensegment = starp-pattern;
+      if(!(match = strcasestrn(midstr,pattern,lensegment))) return 0;
+      midstr=match+lensegment;
     }
 
-  len_patt=strlen(pattstr);
-  endstr= string+stringlen-len_patt;
+  endstr= strchrnul(midstr,0)-pattlen;
   if(midstr>endstr) return 0;
-  return(!strncmp(endstr,pattstr,len_patt));
+  return(!strncasecmp(endstr,pattern,pattlen));
 }
 
 
@@ -497,10 +495,16 @@ char *ConfigTypeString(ConfigType type)
     return "HostAndPort";
    case HostAndPortOrNone:
     return "HostAndPortOrNone";            /* val */
+   case HostWild:
+    return "HostWild";                     /* val */
+   case HostAndPortWild:
+    return "HostAndPortWild";              /* val */
    case UserPass:
     return "UserPass";           /* key */
    case Url:
     return "Url";                          /* val */
+   case UrlWild:
+    return "UrlWild";                      /* val */
    case UrlSpecification:
     return "UrlSpecification";   /* key */ /* val */
    }
@@ -508,7 +512,7 @@ char *ConfigTypeString(ConfigType type)
  /*@notreached@*/
 
  return("??Unknown??");
-};
+}
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -587,18 +591,18 @@ void ConfigEntryStrings(ConfigItem item,int which,char **url,char **key,char **v
 
   char *MakeConfigEntryString Returns a malloced string.
 
-  ConfigItemDef *itemdef The configuration item definition.
+  const ConfigItemDef *itemdef The configuration item definition.
 
-  char *url Specifies the URL string.
+  const char *url Specifies the URL string.
 
-  char *key Specifies the key string.
+  const char *key Specifies the key string.
 
-  char *val Specifies the val string.
+  const char *val Specifies the val string.
   ++++++++++++++++++++++++++++++++++++++*/
 /* Rewritten by Paul Rombouts */
-char *MakeConfigEntryString(ConfigItemDef *itemdef,char *url,char *key,char *val)
+char *MakeConfigEntryString(const ConfigItemDef *itemdef,const char *url,const char *key,const char *val)
 {
- int length=0;
+ size_t length=0;
  char *string,*p;
 
  /* compute the length */
@@ -738,12 +742,15 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
    case PathName:
    case FileExt:
    case MIMEType:
-   case HostOrNone:
    case Host:
-   case HostAndPortOrNone:
+   case HostOrNone:
    case HostAndPort:
+   case HostAndPortOrNone:
+   case HostWild:
+   case HostAndPortWild:
    case UserPass:
    case Url:
+   case UrlWild:
      return strdup(key_or_val.string? key_or_val.string : "");
 
     /* Url Specification */
@@ -761,14 +768,14 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
 
   char* sprintf_url_spec Return the new string.
 
-  UrlSpec *urlspec The URL-SPECIFICATION to convert.
+  const UrlSpec *urlspec The URL-SPECIFICATION to convert.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static char* sprintf_url_spec(UrlSpec *urlspec)
+static char* sprintf_url_spec(const UrlSpec *urlspec)
 {
- int length=0;
+ size_t length=0;
  char *string,*p;
- char portstr[12];
+ char portstr[MAX_INT_STR+1];
 
  if(!urlspec) return(NULL);
 
@@ -777,24 +784,24 @@ static char* sprintf_url_spec(UrlSpec *urlspec)
  if(urlspec->negated) length+=strlitlen("!");
  if(urlspec->nocase) length+=strlitlen("~");
 
- length+= (urlspec->proto ? strlen(UrlSpecProto(urlspec)) : strlitlen("*")) + strlitlen("://");
+ length+= (HasUrlSpecProto(urlspec) ? strlen(UrlSpecProto(urlspec)) : strlitlen("*")) + strlitlen("://");
 
- length+= (urlspec->host ? strlen(UrlSpecHost(urlspec)) : strlitlen("*"));;
+ length+= (HasUrlSpecHost(urlspec) ? strlen(UrlSpecHost(urlspec)) : strlitlen("*"));;
 
- if(urlspec->port!=-1) {
+ if(UrlSpecPort(urlspec)!=-1) {
    length+=strlitlen(":");
-   if(urlspec->port!=0)
-     length+= sprintf(portstr,"%d",urlspec->port);
+   if(UrlSpecPort(urlspec)!=0)
+     length+= sprintf(portstr,"%d",UrlSpecPort(urlspec));
  }
 
- if(urlspec->path) {
+ if(HasUrlSpecPath(urlspec)) {
    if(*UrlSpecPath(urlspec)=='*') length+=strlitlen("/");
    length+= strlen(UrlSpecPath(urlspec));
  }
  else
    length+=strlitlen("/*");
 
- if(urlspec->args)
+ if(HasUrlSpecArgs(urlspec))
    length+= strlitlen("?") + strlen(UrlSpecArgs(urlspec));
 
  /* Now construct the actual string */
@@ -804,24 +811,24 @@ static char* sprintf_url_spec(UrlSpec *urlspec)
  if(urlspec->negated) *p++='!';
  if(urlspec->nocase) *p++='~';
 
- p=stpcpy(stpcpy(p,urlspec->proto?UrlSpecProto(urlspec):"*"),"://");
+ p=stpcpy(stpcpy(p,HasUrlSpecProto(urlspec)?UrlSpecProto(urlspec):"*"),"://");
 
- p=stpcpy(p,urlspec->host?UrlSpecHost(urlspec):"*");
+ p=stpcpy(p,HasUrlSpecHost(urlspec)?UrlSpecHost(urlspec):"*");
 
- if(urlspec->port!=-1) {
+ if(UrlSpecPort(urlspec)!=-1) {
    *p++=':';
-   if(urlspec->port!=0)
+   if(UrlSpecPort(urlspec)!=0)
      p=stpcpy(p,portstr);
  }
 
- if(urlspec->path) {
+ if(HasUrlSpecPath(urlspec)) {
    if(*UrlSpecPath(urlspec)=='*') *p++='/';
    p=stpcpy(p,UrlSpecPath(urlspec));
  }
  else
    p=stpcpy(p,"/*");
 
- if(urlspec->args) {
+ if(HasUrlSpecArgs(urlspec)) {
    *p++='?';
    p=stpcpy(p,UrlSpecArgs(urlspec));
  }

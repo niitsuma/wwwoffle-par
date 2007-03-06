@@ -14,6 +14,13 @@ total      = The total number of hosts for this protocol (='$total').
 $total?=0{<b>Нет хостов</b>}{<b>Всего $total хостов</b>}
 
 <p>
+
+$delete?{$totaldelete=$total}{$totaldelete=0}
+$totaldelete?=0{}
+{
+<form action="/control/delete-multiple/url-all" method=post>
+}
+
 <ul>
 
 <!-- This is just the head of the index body since the contents are different for each index -->

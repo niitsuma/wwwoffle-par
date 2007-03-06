@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configedit.c 1.34 2004/09/28 16:25:30 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configedit.c 1.41 2005/10/11 18:34:15 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   The HTML interactive configuration editing pages.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -99,7 +101,7 @@ void ConfigurationPage(int fd,URL *Url,Body *request_body)
 
  for(s=0;s<CurrentConfig.nsections;++s)
    {
-    int len=strlen(CurrentConfig.sections[s]->name);
+    size_t len=strlen(CurrentConfig.sections[s]->name);
 
     if(!strncmp(newpath,CurrentConfig.sections[s]->name,len))
       {
@@ -387,7 +389,7 @@ static void ConfigurationItemPage(int fd,int section,int item,URL *Url,char *url
 
  /* Parse the arguments if any */
 
- if(request_body)
+ if(request_body && request_body->length)
    {
     char *form=URLRecodeFormArgs(request_body->content);
     char **args=SplitFormArgs(form);
@@ -415,7 +417,7 @@ static void ConfigurationItemPage(int fd,int section,int item,URL *Url,char *url
    {
     char *line1=NULL,*line2=NULL,*template=NULL,*description=NULL;
     int file;
-    char nentries[12],nallowed[4];
+    char nentries[MAX_INT_STR+1],nallowed[sizeof "any"];
     char *entry_url=NULL,*entry_key=NULL,*entry_val=NULL;
 
     if(edit && entry)
@@ -450,6 +452,8 @@ static void ConfigurationItemPage(int fd,int section,int item,URL *Url,char *url
     init_io(file);
 
     HTMLMessageHead(fd,200,"WWWOFFLE Configuration Item Page",
+                    "Cache-Control","no-cache",
+                    "Expires","0",
                     NULL);
 
     if(out_err==-1 || head_only) goto close_free;
@@ -483,16 +487,9 @@ static void ConfigurationItemPage(int fd,int section,int item,URL *Url,char *url
     }
 
    output_head:
-    if(*itemdef->item)
-       sprintf(nentries,"%d",(*itemdef->item)->nentries);
-    else
-       strcpy(nentries,"0");
+    sprintf(nentries,"%d",(*itemdef->item)?(*itemdef->item)->nentries:0);
 
-    if(itemdef->same_key==0 &&
-       itemdef->url_type==0)
-       strcpy(nallowed,"1");
-    else
-       strcpy(nallowed,"any");
+    strcpy(nallowed,(itemdef->same_key==0 && itemdef->url_type==0)?"1":"any");
 
     HTMLMessageBody(fd,"ConfigurationItem-Head",
                     "section",configsection->name,
@@ -661,12 +658,12 @@ inline static void chrstr_prepend(char c, char **str)
 static void ConfigurationEditURLPage(int fd,URL *Url,Body *request_body)
 {
  char *url=NULL;
- char *proto=NULL,*host=NULL,*port=NULL,*path=NULL,*params=NULL,*args=NULL;
- char *proto_other=NULL,*host_other=NULL,*port_other=NULL,*path_other=NULL,*params_other=NULL,*args_other=NULL;
+ char *proto=NULL,*host=NULL,*port=NULL,*path=NULL,*args=NULL;
+ char *proto_other=NULL,*host_other=NULL,*port_other=NULL,*path_other=NULL,*args_other=NULL;
 
  /* Parse the arguments. */
 
- if(request_body)
+ if(request_body && request_body->length)
    {
     char *form=URLRecodeFormArgs(request_body->content);
     char **arglist=SplitFormArgs(form);
@@ -678,14 +675,12 @@ static void ConfigurationEditURLPage(int fd,URL *Url,Body *request_body)
         case_nformarg(host,arglist[i])         else
         case_nformarg(port,arglist[i])         else
 	case_nformarg(path,arglist[i])         else
-	case_nformarg(params,arglist[i])       else
 	case_nformarg(args,arglist[i])         else
 
 	case_nformarg(proto_other,arglist[i])  else
 	case_nformarg(host_other,arglist[i])   else
 	case_nformarg(port_other,arglist[i])   else
 	case_nformarg(path_other,arglist[i])   else
-	case_nformarg(params_other,arglist[i]) else
 	case_nformarg(args_other,arglist[i])   else
 	PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",arglist[i],Url->name);
       }
@@ -722,12 +717,6 @@ static void ConfigurationEditURLPage(int fd,URL *Url,Body *request_body)
  if(path) {if(*path!='/') chrstr_prepend('/',&path);}
  else path=strdup("/*");
 
- if(params && !strcmp(params,"OTHER") && params_other)
-   {free(params); params=params_other;}
- else
-   {if(params_other) free(params_other);}
- if(params && *params && *params!=';') chrstr_prepend(';',&params);
-
  if(args && !strcmp(args,"OTHER") && args_other)
    {free(args); args=args_other;}
  else
@@ -738,7 +727,6 @@ static void ConfigurationEditURLPage(int fd,URL *Url,Body *request_body)
    int urlsize=sizeof("://")+strlen(proto)+strlen(host);
    if(port) urlsize+=strlen(port);
    urlsize+=strlen(path);
-   if(params) urlsize+=strlen(params);
    if(args) urlsize+=strlen(args);
 
    url=(char*)malloc(urlsize);
@@ -747,7 +735,6 @@ static void ConfigurationEditURLPage(int fd,URL *Url,Body *request_body)
      char *p= stpcpy(stpcpy(stpcpy(url,proto),"://"),host);
      if(port) p=stpcpy(p,port);
      p=stpcpy(p,path);
-     if(params) p=stpcpy(p,params);
      if(args) p=stpcpy(p,args);
    }
  }
@@ -756,24 +743,23 @@ static void ConfigurationEditURLPage(int fd,URL *Url,Body *request_body)
  if(host)  free(host);
  if(port)  free(port);
  if(path)  free(path);
- if(params)free(params);
  if(args)  free(args);
 
  /* Redirect the client to it */
 
  {
-   char *localhost=GetLocalHost(1);
+   char *localurl=GetLocalURL();
    char *encurl=URLEncodeFormArgs(url);
-   char relocate[sizeof("http:///configuration/url?")+strlen(localhost)+strlen(encurl)];
+   char relocate[strlen(localurl)+strlen(encurl)+sizeof("/configuration/url?")];
 
-   sprintf(relocate,"http://%s/configuration/url?%s",localhost,encurl);
+   stpcpy(stpcpy(stpcpy(relocate,localurl),"/configuration/url?"),encurl);
 
    HTMLMessage(fd,302,"WWWOFFLE Configuration Edit URL Redirect",relocate,"Redirect",
 	       "location",relocate,
 	       NULL);
 
    free(encurl);
-   free(localhost);
+   free(localurl);
  }
 
  free(url);
@@ -791,7 +777,6 @@ static void ConfigurationEditURLPage(int fd,URL *Url,Body *request_body)
 static void ConfigurationURLPage(int fd,char *url)
 {
  static char dummy_port[]=":";
- static char dummy_param[]=";";
  static char dummy_arg[]="?";
  int wildcard=0,file;
 
@@ -799,8 +784,8 @@ static void ConfigurationURLPage(int fd,char *url)
     If it isn't then try and make something useful from it, at least don't crash. */
 
  {
-   char *proto=NULL,*host=NULL,*port=NULL,*path=NULL,*params=NULL,*args=NULL;
-   char *h=url,*colon=strchr(url,':'),*slash,*semi,*ques,*pathbeg,*pathend;
+   char *proto=NULL,*host=NULL,*port=NULL,*path=NULL,*args=NULL;
+   char *h=url,*colon=strchr(url,':'),*slash,*ques,*pathbeg,*pathend;
 
    if(colon && *(colon+1)=='/' && *(colon+2)=='/')
      {
@@ -809,19 +794,8 @@ static void ConfigurationURLPage(int fd,char *url)
      }
 
    slash=strchrnul(h,'/');
-   semi=strchrnul(h,';');
    ques=strchrnul(h,'?');
    pathend=ques;
-
-   if(semi<ques)  /* ../path;...[?]... */
-     {
-       pathend=semi;
-
-       if(semi+1==ques)
-	 params=dummy_param;
-       else
-	 params=STRSLICE(semi+1,ques);
-     }
 
    if(*ques)  /* ../path?... */
      {
@@ -859,7 +833,7 @@ static void ConfigurationURLPage(int fd,char *url)
 
    host=STRDUPA2(h,colon);
 
-   if(strchr(url,'*') || port==dummy_port || params==dummy_param || args==dummy_arg)
+   if(strchr(url,'*') || port==dummy_port || args==dummy_arg)
      wildcard=1;
 
    /* Display the HTML */
@@ -888,7 +862,6 @@ static void ConfigurationURLPage(int fd,char *url)
 		   "host",host,
 		   "port",port,
 		   "path",path,
-		   "params",params,
 		   "args",args,
 		   NULL);
 

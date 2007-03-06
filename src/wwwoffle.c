@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle.c 2.69 2004/04/02 17:51:49 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle.c 2.81 2006/01/08 10:27:22 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   A user level program to interact with the server.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2004,2005,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -26,6 +28,7 @@
 #include "wwwoffle.h"
 #include "io.h"
 #include "misc.h"
+#include "proto.h"
 #include "errors.h"
 #include "config.h"
 #include "sockets.h"
@@ -34,11 +37,9 @@
 
 
 #ifndef PATH_MAX
+/*+ The maximum pathname length in characters. +*/
 #define PATH_MAX 4096
 #endif
-
-
-static void usage(int verbose);
 
 
 /*+ The action to perform. +*/
@@ -72,8 +73,15 @@ typedef enum _Action
 Action;
 
 
-static void add_url_list(char **links);
+/* Local functions */
+
+static void usage(int verbose);
+
+static void add_url_list(URL **links);
 static void add_url_file(char *url_file);
+
+
+/* Local variables */
 
 /*+ The list of URLs or files. +*/
 static /*@null@*/ char **url_file_list=NULL;
@@ -99,7 +107,7 @@ int main(int argc, char** argv)
 
  char *env=NULL;
  char *host=NULL;
- int port=0,http_port,wwwoffle_port;
+ int port=0;
 
  /* Parse the command line options */
 
@@ -333,7 +341,7 @@ int main(int argc, char** argv)
 
     if(!strcmp(argv[i],"-p"))
       {
-       char *hoststr,*portstr; int hostlen;
+       char *hoststr,*portstr; size_t hostlen;
 
        if(++i>=argc)
          {fprintf(stderr,"wwwoffle: The '-p' argument requires a hostname and optionally a port number.\n"); exit(1);}
@@ -348,13 +356,10 @@ int main(int argc, char** argv)
           port=atoi(portstr);
 
           if(port<=0 || port>=65536)
-            {fprintf(stderr,"wwwoffle: The port number %d '%s' is invalid.\n",port,argv[i]); exit(1);}
+            {fprintf(stderr,"wwwoffle: The port number %d in -p option '%s' is invalid.\n",port,argv[i]); exit(1);}
          }
 
        host=strndup(hoststr,hostlen);
-
-       /* Don't need to use RejoinHostPort(argv[i],hoststr,portstr) here. */
-
        argv[i-1]=NULL;
        argv[i]=NULL;
        continue;
@@ -411,7 +416,7 @@ int main(int argc, char** argv)
     usage(0);
    }
 
- /* Initialise things. */
+ /* Check the environment variable. */
 
  if(!config_file && !host && (env=getenv("WWWOFFLE_PROXY")))
    {
@@ -419,7 +424,7 @@ int main(int argc, char** argv)
        config_file=env;
     else
       {
-       char *hoststr,*portstr; int hostlen;
+       char *hoststr,*portstr; size_t hostlen;
 
        SplitHostPort(env,&hoststr,&hostlen,&portstr);
        host=strndup(hoststr,hostlen);
@@ -428,16 +433,18 @@ int main(int argc, char** argv)
          {
 	  char *colon=strchr(portstr,':');
 
-	  if(!colon || action==Get || action==Output || action==OutputWithHeader)
+	  if(!colon || action==Get || action==Post || action==Put || action==Output || action==OutputWithHeader)
 	    port=atoi(portstr);
 	  else
 	    port=atoi(colon+1);
 
           if(port<=0 || port>=65536)
-            {fprintf(stderr,"wwwoffle: The port number %d '%s' is invalid.\n",port,env); exit(1);}
+            {fprintf(stderr,"wwwoffle: The port number %d in WWWOFFLE_PROXY variable '%s' is invalid.\n",port,env); exit(1);}
          }
       }
    }
+
+ /* Load the configuration file. */
 
  InitErrorHandler("wwwoffle",0,1);
 
@@ -453,11 +460,18 @@ int main(int argc, char** argv)
     finish_io(STDERR_FILENO);
    }
 
- if(!host)
-    host=GetLocalHost(0);
+ /* Check the host and port specified. */
 
- wwwoffle_port=ConfigInteger(WWWOFFLE_Port);
- http_port=ConfigInteger(HTTP_Port);
+ if(!host)
+    host=GetLocalHost();
+
+ if(!port)
+   {
+    if(action==Get || action==Post || action==Put || action==Output || action==OutputWithHeader)
+       port=ConfigInteger(HTTP_Port);
+    else
+       port=ConfigInteger(WWWOFFLE_Port);
+   }
 
  /* The connections to the WWWOFFLE server. */
 
@@ -466,10 +480,10 @@ int main(int argc, char** argv)
     int socket;
     char *line=NULL;
 
-    socket=OpenClientSocket(host,port?port:wwwoffle_port,NULL,0,0,NULL);
+    socket=OpenClientSocket(host,port,NULL,0,0,NULL);
 
     if(socket==-1)
-       PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port?port:wwwoffle_port);
+       PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port);
 
     init_io(socket);
 
@@ -528,27 +542,21 @@ int main(int argc, char** argv)
        if(strcmp(url_file_list[i],"-") && stat(url_file_list[i],&buf))
          {
           int socket;
-          char *refresh=NULL,*p,buffer[READ_BUFFER_SIZE];
-
-          for(p=url_file_list[i];*p;p++)
-             if(*p=='#')
-               {
-                *p=0;
-                break;
-               }
+	  char *refresh=NULL;
+          char buffer[IO_BUFFER_SIZE];
 
           Url=SplitURL(url_file_list[i]);
 
-          if(!Url->Protocol)
+          if(!IsProtocolHandled(Url))
             {
              PrintMessage(Warning,"Cannot request protocol '%s'.",Url->proto);
              continue;
             }
 
-          socket=OpenClientSocket(host,port?port:http_port,NULL,0,0,NULL);
+          socket=OpenClientSocket(host,port,NULL,0,0,NULL);
 
           if(socket==-1)
-             PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port?port:http_port);
+             PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port);
 
           init_io(socket);
 
@@ -567,7 +575,8 @@ int main(int argc, char** argv)
                {
 		char *p=Url->pathendp;
 		while(--p>=Url->pathp && *p!='/');
-		limit=strndup(Url->name,p+1-Url->name);
+		++p;
+		limit=strndup(Url->name,p-Url->name);
                }
              else
                 depth=0;
@@ -584,10 +593,12 @@ int main(int argc, char** argv)
 
           if(Url->user)
             {
-             char *userpass1=(char*)(malloc(strlen(Url->user)+(Url->pass?strlen(Url->pass):1)+3)),*userpass2;
+	     size_t userpasslen=strlen(Url->user)+(Url->pass?strlen(Url->pass):0)+1;
+	     size_t encuserpasslen=base64enclen(userpasslen);
+             char userpass1[userpasslen+1],userpass2[encuserpasslen+1];
 
              sprintf(userpass1,"%s:%s",Url->user,Url->pass?Url->pass:"");
-             userpass2=(char *)Base64Encode((unsigned char *)userpass1,strlen(userpass1),NULL,0);
+             Base64Encode((unsigned char *)userpass1,userpasslen,(unsigned char *)userpass2,encuserpasslen+1);
 
              if(refresh)
                 write_formatted(socket,"HEAD %s HTTP/1.0\r\n"
@@ -606,9 +617,6 @@ int main(int argc, char** argv)
                                 urlenc);
 		free(urlenc);
 	       }
-
-             free(userpass1);
-             free(userpass2);
             }
           else
             {
@@ -630,7 +638,7 @@ int main(int argc, char** argv)
 	       }
             }
 
-          while(read_data(socket,buffer,READ_BUFFER_SIZE)>0)
+          while(read_data(socket,buffer,IO_BUFFER_SIZE)>0)
              ;
 
           finish_io(socket);
@@ -642,7 +650,7 @@ int main(int argc, char** argv)
        else if(!strcmp(url_file_list[i],"-") || S_ISREG(buf.st_mode))
          {
           int file;
-          char **links;
+          URL **links;
 
           if(strcmp(url_file_list[i],"-"))
             {
@@ -662,32 +670,26 @@ int main(int argc, char** argv)
 
           init_io(file);
 
-	  {
-	    int len=strlitlen("file://localhost")+strlen(url_file_list[i]);
-	    char *cwd=NULL;
-	      
-	    if(*url_file_list[i]!='/')
-	      { /* needs glibc to work */
-		if(!(cwd=getcwd(NULL,0)))
-		  PrintMessage(Fatal,"Cannot get value of current working directory [%!s].");
-		len+=strlen(cwd)+1;
+          if(*url_file_list[i]=='/')
+             Url=CreateURL("file","localhost",url_file_list[i],NULL,NULL,NULL);
+          else
+            {
+	      char *cwd;
+
+	      /* needs glibc to work */
+	      if(!(cwd=getcwd(NULL,0)))
+		PrintMessage(Fatal,"Cannot get value of current working directory [%!s].");
+
+	      {
+		char *p; char fullpath[strlen(cwd)+strlen(url_file_list[i])+2]; 
+
+		p=stpcpy(fullpath,cwd);
+		*p++='/';
+		stpcpy(p,url_file_list[i]);
+		Url=CreateURL("file","localhost",fullpath,NULL,NULL,NULL);
 	      }
-
-	    {
-	      char *p; char buffer[len+1]; 
-
-	      p=stpcpy(buffer,"file://localhost");
-
-	      if(cwd)
-		{
-		  p=stpcpy(p,cwd);
-		  *p++='/';
-		  free(cwd);
-		}
-	      stpcpy(p,url_file_list[i]);
-	      Url=SplitURL(buffer);
+	      free(cwd);
 	    }
-	  }
 
           ParseHTML(file,Url);
 
@@ -724,25 +726,18 @@ int main(int argc, char** argv)
    {
     URL *Url;
     int socket,n,length=0;
-    char *p,buffer[READ_BUFFER_SIZE];
-    char *data=(char*)malloc(READ_BUFFER_SIZE+1);
-
-    for(p=url_file_list[0];*p;p++)
-       if(*p=='#')
-         {
-          *p=0;
-          break;
-         }
+    char buffer[IO_BUFFER_SIZE];
+    char *data=(char*)malloc((size_t)(IO_BUFFER_SIZE+1));
 
     Url=SplitURL(url_file_list[0]);
 
-    if(!Url->Protocol)
+    if(!IsProtocolHandled(Url))
        PrintMessage(Fatal,"Cannot post or put protocol '%s'.",Url->proto);
 
-    socket=OpenClientSocket(host,port?port:http_port,NULL,0,0,NULL);
+    socket=OpenClientSocket(host,port,NULL,0,0,NULL);
 
     if(socket==-1)
-       PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port?port:http_port);
+       PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port);
 
     init_io(socket);
 
@@ -753,10 +748,10 @@ int main(int argc, char** argv)
 
     init_io(0);
 
-    while((n=read_data(0,data+length,READ_BUFFER_SIZE))>0)
+    while((n=read_data(0,data+length,IO_BUFFER_SIZE))>0)
       {
        length+=n;
-       data=(char*)realloc((void*)data,length+READ_BUFFER_SIZE+1);
+       data=(char*)realloc((void*)data,length+IO_BUFFER_SIZE+1);
       }
 
     if(action==Post)
@@ -768,10 +763,12 @@ int main(int argc, char** argv)
 
     if(Url->user)
       {
-       char *userpass1=(char*)(malloc(strlen(Url->user)+(Url->pass?strlen(Url->pass):1)+3)),*userpass2;
+       size_t userpasslen=strlen(Url->user)+(Url->pass?strlen(Url->pass):0)+1;
+       size_t encuserpasslen=base64enclen(userpasslen);
+       char userpass1[userpasslen+1],userpass2[encuserpasslen+1];
 
        sprintf(userpass1,"%s:%s",Url->user,Url->pass?Url->pass:"");
-       userpass2=(char *)Base64Encode((unsigned char *)userpass1,strlen(userpass1),NULL,0);
+       Base64Encode((unsigned char *)userpass1,userpasslen,(unsigned char *)userpass2,encuserpasslen+1);
 
        if(action==Post)
           write_formatted(socket,"POST %s HTTP/1.0\r\n"
@@ -790,9 +787,6 @@ int main(int argc, char** argv)
                                  "Accept: */*\r\n"
                                  "\r\n",
                           Url->name,userpass2,length);
-
-       free(userpass1);
-       free(userpass2);
       }
     else
       {
@@ -817,7 +811,7 @@ int main(int argc, char** argv)
 
     write_data(socket,"\r\n",2);
 
-    while(read_data(socket,buffer,READ_BUFFER_SIZE)>0)
+    while(read_data(socket,buffer,IO_BUFFER_SIZE)>0)
        ;
 
     finish_io(socket);
@@ -831,25 +825,16 @@ int main(int argc, char** argv)
     URL *Url;
     int socket;
     char *line=NULL;
-    char *p,buffer[READ_BUFFER_SIZE];
-    int nbytes;
-
-    for(p=url_file_list[0];*p;p++)
-       if(*p=='#')
-         {
-          *p=0;
-          break;
-         }
 
     Url=SplitURL(url_file_list[0]);
 
-    if(!Url->Protocol)
+    if(!IsProtocolHandled(Url))
        PrintMessage(Fatal,"Cannot fetch data from protocol '%s'.",Url->proto);
 
-    socket=OpenClientSocket(host,port?port:http_port,NULL,0,0,NULL);
+    socket=OpenClientSocket(host,port,NULL,0,0,NULL);
 
     if(socket==-1)
-       PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port?port:http_port);
+       PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port);
 
     init_io(socket);
 
@@ -858,10 +843,12 @@ int main(int argc, char** argv)
 
     if(Url->user)
       {
-       char *userpass1=(char*)(malloc(strlen(Url->user)+(Url->pass?strlen(Url->pass):1)+3)),*userpass2;
+       size_t userpasslen=strlen(Url->user)+(Url->pass?strlen(Url->pass):0)+1;
+       size_t encuserpasslen=base64enclen(userpasslen);
+       char userpass1[userpasslen+1],userpass2[encuserpasslen+1];
 
        sprintf(userpass1,"%s:%s",Url->user,Url->pass?Url->pass:"");
-       userpass2=(char *)Base64Encode((unsigned char *)userpass1,strlen(userpass1),NULL,0);
+       Base64Encode((unsigned char *)userpass1,userpasslen,(unsigned char *)userpass2,encuserpasslen+1);
 
        write_formatted(socket,"GET %s HTTP/1.0\r\n"
                               "Authorization: Basic %s\r\n"
@@ -869,9 +856,6 @@ int main(int argc, char** argv)
                               "Accept: */*\r\n"
                               "\r\n",
                        Url->name,userpass2);
-
-       free(userpass1);
-       free(userpass2);
       }
     else
        write_formatted(socket,"GET %s HTTP/1.0\r\n"
@@ -904,6 +888,9 @@ int main(int argc, char** argv)
          }
        else
          {
+	  ssize_t nbytes;
+	  char buffer[IO_BUFFER_SIZE];
+
           if(action==OutputWithHeader)
              fputs(line,stdout);
 
@@ -915,7 +902,7 @@ int main(int argc, char** argv)
                 break;
             }
 
-          while((nbytes=read_data(socket,buffer,READ_BUFFER_SIZE))>0)
+          while((nbytes=read_data(socket,buffer,IO_BUFFER_SIZE))>0)
              fwrite(buffer,1,nbytes,stdout);
          }
       }
@@ -1053,22 +1040,16 @@ static void usage(int verbose)
 /*++++++++++++++++++++++++++++++++++++++
   Add a list of URLs to the list.
 
-  char **links The list of URLs to add.
+  URL **links The list of URLs to add.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void add_url_list(char **links)
+static void add_url_list(URL **links)
 {
  int i;
 
  for(i=0;links[i];i++)
-   {
-    URL *linkUrl=SplitURL(links[i]);
-
-    if(strcmp(linkUrl->proto,"file"))
-       add_url_file(linkUrl->name);
-
-    FreeURL(linkUrl);
-   }
+    if(strcmp(links[i]->proto,"file"))
+       add_url_file(links[i]->name);
 }
 
 

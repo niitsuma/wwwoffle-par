@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/refresh.c 2.79 2004/09/28 16:25:30 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/refresh.c 2.89 2005/12/10 15:11:31 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   The HTML interactive page to refresh a URL.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -23,19 +25,24 @@
 #include "io.h"
 #include "misc.h"
 #include "headbody.h"
+#include "proto.h"
 #include "errors.h"
 #include "config.h"
 #include "document.h"
 
 
 #ifndef CLIENT_ONLY
+/*+ The maximum depth of recursion for following Location headers. +*/
 #define MAX_RECURSE_LOCATION 8
+
+/*+ A known fixed empty string. +*/
+static char empty[]="";
 
 /* Local variables */
 
 /*+ The options for recursive fetching; +*/
 static char *recurse_url=NULL,  /*+ the starting URL. +*/
-            *recurse_limit="";  /*+ the the URL prefix that must match. +*/
+            *recurse_limit=empty;  /*+ the the URL prefix that must match. +*/
 
 /*+ The options for the recursive fetching; +*/
 static int recurse_depth=-1,    /*+ the depth to go from this URL. +*/
@@ -49,6 +56,7 @@ static int recurse_stylesheets=0, /*+ stylesheets. +*/
            recurse_objects=0,     /*+ objects. +*/
            recurse_location=0;    /*+ Location headers. +*/
 
+
 /* Local functions */
 
 static void ParseRecurseOptions(URL *Url);
@@ -61,7 +69,7 @@ static int request_url(URL *Url,/*@null@*/ char *refresh,URL *refUrl);
 /*++++++++++++++++++++++++++++++++++++++
   Send to the client a page to allow refreshes using HTML.
 
-  char *RefreshPage Returns a modified URLs for a simple refresh.
+  URL *RefreshPage Returns a modified URL for a simple refresh.
 
   int fd The file descriptor of the client.
 
@@ -72,17 +80,17 @@ static int request_url(URL *Url,/*@null@*/ char *refresh,URL *refUrl);
   int *recurse Return value set to true if a recursive fetch was asked for.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *RefreshPage(int fd,URL *Url,Body *request_body,int *recurse)
+URL *RefreshPage(int fd,URL *Url,Body *request_body,int *recurse)
 {
- char *newurl=NULL;
- char *url;
-
- if(Url->args)
-    url=URLDecodeFormArgs(Url->args);
- else
-    url=NULL;
+ URL *newUrl=NULL;
 
  if(!strcmp("/refresh-options/",Url->path))
+   {
+    char *url=NULL;
+
+    if(Url->args)
+       url=URLDecodeFormArgs(Url->args);
+
     HTMLMessage(fd,200,"WWWOFFLE Refresh Form",NULL,"RefreshPage",
                 "url",url,
                 "stylesheets",ConfigBooleanURL(FetchStyleSheets,NULL)?"yes":NULL,
@@ -91,30 +99,39 @@ char *RefreshPage(int fd,URL *Url,Body *request_body,int *recurse)
                 "scripts",ConfigBooleanURL(FetchScripts,NULL)?"yes":NULL,
                 "objects",ConfigBooleanURL(FetchObjects,NULL)?"yes":NULL,
                 NULL);
+
+    if(url)
+       free(url);
+   }
  else if(!strcmp("/refresh-request/",Url->path) && Url->args)
    {
-    if((newurl=RefreshFormParse(fd,Url,Url->args,request_body)))
+    char *newurl;
+    newurl=RefreshFormParse(fd,Url,Url->args,request_body);
+    if(newurl)
+      {
+       newUrl=SplitURL(newurl);
        *recurse=-1;
+       free(newurl);
+      }
    }
- else if(!strcmp("/refresh/",Url->path) && url)
+ else if(!strcmp("/refresh/",Url->path) && Url->args)
    {
-    newurl=strdup(url);
+    char *url=URLDecodeFormArgs(Url->args);
+    newUrl=SplitURL(url);
+    free(url);
    }
  else if(!strcmp("/refresh-recurse/",Url->path) && Url->args)
    {
     *recurse=1;
     ParseRecurseOptions(Url);
-    newurl=strdup(recurse_url);
+    newUrl=SplitURL(recurse_url);
    }
  else
     HTMLMessage(fd,404,"WWWOFFLE Illegal Refresh Page",NULL,"RefreshIllegal",
                 "url",Url->pathp,
                 NULL);
 
- if(url)
-    free(url);
-
- return(newurl);
+ return(newUrl);
 }
 
 
@@ -141,7 +158,7 @@ static char *RefreshFormParse(int fd,URL *Url,char *request_args,Body *request_b
  URL *refUrl;
  char *new_url;
 
- if(!request_args && !request_body)
+ if((request_body && !request_body->length) || (!request_body && !request_args))
    {
     HTMLMessage(fd,404,"WWWOFFLE Refresh Form Error",NULL,"RefreshFormError",
                 "body",NULL,
@@ -160,8 +177,10 @@ static char *RefreshFormParse(int fd,URL *Url,char *request_args,Body *request_b
 
  for(i=0;args[i];i++)
    {
-    if(!strcmp_litbeg(args[i],"url="))
-       url=TrimArgs(URLDecodeFormArgs(args[i]+strlitlen("url=")));
+    if(!strcmp_litbeg(args[i],"url=")) {
+      if(url) free(url);       
+      url=TrimArgs(URLDecodeFormArgs(args[i]+strlitlen("url=")));
+    }
     else if(!strcmp_litbeg(args[i],"depth="))
        depth=atoi(args[i]+strlitlen("depth="));
     else if(!strcmp_litbeg(args[i],"method="))
@@ -211,7 +230,8 @@ static char *RefreshFormParse(int fd,URL *Url,char *request_args,Body *request_b
    {
     char *p=refUrl->pathendp;
     while(--p>=refUrl->pathp && *p!='/');
-    limit=strndup(refUrl->name,p+1-refUrl->name);
+    ++p;
+    limit=strndup(refUrl->name,p-refUrl->name);
    }
  else
     depth=0;
@@ -241,7 +261,8 @@ static void ParseRecurseOptions(URL *Url)
  if(recurse_url) free(recurse_url);
  recurse_url=NULL;
  recurse_depth=-1;
- recurse_limit="";
+ if(recurse_limit!=empty) free(recurse_limit);
+ recurse_limit=empty;
 
  if(Url->args)
    {
@@ -258,12 +279,16 @@ static void ParseRecurseOptions(URL *Url)
 
     for(i=0;args[i];i++)
       {
-       if(!strcmp_litbeg(args[i],"url="))
-          recurse_url=TrimArgs(URLDecodeFormArgs(args[i]+strlitlen("url=")));
+       if(!strcmp_litbeg(args[i],"url=")) {
+	 if(recurse_url) free(recurse_url);
+	 recurse_url=TrimArgs(URLDecodeFormArgs(args[i]+strlitlen("url=")));
+       }
        else if(!strcmp_litbeg(args[i],"depth="))
          {recurse_depth=atoi(args[i]+strlitlen("depth=")); if(recurse_depth<0) recurse_depth=0;}
-       else if(!strcmp_litbeg(args[i],"limit="))
-          recurse_limit=TrimArgs(URLDecodeFormArgs(args[i]+strlitlen("limit=")));
+       else if(!strcmp_litbeg(args[i],"limit=")) {
+	 if(recurse_limit!=empty) free(recurse_limit);
+	 recurse_limit=TrimArgs(URLDecodeFormArgs(args[i]+strlitlen("limit=")));
+       }
        else if(!strcmp_litbeg(args[i],"force="))
           recurse_force=(args[i][strlitlen("force=")]=='Y');
        else if(!strcmp_litbeg(args[i],"stylesheets="))
@@ -356,7 +381,7 @@ int RefreshForced(void)
 
 int RecurseFetch(URL *Url)
 {
- char **list,*metarefresh;
+ URL **list,*metarefresh;
  int more=0,old_recurse_location;
  int j;
 
@@ -364,13 +389,13 @@ int RecurseFetch(URL *Url)
 
  /* A Meta-Refresh header. */
 
- if(recurse_location && (metarefresh=MetaRefresh()))
+ if(recurse_location && (metarefresh=GetReference(RefMetaRefresh)))
    {
-    URL *metarefreshUrl=SplitURL(metarefresh);
+    URL *metarefreshUrl=metarefresh;
 
     recurse_location--;
 
-    if(!metarefreshUrl->local && metarefreshUrl->Protocol)
+    if(!IsLocalHost(metarefreshUrl) && IsProtocolHandled(metarefreshUrl))
       {
        char *refresh=NULL;
 
@@ -385,8 +410,6 @@ int RecurseFetch(URL *Url)
        if(refresh)
           free(refresh);
       }
-
-    FreeURL(metarefreshUrl);
    }
 
  recurse_location=MAX_RECURSE_LOCATION;
@@ -396,19 +419,17 @@ int RecurseFetch(URL *Url)
  if(recurse_stylesheets && (list=GetReferences(RefStyleSheet)))
     for(j=0;list[j];j++)
       {
-       URL *stylesheetUrl=SplitURL(list[j]);
+       URL *stylesheetUrl=list[j];
 
        recurse_stylesheets--;
 
-       if(!stylesheetUrl->local && stylesheetUrl->Protocol)
+       if(!IsLocalHost(stylesheetUrl) && IsProtocolHandled(stylesheetUrl))
          {
           PrintMessage(Debug,"Style-Sheet=%s",stylesheetUrl->name);
           more+=request_url(stylesheetUrl,NULL,Url);
          }
 
        recurse_stylesheets++;
-
-       FreeURL(stylesheetUrl);
       }
 
  /* Any images. */
@@ -416,14 +437,14 @@ int RecurseFetch(URL *Url)
  if(recurse_images && (list=GetReferences(RefImage)))
     for(j=0;list[j];j++)
       {
-       URL *imageUrl=SplitURL(list[j]);
+       URL *imageUrl=list[j];
 
        recurse_images--;
 
-       if(!imageUrl->local && imageUrl->Protocol)
+       if(!IsLocalHost(imageUrl) && IsProtocolHandled(imageUrl))
          {
           if(!ConfigBooleanURL(FetchSameHostImages,Url) ||
-             (!strcmp(Url->proto,imageUrl->proto) && !strcmp(Url->host,imageUrl->host)))
+             (!strcmp(Url->proto,imageUrl->proto) && !strcmp(Url->hostport,imageUrl->hostport)))
             {
              PrintMessage(Debug,"Image=%s",imageUrl->name);
              more+=request_url(imageUrl,NULL,Url);
@@ -433,8 +454,6 @@ int RecurseFetch(URL *Url)
          }
 
        recurse_images++;
-
-       FreeURL(imageUrl);
       }
 
  /* Any frames */
@@ -442,11 +461,11 @@ int RecurseFetch(URL *Url)
  if(recurse_frames && (list=GetReferences(RefFrame)))
     for(j=0;list[j];j++)
       {
-       URL *frameUrl=SplitURL(list[j]);
+       URL *frameUrl=list[j];
 
        recurse_frames--;
 
-       if(!frameUrl->local && frameUrl->Protocol)
+       if(!IsLocalHost(frameUrl) && IsProtocolHandled(frameUrl))
          {
           char *refresh=NULL;
 
@@ -463,8 +482,6 @@ int RecurseFetch(URL *Url)
          }
 
        recurse_frames++;
-
-       FreeURL(frameUrl);
       }
 
  /* Any scripts. */
@@ -472,19 +489,17 @@ int RecurseFetch(URL *Url)
  if(recurse_scripts && (list=GetReferences(RefScript)))
     for(j=0;list[j];j++)
       {
-       URL *scriptUrl=SplitURL(list[j]);
+       URL *scriptUrl=list[j];
 
        recurse_scripts--;
 
-       if(!scriptUrl->local && scriptUrl->Protocol)
+       if(!IsLocalHost(scriptUrl) && IsProtocolHandled(scriptUrl))
          {
           PrintMessage(Debug,"Script=%s",scriptUrl->name);
           more+=request_url(scriptUrl,NULL,Url);
          }
 
        recurse_scripts++;
-
-       FreeURL(scriptUrl);
       }
 
  /* Any Objects. */
@@ -492,29 +507,27 @@ int RecurseFetch(URL *Url)
  if(recurse_objects && (list=GetReferences(RefObject)))
     for(j=0;list[j];j++)
       {
-       URL *objectUrl=SplitURL(list[j]);
+       URL *objectUrl=list[j];
 
        recurse_objects--;
 
-       if(!objectUrl->local && objectUrl->Protocol)
+       if(!IsLocalHost(objectUrl) && IsProtocolHandled(objectUrl))
          {
           PrintMessage(Debug,"Object=%s",objectUrl->name);
           more+=request_url(objectUrl,NULL,Url);
          }
 
        recurse_objects++;
-
-       FreeURL(objectUrl);
       }
 
  if(recurse_objects && (list=GetReferences(RefInlineObject)))
     for(j=0;list[j];j++)
       {
-       URL *objectUrl=SplitURL(list[j]);
+       URL *objectUrl=list[j];
 
        recurse_objects--;
 
-       if(!objectUrl->local && objectUrl->Protocol)
+       if(!IsLocalHost(objectUrl) && IsProtocolHandled(objectUrl))
          {
           char *refresh=NULL;
 
@@ -531,8 +544,6 @@ int RecurseFetch(URL *Url)
          }
 
        recurse_objects++;
-
-       FreeURL(objectUrl);
       }
 
  /* Any links */
@@ -540,11 +551,11 @@ int RecurseFetch(URL *Url)
  if(recurse_depth>0 && (list=GetReferences(RefLink)))
     for(j=0;list[j];j++)
       {
-       URL *linkUrl=SplitURL(list[j]);
+       URL *linkUrl=list[j];
 
        recurse_depth--;
 
-       if(!linkUrl->local && linkUrl->Protocol)
+       if(!IsLocalHost(linkUrl) && IsProtocolHandled(linkUrl))
           if(!*recurse_limit || !strcmp_beg(linkUrl->name,recurse_limit))
             {
              char *refresh=NULL;
@@ -560,8 +571,6 @@ int RecurseFetch(URL *Url)
             }
 
        recurse_depth++;
-
-       FreeURL(linkUrl);
       }
 
  recurse_location=old_recurse_location;
@@ -577,15 +586,14 @@ int RecurseFetch(URL *Url)
 
   URL *Url The URL that was fetched.
 
-  char *location The new location of the URL.
+  URL *locationUrl The new location of the URL.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int RecurseFetchRelocation(URL *Url,char *location)
+int RecurseFetchRelocation(URL *Url,URL *locationUrl)
 {
  int more=0;
- URL *locationUrl=SplitURL(location);
 
- if(recurse_location && !locationUrl->local && locationUrl->Protocol)
+ if(recurse_location && !IsLocalHost(locationUrl) && IsProtocolHandled(locationUrl))
    {
     char *refresh=NULL;
 
@@ -605,7 +613,6 @@ int RecurseFetchRelocation(URL *Url,char *location)
     recurse_location++;
    }
 
- FreeURL(locationUrl);
  return(more);
 }
 
@@ -632,7 +639,7 @@ static int request_url(URL *Url,char *refresh,URL *refUrl)
     PrintMessage(Debug,"The URL '%s' matches one in the list not to get.",Url->name);
  else
    {
-    int new_outgoing=OpenOutgoingSpoolFile(0);
+    int new_outgoing=OpenNewOutgoingSpoolFile();
 
     if(new_outgoing==-1)
        PrintMessage(Warning,"Cannot open the new outgoing request to write.");
@@ -640,19 +647,19 @@ static int request_url(URL *Url,char *refresh,URL *refUrl)
       {
        URL *reqUrl;
        Header *new_request_head;
-       char *head,str[32];
+       char str[sizeof("wwwoffle-stylesheets=")+MAX_INT_STR];
 
        init_io(new_outgoing);
 
        if(refUrl->pass && !strcmp(refUrl->hostport,Url->hostport))
-          ChangeURLPassword(Url,refUrl->user,refUrl->pass);
+          ChangePasswordURL(Url,refUrl->user,refUrl->pass);
 
        if(refresh)
           reqUrl=SplitURL(refresh);
        else
           reqUrl=Url;
 
-       new_request_head=RequestURL(reqUrl,refUrl->name);
+       new_request_head=RequestURL(reqUrl,refUrl);
 
        if(recurse_force)
           AddToHeader(new_request_head,"Pragma","no-cache");
@@ -675,18 +682,22 @@ static int request_url(URL *Url,char *refresh,URL *refUrl)
        sprintf(str,"wwwoffle-location=%d",recurse_location);
        AddToHeader(new_request_head,"Pragma",str);
 
-       head=HeaderString(new_request_head,NULL);
-       if(write_string(new_outgoing,head)==-1)
-          PrintMessage(Warning,"Cannot write to outgoing file; disk full?");
+       {
+	 size_t headlen;
+	 char *head=HeaderString(new_request_head,&headlen);
+	 if(write_data(new_outgoing,head,headlen)==-1)
+	   PrintMessage(Warning,"Cannot write to outgoing file; disk full?");
+	 free(head);
+       }
+	 
 
        finish_io(new_outgoing);
-       CloseOutgoingSpoolFile(new_outgoing,reqUrl);
+       CloseNewOutgoingSpoolFile(new_outgoing,reqUrl);
 
        retval=1;
 
        if(reqUrl!=Url)
           FreeURL(reqUrl);
-       free(head);
        FreeHeader(new_request_head);
       }
    }
@@ -699,7 +710,7 @@ static int request_url(URL *Url,char *refresh,URL *refUrl)
 /*++++++++++++++++++++++++++++++++++++++
   Create the special path with arguments for doing a refresh with options.
 
-  char *CreateRefreshPath Returns a new string.
+  char *CreateRefreshPath Returns a new allocated string.
 
   URL *Url The URL that is to be fetched (starting point).
 
@@ -726,8 +737,8 @@ char *CreateRefreshPath(URL *Url,char *limit,int depth,
 {
  char *args;
  char *encurl,*enclimit=NULL;
- char depthstr[12];
- int len;
+ char depthstr[MAX_INT_STR+1];
+ size_t len;
 
  encurl=URLEncodeFormArgs(Url->name);
 

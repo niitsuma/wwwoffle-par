@@ -5,7 +5,7 @@
 
 Available WWWOFFLE Variables (all with a '$' prefix).
 
-localhost   = The hostname of the server running wwwoffled (='$localhost').
+localurl    = The root URL of the server running wwwoffled (='$localurl').
 version     = The version of the WWWOFFLE server (='$version').
 section     = The section of the configuration file (= '$section').
 item        = The item in the section of the configuration file (= '$item').
@@ -34,7 +34,7 @@ nallowed    = The number of entries that are allowed (1 or any) (= '$nallowed').
 
 <HEAD>
 <TITLE>WWWOFFLE - Interactive Configuration Page - $section / $item</TITLE>
-<LINK href="http://$localhost/wwwoffle.css" type="text/css" rel="stylesheet">
+<LINK href="$localurl/wwwoffle.css" type="text/css" rel="stylesheet">
 </HEAD>
 
 <BODY class="wwwoffle-message">
@@ -49,7 +49,7 @@ nallowed    = The number of entries that are allowed (1 or any) (= '$nallowed').
 <!-- Standard WWWOFFLE Message Page Header End -->
 
 <p align="center">
-<a href="http://$localhost/configuration/$section$url?{?%encode[url]}{}" title="Show all the items for this section">^^^ $section ^^^</a>
+<a href="$localurl/configuration/$section$url?{?%encode[url]}{}" title="Show all the items for this section">^^^ $section ^^^</a>
 <br>
 <a href="$previtem?{$previtem}{no-name}$url?{?%encode[url]}{}" title="Go to the previous item in this section">&lt;&lt;&lt; $previtem?{$previtem}{<i>no-name</i>} &lt;&lt;&lt;</a>
 &nbsp;&nbsp;&nbsp; $item?{$item}{<i>no-name</i>} &nbsp;&nbsp;&nbsp;
@@ -92,19 +92,19 @@ $url_type?{
 
 $key_type?=Fixed{
 <input type="text" value="$_key" size="20" name="key" readonly>
-}{}
+}
 $key_type?=String{
 <input type="text" value="$_key" size="30" name="key">
-}{}
+}
 $key_type?=FileExt{
 <input type="text" value="$_key" size="8" name="key">
-}{}
+}
 $key_type?=Host{
 <input type="text" value="$_key" size="20" name="key">
-}{}
+}
 $key_type?=UserPass{
 <input type="text" value="$_key" size="20" name="key">
-}{}
+}
 $key_type?=UrlSpecification{
 <input type="text" value="$_key" size="30" name="key">
 }{}
@@ -115,76 +115,85 @@ $val_type?=None{}{&nbsp;=&nbsp;}
 
 $val_type?=CfgMaxServers{
 <input type="text" value="$_val" size="3" name="val">
-}{}
+}
 $val_type?=CfgMaxFetchServers{
 <input type="text" value="$_val" size="3" name="val">
-}{}
+}
 $val_type?=CfgLogLevel{
 <input type="text" value="$_val" size="8" name="val">
-}{}
+}
 $val_type?=Boolean{
 <input type="radio" value="yes" size="4" name="val" $boolyes>Yes / <input type="radio" value="no" size="4" name="val" $boolno>No
-}{}
+}
 $val_type?=PortNumber{
 <input type="text" value="$_val" size="5" name="val"> (1-65535)
-}{}
+}
 $val_type?=AgeDays{
 <input type="text" value="$_val" size="4" name="val">
-}{}
+}
 $val_type?=TimeSecs{
 <input type="text" value="$_val" size="4" name="val">
-}{}
+}
 $val_type?=CacheSize{
 <input type="text" value="$_val" size="5" name="val"> MB
-}{}
+}
 $val_type?=FileSize{
 <input type="text" value="$_val" size="4" name="val"> kB
-}{}
+}
 $val_type?=Percentage{
 <input type="text" value="$_val" size="3" name="val"> %
-}{}
+}
 $val_type?=UserId{
 <input type="text" value="$_val" size="10" name="val">
-}{}
+}
 $val_type?=GroupId{
 <input type="text" value="$_val" size="10" name="val">
-}{}
+}
 $val_type?=CompressionSpecification{
 <input type="text" value="$_val" size="8" name="val">
-}{}
+}
 $val_type?=String{
 <input type="text" value="$_val" size="30" name="val">
-}{}
+}
 $val_type?=PathName{
 <input type="text" value="$_val" size="30" name="val">
-}{}
+}
 $val_type?=FileExt{
 <input type="text" value="$_val" size="8" name="val">
-}{}
+}
 $val_type?=FileMode{
 <input type="text" value="$_val" size="4" name="val">
-}{}
+}
 $val_type?=MIMEType{
 <input type="text" value="$_val" size="20" name="val">
-}{}
+}
 $val_type?=Host{
 <input type="text" value="$_val" size="20" name="val">
-}{}
+}
 $val_type?=HostOrNone{
 <input type="text" value="$_val" size="20" name="val">
-}{}
+}
 $val_type?=HostAndPort{
 <input type="text" value="$_val" size="20" name="val">
-}{}
+}
 $val_type?=HostAndPortOrNone{
 <input type="text" value="$_val" size="20" name="val">
-}{}
+}
+$val_type?=HostWild{
+<input type="text" value="$_val" size="20" name="val">
+}
+$val_type?=HostAndPortWild{
+<input type="text" value="$_val" size="20" name="val">
+}
 $val_type?=UserPass{
 <input type="text" value="$_val" size="20" name="val">
-}{}
+}
 $val_type?=Url{
 <input type="text" value="$_val" size="30" name="val">
-}{}
+}
+$val_type?=UrlWild{
+<input type="text" value="$_val" size="30" name="val">
+}
 $val_type?=UrlSpecification{
 <input type="text" value="$_val" size="30" name="val">
 }{}
@@ -195,11 +204,11 @@ $nentriesallowed=$_nentries$nallowed
 
 $nentriesallowed?=01{
 <input type="radio" name="action" value="insert" checked><b>Set</b> this item to the value above<br>
-}{}
+}
 
 $nentriesallowed?=11{
 <input type="radio" name="action" value="replace" checked><b>Change</b> this item to the value above<br>
-}{}
+}
 
 $nentriesallowed?=0any{
 <input type="radio" name="action" value="insert" checked><b>Insert</b> the value above as an entry for this item<br>

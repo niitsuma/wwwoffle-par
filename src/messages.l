@@ -12,14 +12,16 @@ FUNC   \%[a-z_0-9]+\[[a-z_0-9]+\]
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/messages.l 1.56 2003/12/04 12:01:11 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/messages.l 1.62 2006/01/29 19:59:19 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Parse the HTML to create the messages.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1998,99,2000,01,02,03 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04,05 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -64,8 +66,8 @@ FUNC   \%[a-z_0-9]+\[[a-z_0-9]+\]
 #include "version.h"
 
 
-/*+ Need this for Win32 to use binary mode +*/
 #ifndef O_BINARY
+/*+ A work-around for needing O_BINARY with Win32 to use binary mode. +*/
 #define O_BINARY 0
 #endif
 
@@ -80,26 +82,30 @@ VarValueNode;
 
 extern int msg_yylex(void);
 
-static char *html_message_body(int fd,char *template, va_list ap);
+
+/* Local functions */
+
+static char *html_message_body(int fd,const char *template, va_list ap);
 
 static void write_or_append_string(char *str);
 
-static char /*@observer@*/ *add_variable(char *var,char *val);
+static char /*@observer@*/ *add_variable(const char *var,const char *val);
 static void delete_variables(void);
-static char /*@observer@*/ *get_variable(char *var);
-static char *call_function(char *func);
+static char /*@observer@*/ *get_variable(const char *var);
+static char *call_function(const char *func);
 
 
+/* Local variables */
 
 /*+ A known fixed empty string. +*/
-static char *empty="";
+static char empty[]="";
 
 /*+ The file descriptor that we are reading from. +*/
 static int msg_yyfd=-1;
 
 /*+ The file descriptor that we are writing to. +*/
 static int out_fd=-1;
-int out_err=0;
+ssize_t out_err=0;
 
 /*+ The string we are appending to. +*/
 static char *out_str=NULL;
@@ -134,16 +140,16 @@ void SetMessageOptions(int compressed,int chunked)
 
   int status_val The numeric status value.
 
-  char *status_str The status string.
+  const char *status_str The status string.
 
-  char *location A Location: HTTP header or NULL for none.
+  const char *location A Location: HTTP header or NULL for none.
 
-  char *template The name of the template for the message.
+  const char *template The name of the template for the message.
 
   ... A list of variable-value pairs to use in the parsing (NULL terminated).
   ++++++++++++++++++++++++++++++++++++++*/
 
-void HTMLMessage(int fd,int status_val,char *status_str,char *location,char *template, ...)
+void HTMLMessage(int fd,int status_val,const char *status_str,const char *location,const char *template, ...)
 {
  va_list ap;
 
@@ -176,12 +182,12 @@ void HTMLMessage(int fd,int status_val,char *status_str,char *location,char *tem
 
   int status_val The numeric status value.
 
-  char *status_str The status string.
+  const char *status_str The status string.
 
   ... A list of variable-value pairs to use in the header (NULL terminated).
   ++++++++++++++++++++++++++++++++++++++*/
 
-void HTMLMessageHead(int fd,int status_val,char *status_str, ...)
+void HTMLMessageHead(int fd,int status_val,const char *status_str, ...)
 {
  va_list ap;
  Header *header;
@@ -197,7 +203,7 @@ void HTMLMessageHead(int fd,int status_val,char *status_str, ...)
 
  /* The start of the header */
  {
-   char headline[sizeof("HTTP/1.0  \r\n")+strlen(status_str)+12];
+   char headline[sizeof("HTTP/1.0  \r\n")+strlen(status_str)+MAX_INT_STR];
    sprintf(headline,"HTTP/1.0 %d %s\r\n",status_val,status_str);
    CreateHeader(headline,0,&header);
  }
@@ -279,9 +285,13 @@ void HTMLMessageHead(int fd,int status_val,char *status_str, ...)
 
  /* Write the header */
  {
-   char *headerstr; int len;
+   char *headerstr; size_t len;
 
    headerstr=HeaderString(header,&len);
+
+   if(StderrLevel==ExtraDebug)
+     PrintMessage(ExtraDebug,"Reply Head (internal page)\n%s",headerstr);
+
    out_err=write_data(fd,headerstr,len);
    free(headerstr);
  }
@@ -293,13 +303,13 @@ void HTMLMessageHead(int fd,int status_val,char *status_str, ...)
 
 #if USE_ZLIB
    if(compression)
-     configure_io_write(fd,-1,compression,-1);
+     configure_io_zlib(fd,-1,compression);
 #endif
 
    /* Initialise the client chunked encoding. */
 
    if(chunked)
-     configure_io_write(fd,-1,-1,1);
+     configure_io_chunked(fd,-1,1);
  }
 }
 
@@ -309,12 +319,12 @@ void HTMLMessageHead(int fd,int status_val,char *status_str, ...)
 
   int fd The file descriptor to write to.
 
-  char *template The name of the template for the message.
+  const char *template The name of the template for the message.
 
   ... A list of variable-value pairs to use in the parsing (NULL terminated).
   ++++++++++++++++++++++++++++++++++++++*/
 
-void HTMLMessageBody(int fd,char *template, ...)
+void HTMLMessageBody(int fd,const char *template, ...)
 {
  va_list ap;
 
@@ -335,12 +345,12 @@ void HTMLMessageBody(int fd,char *template, ...)
 
   char *HTMLMessageString Returns a string containing the parsed template.
 
-  char *template The name of the template for the message.
+  const char *template The name of the template for the message.
 
   ... A list of variable-value pairs to use in the parsing (NULL terminated).
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *HTMLMessageString(char *template, ...)
+char *HTMLMessageString(const char *template, ...)
 {
  char *string;
  va_list ap;
@@ -376,15 +386,14 @@ void FinishMessages(void)
 
   int fd The file descriptor to write to (or -1 to create a string).
 
-  char *template The name of the template for the message.
+  const char *template The name of the template for the message.
 
   va_list ap A list of variable-value pairs to use in the parsing (NULL terminated).
   ++++++++++++++++++++++++++++++++++++++*/
 
-static char *html_message_body(int fd,char *template,va_list ap)
+static char *html_message_body(int fd,const char *template,va_list ap)
 {
  char *var,*val;
- char *filename;
  static int first=1;
 
  /* Set up the variables. */
@@ -397,9 +406,9 @@ static char *html_message_body(int fd,char *template,va_list ap)
 
  if(varvaluelist==NULL)
    {
-    char *localhost=GetLocalHost(1);
-    add_variable("localhost",localhost);
-    free(localhost);
+    char *localurl=GetLocalURL();
+    add_variable("localurl",localurl);
+    free(localurl);
     add_variable("version",WWWOFFLE_VERSION);
    }
 
@@ -411,12 +420,12 @@ static char *html_message_body(int fd,char *template,va_list ap)
    }
 
  /* Open the file */
+ {
+   char filename[strlen(template)+sizeof("messages/.html")];
+   sprintf(filename,"messages/%s.html",template);
 
- filename=x_asprintf("messages/%s.html",template);
-
- msg_yyfd=OpenLanguageFile(filename);
-
- free(filename);
+   msg_yyfd=OpenLanguageFile(filename);
+ }
 
  if(msg_yyfd==-1)
     PrintMessage(Fatal,"Cannot open the message template '%s.html'.",template);
@@ -469,7 +478,7 @@ static void write_or_append_string(char *str)
       }
    }
  else if(out_err!=-1)
-    out_err=write_string(out_fd,str);
+    out_err=write_buffer_data(out_fd,str,strlen(str)); /* expect to make lots of small writes */
 }
 
 
@@ -480,12 +489,12 @@ static void write_or_append_string(char *str)
 
   char *add_variable Returns the newly allocated value.
 
-  char *var The variable to add.
+  const char *var The variable to add.
 
-  char *val The value of the variable.
+  const char *val The value of the variable.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static char *add_variable(char *var,char *val)
+static char *add_variable(const char *var,const char *val)
 {
   VarValueNode *p,**q,*new;
   int cmp;
@@ -541,10 +550,10 @@ static void delete_variables(void)
 
   char *get_variable Return the value of the variable or an empty string.
 
-  char *var The variable to get the value of.
+  const char *var The variable to get the value of.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static char *get_variable(char *var)
+static char *get_variable(const char *var)
 {
   VarValueNode *p=varvaluelist;
   int cmp;
@@ -567,9 +576,10 @@ static char *get_variable(char *var)
   char *func The function name to call, including the argument.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static char *call_function(char *func)
+static char *call_function(const char *func)
 {
- char *funcname,*var,*val,*result=NULL,*retval,*bracket1,*bracket2;
+ const char *funcname,*bracket1,*bracket2,*var;
+ char *val,*result=NULL,*retval;
 
  if(!(bracket1=strchr(func,'['))) return empty;
  funcname=STRDUPA2(func,bracket1);

@@ -1,12 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/autoconfig.h.in.in 1.8 2003/05/17 14:21:51 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/autoconfig.h.in.in 1.10 2005/08/19 17:58:11 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Header file template filled in by configure.
   ******************/ /******************
   Written by Andrew M. Bishop
 
-  This file Copyright 2001,02,03 Andrew M. Bishop
+  This file Copyright 2001,02,03,04,05 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -25,13 +25,16 @@
 /*+ The default port number to use for the http proxy demon. +*/
 #define DEF_HTTP_PORT @HTTP_PORT@
 
+/*+ The default port number to use for the https proxy demon. +*/
+#define DEF_HTTPS_PORT @HTTPS_PORT@
+
 /*+ The default port number to use for the wwwoffle control. +*/
 #define DEF_WWWOFFLE_PORT @WWWOFFLE_PORT@
 
-/* The default spool directory. */
+/*+ The default spool directory. +*/
 #define DEF_SPOOLDIR "/var/spool/wwwoffle"
 
-/* The default configuration file directory. */
+/*+ The default configuration file directory. +*/
 #define DEF_CONFDIR "/etc/wwwoffle"
 
 
@@ -63,88 +66,91 @@
 
 /*** Compilation options ***/
 
-/* Define this to use zlib for compression. */
+/*+ Define this to use zlib for compression. +*/
 #define USE_ZLIB 0
 
-/* Define this to use IPv6 sockets. */
+/*+ Define this to use gnutls for SSL/https. +*/
+#define USE_GNUTLS 0
+
+/*+ Define this to use IPv6 sockets. +*/
 #define USE_IPV6 0
 
 
 /*** Header files ***/
 
-/* Define if you have the <dirent.h> header file.  */
+/*+ Define if you have the <dirent.h> header file.  +*/
 #undef HAVE_DIRENT_H
 
-/* Define if you have the <sys/ndir.h> header file.  */
+/*+ Define if you have the <sys/ndir.h> header file.  +*/
 #undef HAVE_SYS_NDIR_H
 
-/* Define if you have the <sys/dir.h> header file.  */
+/*+ Define if you have the <sys/dir.h> header file.  +*/
 #undef HAVE_SYS_DIR_H
 
-/* Define if you have the <ndir.h> header file.  */
+/*+ Define if you have the <ndir.h> header file.  +*/
 #undef HAVE_NDIR_H
 
-/* Define if you have the <sys/time.h> header file.  */
+/*+ Define if you have the <sys/time.h> header file.  +*/
 #undef HAVE_SYS_TIME_H
 
-/* Define if the <time.h> and <sys/time.h> header files can both be included.  */
+/*+ Define if the <time.h> and <sys/time.h> header files can both be included.  +*/
 #undef TIME_WITH_SYS_TIME
 
-/* Define if you have the <sys/param.h> header file.  */
+/*+ Define if you have the <sys/param.h> header file.  +*/
 #undef HAVE_SYS_PARAM_H
 
-/* Define if you have the <sys/mount.h> header file.  */
+/*+ Define if you have the <sys/mount.h> header file.  +*/
 #undef HAVE_SYS_MOUNT_H
 
-/* Define if you have the <sys/statvfs.h> header file.  */
+/*+ Define if you have the <sys/statvfs.h> header file.  +*/
 #undef HAVE_SYS_STATVFS_H
 
-/* Define if you have the <sys/vfs.h> header file.  */
+/*+ Define if you have the <sys/vfs.h> header file.  +*/
 #undef HAVE_SYS_VFS_H
 
 
 /*** Library functions ***/
 
-/* Define if you have the getnameinfo function.  */
+/*+ Define if you have the getnameinfo function.  +*/
 #undef HAVE_GETNAMEINFO
 
-/* Define if you have the getaddrinfo function.  */
+/*+ Define if you have the getaddrinfo function.  +*/
 #undef HAVE_GETADDRINFO
 
-/* Define if you have the statfs function.  */
+/*+ Define if you have the statfs function.  +*/
 #undef HAVE_STATFS
 
-/* Define if you have the statvfs function.  */
+/*+ Define if you have the statvfs function.  +*/
 #undef HAVE_STATVFS
 
-/* Define if you have the setresuid function.  */
+/*+ Define if you have the setresuid function.  +*/
 #undef HAVE_SETRESUID
 
-/* Define if you have the setresgid function.  */
+/*+ Define if you have the setresgid function.  +*/
 #undef HAVE_SETRESGID
 
-/* Define if you have the getresuid function.  */
+/*+ Define if you have the getresuid function.  +*/
 #undef HAVE_GETRESUID
 
-/* Define if you have the getresgid function.  */
+/*+ Define if you have the getresgid function.  +*/
 #undef HAVE_GETRESGID
 
-/* Define if you have the setreuid function.  */
+/*+ Define if you have the setreuid function.  +*/
 #undef HAVE_SETREUID
 
-/* Define if you have the setregid function.  */
+/*+ Define if you have the setregid function.  +*/
 #undef HAVE_SETREGID
 
-/* Define if you have the setgroups function.  */
+/*+ Define if you have the setgroups function.  +*/
 #undef HAVE_SETGROUPS
 
 
 /*** Type definitions ***/
 
-/* Define if the struct tm has a tm_zone member.  */
+/*+ Define if the struct tm has a tm_zone member.  +*/
 #undef HAVE_TM_ZONE
 
-/* Define if the global variable tzname exists.  */
+/*+ Define if the global variable tzname exists.  +*/
 #undef HAVE_TZNAME
 
 

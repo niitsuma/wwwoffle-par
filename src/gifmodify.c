@@ -1,12 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/gifmodify.c 1.9 2004/10/14 18:09:34 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/gifmodify.c 1.12 2005/03/13 13:55:34 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   A function to modify GIFs by deleting all except the first image.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  Copyright 2004 Andrew M. Bishop
+  Copyright 2004,05 Andrew M. Bishop
 
   This file may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -55,8 +56,8 @@ void OutputGIFWithModifications(void)
 {
  GIFBlock state=GIFHeader;
  unsigned int count=0,remain=0;
- char data[READ_BUFFER_SIZE];
- int n;
+ char data[IO_BUFFER_SIZE];
+ ssize_t n;
 
  /* The contents of the packed byte in the Screen/ImageDescriptor */
 
@@ -64,7 +65,7 @@ void OutputGIFWithModifications(void)
 
  /* Loop until finished reading */
 
- while((n=wwwoffles_read_data(data,READ_BUFFER_SIZE))>0)
+ while((n=wwwoffles_read_data(data,IO_BUFFER_SIZE))>0)
    {
     char *p=data;
 
@@ -123,11 +124,11 @@ void OutputGIFWithModifications(void)
           int m=0;
           switch(count)
             {
-            case 0:                 if(p[m]!='G')              goto copytoend; m++;
-            case 1: if(m>=n) break; if(p[m]!='I')              goto copytoend; m++;
-            case 2: if(m>=n) break; if(p[m]!='F')              goto copytoend; m++;
-            case 3: if(m>=n) break; if(p[m]!='8')              goto copytoend; m++;
-            case 4: if(m>=n) break; if(p[m]!='7' && p[m]!='9') goto copytoend; m++;
+            case 0:                 if(p[m]!='G')              goto copytoend; m++; /*@fallthrough@*/
+            case 1: if(m>=n) break; if(p[m]!='I')              goto copytoend; m++; /*@fallthrough@*/
+            case 2: if(m>=n) break; if(p[m]!='F')              goto copytoend; m++; /*@fallthrough@*/
+            case 3: if(m>=n) break; if(p[m]!='8')              goto copytoend; m++; /*@fallthrough@*/
+            case 4: if(m>=n) break; if(p[m]!='7' && p[m]!='9') goto copytoend; m++; /*@fallthrough@*/
             case 5: if(m>=n) break; if(p[m]!='a')              goto copytoend; m++;
              state=ScreenDescriptor;
              count=0;
@@ -147,12 +148,12 @@ void OutputGIFWithModifications(void)
           int m=0;
           switch(count)
             {
-            case 0:                 m++;
-            case 1: if(m>=n) break; m++;
-            case 2: if(m>=n) break; m++;
-            case 3: if(m>=n) break; m++;
-            case 4: if(m>=n) break; packed=p[m++];
-            case 5: if(m>=n) break; m++;
+            case 0:                 m++;           /*@fallthrough@*/
+            case 1: if(m>=n) break; m++;           /*@fallthrough@*/
+            case 2: if(m>=n) break; m++;           /*@fallthrough@*/
+            case 3: if(m>=n) break; m++;           /*@fallthrough@*/
+            case 4: if(m>=n) break; packed=p[m++]; /*@fallthrough@*/
+            case 5: if(m>=n) break; m++;           /*@fallthrough@*/
             case 6: if(m>=n) break; m++;
              if(packed&0x80)
                 remain=3*(2<<(packed&0x07));
@@ -178,15 +179,15 @@ void OutputGIFWithModifications(void)
           int m=0;
           switch(count)
             {
-            case 0:                 m++;
-            case 1: if(m>=n) break; m++;
-            case 2: if(m>=n) break; m++;
-            case 3: if(m>=n) break; m++;
-            case 4: if(m>=n) break; m++;
-            case 5: if(m>=n) break; m++;
-            case 6: if(m>=n) break; m++;
-            case 7: if(m>=n) break; m++;
-            case 8: if(m>=n) break; m++;
+            case 0:                 m++;           /*@fallthrough@*/
+            case 1: if(m>=n) break; m++;           /*@fallthrough@*/
+            case 2: if(m>=n) break; m++;           /*@fallthrough@*/
+            case 3: if(m>=n) break; m++;           /*@fallthrough@*/
+            case 4: if(m>=n) break; m++;           /*@fallthrough@*/
+            case 5: if(m>=n) break; m++;           /*@fallthrough@*/
+            case 6: if(m>=n) break; m++;           /*@fallthrough@*/
+            case 7: if(m>=n) break; m++;           /*@fallthrough@*/
+            case 8: if(m>=n) break; m++;           /*@fallthrough@*/
             case 9: if(m>=n) break; packed=p[m++];
              if(packed&0x80)
                 remain=3*(2<<(packed&0x07));

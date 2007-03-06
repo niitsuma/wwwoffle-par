@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/ftp.c 1.73 2004/03/01 19:51:57 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/ftp.c 1.84 2006/01/08 10:27:21 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Functions for getting URLs using FTP.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -45,7 +47,8 @@
 #define DEBUG_FTP 0
 
 /*+ Set to the name of the proxy if there is one. +*/
-static char /*@null@*/ /*@observer@*/ *proxy=NULL;
+static URL /*@null@*/ /*@only@*/ *proxyUrl=NULL;
+/* Information used to connect via a SOCKS proxy. */
 static char /*@null@*/ /*@observer@*/ *sproxy=NULL;
 static int socksremotedns=0;
 static char rhost_ipstr[ipaddr_strlen];
@@ -82,31 +85,30 @@ static /*@null@*/ char *htmlise_dir_entry(char *line);
 char *FTP_Open(URL *Url)
 {
  char *msg=NULL;
+ char *proxy=NULL;
  char *server_host=NULL;
- int server_port=Protocols[Protocol_FTP].defport;
+ int server_port=0;
  char *socks_host=NULL;
  int socks_port=0;
 
  /* Sort out the host. */
 
- if(IsLocalNetHost(Url->host)) {
-   proxy=NULL;
-   sproxy=NULL;
-   socksremotedns=0;
- }
- else {
+ sproxy=NULL;
+ socksremotedns=0;
+ if(!IsLocalNetHost(Url->host)) {
    proxy=ConfigStringURL(Proxies,Url);
    sproxy=ConfigStringURL(SocksProxy,Url);
    socksremotedns=ConfigBooleanURL(SocksRemoteDNS,Url);
- }     
+ }
 
+ if(proxyUrl) {
+   FreeURL(proxyUrl);
+   proxyUrl=NULL;
+ }
  if(proxy) {
-   char *hoststr, *portstr; int hostlen;
-
-   SplitHostPort(proxy,&hoststr,&hostlen,&portstr);
-   server_host=strndupa(hoststr,hostlen);
-   if(portstr)
-     server_port=atoi(portstr);
+   proxyUrl=CreateURL("http",proxy,"/",NULL,NULL,NULL);
+   server_host=proxyUrl->host;
+   server_port=proxyUrl->portnum;
  }
  else {
    server_host=Url->host;
@@ -125,8 +127,7 @@ char *FTP_Open(URL *Url)
  else
    {
     init_io(server_ctrl);
-    configure_io_read(server_ctrl,ConfigInteger(SocketTimeout),0,0);
-    configure_io_write(server_ctrl,ConfigInteger(SocketTimeout),0,0);
+    configure_io_timeout_rw(server_ctrl,ConfigInteger(SocketTimeout));
    }
 
  return(msg);
@@ -151,7 +152,7 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
  char *path,*file=NULL;
  char *host,*shost=NULL,*mimetype="text/html";
  char *msg_reply=NULL; size_t msg_reply_len=0;
- char sizebuf[32];
+ char sizebuf[MAX_INT_STR+1];
  int l,port,sport=0;
  time_t modtime=0;
  char *user,*pass;
@@ -166,13 +167,13 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
 
  /* Take a simple route if it is proxied. */
 
- if(proxy)
+ if(proxyUrl)
    {
-     char *head; int headlen;
+    char *head; size_t headlen;
 
     /* Make the request OK for a proxy. */
 
-    MakeRequestProxyAuthorised(proxy,request_head);
+    MakeRequestProxyAuthorised(proxyUrl,request_head);
 
     /* Send the request. */
 
@@ -467,7 +468,7 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
 
        if(atoi(str)==213)
           if(str[4])
-             sprintf(sizebuf,"%ld",(long)atoi(str+4));
+             sprintf(sizebuf,"%ld",atol(str+4));
 
        if(write_formatted(server_ctrl,"MDTM %s\r\n",file)<0)
          {
@@ -505,7 +506,9 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
              modtm.tm_min=min;
              modtm.tm_sec=sec;
 
-             modtime=mktime(&modtm);
+	     /* To use mktime() properly, we have to set the TZ environment variable first.
+		Using timegm is less portable, but much more convenient. */
+             modtime=timegm(&modtm);
             }
          }
       }
@@ -617,8 +620,7 @@ char *FTP_Request(URL *Url,Header *request_head,Body *request_body)
  else
    {
     init_io(server_data);
-    configure_io_read(server_data,ConfigInteger(SocketTimeout),0,0);
-    configure_io_write(server_data,ConfigInteger(SocketTimeout),0,0);
+    configure_io_timeout_rw(server_data,ConfigInteger(SocketTimeout));
    }
 
  /* Make the request */
@@ -827,13 +829,13 @@ int FTP_ReadHead(Header **reply_head)
 {
  /* Take a simple route if it is proxied. */
 
- if(proxy)
+ if(proxyUrl)
    {
     ParseReply(server_ctrl,reply_head);
 
     return(server_ctrl);
    }
- 
+
  /* Else send the header. */
 
  *reply_head=bufferhead;
@@ -845,22 +847,22 @@ int FTP_ReadHead(Header **reply_head)
 /*++++++++++++++++++++++++++++++++++++++
   Read bytes from the body of the reply for the URL.
 
-  int FTP_ReadBody Returns the number of bytes read on success, -1 on error.
+  ssize_t FTP_ReadBody Returns the number of bytes read on success, -1 on error.
 
   char *s A string to fill in with the information.
 
-  int n The number of bytes to read.
+  size_t n The number of bytes to read.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int FTP_ReadBody(char *s,int n)
+ssize_t FTP_ReadBody(char *s,size_t n)
 {
- int m=0;
+ ssize_t m=0;
 
  /* Take a simple route if it is proxied. */
 
- if(proxy)
+ if(proxyUrl)
     return(read_data(server_ctrl,s,n));
- 
+
  /* Else send the data then the tail. */
 
  if(server_data==-1)            /* Redirection */
@@ -918,11 +920,12 @@ int FTP_Close(void)
 
  /* Take a simple route if it is proxied. */
 
- if(proxy)
+ if(proxyUrl)
    {
-    finish_tell_io(server_ctrl,&r1,&w1);
+    if(finish_tell_io(server_ctrl,&r1,&w1)<0)
+      PrintMessage(Inform,"Error finishing IO on socket with remote host [%!s].");
 
-    PrintMessage(Inform,"Server bytes; %d Read, %d Written.",r1,w1); /* Used in audit-usage.pl */
+    PrintMessage(Inform,"Server bytes; %lu Read, %lu Written.",r1,w1); /* Used in audit-usage.pl */
 
     return(CloseSocket(server_ctrl));
    }
@@ -931,7 +934,8 @@ int FTP_Close(void)
 
  if(server_data!=-1)
    {
-    finish_tell_io(server_data,&r2,&w2);
+    if(finish_tell_io(server_data,&r2,&w2)<0)
+      PrintMessage(Inform,"Error finishing IO on socket with remote host [%!s].");
     CloseSocket(server_data);
    }
 
@@ -945,10 +949,11 @@ int FTP_Close(void)
    }
  while(str && (!isdigit(str[0]) || !isdigit(str[1]) || !isdigit(str[2]) || str[3]!=' '));
 
- finish_tell_io(server_ctrl,&r1,&w1);
+ if(finish_tell_io(server_ctrl,&r1,&w1)<0)
+   PrintMessage(Inform,"Error finishing IO on socket with remote host [%!s].");
  err=CloseSocket(server_ctrl);
 
- PrintMessage(Inform,"Server bytes; %d Read, %d Written.",r1+r2,w1+w2); /* Used in audit-usage.pl */
+ PrintMessage(Inform,"Server bytes; %lu Read, %lu Written.",r1+r2,w1+w2); /* Used in audit-usage.pl */
 
  if(str)
     free(str);
@@ -957,6 +962,12 @@ int FTP_Close(void)
     free(buffer);
  if(buffertail)
     free(buffertail);
+
+ if(proxyUrl) {
+   FreeURL(proxyUrl);
+   proxyUrl=NULL;
+ }
+ sproxy=NULL;
 
  return(err);
 }
@@ -981,7 +992,7 @@ inline static int split_line(char *line,struct pointer_pair *p)
  done:
   return i;
 }
-  
+
 
 /*++++++++++++++++++++++++++++++++++++++
   Convert a line from the ftp server dir listing into a pretty listing.
@@ -1021,7 +1032,7 @@ static char *htmlise_dir_entry(char *line)
      {
        char *pfile=p[file].beg,*endf=p[file].end, *plink=p[link].beg,*endl=p[link].end;
        char *hline,*fileurlenc,*linkurlenc=NULL;
-       int linelen;
+       size_t linelen;
 
        hline=HTMLString(line,0);
        i=split_line(hline,p);

@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/headbody.c 1.23 2004/01/11 10:28:20 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/headbody.c 1.26 2006/07/16 08:38:07 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9a.
   Header and Body handling functions.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -28,7 +30,7 @@
 #include "headbody.h"
 
 
-static int sort_qval(HeaderListItem *a,HeaderListItem *b);
+static int sort_qval(const HeaderListItem *a,const HeaderListItem *b);
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -36,7 +38,7 @@ static int sort_qval(HeaderListItem *a,HeaderListItem *b);
 
   int CreateHeader Returns 1 if OK, -1 if malformed, 0 if line is empty.
 
-  char *line The top line in the original header.
+  const char *line The top line in the original header.
 
   int type The type of header, request=1, reply=0;
 
@@ -126,9 +128,9 @@ int CreateHeader(const char *line,int type,Header **head)
 
   Header *head The header structure to add to.
 
-  char *key The key to add.
+  const char *key The key to add.
 
-  char *val The value to add.
+  const char *val The value to add.
   ++++++++++++++++++++++++++++++++++++++*/
 
 void AddToHeader(Header *head,const char *key,const char *val)
@@ -158,30 +160,35 @@ void AddToHeader(Header *head,const char *key,const char *val)
 
   Header *head The header to add the line to.
 
-  char *line The raw line of data.
+  const char *line The raw line of data.
   ++++++++++++++++++++++++++++++++++++++*/
 
 int AddToHeaderRaw(Header *head,const char *line)
 {
  const char *key=NULL,*keyend=line,*val,*end=strchrnul(line,0);
 
- /* trim line */
+ /* Remove whitespace at end of line. */
 
  do {if(--end<line) return 0;} while(isspace(*end));
  ++end;
 
- if(!isspace(*line))
-   {
-    /* split line */
+ if(isspace(*line))
+   val=line+1; /* continuation of previous line */
+ else {
+   /* split line */
    
-    key=line;
+   key=line;
    
-    while(*keyend!=':') {if(!*++keyend) return -1;}
-   
+   while(*keyend!=':') {if(!*++keyend) return -1;}
+   val=keyend+1;
+
+   /* Remove whitespace at end of key. */
+   while(--keyend>=line && isspace(*keyend));
+   ++keyend;
  }
 
- val=keyend+1;
- while(val<end && isspace(*val)) ++val;   /* trim value */
+ /* Remove whitespace at beginning of value. */
+ while(val<end && isspace(*val)) ++val;
 
  /* Add to the header */
 
@@ -234,7 +241,7 @@ int AddToHeaderRaw(Header *head,const char *line)
 
   Header *head The header to remove from.
 
-  char* key The key to look for and remove.
+  const char* key The key to look for and remove.
   ++++++++++++++++++++++++++++++++++++++*/
 
 void RemoveFromHeader(Header *head,const char* key)
@@ -260,15 +267,19 @@ void RemoveFromHeader(Header *head,const char* key)
 /*++++++++++++++++++++++++++++++++++++++
   Remove the specified key and value pair from a header structure.
 
+  int RemoveFromHeader2 returns the number of value instances removed.
+
   Header *head The header to remove from.
 
-  char* key The key to look for and remove.
+  const char* key The key to look for and remove.
 
-  char *val The value to look for and remove.
+  const char *val The value to look for and remove.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void RemoveFromHeader2(Header *head,const char* key,const char *val)
+int RemoveFromHeader2(Header *head,const char* key,const char *val)
 {
+  int count=0;
+  size_t strlen_val=strlen(val);
   KeyValueNode *prev,*line;
 
   prev=NULL;
@@ -277,7 +288,6 @@ void RemoveFromHeader2(Header *head,const char* key,const char *val)
   while(line) {
     if(!strcasecmp(line->key,key)) {
       char *str=line->val,*p=str,*q,*r=str;
-      size_t strlen_val=strlen(val);
 
       for(;;) {
 	for(;;++p) {
@@ -287,6 +297,7 @@ void RemoveFromHeader2(Header *head,const char* key,const char *val)
 
 	q=p;
 	while(!strncasecmp(q,val,strlen_val)) {
+	  ++count;
 	  while(*q!=',') {if(!*++q) goto chop_line;}
 	  do {if(!*++q) goto chop_line;} while(isspace(*q));
 	}
@@ -315,6 +326,8 @@ void RemoveFromHeader2(Header *head,const char* key,const char *val)
     line=line->next;
   skipline: ;
   }
+
+  return count;
 }
 
 
@@ -322,8 +335,8 @@ void RemoveFromHeader2(Header *head,const char* key,const char *val)
 /*++++++++++++++++++++++++++++++++++++++
   Replace the value of an existing key with a new one, or add a new key and value combination.
   Header *head The header structure to modify.
-  char *key The key.
-  char *val The replacement value.
+  const char *key The key.
+  const char *val The replacement value.
   ++++++++++++++++++++++++++++++++++++++*/
 void ReplaceOrAddInHeader(Header *head,const char *key,const char *val)
 {
@@ -362,12 +375,12 @@ found:
 
   char *GetHeader Returns the (first) value for the header key or NULL if none.
 
-  Header *head The header to search through.
+  const Header *head The header to search through.
 
-  char* key The key to look for.
+  const char* key The key to look for.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *GetHeader(Header *head,const char* key)
+char *GetHeader(const Header *head,const char* key)
 {
  KeyValueNode *line;
 
@@ -384,14 +397,14 @@ char *GetHeader(Header *head,const char* key)
 
   char *GetHeader2 Returns the value for the header key or NULL if none.
 
-  Header *head The header to search through.
+  const Header *head The header to search through.
 
-  char* key The key to look for.
+  const char* key The key to look for.
 
-  char *val The value to look for (which may be in a list).
+  const char *val The value to look for (which may be in a list).
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *GetHeader2(Header *head,const char* key,const char *val)
+char *GetHeader2(const Header *head,const char* key,const char *val)
 {
  size_t strlen_val=strlen(val);
  KeyValueNode *line;
@@ -424,14 +437,14 @@ char *GetHeader2(Header *head,const char* key,const char *val)
 
   char *GetHeader2Val Returns a pointer to the value for the sub-key or NULL if none.
 
-  Header *head The header to search through.
+  const Header *head The header to search through.
 
-  char* key The key to look for.
+  const char* key The key to look for.
 
-  char *subkey The sub-key to look for (which must be followed by '=' in the headerline).
+  const char *subkey The sub-key to look for (which must be followed by '=' in the headerline).
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *GetHeader2Val(Header *head,const char* key,const char *subkey)
+char *GetHeader2Val(const Header *head,const char* key,const char *subkey)
 {
  size_t strlen_subkey=strlen(subkey);
  KeyValueNode *line;
@@ -474,12 +487,12 @@ char *GetHeader2Val(Header *head,const char* key,const char *subkey)
 
   char *GetHeader Returns the all the values combined for the header key or NULL if empty or none.
 
-  Header *head The header to search through.
+  const Header *head The header to search through.
 
-  char* key The key to look for.
+  const char* key The key to look for.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *GetHeaderCombined(Header *head,const char* key)
+char *GetHeaderCombined(const Header *head,const char* key)
 {
   ssize_t length=-1;
   KeyValueNode *line;
@@ -508,16 +521,31 @@ char *GetHeaderCombined(Header *head,const char* key)
 }
 
 
+/*
+  Copy (append) header lines matching key from one header to another.
+  A NULL value matches any key.
+*/
+
+void CopyHeader(const Header *fromhead, Header *tohead, const char *key)
+{
+ KeyValueNode *line;
+
+ for(line=fromhead->line; line; line=line->next)
+    if(!key || !strcasecmp(line->key,key))
+      AddToHeader(tohead,line->key,line->val);
+}
+
+
 /*++++++++++++++++++++++++++++++++++++++
   Return a string that contains the whole of the header.
 
   char *HeaderString Returns the header as a string.
 
-  Header *head The header structure to convert.
-  int *size    Returns the size of the header.
+  const Header *head The header structure to convert.
+  size_t *size    Returns the size of the header.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *HeaderString(Header *head, int *size)
+char *HeaderString(const Header *head, size_t *size)
 {
   char *str,*p;
   size_t str_len;
@@ -559,7 +587,7 @@ char *HeaderString(Header *head, int *size)
     p= stpcpy(p,(head->version)?head->version:"HTTP/1.0");
     *p++ = ' ';
     {
-      char status[12];
+      char status[MAX_INT_STR+1];
       if(head->status>=100 && sprintf(status,"%3d",head->status)==3)
 	p=stpcpy(p,status);
       else
@@ -615,7 +643,7 @@ void FreeHeader(Header *head)
   ++++++++++++++++++++++++++++++++++++++*/
 
 #if 0
-Body *CreateBody(int length)
+Body *CreateBody(size_t length)
 {
  Body *new=(Body*)malloc(sizeof(Body)+length+1);
 
@@ -646,12 +674,12 @@ void FreeBody(Body *body)
   HeaderList *GetHeaderList Returns a structure containing a list of items and q values
                             or NULL if key was not found.
 
-  Header *head The header to search through.
+  const Header *head The header to search through.
 
-  char* key The key to look for.
+  const char* key The key to look for.
   ++++++++++++++++++++++++++++++++++++++*/
 /* written by Paul Rombouts  as a replacement for SplitHeaderList */
-HeaderList *GetHeaderList(Header *head,const char* key)
+HeaderList *GetHeaderList(const Header *head,const char* key)
 {
   HeaderList *list;
   int nitems=0;
@@ -738,12 +766,12 @@ void FreeHeaderList(HeaderList *hlist)
 
   int sort_qval Returns the sort preference of a and b.
 
-  HeaderListItem *a The first header list item.
+  const HeaderListItem *a The first header list item.
 
-  HeaderListItem *b The second header list item.
+  const HeaderListItem *b The second header list item.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int sort_qval(HeaderListItem *a,HeaderListItem *b)
+static int sort_qval(const HeaderListItem *a,const HeaderListItem *b)
 {
   float aq=a->qval;
   float bq=b->qval;
@@ -755,33 +783,26 @@ static int sort_qval(HeaderListItem *a,HeaderListItem *b)
 
   char *MatchHeader Returns the (first) key-value node matching the pattern.
 
-  Header *head The header to search through.
+  const Header *head The header to search through.
 
-  char* pattern The pattern to match.
+  const char* pattern The pattern to match.
   ++++++++++++++++++++++++++++++++++++++*/
 
-KeyValueNode *MatchHeader(Header *head,const char* pattern)
+KeyValueNode *MatchHeader(const Header *head,const char* pattern)
 {
- const char *val=strchr(pattern,':'), *starp=strchr(pattern,'*');
+ const char *val=strchr(pattern,':');
  KeyValueNode *line;
 
  if(val) {
-   int len_key=val-pattern;
-   if(starp && starp>val) starp=NULL;
+   const char *keyend=val;
+   size_t len_key;
+   while(--keyend>=pattern && isspace(*keyend));
+   ++keyend;
+   len_key=keyend-pattern;
    do {if(!*++val) {val=NULL;break;}} while(isspace(*val));
-   if(starp) {
-     char key[len_key+1];
-     *((char *)mempcpy(key,pattern,len_key))=0;
-
-     for(line=head->line; line; line=line->next)
-       if(WildcardCaseMatch(line->key,key) && (!val || WildcardCaseMatch(line->val,val)))
-	 return(line);
-   }
-   else {
-     for(line=head->line; line; line=line->next)
-       if(!strncasecmp(line->key,pattern,len_key) && !line->key[len_key] && (!val || WildcardCaseMatch(line->val,val)))
-	 return(line);
-   }
+   for(line=head->line; line; line=line->next)
+     if(WildcardCaseMatchN(line->key,pattern,len_key) && (!val || WildcardCaseMatch(line->val,val)))
+       return(line);
  }
  else {
    for(line=head->line; line; line=line->next)

@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/document.c 1.22 2004/08/25 18:22:40 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/document.c 1.27 2005/11/06 10:03:23 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Document parsing functions.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1998,99,2000,01,02,03 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04,05 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2004,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -28,21 +30,36 @@
 #include "document.h"
 
 
-/*+ The list of references. +*/
-static char **references[NRefTypes];
+/*+ The list of links to references. +*/
+static char **reference_links[NRefTypes];
+
+/*+ The list of URL references. +*/
+static URL **reference_Urls[NRefTypes];
 
 /*+ The number of references. +*/
-static int nreferences[NRefTypes];
+static int reference_num[NRefTypes];
 
 /*+ The base URL from which references are related. +*/
-static URL *baseUrl;
+static URL *baseUrl=NULL;
 
 /*+ A flag to indicate that all references are to be added. +*/
 static int add_all=0;
 
 
-static DocType GetDocumentType(char *mimetype);
+static DocType GetDocumentType(const char *mimetype);
 static char *GetMIMEType(int fd);
+
+inline static void SetBaseURL(URL *Url)
+{
+  if(baseUrl) FreeURL(baseUrl);
+  baseUrl=(Url?CopyURL(Url):NULL);
+}
+
+inline static void SetBase_url(char *url)
+{
+  if(baseUrl) FreeURL(baseUrl);
+  baseUrl=(url?SplitURL(url):NULL);
+}
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -106,7 +123,7 @@ DocType ParseDocument(int fd,URL *Url,int all)
  return(doctype);
 }
 
-static struct {
+static const struct {
   char *mimetype;
   DocType doctype;
 } docTypeList[] = {
@@ -127,12 +144,12 @@ static struct {
 
   DocType GetDocumentType Returns the document type.
 
-  char *mimetype The mime type to be tested.
+  const char *mimetype The mime type to be tested.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static DocType GetDocumentType(char *mimetype)
+static DocType GetDocumentType(const char *mimetype)
 {
- int i;
+ unsigned i;
 
  for(i = 0; i < sizeof(docTypeList)/sizeof(docTypeList[0]); i++)
     if(!strcmp(mimetype,docTypeList[i].mimetype))
@@ -187,26 +204,33 @@ static char *GetMIMEType(int fd)
 
 void AddReference(char* name,RefType type)
 {
+ /* Special case for baseUrl. */
+
+ if(type==RefBaseUrl && name)
+   {
+    SetBase_url(name);
+    return;
+   }
+
  /* Check for badly formatted URLs */
 
  if(name)
    {
-    char *p=name+strlen(name)-1;
+    char *p;
     int onlychars=1;
 
     while(*name && isspace(*name))
        name++;
 
-    while(p>name && isspace(*p))
-       *p--=0;
+    if(*name=='#')
+       return;
+
+    p=strchrnul(name,0);
+    while(--p>=name && isspace(*p))
+       *p=0;
 
     for(p=name;*p;p++)
-       if(*p=='#')
-         {
-          *p=0;
-          break;
-         }
-       else if(*p==':' && onlychars && !add_all)
+       if(*p==':' && onlychars && !add_all)
          {
           int i;
           for(i=0;i<NProtocols;i++)
@@ -218,29 +242,26 @@ void AddReference(char* name,RefType type)
          }
        else if(onlychars && !isalpha(*p))
           onlychars=0;
-
-    if(!*name)
-       return;
    }
 
  /* Add it to the list. */
 
- if(name || references[type])
+ if(name || reference_links[type])
    {
-    if(nreferences[type]==0)
-       references[type]=(char**)malloc(16*sizeof(char*));
-    else if((nreferences[type]%16)==0)
-       references[type]=(char**)realloc(references[type],(nreferences[type]+16)*sizeof(char*));
+    if(reference_num[type]==0)
+       reference_links[type]=(char**)malloc(16*sizeof(char*));
+    else if((reference_num[type]%16)==0)
+       reference_links[type]=(char**)realloc(reference_links[type],(reference_num[type]+16)*sizeof(char*));
 
     if(name)
       {
-       references[type][nreferences[type]]=strdup(name);
-       URLReplaceAmp(references[type][nreferences[type]]);
+       reference_links[type][reference_num[type]]=strdup(name);
+       URLReplaceAmp(reference_links[type][reference_num[type]]);
       }
     else
-       references[type][nreferences[type]]=NULL;
+       reference_links[type][reference_num[type]]=NULL;
 
-    nreferences[type]++;
+    reference_num[type]++;
    }
 }
 
@@ -259,81 +280,87 @@ void FinishReferences(void)
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Set another base URL.
+  Get the reference of the specified type.
 
-  URL *Url The new base URL.
+  URL *GetReferences Returns the URL.
+
+  RefType type The type of URL that is required.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void SetBaseURL(URL *Url)
+URL *GetReference(RefType type)
 {
-  if(Url) {
-    if(baseUrl) FreeURL(baseUrl);
-    baseUrl=CopyURL(Url);
-  }
+ if(type==RefBaseUrl)
+    return(baseUrl);
+ else if(type==RefMetaRefresh)
+   {
+    URL *meta_refresh_Url;
+
+    if(!reference_links[type])
+       return(NULL);
+
+    meta_refresh_Url=LinkURL(baseUrl,reference_links[type][0]);
+
+    return(meta_refresh_Url);
+   }
+ else
+    return(NULL);
 }
 
-void SetBase_url(char *url)
-{
-  if(url) {
-    if(baseUrl) FreeURL(baseUrl);
-    baseUrl=SplitURL(url);
-  }
-}
-
-URL *GetBaseURL()
-{
-  return baseUrl;
-}
 
 /*++++++++++++++++++++++++++++++++++++++
   Get a list of the references of the specified type.
 
-  char **GetReferences Returns the list of URLs.
+  URL **GetReferences Returns the list of URLs.
 
   RefType type The type of list that is required.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char **GetReferences(RefType type)
+URL **GetReferences(RefType type)
 {
  int i,j;
 
- if(!references[type])
+ if(!reference_links[type])
     return(NULL);
 
- /* canonicalise the links */
+ if(type==RefBaseUrl || type==RefMetaRefresh)
+    return(NULL);
 
- for(i=0;references[type][i];i++)
+ if(!reference_Urls[type])
    {
-    char *new=LinkURL(baseUrl,references[type][i]);
-    if(new!=references[type][i])
+    /* Convert links to URLs */
+
+    reference_Urls[type]=(URL**)malloc(reference_num[type]*sizeof(URL*));
+
+    for(i=0;reference_links[type][i];i++)
+       reference_Urls[type][i]=LinkURL(baseUrl,reference_links[type][i]);
+
+    reference_Urls[type][i]=NULL;
+
+    /* remove the duplicates */
+
+    for(i=0;reference_Urls[type][i];i++)
       {
-       free(references[type][i]);
-       references[type][i]=new;
-      }
-   }
+       for(j=i+1;reference_Urls[type][j];j++)
+          if(!strcmp(reference_Urls[type][i]->file,reference_Urls[type][j]->file))
+             break;
 
- /* remove the duplicates */
-
- for(i=0;references[type][i];i++)
-   {
-    for(j=i+1;references[type][j];j++)
-       if(!strcmp(references[type][i],references[type][j]))
-          break;
-
-    if(references[type][j])
-      {
-       free(references[type][j]);
-       do
+       if(reference_Urls[type][j])
          {
-          references[type][j]=references[type][j+1];
+          free(reference_links[type][j]);
+          FreeURL(reference_Urls[type][j]);
+          do
+            {
+             reference_links[type][j]=reference_links[type][j+1];
+             reference_Urls[type][j]=reference_Urls[type][j+1];
+            }
+          while(reference_Urls[type][j++]);
+          i--;
+          reference_num[type]--;
          }
-       while(references[type][j++]);
-       i--;
-       nreferences[type]--;
       }
    }
 
- return(references[type]);
+ return(reference_Urls[type]);
 }
 
 
@@ -348,17 +375,26 @@ void ResetReferences(void)
 
  for(i=0;i<NRefTypes;i++)
    {
-    if(!first && references[i])
+    if(!first && reference_links[i])
       {
        int j;
 
-       for(j=0;references[i][j];j++)
-          free(references[i][j]);
-       free(references[i]);
+       for(j=0;reference_links[i][j];j++)
+          free(reference_links[i][j]);
+
+       if(reference_Urls[i])
+          for(j=0;reference_links[i][j];j++)
+             FreeURL(reference_Urls[i][j]);
+
+       free(reference_links[i]);
+
+       if(reference_Urls[i])
+          free(reference_Urls[i]);
       }
 
-    references[i]=NULL;
-    nreferences[i]=0;
+    reference_links[i]=NULL;
+    reference_Urls[i]=NULL;
+    reference_num[i]=0;
    }
 
  first=0;

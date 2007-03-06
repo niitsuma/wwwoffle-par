@@ -1,4 +1,4 @@
-TITLE WWWOFFLE - Configuration File - Version 2.8e
+TITLE WWWOFFLE - Configuration File - Version 2.9
 HEAD
 <h2><a name="Introduction">Introduction</a></h2> The configuration file (wwwoffle.conf) specifies all of the parameters that control the operation of the proxy server.  The file is split into sections each containing a series of parameters as described below.  The file CHANGES.CONF explains the changes in the configuration file between this version of the program and previous ones. <p> The file is split into sections, each of which can be empty or contain one or more lines of configuration information.  The sections are named and the order that they appear in the file is not important. <p> The general format of each of the sections is the same.  The name of the section is on a line by itself to mark the start.  The contents of the section are enclosed between a pair of lines containing only the '{' and '}' characters or the '[' and ']' characters.  When the '{' and '}' characters are used the lines between contain configuration information.  When the '[' and ']' characters are used then there must only be a single non-empty line between them that contains the name of a file (in the same directory) containing the configuration information for the section. <p> Comments are marked by a '#' character at the start of the line and they are ignored.  Blank lines are also allowed and ignored. <p> The phrases <a href="/configuration/#URL-SPECIFICATION">URL-SPECIFICATION</a> (or <a href="/configuration/#URL-SPECIFICATION">URL-SPEC</a> for short) and <a href="/configuration/#WILDCARD">WILDCARD</a> have specific meanings in the configuration file and are described at the end.  Any item enclosed in '(' and ')' in the descriptions means that it is a parameter supplied by the user, anything enclosed in '[' and ']' is optional, the '|' symbol is used to denote alternate choices.  Some options apply to specific URLs only, this is indicated by having a <a href="/configuration/#URL-SPECIFICATION">URL-SPECIFICATION</a> enclosed between '&lt;' &amp; '&gt;' in the option, the first <a href="/configuration/#URL-SPECIFICATION">URL-SPECIFICATION</a> to match is used.  If no <a href="/configuration/#URL-SPECIFICATION">URL-SPECIFICATION</a> is given then it matches all URLs.
 SECTION StartUp
@@ -12,6 +12,9 @@ Specify the hostname or IP address to bind the HTTP proxy and WWWOFFLE control p
 ITEM http-port
 http-port = (port)
 An integer specifying the port number for the HTTP proxy to use (default=8080).  This is the port number that must be specified in the client to connect to the WWWOFFLE proxy.
+ITEM https-port
+https-port = (port)
+An integer specifying the port number for the HTTPS proxy to use (default=8443).  This is the port number can be used to access the WWWOFFLE internal pages or proxy function.  Requires gnutls compilation option.
 ITEM wwwoffle-port
 wwwoffle-port = (port)
 An integer specifying the port number for the WWWOFFLE control connections to use (default=8081).
@@ -53,9 +56,6 @@ The time in seconds that WWWOFFLE will wait for the socket connection to be made
 ITEM connect-retry
 connect-retry = yes | no
 If a connection cannot be made to a remote server then WWWOFFLE should try again after a short delay (default=no).
-ITEM ssl-allow-port
-ssl-allow-port = (integer)
-A port number that is allowed to be proxied for Secure Socket Layer (SSL) connections, e.g. https.  This option should be set to 443 to allow https, there can be more than one ssl-port entry for other ports as required.
 ITEM dir-perm
 dir-perm = (octal int)
 The directory permissions to use when creating spool directories (default=0755).  This option overrides the umask of the user and must be in octal starting with a '0'.
@@ -64,19 +64,19 @@ file-perm = (octal int)
 The file permissions to use when creating spool files (default=0644). This option overrides the umask of the user and must be in octal starting with a '0'.
 ITEM run-online
 run-online = (filename)
-The name of a program to run when WWWOFFLE is switched to online mode (default=none).  The program is started with a single parameter set to the current mode name "online".
+The full pathname of a program to run when WWWOFFLE is switched to online mode (default=none).  The program is started in the background with a single parameter set to the current mode name "online".
 ITEM run-offline
 run-offline = (filename)
-The name of a program to run when WWWOFFLE is switched to offline mode (default=none).  The program is started with a single parameter set to the current mode name "offline".
+The full pathname of a program to run when WWWOFFLE is switched to offline mode (default=none).  The program is started in the background with a single parameter set to the current mode name "offline".
 ITEM run-autodial
 run-autodial = (filename)
-The name of a program to run when WWWOFFLE is switched to autodial mode (default=none).  The program is started with a single parameter set to the current mode name "autodial".
+The full pathname of a program to run when WWWOFFLE is switched to autodial (default=none).  The program is started in the background with a single parameter set to the current mode name "fetch".
 ITEM run-fetch
 run-fetch = (filename)
-The name of a program to run when a WWWOFFLE fetch starts or stops (default=none).  The program is started with two parameters, the first is the word "fetch" and the second is "start" or "stop".
+The full pathname of a program to run when a WWWOFFLE fetch starts or stops (default=none).  The program is started in the background with two parameters, the first is the word "fetch" and the second is "start" or "stop".
 ITEM lock-files
 lock-files = yes | no
-Enable the use of lock files to stop more than one WWWOFFLE process from downloading the same URL at the same time (default=no).
+Enable the use of lock files to stop more than one WWWOFFLE process from downloading the same URL at the same time (default=no).  Disabling the lock-files may result in incomplete pages being displayed or many copies being downloaded if multiple requests are made for the same URL at the same time.
 ITEM reply-compressed-data
 reply-compressed-data = yes | no
 If the replies that are made to the client are to contain compressed data when requested (default=no).  Requires zlib compilation option.
@@ -90,13 +90,16 @@ SECTION OnlineOptions
 Options that control how WWWOFFLE behaves when it is online.
 ITEM pragma-no-cache
 [<URL-SPEC>] pragma-no-cache = yes | no
-Whether to request a new copy of a page if the request from the client has 'Pragma: no-cache' (default=yes).
+Whether to request a new copy of a page if the request from the client has 'Pragma: no-cache' (default=yes).  This option takes precedence over the request-changed and request-changed-once options.
 ITEM cache-control-no-cache
 [<URL-SPEC>] cache-control-no-cache = yes | no
-Whether to request a new copy of a page if the request from the client has 'Cache-Control: no-cache' (default=yes).
+Whether to request a new copy of a page if the request from the client has 'Cache-Control: no-cache' (default=yes).  This option takes precedence over the request-changed and request-changed-once options.
 ITEM cache-control-max-age-0
 [<URL-SPEC>] cache-control-max-age-0 = yes | no
-Whether to request a new copy of a page if the request from the client has 'Cache-Control: max-age=0' (default=yes).
+Whether to request a new copy of a page if the request from the client has 'Cache-Control: max-age=0' (default=yes).  This option takes precedence over the request-changed and request-changed-once options.
+ITEM cookies-force-refresh
+[<URL-SPEC>] cookies-force-refresh = yes | no
+Whether to force the refresh of a page if the request from the client contains a cookie (default=no).  This option takes precedence over the request-changed and request-changed-once options.
 ITEM request-changed
 [<URL-SPEC>] request-changed = (time)
 While online pages will only be fetched if the cached version is older than this specified time in seconds (default=600).  Setting this value negative will indicate that cached pages are always used while online. Longer times can be specified with a 'm', 'h', 'd' or 'w' suffix for minutes, hours, days or weeks (e.g. 10m=600).
@@ -162,6 +165,23 @@ Whether to return a page requiring user confirmation instead of automatically re
 ITEM dont-request
 [<URL-SPEC>] dont-request = yes | no
 Do not request any URLs that match this when offline (default=no).
+SECTION SSLOptions
+Options that control how WWWOFFLE behaves when a connection is made to it for a Secure Sockets Layer (SSL) server.  Normally only tunnelling (with no decryption or caching of the data) is possible.  When WWWOFFLE is compiled with the gnutls library it is possible configure WWWOFFLE to decrypt, cache and re-encrypt the connections.
+ITEM enable-caching
+enable-caching = yes | no
+If caching (involving decryption and re-encryption) of Secure Sockets Layer (SSL) server connections is allowed (default = no).
+ITEM allow-tunnel
+allow-tunnel = (host[:port])
+A hostname and port number (a <a href="/configuration/#WILDCARD">WILDCARD</a> match) for an SSL server that can be connected to using WWWOFFLE as a tunnelling proxy (no caching or decryption of the data) (default is no hosts or ports allowed).  This option should be set to *:443 to allow https to the default port number. There can be more than one option for other ports or hosts as required. This option takes precedence over the allow-cache option.
+ITEM disallow-tunnel
+disallow-tunnel = (host[:port])
+A hostname and port number (a <a href="/configuration/#WILDCARD">WILDCARD</a> match) for an SSL server that can not be connected to using WWWOFFLE as a tunnelling proxy.  There can be more than one option for other ports or hosts as required.  This option takes precedence over the allow-tunnel option.
+ITEM allow-cache
+allow-cache = (host[:port])
+A hostname and port number (a <a href="/configuration/#WILDCARD">WILDCARD</a> match) for an SSL server that can be connected to using WWWOFFLE as a caching proxy (decryption of the data) (default is no hosts or ports allowed).  This option should be set to *:443 to allow https to the default port number.  There can be more than one option for other ports or hosts as required.
+ITEM disallow-cache
+disallow-cache = (host[:port])
+A hostname and port number (a <a href="/configuration/#WILDCARD">WILDCARD</a> match) for an SSL server that can not be connected to using WWWOFFLE as a caching proxy.  This option takes precedence over the allow-cache option.
 SECTION FetchOptions
 Options that control what linked elements are downloaded when fetching pages that were requested while offline.
 ITEM stylesheets
@@ -261,6 +281,9 @@ Removes the &lt;marquee&gt; tag from HTML to stop scrolling text (default=no).
 ITEM disable-flash
 [<URL-SPEC>] disable-flash = yes | no
 Removes any Shockwave Flash animations (default=no).
+ITEM disable-iframe
+[<URL-SPEC>] disable-iframe = yes | no
+Removes any inline frames (the &lt;iframe&gt; tag) from HTML (default=no).
 ITEM disable-meta-refresh
 [<URL-SPEC>] disable-meta-refresh = yes | no
 Removes any meta tags in the HTML header that re-direct the client to change to another page after an optional delay (default=no). It is also possible to replace the delay with a time of your own choice, see below.
@@ -438,7 +461,7 @@ del-dontcache = yes | no
 If true then delete the URLs that match the entries in the DontCache section (default=no).
 ITEM age
 [<URL-SPEC>] age = (age)
-The maximum age in the cache for URLs that match this (default=14). An age of zero means not to keep, negative means not to delete.  The <a href="/configuration/#URL-SPECIFICATION">URL-SPECIFICATION</a> matches only the protocol and host unless use-url is set to true. Longer times can be specified with a 'w', 'm' or 'y' suffix for weeks, months or years (e.g. 2w=14).
+The maximum age in the cache for URLs that match this (default=14). An age of zero means always to delete, negative means not to delete. The <a href="/configuration/#URL-SPECIFICATION">URL-SPECIFICATION</a> matches only the protocol and host unless use-url is set to true. Longer times can be specified with a 'w', 'm' or 'y' suffix for weeks, months or years (e.g. 2w=14).
 ITEM compress-age
 [<URL-SPEC>] compress-age = (age)
 The maximum age in the cache for URLs that match this to be stored uncompressed (default=-1).  Requires zlib compilation option.  An age of zero means always to compress, negative means never to compress. The <a href="/configuration/#URL-SPECIFICATION">URL-SPECIFICATION</a> matches only the protocol and host unless use-url is set to true. Longer times can be specified with a 'w', 'm' or 'y' suffix for weeks, months or years (e.g. 2w=14).

@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/errors.c 2.45 2004/06/17 18:19:13 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/errors.c 2.51 2006/11/14 17:10:18 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Generate error messages in a standard format optionally to syslog and stderr.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,04,05 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2004,2005,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -41,8 +43,13 @@
 #include <varargs.h>
 #endif
 
-/*+ Need this for Win32 to use binary mode +*/
+#ifdef __CYGWIN__
+#include "config.h"
+#endif
+
+
 #ifndef O_BINARY
+/*+ A work-around for needing O_BINARY with Win32 to use binary mode. +*/
 #define O_BINARY 0
 #endif
 
@@ -175,13 +182,13 @@ static pid_t pid;
 static time_t last_time=0;
 
 /*+ The error messages. +*/
-static char *ErrorString[]={"ExtraDebug","Debug"  ,"Information","Important","Warning"  ,"Fatal"};
+static const char *ErrorString[]={"ExtraDebug","Debug"  ,"Information","Important","Warning"  ,"Fatal"};
 
 /*+ The priority to apply to syslog messages. +*/
 #if defined(__CYGWIN__)
-static int ErrorPriority[]={-1          ,Debug    ,Inform       ,Important  ,Warning    ,Fatal};
+static const int ErrorPriority[]={-1          ,Debug    ,Inform       ,Important  ,Warning    ,Fatal};
 #else
-static int ErrorPriority[]={-1          ,LOG_DEBUG,LOG_INFO     ,LOG_NOTICE ,LOG_WARNING,LOG_ERR};
+static const int ErrorPriority[]={-1          ,LOG_DEBUG,LOG_INFO     ,LOG_NOTICE ,LOG_WARNING,LOG_ERR};
 #endif
 
 /*+ The error facility to use, +*/
@@ -246,7 +253,7 @@ void OpenErrorLog(char *name)
 
  close(STDERR_FILENO);
 
- log=open(name,O_WRONLY|O_CREAT|O_BINARY,0600);
+ log=open(name,O_WRONLY|O_CREAT|O_TRUNC|O_BINARY,0600);
 
  use_stderr=1;
 
@@ -381,7 +388,7 @@ static char *print_message(ErrorLevel errlev,const char* fmt,va_list ap)
 
  /* Parsing of special conversion specifiers %!s and %!d. */
  {
-   int fmt_len=0,strerrlen=0,strerrnolen=0;
+   size_t fmt_len=0,strerrlen=0,strerrnolen=0;
    char *strerr=NULL, *strerrno=NULL, *p; const char *q;
 
    for(q=fmt; *q; ++q) {
@@ -419,7 +426,7 @@ static char *print_message(ErrorLevel errlev,const char* fmt,va_list ap)
 	 }
 	 else {
 	   if(!strerrno) {
-	     strerrno=(char *)alloca(24);
+	     strerrno=(char *)alloca(MAX_INT_STR+sizeof(" (gai_errno)"));
 	     if(errno==ERRNO_USE_H_ERRNO)
 	       strerrnolen=sprintf(strerrno,"%d (h_errno)",h_errno);
 	     else if(errno==ERRNO_USE_IO_ERRNO)
@@ -485,7 +492,7 @@ static char *print_message(ErrorLevel errlev,const char* fmt,va_list ap)
  if(use_stderr && ((StderrLevel==-1 && errlev>=SyslogLevel) || (StderrLevel!=-1 && errlev>=StderrLevel)))
    {
     if(SyslogLevel==ExtraDebug || StderrLevel==ExtraDebug)
-       fprintf(stderr,"%s[%ld] %10ld: %s: %s\n",program,(long)pid,this_time,ErrorString[errlev],string);
+       fprintf(stderr,"%s[%ld] %10ld: %s: %s\n",program,(long)pid,(long)this_time,ErrorString[errlev],string);
     else
        fprintf(stderr,"%s[%ld] %s: %s\n",program,(long)pid,ErrorString[errlev],string);
    }
@@ -511,10 +518,11 @@ static void openlog(char *facility)
  char *config_file=ConfigurationFileName();
  char *p=strchrnul(config_file,0);
  char *syslogfile;
- int pathlen;
+ size_t pathlen;
 
  while(--p>=config_file && *p!='/');
- pathlen=p+1-config_file;
+ ++p;
+ pathlen=p-config_file;
  syslogfile=(char *)alloca(pathlen+sizeof("wwwoffle.syslog"));
  stpcpy(mempcpy(syslogfile,config_file,pathlen),"wwwoffle.syslog");
 

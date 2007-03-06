@@ -1,4 +1,4 @@
-README-Version 0.92    2004-11-1
+README-Version 0.92.1    2005-02-15
 
 The wwwofflebook README applies to the following scripts:
 wwwofflebook
@@ -231,9 +231,9 @@ is /home/michelle:
 cp -a /opt/wwwofflebook/userdir/.wwwoffle   /home/michelle/
 >>
 
-Next adjust the ownership by typing *exactly*:
+Next adjust the ownership (don't mistype any character, -R is recursive!):
 <<
-chown -R  michelle:proxy   /home/michelle/.wwwoffle
+chown -R -v  michelle:proxy   /home/michelle/.wwwoffle
 >>
 
 (3) Place the purge.conf example file into /etc/wwwoffle
@@ -377,7 +377,7 @@ browser-type bookmark functions (at least, if they work for you ;).
 
 Log in as ROOT and run 
 <<
-wwwofflebook_check -c path-to-your-wwwofflebook.conf
+wwwofflebook_check -c /path/to/your/wwwofflebook.conf
 >>
 
 It's part of the concept that the new maintainer belongs to the wwwoffle daemon
@@ -482,10 +482,10 @@ will let the user create files with permissions rw-r--r-- (644).
 () Present new purge.conf and prompt *before* actually exchanging it.  
    Rotate purge.conf several times instead of only once.
 
-() Sorting of purge output. The necessary BASH function ('extract') already exists
-   in wwwofflebook.conf. The problem is, if Andrew would change the output layout 
-   only slightly, we'd need to redefine the markers, or it will fail. 
-   I think it would be nice if Andrew implements sorting in wwwoffled one day.
+() Sorting of purge output. A helpful bash-function ('extract') already exists
+   in wwwofflebook.conf. The problem is, if Andrew changes the output layout 
+   even only slightly, we may need to redefine the markers.  
+   It would be better if Andrew implemented sorting right away in wwwoffled.
 
 () How to manage the *personal* section via Browser Bookmarks ?
    Perhaps creating a 'wwwofflebook personal bookmark section' bookmark folder 

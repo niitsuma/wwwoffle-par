@@ -26,18 +26,10 @@ Mot de passe : <input type="password" name="password">
 }{}
 </form>
 
-<!--
-
-Boutons WWWOFFLE utiles
-
-$url?{$index = http://$localhost/index/?sort=alpha}{}
-$mon?{$index = http://$localhost/index/monitor/?sort=alpha}{}
-$req?{$index = http://$localhost/index/outgoing/?sort=alpha}{}
-
--->
-
 <div class="wwwoffle-nav" align="center">
-[<a href="$index">Index</a>]
+$url?{[<a href="$localurl/index/?sort=alpha">Main Index</a>]}{}
+$mon?{[<a href="$localurl/index/monitor/?sort=alpha">Monitor Index</a>]}{}
+$req?{[<a href="$localurl/index/outgoing/?sort=alpha">Outgoing Index</a>]}{}
 </div>
 
 <script type="text/javascript">
@@ -53,8 +45,8 @@ document.write("<\/p>");
 <hr class="wwwoffle-footer">
 <div class="wwwoffle-footer" align="center">
 WWWOFFLE - [ \
-<a href="http://$localhost/Welcome.html">Page d'accueil</a>| \
-<a href="http://$localhost/FAQ.html">FAQ</a> \
+<a href="$localurl/Welcome.html">Page d'accueil</a>| \
+<a href="$localurl/FAQ.html">FAQ</a> \
 ] - WWWOFFLE
 </div>
 

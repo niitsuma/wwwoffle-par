@@ -1,12 +1,12 @@
-# $Header: /home/amb/wwwoffle/doc/RCS/Makefile.in 1.12 2003/10/31 19:44:49 amb Exp $
+# $Header: /home/amb/wwwoffle/doc/RCS/Makefile.in 1.14 2006/01/31 19:02:32 amb Exp $
 #
-# WWWOFFLE - World Wide Web Offline Explorer - Version 2.8.
+# WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
 #
 # Documentation Makefile.
 #
 # Written by Andrew M. Bishop
 #
-# This file Copyright 1996,97,98,99,2000,01,02 Andrew M. Bishop
+# This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
 # It may be distributed under the GNU Public License, version 2, or
 # any higher version.  See section COPYING of the GNU Public license
 # for conditions under which this file may be redistributed.
@@ -63,7 +63,7 @@ install-man :
 install-doc :
 	[ -x $(docdir) ] || $(INSTALL) -d -m 755 $(docdir)
 	cd $(DEFLANG) ; \
-	  for file in CHANGES.CONF CONVERT COPYING FAQ INSTALL NEWS README README.* ; do \
+	  for file in CHANGES.CONF COPYING FAQ INSTALL NEWS README README.* ; do \
 	    [ ! -f $$file ] || $(INSTALL) -c -m 644 $$file $(docdir)/$$file ;\
 	  done
 	for lang in $(LANGUAGES); do \
@@ -72,7 +72,7 @@ install-doc :
 	    $(INSTALL) -d -m 755 $(docdir)/$$lang && \
 	    for file in * ; do \
 	      [ ! -f $$file -o $$file = wwwoffle.conf.man.template ] || \
-                $(INSTALL) -c -m 644 $$file $(docdir)/$$lang/$$file ;\
+	        $(INSTALL) -c -m 644 $$file $(docdir)/$$lang/$$file ;\
 	    done ) ;\
 	done
 

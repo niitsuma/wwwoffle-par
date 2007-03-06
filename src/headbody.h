@@ -86,17 +86,18 @@ inline static void RemovePlingFromUrl(char *url)
 
 
 void RemoveFromHeader(Header *head,const char* key);
-void RemoveFromHeader2(Header *head,const char* key,const char *val);
+int RemoveFromHeader2(Header *head,const char* key,const char *val);
 
 void ReplaceOrAddInHeader(Header *head,const char *key,const char *val);  /* Added by Paul Rombouts */
 
-/*@null@*/ /*@observer@*/ char *GetHeader(Header *head,const char* key);
-/*@null@*/ /*@observer@*/ char *GetHeader2(Header *head,const char* key,const char *val);
-/*@null@*/ /*@observer@*/ char *GetHeader2Val(Header *head,const char* key,const char *subkey);
-KeyValueNode *MatchHeader(Header *head,const char* pattern);
-/*@only@*/ char *GetHeaderCombined(Header *head,const char* key);
+/*@null@*/ /*@observer@*/ char *GetHeader(const Header *head,const char* key);
+/*@null@*/ /*@observer@*/ char *GetHeader2(const Header *head,const char* key,const char *val);
+/*@null@*/ /*@observer@*/ char *GetHeader2Val(const Header *head,const char* key,const char *subkey);
+/*@only@*/ char *GetHeaderCombined(const Header *head,const char* key);
+void CopyHeader(const Header *fromhead, Header *tohead, const char *key);
+KeyValueNode *MatchHeader(const Header *head,const char* pattern);
 
-/*@only@*/ char *HeaderString(Header *head,int *size);
+/*@only@*/ char *HeaderString(const Header *head, size_t *size);
 
 void FreeHeader(/*@only@*/ Header *head);
 
@@ -125,7 +126,7 @@ inline static KeyValueNode *RemoveLineFromHeader(Header *head,KeyValueNode *line
   return next;
 }
 
-inline static /*@only@*/ Body *CreateBody(int length)
+inline static /*@only@*/ Body *CreateBody(size_t length)
 {
  Body *new=(Body*)malloc(sizeof(Body)+length+1);
 
@@ -133,7 +134,7 @@ inline static /*@only@*/ Body *CreateBody(int length)
  return(new);
 }
 
-inline static /*@only@*/ Body *ReallocBody(/*@only@*/ Body *body,int length)
+inline static /*@only@*/ Body *ReallocBody(/*@only@*/ Body *body,size_t length)
 {
  Body *new=(Body*)realloc(body,sizeof(Body)+length+1);
 
@@ -146,10 +147,10 @@ inline static void FreeBody(/*@only@*/ Body *body)
   free(body);
 }
 
-/*@only@*/ HeaderList *GetHeaderList(Header *head,const char* key);
+/*@only@*/ HeaderList *GetHeaderList(const Header *head,const char* key);
 void FreeHeaderList(/*@only@*/ HeaderList *hlist);
 
-inline static int offsetof_status(Header *reply_head)
+inline static size_t offsetof_status(const Header *reply_head)
 {
   return ((reply_head->version)?strlen(reply_head->version):8)+1;
 }

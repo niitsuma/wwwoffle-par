@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/search.c 1.33 2004/06/17 18:47:45 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/search.c 1.39 2005/09/04 15:56:20 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8d.
-  Handle the interface to the ht://Dig, mnoGoSearch (UdmSearch) and Namazu search engines.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
+  Handle the interface to the ht://Dig, mnoGoSearch (UdmSearch), Namazu and Hyper Estraier search engines.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1997,98,99,2000,01,02,03,04 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -62,6 +64,8 @@
 #include "proto.h"
 
 
+/* Local functions */
+
 static void SearchIndex(int fd,URL *Url);
 static void SearchIndexRoot(int fd);
 static void SearchIndexProtocol(int fd,char *proto);
@@ -71,6 +75,7 @@ static void SearchIndexLastTime(int fd);
 static int HTSearch(int fd,char *args);
 static int mnoGoSearch(int fd,char *args);
 static int Namazu(int fd,char *args);
+static int EstSeek(int fd,char *args);
 
 static int SearchScript(int fd,char *args,char *name,char *script,char *path);
 
@@ -111,10 +116,15 @@ int SearchPage(int fd,URL *Url,Header *request_head,Body *request_body)
    if((tmpfd=CreateTempSpoolFile())==-1) goto tmpfderror;
    if(!Namazu(tmpfd,Url->args)) goto scriptfailed;
  }
+ else if(!strcmp(newpath,"hyperestraier/estseek")) {
+   if((tmpfd=CreateTempSpoolFile())==-1) goto tmpfderror;
+   if(!EstSeek(fd,Url->args)) goto scriptfailed;
+ }
  else if((!strcmp_litbeg(newpath,"htdig/") && !strchr(newpath+strlitlen("htdig/"),'/')) ||
 	 (!strcmp_litbeg(newpath,"mnogosearch/") && !strchr(newpath+strlitlen("mnogosearch/"),'/')) ||
 	 (!strcmp_litbeg(newpath,"udmsearch/") && !strchr(newpath+strlitlen("udmsearch/"),'/')) ||
 	 (!strcmp_litbeg(newpath,"namazu/") && !strchr(newpath+strlitlen("namazu/"),'/')) ||
+	 (!strcmp_litbeg(newpath,"hyperestraier/") && !strchr(newpath+strlitlen("hyperestraier/"),'/')) ||
 	 (!strchr(newpath,'/')))
     tmpfd=LocalPage(fd,Url,request_head,request_body);
  else
@@ -260,14 +270,6 @@ static void SearchIndexProtocol(int fd,char *proto)
 
     if(!stat(ent->d_name,&buf) && S_ISDIR(buf.st_mode))
       {
-#if defined(__CYGWIN__)
-       int i;
-
-       for(i=0;ent->d_name[i];i++)
-          if(ent->d_name[i]=='!')
-             ent->d_name[i]=':';
-#endif
-
        out_err=write_formatted(fd,"<a href=\"%s/\"> </a>\n",ent->d_name);
        if(out_err==-1) break;
       }
@@ -292,9 +294,6 @@ static void SearchIndexProtocol(int fd,char *proto)
 
 static void SearchIndexHost(int fd,char *proto,char *host)
 {
-#if defined(__CYGWIN__)
- int i;
-#endif
  DIR *dir;
  struct dirent* ent;
 
@@ -304,12 +303,6 @@ static void SearchIndexHost(int fd,char *proto,char *host)
     return;
 
  /* Open the spool subdirectory. */
-
-#if defined(__CYGWIN__)
- for(i=0;host[i];i++)
-    if(host[i]==':')
-       host[i]='!';
-#endif
 
  if(chdir(host))
    {ChangeBackToSpoolDir();return;}
@@ -326,22 +319,19 @@ static void SearchIndexHost(int fd,char *proto,char *host)
 
  do
    {
-    char *url;
+    URL *Url;
 
     if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
        continue; /* skip . & .. */
 
-    if(*ent->d_name=='D' && (url=FileNameToURL(ent->d_name)))
+    if(*ent->d_name=='D' && (Url=FileNameToURL(ent->d_name)))
       {
-       URL *Url=SplitURL(url);
-
-       if(Url->Protocol->number==Protocol_HTTP)
+       if(!strcmp(Url->proto,"http"))
           out_err=write_formatted(fd,"<a href=\"%s\"> </a>\n",Url->name);
        else
           out_err=write_formatted(fd,"<a href=\"/%s/%s\"> </a>\n",Url->proto,Url->hostp);
 
        FreeURL(Url);
-       /* free(url); */
        if(out_err==-1) break;
       }
    }
@@ -381,22 +371,19 @@ static void SearchIndexLastTime(int fd)
 
  do
    {
-    char *url;
+    URL *Url;
 
     if(ent->d_name[0]=='.' && (ent->d_name[1]==0 || (ent->d_name[1]=='.' && ent->d_name[2]==0)))
        continue; /* skip . & .. */
 
-    if(*ent->d_name=='D' && (url=FileNameToURL(ent->d_name)))
+    if(*ent->d_name=='D' && (Url=FileNameToURL(ent->d_name)))
       {
-       URL *Url=SplitURL(url);
-
-       if(Url->Protocol->number==Protocol_HTTP)
+       if(!strcmp(Url->proto,"http"))
           out_err=write_formatted(fd,"<a href=\"%s\"> </a>\n",Url->name);
        else
           out_err=write_formatted(fd,"<a href=\"/%s/%s\"> </a>\n",Url->proto,Url->hostp);
 
        FreeURL(Url);
-       /* free(url); */
        if(out_err==-1) break;
       }
    }
@@ -450,7 +437,28 @@ static int Namazu(int fd,char *args)
 }
 
 
-/* A macro definition that makes environment variable setting a little easier. */
+/*++++++++++++++++++++++++++++++++++++++
+  Perform a Hyper Estraier search using the data from the posted form.
+
+  int fd The file descriptor to write to.
+
+  char *args The arguments of the request.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+static int EstSeek(int fd,char *args)
+{
+ return SearchScript(fd,args,"hyperestraier","estseek","search/hyperestraier/scripts/wwwoffle-estseek");
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  A macro definition that makes environment variable setting a little easier.
+
+  varname The environment variable that is to be set.
+
+  value The value of the environment variable.
+  ++++++++++++++++++++++++++++++++++++++*/
+
 #define putenv_var_val(varname,value) \
 { \
   char *envstr = (char *)malloc(sizeof(varname "=")+strlen(value)); \
@@ -458,6 +466,7 @@ static int Namazu(int fd,char *args)
  if(putenv(envstr)==-1) \
      env_err=1; \
 }
+
 
 /*++++++++++++++++++++++++++++++++++++++
   Perform a search using one of the three search methods.

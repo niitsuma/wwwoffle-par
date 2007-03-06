@@ -31,6 +31,7 @@ Contents:
         Wildcard wwwoffle-ls
         Checking Duplicated Monitored Files
         WWWOFFLE Book - Creating a purge.conf from browser bookmarks
+        Alternative Hyper Estraier indexing script
 
 Note: I did not write or check all of these scripts, they were supplied to me by
       the authors named below.
@@ -458,3 +459,13 @@ This is a beta version.
 > wwwoffle daemon with the flag to never delete them at all. The pages of this site 
 > will always be available offline, from the wwwoffle cache. 
 > This way a browser-bookmarked site will be retained until you remove the bookmarks.
+
+
+Alternative Hyper Estraier indexing script
+------------------------------------------
+
+Filename:    eregister/eregister
+Contributed: Richard Zidlicky <rz@linux-m68k.org>
+
+>   This script will index a wwwoffle cache and handle incremental
+>   updates examining only changed directories and files.

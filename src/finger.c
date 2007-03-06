@@ -1,12 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/finger.c 1.20 2003/12/14 10:53:53 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/finger.c 1.29 2006/01/08 10:27:21 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Functions for getting URLs using Finger.
   ******************/ /******************
   Written by Andrew M. Bishop
+  Modified by Paul A. Rombouts
 
-  This file Copyright 1998,99,2000,01,02,03 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -29,9 +31,7 @@
 
 
 /*+ Set to the name of the proxy if there is one. +*/
-static /*@observer@*/ /*@null@*/ char *proxy=NULL;
-static /*@null@*/ /*@observer@*/ char *sproxy=NULL;
-static int socksremotedns=0;
+static URL /*@null@*/ /*@only@*/ *proxyUrl=NULL;
 
 /*+ The file descriptor of the server. +*/
 static int server=-1;
@@ -48,31 +48,29 @@ static int server=-1;
 char *Finger_Open(URL *Url)
 {
  char *msg=NULL;
+ char *proxy=NULL,*sproxy=NULL;
  char *server_host=NULL;
- int server_port=Protocols[Protocol_Finger].defport;
+ int server_port=0;
  char *socks_host=NULL;
  int socks_port=0;
+ int socksremotedns=0;
 
  /* Sort out the host. */
 
- if(IsLocalNetHost(Url->host)) {
-   proxy=NULL;
-   sproxy=NULL;
-   socksremotedns=0;
- }
- else {
+ if(!IsLocalNetHost(Url->host)) {
    proxy=ConfigStringURL(Proxies,Url);
    sproxy=ConfigStringURL(SocksProxy,Url);
    socksremotedns=ConfigBooleanURL(SocksRemoteDNS,Url);
- }     
+ }
 
+ if(proxyUrl) {
+   FreeURL(proxyUrl);
+   proxyUrl=NULL;
+ }
  if(proxy) {
-   char *hoststr, *portstr; int hostlen;
-
-   SplitHostPort(proxy,&hoststr,&hostlen,&portstr);
-   server_host=strndupa(hoststr,hostlen);
-   if(portstr)
-     server_port=atoi(portstr);
+   proxyUrl=CreateURL("http",proxy,"/",NULL,NULL,NULL);
+   server_host=proxyUrl->host;
+   server_port=proxyUrl->portnum;
  }
  else {
    server_host=Url->host;
@@ -91,8 +89,7 @@ char *Finger_Open(URL *Url)
  else
    {
      init_io(server);
-     configure_io_read(server,ConfigInteger(SocketTimeout),0,0);
-     configure_io_write(server,ConfigInteger(SocketTimeout),0,0);
+     configure_io_timeout_rw(server,ConfigInteger(SocketTimeout));
    }
 
  return(msg);
@@ -118,11 +115,11 @@ char *Finger_Request(URL *Url,Header *request_head,/*@unused@*/ Body *request_bo
 
  /* Take a simple route if it is proxied. */
 
- if(proxy)
+ if(proxyUrl)
    {
-    char *head; int head_len;
+    char *head; size_t head_len;
 
-    MakeRequestProxyAuthorised(proxy,request_head);
+    MakeRequestProxyAuthorised(proxyUrl,request_head);
 
     head=HeaderString(request_head,&head_len);
 
@@ -170,7 +167,7 @@ int Finger_ReadHead(Header **reply_head)
 
  /* Take a simple route if it is proxied. */
 
- if(proxy)
+ if(proxyUrl)
    {
     ParseReply(server,reply_head);
 
@@ -190,14 +187,14 @@ int Finger_ReadHead(Header **reply_head)
 /*++++++++++++++++++++++++++++++++++++++
   Read bytes from the body of the reply for the URL.
 
-  int Finger_ReadBody Returns the number of bytes read on success, -1 on error.
+  ssize_t Finger_ReadBody Returns the number of bytes read on success, -1 on error.
 
   char *s A string to fill in with the information.
 
-  int n The number of bytes to read.
+  size_t n The number of bytes to read.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int Finger_ReadBody(char *s,int n)
+ssize_t Finger_ReadBody(char *s,size_t n)
 {
  return(read_data(server,s,n));
 }
@@ -213,9 +210,15 @@ int Finger_Close(void)
 {
  unsigned long r,w;
 
- finish_tell_io(server,&r,&w);
+ if(finish_tell_io(server,&r,&w)<0)
+   PrintMessage(Inform,"Error finishing IO on socket with remote host [%!s].");
 
- PrintMessage(Inform,"Server bytes; %d Read, %d Written.",r,w); /* Used in audit-usage.pl */
+ PrintMessage(Inform,"Server bytes; %lu Read, %lu Written.",r,w); /* Used in audit-usage.pl */
+
+ if(proxyUrl) {
+   FreeURL(proxyUrl);
+   proxyUrl=NULL;
+ }
 
  return(CloseSocket(server));
 }
