@@ -905,7 +905,10 @@ options are the following:
 .TP
 .B *://*/*
 Any protocol, Any host, Any port, Any path, Any args
-(This is that same as saying \'default\')\.
+(This is the default for options that can have a 
+.I <URL\-SPEC>
+
+prefix when none is specified)\.
 .TP
 .B *://*/(path)
 Any protocol, Any host, Any port, Named path, Any args
