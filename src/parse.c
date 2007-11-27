@@ -1025,8 +1025,24 @@ void ModifyReply(const URL *Url,Header *reply_head)
  
        if(ConfigBooleanMatchURL(DontGet,locUrl))
          {
-          reply_head->status=404;
-          RemoveFromHeader(reply_head,"Location");
+	  int locerror=1;
+	  char *replace=ConfigStringURL(DontGetReplacementURL,locUrl);
+	  if(replace) {
+	    URL *replaceUrl=SplitURL(replace);
+	    if(IsLocalHost(replaceUrl) &&
+	       (!strchr(replaceUrl->path+1,'/') || !strcmp_litbeg(replaceUrl->path,"/local/")) &&
+	       IsCGIAllowed(replaceUrl->path))
+	      {
+		/* If the replacement is (potentially) a CGI executable script, no location error. */
+		locerror=0;
+	      }
+	    FreeURL(replaceUrl);
+	  }
+
+	  if(locerror) {
+	    reply_head->status=404;
+	    RemoveFromHeader(reply_head,"Location");
+	  }
          }
  
        FreeURL(locUrl);

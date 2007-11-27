@@ -1,5 +1,5 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffled.c 2.81 2005/12/11 10:06:20 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffled.c 2.82 2007/03/25 11:06:21 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   A demon program to maintain the database and spawn the servers.
@@ -536,6 +536,8 @@ int main(int argc, char** argv)
 
  /* Loop around waiting for connections. */
 
+ PrintMessage(Inform,"WWWOFFLE Ready to accept connections.");
+
  main_server_loop:
  while(!got_sigexit)
    {
@@ -566,7 +568,7 @@ int main(int argc, char** argv)
     if(select(nfds,&readfd,NULL,NULL,&tv)!=-1) {
       for(stype=0;stype<numsocktype;++stype)
 #if USE_IPV6
-	for(ipproto=0;ipprot<NUMIPPROT;++ipprot)
+	for(ipprot=0;ipprot<NUMIPPROT;++ipprot)
 #endif
 	  {
 	    int fd=socks_fd[stype][ipprot],client;

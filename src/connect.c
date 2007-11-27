@@ -1,13 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/connect.c 2.50 2005/08/19 18:00:49 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/connect.c 2.52 2007/04/20 16:04:29 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9c.
   Handle WWWOFFLE connections received by the demon.
   ******************/ /******************
   Written by Andrew M. Bishop
   Modified by Paul A. Rombouts
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,05 Andrew M. Bishop
+  This file Copyright 1996,97,98,99,2000,01,02,03,05,07 Andrew M. Bishop
   Parts of this file Copyright (C) 2002,2004,2005,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -109,15 +109,9 @@ void CommandConnect(int client)
 
  if(ConfigString(PassWord) || !strcmp_litbeg(&line[9],"PASSWORD "))
    {
-    char *password;
+    char *password=&line[18];
 
-    if(strlen(line)<18)
-       password="";
-    else
-      {
-       password=&line[18];
-       chomp_str(password);
-      }
+    chomp_str(password);
 
     if(!ConfigString(PassWord) || strcmp(password,ConfigString(PassWord)))
       {
@@ -263,7 +257,7 @@ void CommandConnect(int client)
     else if(purging)
       {write_string(client,"WWWOFFLE Already Purging.\n");}
     else if((pid=fork())==-1)
-      {PrintMessage(Warning,"Cannot fork to do a purge [%!s].");goto cleanup_return;}
+       PrintMessage(Warning,"Cannot fork to do a purge [%!s].");
     else if(pid)
       {
        purging=1;

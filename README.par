@@ -1,10 +1,10 @@
-	  Alternative WWWOFFLE implementation - version 2.9b-par
+	  Alternative WWWOFFLE implementation - version 2.9c-par
                              by Paul Rombouts
 	  ======================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
 am making available so other people can run it and/or study the source code.
-Present version is 2.9b-par (I've simply appended my initials to the version
+Present version is 2.9c-par (I've simply appended my initials to the version
 number). Versions 2.8e-par and later introduce an important efficiency
 improvement: the number of files in the spool directory are reduced by nearly
 50% by using a single compact database file to remember the URLs belonging to
@@ -18,11 +18,11 @@ more detail the changes I've made to AMB's code.
 
 Before compiling and installing WWWOFFLE according to AMB's installation
 instructions described in the INSTALL file you must first apply my patch file
-wwwoffled-2.9b-par.diff.gz. Use a freshly untarred copy of Andrew Bishop's
-original version 2.9b source, cd into the source directory wwwoffle-2.9b and
+wwwoffled-2.9c-par.diff.gz. Use a freshly untarred copy of Andrew Bishop's
+original version 2.9c source, cd into the source directory wwwoffle-2.9c and
 apply the command:
 
-gzip -cd <path_to_patch>/wwwoffle-2.9b-par.diff.gz | patch -p2 -N -E
+gzip -cd <path_to_patch>/wwwoffle-2.9c-par.diff.gz | patch -p2 -N -E
 
 Notes:
 1) The current patch breaks IPv6 functionality. Because in version 2.9 IPv6 is
@@ -52,7 +52,7 @@ Notes:
    called "urlhashtable". You need to execute the following steps as root:
    - First it is recommended that you make a backup copy of your spool directory
      (don't worry, the conversion is reversible, this is just a precaution).
-   - Change to the wwwoffle-2.9b/src directory and run "./make_urlhash_file" .
+   - Change to the wwwoffle-2.9c/src directory and run "./make_urlhash_file" .
    - The U* files are no longer needed and just waste disk space. You can run
      the script "rm_Ufiles.sh" to remove them immediately; otherwise they will
      removed the next time you run "wwwoffle -purge".
@@ -67,7 +67,7 @@ of 4.
 Additional notes:
 1) Should you want to go back to using AMB's original version, you will have to
    restore the U* files first by running the "restore_Ufiles" utility in the
-   wwwoffle-2.9b/src directory.
+   wwwoffle-2.9c/src directory.
 
 2) My patch unfortunately breaks the functionality of the wwwoffle-tools
    (wwwoffle-fsck wwwoffle-gunzip wwwoffle-gzip wwwoffle-hash wwwoffle-ls

@@ -1,13 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/finger.c 1.29 2006/01/08 10:27:21 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/finger.c 1.30 2007/04/01 10:38:28 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9c.
   Functions for getting URLs using Finger.
   ******************/ /******************
   Written by Andrew M. Bishop
   Modified by Paul A. Rombouts
 
-  This file Copyright 1998,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  This file Copyright 1998,99,2000,01,02,03,04,05,06,07 Andrew M. Bishop
   Parts of this file Copyright (C) 2002,2003,2004,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -88,8 +88,8 @@ char *Finger_Open(URL *Url)
     msg=GetPrintMessage(Warning,"Cannot open the Finger connection to %s port %d; [%!s].",server_host,server_port);
  else
    {
-     init_io(server);
-     configure_io_timeout_rw(server,ConfigInteger(SocketTimeout));
+    init_io(server);
+    configure_io_timeout_rw(server,ConfigInteger(SocketTimeout));
    }
 
  return(msg);

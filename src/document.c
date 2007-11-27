@@ -1,5 +1,5 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/document.c 1.27 2005/11/06 10:03:23 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/document.c 1.28 2007/03/25 11:06:03 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Document parsing functions.
@@ -47,7 +47,7 @@ static int add_all=0;
 
 
 static DocType GetDocumentType(const char *mimetype);
-static char *GetMIMEType(int fd);
+static /*@only@*/ char *GetMIMEType(int fd);
 
 inline static void SetBaseURL(URL *Url)
 {
@@ -76,22 +76,29 @@ inline static void SetBase_url(char *url)
 
 DocType ParseDocument(int fd,URL *Url,int all)
 {
- char *mimetype;
+ char *mimetype,*getmimetype;
  DocType doctype=DocUnknown;
 
  SetBaseURL(Url);
  add_all=all;
 
- if((mimetype = GetMIMEType(fd)) != NULL)
-    doctype = GetDocumentType(mimetype);
+ /* Choose the DocType based on the file's MIME-Type header */
 
- /* Check the file extension if we don't yet know the DocType. */
+ getmimetype=GetMIMEType(fd);
+
+ if(getmimetype!=NULL)
+   {
+    mimetype=getmimetype;
+    doctype=GetDocumentType(mimetype);
+   }
+
+ /* Choose the DocType based on the file's extension. */
 
  if(doctype==DocUnknown)
    {
     /* Get MIME-Type from extension. */
-    mimetype = WhatMIMEType(Url->path);
-    doctype =  GetDocumentType(mimetype);
+    mimetype=WhatMIMEType(Url->path);
+    doctype=GetDocumentType(mimetype);
    }
 
  /* Parse the document if we do know the DocType. */
@@ -119,6 +126,9 @@ DocType ParseDocument(int fd,URL *Url,int all)
  
     FinishReferences();
    }
+
+ if(getmimetype)
+    free(getmimetype);
 
  return(doctype);
 }

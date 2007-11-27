@@ -14,20 +14,20 @@ val             ({alphanum}|{nonascii}|{safepunct})+
 %x COMMENT COMMENT_BAD
 %x TAG_START TAG TAG_ATTR_KEY TAG_ATTR_VAL
 %x DQUOTED SQUOTED
-%x SCRIPT_START SCRIPT SCRIPT_COMMENT_C SCRIPT_COMMENT_CPP SCRIPT_DQUOTED SCRIPT_SQUOTED
+%x SCRIPT_START SCRIPT
 %x STYLE_START STYLE
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/htmlmodify.l 1.94 2006/10/09 17:53:41 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/htmlmodify.l 1.95 2007/07/08 17:53:14 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9a.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9c.
   Parse the HTML and modify the source.
   ******************/ /******************
   Written by Andrew M. Bishop
   Modified by Paul A. Rombouts
 
-  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  This file Copyright 1997,98,99,2000,01,02,03,04,05,06,07 Andrew M. Bishop
   Parts of this file Copyright (C) 2002,2003,2004,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -364,9 +364,6 @@ static void handle_high_bit(unsigned char ch);
 /*+ The add-cache-info optional footer. +*/
 static /*@null@*/ /*@observer@*/ char *cache_info=NULL;
 
-/*+ The name of the insert-file optional footer. +*/
-static char *insertfile=NULL;
-
 /*+ The base URL of this page. +*/
 static /*@null@*/ URL *baseUrl=NULL;
 
@@ -650,8 +647,6 @@ void OutputHTMLWithModifications(URL *Url,int spool,char *content_type)
                                  NULL);
    }
 
- insertfile=ConfigStringURL(InsertFile,Url);
-
  demoronise_ms_chars=0;
  if(ConfigBooleanURL(DemoroniseMSChars,Url))
    {
@@ -697,7 +692,6 @@ void OutputHTMLWithModifications(URL *Url,int spool,char *content_type)
  modify_html(Url);
 
  if(cache_info) {free(cache_info); cache_info=NULL;}
- insertfile=NULL;
 
  cleanup_baseUrl();
 
@@ -1507,6 +1501,8 @@ static void modify_html(URL *Url)
  char *replacement_html_dontget_image=NULL,*replacement_html_dontget_image_copy=NULL;
  int replace_html_webbug_images=ConfigBooleanURL(ReplaceHTMLWebbugImages,Url);
  char *replacement_html_webbug_image=NULL,*replacement_html_webbug_image_copy=NULL;
+ char *insertfile=ConfigStringURL(InsertFile,Url);
+ int insertedfile=0;
 
  anchor_modify_begin[0]=ConfigStringURL(AnchorModifyBegin[0],Url);
  anchor_modify_begin[1]=ConfigStringURL(AnchorModifyBegin[1],Url);
@@ -1595,8 +1591,11 @@ static void modify_html(URL *Url)
 	 case tag__body: case tag__html:
 	   if(cache_info)
 	     {YY_OUTPUT(cache_info); free(cache_info); cache_info=NULL;}
-	   if(insertfile)
-	     {add_insertfile(insertfile); insertfile=NULL;}
+	   /* Normally there should be only one /body tag, at the end,
+	      but I have seen broken HTML with multiple /body tags
+	      with text in between. */
+	   if(insertfile && (!insertedfile || tag==tag__body))
+	     {add_insertfile(insertfile); insertedfile=1;}
 	   break;
 	 case tag_blink: case tag__blink:
 	   if(disable_blink)
@@ -1922,8 +1921,8 @@ static void modify_html(URL *Url)
  if(cache_info)
    {YY_OUTPUT(cache_info); free(cache_info); cache_info=NULL;}
 
- if(insertfile)
-   {add_insertfile(insertfile); insertfile=NULL;}
+ if(insertfile && !insertedfile)
+   {add_insertfile(insertfile); insertedfile=1;}
 
  if(key_string)
     free(key_string);
@@ -2154,46 +2153,11 @@ static void handle_high_bit(unsigned char ch)
 <SCRIPT_START>(.|\n)        { if(commentout) yy_output("<!--\n",0);
                               unput(htmlmodify_yytext[0]); BEGIN(SCRIPT); }
 
-<SCRIPT>\\\"                |
-<SCRIPT>\\\'                |
-<SCRIPT>\\                  { YY_OUTPUT(htmlmodify_yytext); }
-<SCRIPT>\"                  { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT_DQUOTED); }
-<SCRIPT>\'                  { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT_SQUOTED); }
-<SCRIPT>"/*"                { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT_COMMENT_C); }
-<SCRIPT>"//"                { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT_COMMENT_CPP); }
-<SCRIPT>"/"                 { YY_OUTPUT(htmlmodify_yytext); }
 <SCRIPT>"-->"{W}*/"</script" { yy_output(htmlmodify_yytext,0); BEGIN(SCRIPT_START); }
 <SCRIPT>"-"+                { YY_OUTPUT(htmlmodify_yytext); }
 <SCRIPT>"<"/"/script"       { if(commentout) yy_output("//-->\n",0); BEGIN(TAG_START); }
 <SCRIPT>"<"                 |
-<SCRIPT>[^-\\\'\"</]+       { YY_OUTPUT(htmlmodify_yytext); }
-
- /* Comments in scripts, C or C++ style */
-
-<SCRIPT_COMMENT_C>"*"+"/"   { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT); }
-<SCRIPT_COMMENT_C>"*"+      |
-<SCRIPT_COMMENT_C>[^*]+     { YY_OUTPUT(htmlmodify_yytext); }
-
-<SCRIPT_COMMENT_CPP>[\r\n]  { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT); }
-<SCRIPT_COMMENT_CPP>"-->"{W}*/"</script" { yy_output(htmlmodify_yytext,0); BEGIN(SCRIPT_START); }
-<SCRIPT_COMMENT_CPP>"-"+    { YY_OUTPUT(htmlmodify_yytext); }
-<SCRIPT_COMMENT_CPP>"<"/"/script" { if(commentout) yy_output(" -->\n",0); BEGIN(TAG_START); }
-<SCRIPT_COMMENT_CPP>"<"     |
-<SCRIPT_COMMENT_CPP>[^-<\r\n]+ { YY_OUTPUT(htmlmodify_yytext); }
-
- /* Quoted strings in scripts - assume they follow usual rules */
-
-<SCRIPT_DQUOTED>\\\"        |
-<SCRIPT_DQUOTED>\\\\        |
-<SCRIPT_DQUOTED>\\          { YY_OUTPUT(htmlmodify_yytext); }
-<SCRIPT_DQUOTED>\"          { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT); }
-<SCRIPT_DQUOTED>[^\\\"]+    { YY_OUTPUT(htmlmodify_yytext); }
-
-<SCRIPT_SQUOTED>\\\'        |
-<SCRIPT_SQUOTED>\\\\        |
-<SCRIPT_SQUOTED>\\          { YY_OUTPUT(htmlmodify_yytext); }
-<SCRIPT_SQUOTED>\'          { YY_OUTPUT(htmlmodify_yytext); BEGIN(SCRIPT); }
-<SCRIPT_SQUOTED>[^\\\']+    { YY_OUTPUT(htmlmodify_yytext); }
+<SCRIPT>[^-<]+              { YY_OUTPUT(htmlmodify_yytext); }
 
  /* Styles */
 

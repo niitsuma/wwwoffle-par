@@ -1,13 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/info.c 1.25 2006/04/07 18:05:04 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/info.c 1.27 2007/04/23 09:28:32 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9a.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9c.
   Generate information about the contents of the web pages that are cached in the system.
   ******************/ /******************
   Written by Andrew M. Bishop
   Modified by Paul A. Rombouts
 
-  This file Copyright 2002,03,04,05,06 Andrew M. Bishop
+  This file Copyright 2002,03,04,05,06,07 Andrew M. Bishop
   Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -44,11 +44,11 @@
 
 static void InfoCachedPage(int fd,URL *Url,int which);
 
-static void InfoCached(int fd,int spool,URL *Url,/*@null@*/ Header *spooled_head);
-static void InfoContents(int fd,int spool,URL *Url,Header *spooled_head);
+static void InfoCached(int fd,int spool,URL *Url);
+static void InfoContents(int fd,int spool,URL *Url);
 static void output_content(int fd,char *type,URL **url);
 static int sort_alpha(URL **a,URL **b);
-static void InfoSource(int fd,int spool,URL *Url,/*@null@*/ Header *spooled_head);
+static void InfoSource(int fd,int spool,URL *Url);
 
 static void InfoRequestPage(int fd,URL *Url);
 static void InfoRequestedPage(int fd,URL *Url,Header *request_head,/*@null@*/ Body *request_body);
@@ -100,7 +100,6 @@ static void InfoCachedPage(int fd,URL *Url,int which)
  char *refurl;
  URL *refUrl;
  int spool;
- Header *spooled_head=NULL;
 
  refurl=URLDecodeFormArgs(Url->args);
 
@@ -112,31 +111,38 @@ static void InfoCachedPage(int fd,URL *Url,int which)
    {
      init_io(spool);
 
-     ParseReply(spool,&spooled_head);
-
 #if USE_ZLIB
-     if(spooled_head && GetHeader(spooled_head,"Content-Encoding") && RemoveFromHeader2(spooled_head,"Pragma","wwwoffle-compressed"))
-       {
-	 RemoveFromHeader(spooled_head,"Content-Encoding");
-	 configure_io_zlib(spool,2,-1);
+     /* Check if the file is compressed in the cache and use uncompression if it is. */
+     {
+       Header *spooled_head=NULL;
+
+       ParseReply(spool,&spooled_head);
+
+       lseek(spool,(off_t)0,SEEK_SET);
+       reinit_io(spool);
+
+       if(spooled_head)
+	 {
+	   if(GetHeader2(spooled_head,"Pragma","wwwoffle-compressed"))
+	     configure_io_zlib(spool,2,-1);
+
+	   FreeHeader(spooled_head);
+	 }
        }
 #endif
    }
 
  if(which==0)
-    InfoCached(fd,spool,refUrl,spooled_head);
+    InfoCached(fd,spool,refUrl);
  else if(which==1)
-    InfoContents(fd,spool,refUrl,spooled_head);
+    InfoContents(fd,spool,refUrl);
  else if(which==2)
-    InfoSource(fd,spool,refUrl,spooled_head);
-
- if(spooled_head)
-   FreeHeader(spooled_head);
+    InfoSource(fd,spool,refUrl);
 
  if(spool!=-1)
    {
-     finish_io(spool);
-     close(spool);
+    finish_io(spool);
+    close(spool);
    }
 
  FreeURL(refUrl);
@@ -152,17 +158,24 @@ static void InfoCachedPage(int fd,URL *Url,int which)
   int spool The spooled page file descriptor.
 
   URL *Url The URL of the spooled page.
-
-  Header *spooled_head The header of the cached page.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void InfoCached(int fd,int spool,URL *Url,Header *spooled_head)
+static void InfoCached(int fd,int spool,URL *Url)
 {
  char *head1=NULL,*head2=NULL;
+ Header *spooled_head=NULL;
+
+ if(spool!=-1)
+    ParseReply(spool,&spooled_head);
 
  if(spooled_head)
    {
     size_t headlen;
+
+    if(RemoveFromHeader2(spooled_head,"Pragma","wwwoffle-compressed"))
+      {
+       RemoveFromHeader(spooled_head,"Content-Encoding");
+      }
 
     head1=HeaderString(spooled_head,&headlen);
     head1[headlen-4]=0;
@@ -178,13 +191,17 @@ static void InfoCached(int fd,int spool,URL *Url,Header *spooled_head)
              "url",Url->name,
              "proto",Url->proto,
              "hostport",Url->hostport,
-             "cached",(spool!=-1 && spooled_head)?"yes":"",
+             "cached",spool==-1?"":"yes",
              "head1",head1,
              "head2",head2,
              NULL);
 
- if(head1) free(head1);
- if(head2) free(head2);
+ if(spooled_head)
+   {
+    free(head1);
+    free(head2);
+    FreeHeader(spooled_head);
+   }
 }
 
 
@@ -196,11 +213,9 @@ static void InfoCached(int fd,int spool,URL *Url,Header *spooled_head)
   int spool The spooled page file descriptor.
 
   URL *Url The URL of the spooled page.
-
-  Header *spooled_head The header of the cached page.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void InfoContents(int fd,int spool,URL *Url,Header *spooled_head)
+static void InfoContents(int fd,int spool,URL *Url)
 {
  HTMLMessageHead(fd,200,"WWWOFFLE Info Cached",
                  NULL);
@@ -208,27 +223,24 @@ static void InfoContents(int fd,int spool,URL *Url,Header *spooled_head)
  if(out_err==-1 || head_only) return;
 
  HTMLMessageBody(fd,"InfoContents-Head",
-		 "url",Url->name,
-		 "cached",(spool!=-1 && spooled_head)?"yes":"",
-		 NULL);
+                 "url",Url->name,
+                 "cached",spool==-1?"":"yes",
+                 NULL);
 
- if(out_err!=-1 && spool!=-1 && spooled_head)
+ if(out_err!=-1 && spool!=-1)
    {
     URL **list,*refresh;
-
-    lseek(spool,0,SEEK_SET);
-    reinit_io(spool);
 
     ParseDocument(spool,Url,1);
 
     if((refresh=GetReference(RefMetaRefresh)))
       {
-       URL *list[2];
+       URL *refresh_list[2];
 
-       list[0]=refresh;
-       list[1]=NULL;
+       refresh_list[0]=refresh;
+       refresh_list[1]=NULL;
 
-       output_content(fd,"Refresh",list);
+       output_content(fd,"Refresh",refresh_list);
        if(out_err==-1) goto reset_refs;
       }
 
@@ -342,13 +354,15 @@ static int sort_alpha(URL **a,URL **b)
   int spool The spooled page file descriptor.
 
   URL *Url The URL of the spooled page.
-
-  Header *spooled_head The header of the cached page.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void InfoSource(int fd,int spool,URL *Url,Header *spooled_head)
+static void InfoSource(int fd,int spool,URL *Url)
 {
  int text=0;
+ Header *spooled_head=NULL;
+
+ if(spool!=-1)
+    ParseReply(spool,&spooled_head);
 
  if(spooled_head)
    {
@@ -362,6 +376,8 @@ static void InfoSource(int fd,int spool,URL *Url,Header *spooled_head)
       {
        text=1;
       }
+
+    FreeHeader(spooled_head);
    }
 
  HTMLMessageHead(fd,200,"WWWOFFLE Info Cached",
@@ -370,12 +386,12 @@ static void InfoSource(int fd,int spool,URL *Url,Header *spooled_head)
  if(out_err==-1 || head_only) return;
 
  HTMLMessageBody(fd,"InfoSource-Head",
-		 "url",Url->name,
-		 "cached",(spool!=-1 && spooled_head)?"yes":"",
-		 "text",text?"yes":"no",
-		 NULL);
+                 "url",Url->name,
+                 "cached",spool==-1?"":"yes",
+                 "text",text?"yes":"no",
+                 NULL);
 
- if(out_err!=-1 && text && spool!=-1 && spooled_head)
+ if(out_err!=-1 && text && spool!=-1)
    {
     ssize_t n;
     char buffer[IO_BUFFER_SIZE+1];
@@ -449,9 +465,9 @@ static void InfoRequestedPage(int fd,URL *Url,Header *request_head,Body *request
  head2[headlen-4]=0;
 
  HTMLMessageHead(fd,200,"WWWOFFLE Info Requested",
-		 "Cache-Control","no-cache",
+                 "Cache-Control","no-cache",
                  "Pragma","no-cache",
-		 NULL);
+                 NULL);
 
  if(out_err!=-1 && !head_only)
    HTMLMessageBody(fd,"InfoRequested",

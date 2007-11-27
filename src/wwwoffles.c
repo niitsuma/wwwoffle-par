@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffles.c 2.319 2007/02/16 09:06:16 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffles.c 2.320 2007/04/12 18:43:54 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9c.
   A server to fetch the required pages.
   ******************/ /******************
   Written by Andrew M. Bishop

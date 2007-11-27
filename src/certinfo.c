@@ -1,13 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/certinfo.c 1.8 2006/04/03 17:57:12 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/certinfo.c 1.11 2007/04/23 09:28:19 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9a.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9c.
   Generate information about the contents of the web pages that are cached in the system.
   ******************/ /******************
   Written by Andrew M. Bishop
   Modified by Paul A. Rombouts
 
-  This file Copyright 2002,03,04,05,06 Andrew M. Bishop
+  This file Copyright 2002,03,04,05,06,07 Andrew M. Bishop
   Parts of this file Copyright (C) 2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -116,7 +116,7 @@ static void display_certificate(int fd,gnutls_x509_crt_t crt);
   Header *request_head The header of the original request.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void CertificatesPage(int fd,URL *Url,Header *request_head)
+void CertificatesPage(int fd,URL *Url,/*@unused@*/ Header *request_head)
 {
  if(!strcmp(Url->path,"/certificates") || !strcmp(Url->path,"/certificates/"))
     CertificatesIndexPage(fd);
@@ -598,7 +598,8 @@ static void display_certificate(int fd,gnutls_x509_crt_t crt)
 		    ", " "CRL Sign"
 		    ", " "Encipher Only"
 		    ", " "Decipher Only")];
- unsigned int algo,bits,usage,critical;
+ unsigned int bits,usage,critical;
+ int algo;
  int err;
 
  /* Certificate name */
