@@ -1,17 +1,17 @@
-.\" $Header: /home/amb/wwwoffle/doc/RCS/wwwoffle.conf.man.template 2.82 2006/01/07 16:27:27 amb Exp $
+.\" $Header: /home/amb/wwwoffle/doc/RCS/wwwoffle.conf.man.template 2.83 2007/09/29 18:54:08 amb Exp $
 .\"
-.\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
+.\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
 .\"
 .\"  Manual page for wwwoffle.conf
 .\"
 .\"  Written by Andrew M. Bishop
 .\"
-.\"  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+.\"  This file Copyright 1997-2007 Andrew M. Bishop
 .\"  It may be distributed under the GNU Public License, version 2, or
 .\"  any higher version.  See section COPYING of the GNU Public license
 .\"  for conditions under which this file may be redistributed.
 .\"
-.TH wwwoffle.conf 5 "January 7, 2006"
+.TH wwwoffle.conf 5 "September 29, 2007"
 
 .SH NAME
 
@@ -87,15 +87,15 @@ the first entry in the LocalHost section may need to be changed to
 match\.
 .TP
 .B http\-port = (port)
-An integer specifying the port number for the HTTP proxy to use
-(default=8080)\.  This is the port number that must be specified in the
-client to connect to the WWWOFFLE proxy\.
+An integer specifying the port number for connections to access the
+internal WWWOFFLE pages and for HTTP/HTTPS/FTP proxying (default=8080)\.
+This is the port number that must be specified in the client to connect
+to the WWWOFFLE proxy for HTTP/HTTPS/FTP proxying\.
 .TP
 .B https\-port = (port)
-An integer specifying the port number for the HTTPS proxy to use
-(default=8443)\.  This is the port number can be used to access the
-WWWOFFLE internal pages or proxy function\.  Requires gnutls compilation
-option\.
+An integer specifying the port number for encrypted connections to
+access the internal WWWOFFLE pages and for HTTP/FTP proxying
+(default=8443)\.  Requires gnutls compilation option\.
 .TP
 .B wwwoffle\-port = (port)
 An integer specifying the port number for the WWWOFFLE control
@@ -357,7 +357,9 @@ be connected to using WWWOFFLE as a tunnelling proxy (no caching or
 decryption of the data) (default is no hosts or ports allowed)\.  This
 option should be set to *:443 to allow https to the default port number\.
 There can be more than one option for other ports or hosts as required\.
-This option takes precedence over the allow\-cache option\.
+This option takes precedence over the allow\-cache option\.  The host
+value is matched against the URL as presented, no hostname to IP or IP
+to hostname lookups are performed to find alternative equivalent names\.
 .TP
 .B disallow\-tunnel = (host[:port])
 A hostname and port number (a 
@@ -365,7 +367,9 @@ A hostname and port number (a
 match) for an SSL server that can
 not be connected to using WWWOFFLE as a tunnelling proxy\.  There can be
 more than one option for other ports or hosts as required\.  This option
-takes precedence over the allow\-tunnel option\.
+takes precedence over the allow\-tunnel option\.  The host value is
+matched against the URL as presented, no hostname to IP or IP to
+hostname lookups are performed to find alternative equivalent names\.
 .TP
 .B allow\-cache = (host[:port])
 A hostname and port number (a 
@@ -374,14 +378,18 @@ match) for an SSL server that can
 be connected to using WWWOFFLE as a caching proxy (decryption of the
 data) (default is no hosts or ports allowed)\.  This option should be set
 to *:443 to allow https to the default port number\.  There can be more
-than one option for other ports or hosts as required\.
+than one option for other ports or hosts as required\.  The host value is
+matched against the URL as presented, no hostname to IP or IP to
+hostname lookups are performed to find alternative equivalent names\.
 .TP
 .B disallow\-cache = (host[:port])
 A hostname and port number (a 
 .I WILDCARD
 match) for an SSL server that can
 not be connected to using WWWOFFLE as a caching proxy\.  This option
-takes precedence over the allow\-cache option\.
+takes precedence over the allow\-cache option\.  The host value is matched
+against the URL as presented, no hostname to IP or IP to hostname
+lookups are performed to find alternative equivalent names\.
 
 .SH FetchOptions
 
@@ -411,6 +419,9 @@ also be selected (default=no)\.
 .TP
 .B [<URL\-SPEC>] frames = yes | no
 If frames are to be fetched (default=no)\.
+.TP
+.B [<URL\-SPEC>] iframes = yes | no
+If inline frames (iframes) are to be fetched (default=no)\.
 .TP
 .B [<URL\-SPEC>] scripts = yes | no
 If scripts (e\.g\. Javascript) are to be fetched (default=no)\.
@@ -574,8 +585,10 @@ hostnames must match exactly, it is not a
 .I WILDCARD
 match\.  The first
 named host is used as the server name for several features so must be
-a name that will work from any client host on the network\.  None of
-the hosts named here are cached or fetched via a proxy\.
+a name that will work from any client host on the network\.  The entries
+can be hostnames, IPv4 addresses or IPv6 addresses enclosed within
+\'[\.\.\.]\'\.  None of the hosts named here are cached or fetched via a
+proxy\.
 
 .SH LocalNet
 
@@ -587,10 +600,12 @@ A hostname or IP address that is always available and is not to be
 cached by WWWOFFLE\.  The host name matching uses 
 .I WILDCARD
 s\.  A host
-can be excluded by appending a \'!\' to the start of the name, all
-possible aliases and IP addresses for the host are also required\.  All
-entries here are assumed to be reachable even when offline\.  None of
-the hosts named here are cached or fetched via a proxy\.
+can be excluded by appending a \'!\' to the start of the name\.  The host
+value is matched against the URL as presented, no hostname to IP or IP
+to hostname lookups are performed to find alternative equivalent names\.
+The entries can be hostnames, IPv4 addresses or IPv6 addresses enclosed
+within \'[\.\.\.]\'\.  All entries here are assumed to be reachable even when
+offline\.  None of the hosts named here are cached or fetched via a proxy\.
 
 .SH AllowedConnectHosts
 
@@ -601,9 +616,11 @@ A hostname or IP address that is allowed to connect to the server\.
 The host name matching uses 
 .I WILDCARD
 s\.  A host can be excluded by
-appending a \'!\' to the start of the name, all possible aliases and IP
-addresses for the host are also required\.  All of the hosts named in
-LocalHost are also allowed to connect\.
+appending a \'!\' to the start of the name\.  If the IP address or hostname
+(if available) of the machine connecting matches then it is allowed\.
+The entries can be hostnames, IPv4 addresses or IPv6 addresses enclosed
+within \'[\.\.\.]\'\.  All of the hosts named in LocalHost are also allowed to
+connect\.
 
 .SH AllowedConnectUsers
 
@@ -698,6 +715,10 @@ Sets the Referer header to the directory name of the URL being
 requested (default=no)\.  This will add the Referer header if none is
 contained in the original request\.  This option takes precedence over
 referer\-self\.
+.TP
+.B [<URL\-SPEC>] referer\-from = yes | no
+Removes the Referer header based on a match of the referring URL
+(default=no)\.
 .TP
 .B [<URL\-SPEC>] force\-user\-agent = yes | no
 Forces a User\-Agent header to be inserted into all requests that are
@@ -987,6 +1008,7 @@ insensitive)\.
  {
   images = yes
   frames = yes
+  iframes = yes
  }
 
  LocalHost
@@ -1035,4 +1057,4 @@ wwwoffle(1), wwwoffled(8).
 
 .SH AUTHOR
 
-Andrew M. Bishop 1996,97,98,99,2000,01,02,03,04,05 (amb@gedanken.demon.co.uk)
+Andrew M. Bishop 1996-2007 (amb@gedanken.demon.co.uk)

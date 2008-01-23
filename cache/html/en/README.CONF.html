@@ -73,17 +73,17 @@ match.
 <h3><a name="StartUp_http-port"></a>http-port = (port)</h3>
 
 <p>
-An integer specifying the port number for the HTTP proxy to use
-(default=8080).  This is the port number that must be specified in the
-client to connect to the WWWOFFLE proxy.
+An integer specifying the port number for connections to access the
+internal WWWOFFLE pages and for HTTP/HTTPS/FTP proxying (default=8080).
+This is the port number that must be specified in the client to connect
+to the WWWOFFLE proxy for HTTP/HTTPS/FTP proxying.
 
 <h3><a name="StartUp_https-port"></a>https-port = (port)</h3>
 
 <p>
-An integer specifying the port number for the HTTPS proxy to use
-(default=8443).  This is the port number can be used to access the
-WWWOFFLE internal pages or proxy function.  Requires gnutls compilation
-option.
+An integer specifying the port number for encrypted connections to
+access the internal WWWOFFLE pages and for HTTP/FTP proxying
+(default=8443).  Requires gnutls compilation option.
 
 <h3><a name="StartUp_wwwoffle-port"></a>wwwoffle-port = (port)</h3>
 
@@ -445,7 +445,9 @@ be connected to using WWWOFFLE as a tunnelling proxy (no caching or
 decryption of the data) (default is no hosts or ports allowed).  This
 option should be set to *:443 to allow https to the default port number.
 There can be more than one option for other ports or hosts as required.
-This option takes precedence over the allow-cache option.
+This option takes precedence over the allow-cache option.  The host
+value is matched against the URL as presented, no hostname to IP or IP
+to hostname lookups are performed to find alternative equivalent names.
 
 <h3><a name="SSLOptions_disallow-tunnel"></a>disallow-tunnel = (host[:port])</h3>
 
@@ -453,7 +455,9 @@ This option takes precedence over the allow-cache option.
 A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an SSL server that can
 not be connected to using WWWOFFLE as a tunnelling proxy.  There can be
 more than one option for other ports or hosts as required.  This option
-takes precedence over the allow-tunnel option.
+takes precedence over the allow-tunnel option.  The host value is
+matched against the URL as presented, no hostname to IP or IP to
+hostname lookups are performed to find alternative equivalent names.
 
 <h3><a name="SSLOptions_allow-cache"></a>allow-cache = (host[:port])</h3>
 
@@ -462,14 +466,18 @@ A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an SSL
 be connected to using WWWOFFLE as a caching proxy (decryption of the
 data) (default is no hosts or ports allowed).  This option should be set
 to *:443 to allow https to the default port number.  There can be more
-than one option for other ports or hosts as required.
+than one option for other ports or hosts as required.  The host value is
+matched against the URL as presented, no hostname to IP or IP to
+hostname lookups are performed to find alternative equivalent names.
 
 <h3><a name="SSLOptions_disallow-cache"></a>disallow-cache = (host[:port])</h3>
 
 <p>
 A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an SSL server that can
 not be connected to using WWWOFFLE as a caching proxy.  This option
-takes precedence over the allow-cache option.
+takes precedence over the allow-cache option.  The host value is matched
+against the URL as presented, no hostname to IP or IP to hostname
+lookups are performed to find alternative equivalent names.
 
 <h2><a name="FetchOptions"></a>FetchOptions</h2>
 
@@ -512,6 +520,11 @@ also be selected (default=no).
 
 <p>
 If frames are to be fetched (default=no).
+
+<h3><a name="FetchOptions_iframes"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] iframes = yes | no</h3>
+
+<p>
+If inline frames (iframes) are to be fetched (default=no).
 
 <h3><a name="FetchOptions_scripts"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] scripts = yes | no</h3>
 
@@ -750,8 +763,10 @@ A hostname or IP address that in connection with the port number (in
 the StartUp section) specifies the WWWOFFLE proxy HTTP server.  The
 hostnames must match exactly, it is not a <a href="#WILDCARD">WILDCARD</a> match.  The first
 named host is used as the server name for several features so must be
-a name that will work from any client host on the network.  None of
-the hosts named here are cached or fetched via a proxy.
+a name that will work from any client host on the network.  The entries
+can be hostnames, IPv4 addresses or IPv6 addresses enclosed within
+'[...]'.  None of the hosts named here are cached or fetched via a
+proxy.
 
 <h2><a name="LocalNet"></a>LocalNet</h2>
 
@@ -764,10 +779,12 @@ and are not to be cached by WWWOFFLE because they are on a local network.
 <p>
 A hostname or IP address that is always available and is not to be
 cached by WWWOFFLE.  The host name matching uses <a href="#WILDCARD">WILDCARD</a>s.  A host
-can be excluded by appending a '!' to the start of the name, all
-possible aliases and IP addresses for the host are also required.  All
-entries here are assumed to be reachable even when offline.  None of
-the hosts named here are cached or fetched via a proxy.
+can be excluded by appending a '!' to the start of the name.  The host
+value is matched against the URL as presented, no hostname to IP or IP
+to hostname lookups are performed to find alternative equivalent names.
+The entries can be hostnames, IPv4 addresses or IPv6 addresses enclosed
+within '[...]'.  All entries here are assumed to be reachable even when
+offline.  None of the hosts named here are cached or fetched via a proxy.
 
 <h2><a name="AllowedConnectHosts"></a>AllowedConnectHosts</h2>
 
@@ -779,9 +796,11 @@ A list of client hostnames that are allowed to connect to the server.
 <p>
 A hostname or IP address that is allowed to connect to the server.
 The host name matching uses <a href="#WILDCARD">WILDCARD</a>s.  A host can be excluded by
-appending a '!' to the start of the name, all possible aliases and IP
-addresses for the host are also required.  All of the hosts named in
-LocalHost are also allowed to connect.
+appending a '!' to the start of the name.  If the IP address or hostname
+(if available) of the machine connecting matches then it is allowed.
+The entries can be hostnames, IPv4 addresses or IPv6 addresses enclosed
+within '[...]'.  All of the hosts named in LocalHost are also allowed to
+connect.
 
 <h2><a name="AllowedConnectUsers"></a>AllowedConnectUsers</h2>
 
@@ -897,6 +916,12 @@ Sets the Referer header to the directory name of the URL being
 requested (default=no).  This will add the Referer header if none is
 contained in the original request.  This option takes precedence over
 referer-self.
+
+<h3><a name="CensorHeader_referer-from"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] referer-from = yes | no</h3>
+
+<p>
+Removes the Referer header based on a match of the referring URL
+(default=no).
 
 <h3><a name="CensorHeader_force-user-agent"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] force-user-agent = yes | no</h3>
 
