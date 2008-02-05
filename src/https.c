@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -39,13 +39,6 @@
 
 #include "certificates.h"
 
-/*+ Set to the name of the proxy if there is one. +*/
-static URL /*@null@*/ /*@only@*/ *proxyUrl=NULL;
-
-/*+ The file descriptor of the server. +*/
-static int server=-1;
-
-
 /*++++++++++++++++++++++++++++++++++++++
   Open a connection to get a URL using HTTPS.
 
@@ -54,15 +47,13 @@ static int server=-1;
   URL *Url The URL to open.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *HTTPS_Open(URL *Url)
+char *HTTPS_Open(Connection *connection,URL *Url)
 {
  char *msg=NULL;
- char *proxy=NULL,*sproxy=NULL;;
- char *server_host=NULL;
- int server_port=0;
- char *socks_host=NULL;
- int socks_port=0;
- int socksremotedns=0;
+ char *proxy=NULL,*sproxy=NULL;
+ int socksremotedns=0,server=-1;
+ URL *connectUrl=Url,*proxyUrl=NULL;
+ socksdata_t *socksdata=NULL,socksbuf;
 
  /* Sort out the host. */
 
@@ -72,33 +63,16 @@ char *HTTPS_Open(URL *Url)
    socksremotedns=ConfigBooleanURL(SocksRemoteDNS,Url);
  }
 
- if(proxyUrl) {
-   FreeURL(proxyUrl);
-   proxyUrl=NULL;
- }
  if(proxy)
-   {
-    proxyUrl=CreateURL("http",proxy,"/",NULL,NULL,NULL);
-    server_host=proxyUrl->host;
-    server_port=proxyUrl->portnum;
-   }
- else
-   {
-    server_host=Url->host;
-    server_port=Url->portnum;
-   }
-
- if(sproxy)
-   SETSOCKSHOSTPORT(sproxy,server_host,server_port,socks_host,socks_port);
+   connectUrl=proxyUrl=CreateURL("http",proxy,"/",NULL,NULL,NULL);
 
  /* Open the connection. */
 
- server=OpenClientSocket(server_host,server_port,socks_host,socks_port,socksremotedns,NULL);
-
- if(server==-1)
+ if((sproxy && !(socksdata= MakeSocksData(sproxy,socksremotedns,&socksbuf))) ||
+    (server=OpenUrlSocket(connectUrl,socksdata))==-1)
    {
-    msg=GetPrintMessage(Warning,"Cannot open the HTTPS connection to %s port %d; [%!s].",server_host,server_port);
-    return(msg);
+    msg=GetPrintMessage(Warning,"Cannot open the HTTPS connection to %s port %d; [%!s].",connectUrl->host,connectUrl->portnum);
+    goto return_msg;
    }
  else
    {
@@ -112,6 +86,7 @@ char *HTTPS_Open(URL *Url)
     int connect_status;
     Header *connect_request,*connect_reply;
     size_t headlen;
+    ssize_t err;
 
     if(!Url->port)
       {
@@ -132,36 +107,51 @@ char *HTTPS_Open(URL *Url)
 
     PrintMessage(ExtraDebug,"Outgoing Request Head (to SSL proxy)\n%s",head);
 
-    if(write_data(server,head,headlen)==-1)
-       msg=GetPrintMessage(Warning,"Failed to write to remote SSL proxy; [%!s].");
+    err=write_data(server,head,headlen);
 
     free(head);
     FreeHeader(connect_request);
 
-    if(msg)
-       return(msg);
+    if(err<0) {
+       msg=GetPrintMessage(Warning,"Failed to write to remote SSL proxy; [%!s].");
+       goto close_return_msg;
+    }
 
     connect_status=ParseReply(server,&connect_reply);
 
-    if(StderrLevel==ExtraDebug)
-      {
-       head=HeaderString(connect_reply,NULL);
-       PrintMessage(ExtraDebug,"Incoming Reply Head (from SSL proxy)\n%s",head);
-       free(head);    
-      }
+    if(StderrLevel==ExtraDebug) {
+      if(connect_reply)
+	{
+	  head=HeaderString(connect_reply,NULL);
+	  PrintMessage(ExtraDebug,"Incoming Reply Head (from SSL proxy)\n%s",head);
+	  free(head);    
+	}
+      else
+	PrintMessage(ExtraDebug,"Incoming Reply Head (from SSL proxy) is empty.");
+    }
 
-    if(connect_status!=200)
+    if(connect_reply) FreeHeader(connect_reply);
+
+    if(connect_status!=200) {
        msg=GetPrintMessage(Warning,"Received error message from SSL proxy; code=%d.",connect_status);
-
-    FreeHeader(connect_reply);
-
-    if(msg)
-       return(msg);
+       goto close_return_msg;
+    }
    }
 
- if(configure_io_gnutls(server,Url->hostport,0))
-    msg=GetPrintMessage(Warning,"Cannot secure the HTTPS connection to %s port %d; [%!s].",server_host,server_port);
+ if(configure_io_gnutls(server,Url->hostport,0)) {
+    msg=GetPrintMessage(Warning,"Cannot secure the HTTPS connection to %s port %d; [%!s].",connectUrl->host,connectUrl->portnum);
+    goto close_return_msg;
+ }
 
+ connection->fd=server;
+ connection->proxyUrl=proxyUrl;
+ return(NULL);
+
+close_return_msg:
+ finish_io(server);
+ CloseSocket(server);
+return_msg:
+ if(proxyUrl) FreeURL(proxyUrl);
  return(msg);
 }
 
@@ -178,10 +168,11 @@ char *HTTPS_Open(URL *Url)
   Body *request_body The body of the HTTPS request for the URL.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *HTTPS_Request(URL *Url,Header *request_head,Body *request_body)
+char *HTTPS_Request(Connection *connection,URL *Url,Header *request_head,Body *request_body)
 {
  char *msg=NULL,*head;
  size_t headlen;
+ URL *proxyUrl=connection->proxyUrl;
 
  /* Make the request OK for a proxy or not. */
 
@@ -199,11 +190,10 @@ char *HTTPS_Request(URL *Url,Header *request_head,Body *request_body)
  else
     PrintMessage(ExtraDebug,"Outgoing Request Head (to server)\n%s",head);
 
- if(write_data(server,head,headlen)==-1)
+ if(write_data(connection->fd,head,headlen)<0)
     msg=GetPrintMessage(Warning,"Failed to write head to remote HTTPS %s; [%!s].",proxyUrl?"proxy":"server");
- if(request_body)
-    if(write_data(server,request_body->content,request_body->length)==-1)
-       msg=GetPrintMessage(Warning,"Failed to write body to remote HTTPS %s; [%!s].",proxyUrl?"proxy":"server");
+ else if(request_body && write_data(connection->fd,request_body->content,request_body->length)<0)
+    msg=GetPrintMessage(Warning,"Failed to write body to remote HTTPS %s; [%!s].",proxyUrl?"proxy":"server");
 
  free(head);
 
@@ -214,16 +204,15 @@ char *HTTPS_Request(URL *Url,Header *request_head,Body *request_body)
 /*++++++++++++++++++++++++++++++++++++++
   Read a line from the header of the reply for the URL.
 
-  int HTTPS_ReadHead Returns the server socket file descriptor.
-
-  Header **reply_head Returns the header of the reply.
+  Header *HTTPS_ReadHead Returns the header of the reply.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int HTTPS_ReadHead(Header **reply_head)
+Header *HTTPS_ReadHead(Connection *connection)
 {
- ParseReply(server,reply_head);
+ Header *reply_head=NULL;
+ ParseReply(connection->fd,&reply_head);
 
- return(server);
+ return reply_head;
 }
 
 
@@ -237,9 +226,15 @@ int HTTPS_ReadHead(Header **reply_head)
   size_t n The number of bytes to read.
   ++++++++++++++++++++++++++++++++++++++*/
 
-ssize_t HTTPS_ReadBody(char *s,size_t n)
+ssize_t HTTPS_ReadBody(Connection *connection,char *s,size_t n)
 {
- return(read_data(server,s,n));
+ return(read_data(connection->fd,s,n));
+}
+
+
+int HTTPS_FinishBody(Connection *connection)
+{
+ return(finish_io_content(connection->fd));
 }
 
 
@@ -249,19 +244,20 @@ ssize_t HTTPS_ReadBody(char *s,size_t n)
   int HTTPS_Close Return 0 on success, -1 on error.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int HTTPS_Close(void)
+int HTTPS_Close(Connection *connection)
 {
  unsigned long r,w;
+ int server=connection->fd;
 
  if(finish_tell_io(server,&r,&w)<0)
    PrintMessage(Inform,"Error finishing IO on socket with remote host [%!s].");
 
  PrintMessage(Inform,"Server bytes; %lu Read, %lu Written.",r,w); /* Used in audit-usage.pl */
 
- if(proxyUrl) {
-   FreeURL(proxyUrl);
-   proxyUrl=NULL;
- }
+#if 0
+ /* We can clean up the connection context here, or rely on ConnectionClose to do it. */
+ if(connection->proxyUrl) {FreeURL(connection->proxyUrl); connection->proxyUrl=NULL;}
+#endif
 
  return(CloseSocket(server));
 }

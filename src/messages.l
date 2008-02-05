@@ -21,7 +21,7 @@ FUNC   \%[a-z_0-9]+\[[a-z_0-9]+\]
   Modified by Paul A. Rombouts
 
   This file Copyright 1998,99,2000,01,02,03,04,05 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -117,6 +117,7 @@ static VarValueNode *varvaluelist=NULL;
 /*+ The option to use compression or chunked encoding for the reply. +*/
 static int client_compression=0,client_chunked=0;
 int head_only=0;
+int client_keep_connection=0;
 
 /*++++++++++++++++++++++++++++++++++++++
   Set the options to use for the socket sending the message.
@@ -187,7 +188,7 @@ void HTMLMessage(int fd,int status_val,const char *status_str,const char *locati
   ... A list of variable-value pairs to use in the header (NULL terminated).
   ++++++++++++++++++++++++++++++++++++++*/
 
-void HTMLMessageHead(int fd,int status_val,const char *status_str, ...)
+int HTMLMessageHead(int fd,int status_val,const char *status_str, ...)
 {
  va_list ap;
  Header *header;
@@ -256,7 +257,7 @@ void HTMLMessageHead(int fd,int status_val,const char *status_str, ...)
 
  /* Set up chunked encoding header for the client if required. */
 
- if(chunked && !head_only)
+ if(!head_only)
    {
      /* If the length is already known don't bother with chunked encoding */
      if(GetHeader(header,"Content-Length"))
@@ -266,12 +267,14 @@ void HTMLMessageHead(int fd,int status_val,const char *status_str, ...)
        if(!fstat(fd,&buf) && S_ISREG(buf.st_mode))
 	 /* Don't write chunked encoded to a spool file. */
 	 chunked=0;
-       else {
+       else if(chunked) {
 	 ChangeVersionInHeader(header,"HTTP/1.1");
 	 AddToHeader(header,"Transfer-Encoding","chunked");
 
 	 PrintMessage(Debug,"Using 'Transfer-Encoding: chunked' for the client.");
        }
+       else
+	 client_keep_connection=0;
      }
    }
 
@@ -280,8 +283,11 @@ void HTMLMessageHead(int fd,int status_val,const char *status_str, ...)
  if(!content_type)
     AddToHeader(header,"Content-Type","text/html");
 
- AddToHeader(header,"Connection","close");
- AddToHeader(header,"Proxy-Connection","close");
+ {
+   const char *connectiontoken= (client_keep_connection? "Keep-Alive": "close");
+   AddToHeader(header,"Connection",connectiontoken);
+   AddToHeader(header,"Proxy-Connection",connectiontoken);
+ }
 
  /* Write the header */
  {
@@ -311,6 +317,10 @@ void HTMLMessageHead(int fd,int status_val,const char *status_str, ...)
    if(chunked)
      configure_io_chunked(fd,-1,1);
  }
+ else
+   chunked=0;
+
+ return chunked;
 }
 
 

@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2006 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -98,6 +98,15 @@ extern /*@null@*/ ConfigItem DNSTimeout;
 
 /*+ The amount of time that a socket will wait for the intial connection. +*/
 extern /*@null@*/ ConfigItem ConnectTimeout;
+
+/*+ The amount of time to wait before an inactive persistent connection is dropped. +*/
+extern /*@null@*/ ConfigItem KeepAliveTimeout;
+
+/*+ The option to allow persistent connections. +*/
+extern /*@null@*/ ConfigItem AllowKeepAlive;
+
+/*+ The option to allow persistent connections after finishing a POST request. +*/
+extern /*@null@*/ ConfigItem PostKeepAlive;
 
 /*+ The option to retry a failed connection. +*/
 extern /*@null@*/ ConfigItem ConnectRetry;
@@ -458,6 +467,9 @@ extern /*@null@*/ ConfigItem Proxies;
 /*+ The information that is needed to allow authorisation headers to be added, +*/
 extern /*@null@*/ ConfigItem ProxyAuthUser,       /*+ username. +*/
                              ProxyAuthPass;       /*+ password. +*/
+
+/*+ The option to allow persistent connections to other proxies. +*/
+extern /*@null@*/ ConfigItem ProxyKeepAlive;
 
 /*+ The SSL proxy to use. +*/
 extern /*@null@*/ ConfigItem SSLProxy;

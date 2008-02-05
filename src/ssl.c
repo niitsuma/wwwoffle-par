@@ -65,11 +65,8 @@ char *SSL_Open(URL *Url)
 {
  char *msg=NULL;
  char *proxy=NULL,*sproxy=NULL;
- char *server_host=NULL;
- int server_port=0;
- char *socks_host=NULL;
- int socks_port=0;
  int socksremotedns=0;
+ socksdata_t *socksdata=NULL,socksbuf;
 
  /* Sort out the host. */
 
@@ -83,30 +80,21 @@ char *SSL_Open(URL *Url)
    FreeURL(proxyUrl);
    proxyUrl=NULL;
  }
- if(proxy) {
-   proxyUrl=CreateURL("http",proxy,"/",NULL,NULL,NULL);
-   server_host=proxyUrl->host;
-   server_port=proxyUrl->portnum;
- }
- else {
-   server_host=Url->host;
-   server_port=Url->portnum;
- }
 
+ if(proxy)
+   Url=proxyUrl=CreateURL("http",proxy,"/",NULL,NULL,NULL);
 
  /* Open the connection. */
 
  server=-1;
 
- if(server_port)
+ if(Url->portnum)
    {
-    if(sproxy)
-      SETSOCKSHOSTPORT(sproxy,server_host,server_port,socks_host,socks_port);
-
-    server=OpenClientSocket(server_host,server_port,socks_host,socks_port,socksremotedns,NULL);
-
-    if(server==-1)
-       msg=GetPrintMessage(Warning,"Cannot open the SSL connection to %s port %d; [%!s].",server_host,server_port);
+    if((sproxy && !(socksdata= MakeSocksData(sproxy,socksremotedns,&socksbuf))) ||
+       (server=OpenUrlSocket(Url,socksdata))==-1)
+      {
+       msg=GetPrintMessage(Warning,"Cannot open the SSL connection to %s port %d; [%!s].",Url->host,Url->portnum);
+      }
     else
       {
        init_io(server);
@@ -114,7 +102,7 @@ char *SSL_Open(URL *Url)
       }
    }
  else
-    msg=GetPrintMessage(Warning,"No port given for the SSL connection to %s.",server_host);
+    msg=GetPrintMessage(Warning,"No port given for the SSL connection to %s.",Url->host);
 
  return(msg);
 }
@@ -150,7 +138,7 @@ char *SSL_Request(int client,URL *Url,Header *request_head)
 
     PrintMessage(ExtraDebug,"Outgoing Request Head (to SSL proxy)\n%s",head);
 
-    if(write_data(server,head,headlen)==-1)
+    if(write_data(server,head,headlen)<0)
        msg=GetPrintMessage(Warning,"Failed to write to remote SSL proxy; [%!s].");
 
     free(head);

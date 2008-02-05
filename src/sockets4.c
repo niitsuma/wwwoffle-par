@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1996,97,98,99,2000,01,02,03,04,05 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2004,2005,2006,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2004,2005,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -52,6 +52,7 @@
 #include "io.h"
 #include "configpriv.h"
 #include "config.h"
+#include "proto.h"
 #include "sockets.h"
 
 
@@ -88,64 +89,35 @@ static jmp_buf dns_jmp_env;
 /*++++++++++++++++++++++++++++++++++++++
   Opens a socket for a client.
 
-  int OpenClientSocket Returns the socket file descriptor.
+  int OpenClientSocketAddr Returns the socket file descriptor.
 
-  char* host The name of the remote host.
+  IPADDR *addr The IP address of the remote host.
 
-  int port The port number.
+  int port     The port number.
 
-  For SOCKS v4 connections:
+  For SOCKS v4 connections (either saddr or shost not NULL):
 
-    char* shost The name of the destination host the SOCKS server should connect to
-		(should be null if host is the destination).
+    IPADDR *saddr The IP address of the destination host the SOCKS server should connect to.
 
-    int sport   The destination port number.
+    char* shost   The name of the destination host the SOCKS server should connect to
+		  using SOCKS v4A protocol (only used in saddr is NULL).
 
-    int socks_remote_dns  If nonzero, use SOCKS v4A to resolve destination host name remotely.
+    int sport     The destination port number.
 
-    char* shost_ipbuf  Buffer used to return the string representation of the IP address
-		       of the destination host (i.e. shost if not null, otherwise host).
-		       Only makes sense if socks_remote_dns==0.
-		       Pointer to buffer may be null.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int OpenClientSocket(char* host,int port, char *shost,int sport,int socks_remote_dns,char *shost_ipbuf)
+int OpenClientSocketAddr(IPADDR *addr,int port, IPADDR *saddr,char *shost,int sport)
 {
  int s;
  struct sockaddr_in server;
- struct hostent* hp;
 
  server.sin_family=AF_INET;
+ server.sin_addr= *addr;
  server.sin_port=htons(port);
-
- hp=gethostbyname_or_timeout(host);
- if(!hp)
-   {
-    uint32_t addr=inet_addr(host);
-    if(addr!=-1)
-       hp=gethostbyaddr_or_timeout((char*)&addr,sizeof(addr),AF_INET);
-
-    if(!hp)
-      {
-       if(errno!=ETIMEDOUT)
-          errno=ERRNO_USE_H_ERRNO;
-       PrintMessage(Warning,"Unknown host '%s' for %s [%!s].",shost?"SOCKS proxy":"server",host);
-       return(-1);
-      }
-   }
-
- if(hp->h_addrtype!=AF_INET || hp->h_length!=sizeof(server.sin_addr)) {
-   PrintMessage(Warning,"Cannot connect to '%s': unexpected address type.",host);
-   errno=EAFNOSUPPORT;
-   return -1;
- }
- memcpy(&server.sin_addr,hp->h_addr,sizeof(server.sin_addr));
- if(shost_ipbuf && !shost)
-   strcpy(shost_ipbuf,inet_ntoa(server.sin_addr));
 
  /* Try not to connect to our own HTTP port. */
  if(IsLocalAddrPort(server.sin_addr,port)) {
-   PrintMessage(Warning,"Not connecting to '%s:%d': IP address %s matches that of localhost.",host,port,inet_ntoa(server.sin_addr));
+   PrintMessage(Warning,"Not connecting to '%s:%d': IP address matches that of localhost.",inet_ntoa(*addr),port);
    errno=EPERM;
    return -1;
  }
@@ -159,51 +131,26 @@ int OpenClientSocket(char* host,int port, char *shost,int sport,int socks_remote
 
  if(connect_or_timeout(s,(struct sockaddr*)&server,sizeof(server))==-1)
    {
-    PrintMessage(Warning,"Failed to connect socket to '%s' port '%d' [%!s].",host,port);
+    PrintMessage(Warning,"Failed to connect socket to '%s' port '%d' [%!s].",inet_ntoa(*addr),port);
     close(s);
     return -1;
    }
 
- if(shost) {
+ if(saddr || shost) {
    socks_hdr_t *shdr;
    unsigned hdrsize,dstsize=0;
    int rv;
    struct in_addr a;
 
-   if(!socks_remote_dns) {
-     /* Resolve name of destination host locally.*/
-     hp=gethostbyname_or_timeout(shost);
-     if(!hp)
-       {
-	 uint32_t addr=inet_addr(shost);
-	 if(addr!=-1)
-	   hp=gethostbyaddr_or_timeout((char*)&addr,sizeof(addr),AF_INET);
-
-	 if(!hp)
-	   {
-	     if(errno!=ETIMEDOUT)
-	       errno=ERRNO_USE_H_ERRNO;
-	     PrintMessage(Warning,"Unknown host '%s' for server [%!s].",shost);
-	     close(s);
-	     return(-1);
-	   }
-       }
-
-     if(hp->h_addrtype!=AF_INET || hp->h_length!=sizeof(a)) {
-       PrintMessage(Warning,"Cannot connect to '%s': unexpected address type.",shost);
-       close(s);
-       errno=EAFNOSUPPORT;
-       return -1;
-     }
-     memcpy(&a,hp->h_addr,sizeof(a));
-     if(shost_ipbuf)
-       strcpy(shost_ipbuf,inet_ntoa(a));
+   if(saddr) {
+     /* Address of destination already known.*/
+     a= *saddr;
 
      /* Some sanity checks */
      {
        const char *p=(char*)&a;
        if(p[0]==0 && p[1]==0 && p[2]==0) {
-	 PrintMessage(Warning,"Not connecting to '%s:%d': host has invalid IP address %s ",shost,sport,inet_ntoa(a));
+	 PrintMessage(Warning,"Not connecting to '%s:%d': host has invalid IP address %s ",inet_ntoa(a),sport,inet_ntoa(a));
 	 close(s);
 	 errno=EPERM;
 	 return -1;
@@ -212,7 +159,7 @@ int OpenClientSocket(char* host,int port, char *shost,int sport,int socks_remote
 
      /* Try not to connect to our own HTTP port. */
      if(IsLocalAddrPort(a,sport)) {
-       PrintMessage(Warning,"Not connecting to '%s:%d': IP address %s matches that of localhost.",shost,sport,inet_ntoa(a));
+       PrintMessage(Warning,"Not connecting to '%s:%d': IP address matches that of localhost.",inet_ntoa(a),sport);
        close(s);
        errno=EPERM;
        return -1;
@@ -223,8 +170,6 @@ int OpenClientSocket(char* host,int port, char *shost,int sport,int socks_remote
      static const char dummy_addr[sizeof(a)] = {0,0,0,1};
 
      memcpy(&a,dummy_addr,sizeof(a));
-     if(shost_ipbuf)
-       shost_ipbuf[0]=0;
 
      dstsize=strlen(shost)+1;
 
@@ -267,7 +212,7 @@ int OpenClientSocket(char* host,int port, char *shost,int sport,int socks_remote
      shdr->port=htons(sport);
      shdr->addr=a.s_addr;
      p=mempcpy(shdr->userid,pwd?pwd->pw_name:uidbuf,nmsize);
-     if(socks_remote_dns)
+     if(!saddr)
        memcpy(p,shost,dstsize); /* Add name of destination for SOCKS v4A */
    }
 
@@ -275,29 +220,29 @@ int OpenClientSocket(char* host,int port, char *shost,int sport,int socks_remote
       Immediately after connect_or_timeout succeeded, writing should not block and
       we are only sending a small data packet. */
    if(write_all(s,(char *)shdr,hdrsize)!=hdrsize) {
-     PrintMessage(Warning,"Failed to write CONNECT command to SOCKS server '%s' port '%d' [%!s].",host,port);
+     PrintMessage(Warning,"Failed to write CONNECT command to SOCKS server '%s' port '%d' [%!s].",inet_ntoa(*addr),port);
      close(s);
      return -1;
    }
 
    if((rv=read_all_or_timeout(s,(char *)shdr,sizeof(socks_hdr_t),timeout_connect))!=sizeof(socks_hdr_t)) {
      if(rv>=0) {
-       PrintMessage(Warning,"Failed to read SOCKS response from '%s' port '%d'; expected %d bytes, got %d bytes.",host,port,sizeof(socks_hdr_t),rv);
+       PrintMessage(Warning,"Failed to read SOCKS response from '%s' port '%d'; expected %d bytes, got %d bytes.",inet_ntoa(*addr),port,sizeof(socks_hdr_t),rv);
        errno=ENODATA;
      }
      else
-       PrintMessage(Warning,"Failed to read SOCKS response from '%s' port '%d' [%!s].",host,port);
+       PrintMessage(Warning,"Failed to read SOCKS response from '%s' port '%d' [%!s].",inet_ntoa(*addr),port);
      close(s);
      return -1;
    }
    if(shdr->version) {
-     PrintMessage(Warning,"Bad SOCKS version number (%d) in response from '%s' port '%d'.",shdr->version,host,port);
+     PrintMessage(Warning,"Bad SOCKS version number (%d) in response from '%s' port '%d'.",shdr->version,inet_ntoa(*addr),port);
      close(s);
      errno=EPROTO;
      return -1;
    }
    if(shdr->command!=90) {
-     PrintMessage(Warning,"Request to SOCKS server '%s' port '%d' failed: error code %d.",host,port,shdr->command);
+     PrintMessage(Warning,"Request to SOCKS server '%s' port '%d' failed: error code %d.",inet_ntoa(*addr),port,shdr->command);
      close(s);
      errno=ECONNREFUSED;
      return -1;
@@ -305,6 +250,101 @@ int OpenClientSocket(char* host,int port, char *shost,int sport,int socks_remote
  }
 
  return(s);
+}
+
+
+int resolve_name(char *name, IPADDR *a)
+{
+ struct hostent* hp=gethostbyname_or_timeout(name);
+
+ if(!hp)
+   {
+    struct in_addr addr;
+    if(inet_aton(name,&addr))
+       hp=gethostbyaddr_or_timeout((char*)&addr,sizeof(addr),AF_INET);
+
+    if(!hp)
+      {
+       if(errno!=ETIMEDOUT)
+          errno=ERRNO_USE_H_ERRNO;
+       return 0;
+      }
+   }
+
+ if(hp->h_addrtype!=AF_INET || hp->h_length!=sizeof(IPADDR)) {
+   errno=EAFNOSUPPORT;
+   return 0;
+ }
+ memcpy(a,hp->h_addr,sizeof(IPADDR));
+ 
+#if 0
+ if(StderrLevel==ExtraDebug)
+   PrintMessage(ExtraDebug,"resolve_name: IP address of '%s' is %s.",name,inet_ntoa(*a));
+#endif
+ return 1;
+}
+
+
+int OpenClientSocket(char *host,int port)
+{
+  IPADDR addr;
+
+  if(!resolve_name(host,&addr)) {
+    PrintMessage(Warning,"Cannot resolve host name '%s' [%!s].",host);
+    return -1;
+  }
+
+  return OpenClientSocketAddr(&addr,port, NULL,NULL,0);
+}
+
+
+socksdata_t *MakeSocksData(char *hostport, unsigned short remotedns, socksdata_t *socksbuf)
+{
+  char *hoststr, *portstr; size_t hostlen;
+  socksdata_t *sdata= (socksbuf? socksbuf: malloc(sizeof(socksdata_t)));
+  
+  SplitHostPort(hostport,&hoststr,&hostlen,&portstr);
+  {
+    char hostbuf[hostlen+1];
+    *((char *)mempcpy(hostbuf,hoststr,hostlen))=0;
+    if(!resolve_name(hostbuf,&sdata->addr)) {
+      PrintMessage(Warning,"Unknown socks host '%s' [%!s].",hostbuf);
+      if(!socksbuf) free(sdata);
+      return NULL;
+    }
+  }
+  sdata->port= (portstr?atoi(portstr):DEFSOCKSPORT);
+  sdata->remotedns=remotedns;
+
+  return sdata;
+}
+
+
+int OpenUrlSocket(URL *Url,socksdata_t *socksproxy)
+{
+  IPADDR *a=NULL,*sa=NULL;
+  char *shost=NULL;
+  int port,sport=0;
+
+  if(!(socksproxy && socksproxy->remotedns)) {
+    a = get_url_ipaddr(Url);
+    if(!a) {
+      PrintMessage(Warning,"Cannot resolve host name '%s' [%!s].",Url->host);
+      return -1;
+    }
+  }
+
+  port=Url->portnum;
+
+  if(socksproxy) {
+    sa=a;
+    if(socksproxy->remotedns) shost=Url->host;
+    sport=port;
+    a= &socksproxy->addr;
+    port=socksproxy->port;
+  }
+
+  return OpenClientSocketAddr(a,port,sa,shost,sport);
 }
 
 
@@ -360,8 +400,8 @@ int OpenServerSocket(char *host,int port)
     hp=gethostbyname_or_timeout(host);
     if(!hp)
       {
-       uint32_t addr=inet_addr(host);
-       if(addr!=-1)
+       struct in_addr addr;
+       if(inet_aton(host,&addr))
           hp=gethostbyaddr_or_timeout((char*)&addr,sizeof(addr),AF_INET);
 
        if(!hp)

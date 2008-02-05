@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1998,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2006,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2003,2004,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -152,17 +152,22 @@ int LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
 	     }
              else
                {
+		 int chunked;
 		 {
+		   unsigned long content_length;
 		   char date[MAXDATESIZE]; char length[MAX_INT_STR+1];
 
 		   RFC822Date_r(buf.st_mtime,1,date);
-		   sprintf(length,"%lu",(unsigned long)buf.st_size);
+		   content_length= buf.st_size;
+		   sprintf(length,"%lu",content_length);
 
-		   HTMLMessageHead(fd,200,"WWWOFFLE Local OK",
+		   chunked=HTMLMessageHead(fd,200,"WWWOFFLE Local OK",
 				   "Last-Modified",date,
 				   "Content-Type",WhatMIMEType(file),
 				   "Content-Length",length,
 				   NULL);
+		   if(!chunked)
+		     configure_io_content_length(htmlfd,content_length);
 		 }
 
 		 if(out_err==-1)
@@ -172,10 +177,30 @@ int LocalPage(int fd,URL *Url,Header *request_head,Body *request_body)
 		   ssize_t n;
 		   for(;;) {
 		     n=read_data(htmlfd,buffer,IO_BUFFER_SIZE);
-		     if(n<0)
+		     if(n<0) {
 		       PrintMessage(Warning,"Cannot read local page '%s' [%!s].",file);
-		     if(n<=0)
+		       if(!chunked)
+			 client_keep_connection=0;
 		       break;
+		     }
+		     else if(n==0) {
+		       if(client_keep_connection && !chunked) {
+			 unsigned long content_remaining= io_content_remaining(htmlfd);
+			 if(content_remaining) {
+			   /* This is very unlikely, but it might happen
+			      if the file is modified while we are reading it. */
+			   PrintMessage(Inform, (content_remaining!=CUNDEF)?
+					"Could not read remaining raw content (%lu bytes) from local file, "
+					"dropping persistent connection to client.":
+					"Length of remaining raw content of local file is undefined, "
+					"dropping persistent connection to client.",
+					content_remaining);
+			   client_keep_connection=0;
+			 }
+		       }
+		       break;
+		     }
+
 		     if(write_data(fd,buffer,n)<0) {
 		       PrintMessage(Inform,"Cannot write local page '%s' to client [%!s].",file);
 		       break;

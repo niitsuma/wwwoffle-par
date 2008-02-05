@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1996,97,98,99,2000,01,02,03,05,07 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2004,2005,2006,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2004,2005,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -146,6 +146,7 @@ void CommandConnect(int client)
 
     OnlineTime=time(NULL);
     online=1;
+    SetCurrentOnlineStatus(online);
 
     if(fetch_fd!=-1)
        fetching=1;
@@ -164,6 +165,7 @@ void CommandConnect(int client)
 
     OnlineTime=time(NULL);
     online=-1;
+    SetCurrentOnlineStatus(online);
    }
  else if(!strcmp_litbeg(&line[9],"OFFLINE"))
    {
@@ -179,6 +181,7 @@ void CommandConnect(int client)
 
     OfflineTime=time(NULL);
     online=0;
+    SetCurrentOnlineStatus(online);
    }
  else if(!strcmp_litbeg(&line[9],"FETCH"))
    {

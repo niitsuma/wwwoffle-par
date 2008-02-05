@@ -373,10 +373,18 @@ int NotCompressed(const char *mime_type,const char *path)
     size_t pathlen=strlen(path);
     int i;
     for(i=0;i<DontCompressExt->nentries;++i) {
-      char *ext = DontCompressExt->val[i].string;
+      const char *ext = DontCompressExt->val[i].string;
       size_t extlen=strlen(ext);
-      if(pathlen>extlen && !strcmp(ext,path+pathlen-extlen))
-	return 1;
+      if(pathlen>extlen) {
+	int casesen=0;
+	const char *p;
+	for(p=ext;*p;++p) {
+	  if(isupper(*p)) {casesen=1; break;}
+	}
+	p=path+pathlen-extlen;
+	if(casesen? !strcmp(ext,p): !strcasecmp(ext,p))
+	  return 1;
+      }
     }
   }
 
@@ -439,11 +447,19 @@ char *WhatMIMEType(const char *path)
     int i;
 
     for(i=0;i<MIMETypes->nentries;++i) {
-      char *mtype_key= MIMETypes->key[i].string;
+      const char *mtype_key= MIMETypes->key[i].string;
       size_t keylen= strlen(mtype_key);
 
-      if(plen>keylen && keylen>maxlen && !strcmp(mtype_key,path+plen-keylen))
-	{mimetype=MIMETypes->val[i].string; maxlen=keylen;}
+      if(plen>keylen && keylen>maxlen) {
+	int casesen=0;
+	const char *p;
+	for(p=mtype_key;*p;++p) {
+	  if(isupper(*p)) {casesen=1; break;}
+	}
+	p=path+plen-keylen;
+	if(casesen? !strcmp(mtype_key,p): !strcasecmp(mtype_key,p))
+	  {mimetype=MIMETypes->val[i].string; maxlen=keylen;}
+      }
     }
   }
 

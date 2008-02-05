@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2004,2005,2006,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2004,2005,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -28,9 +28,9 @@
 #include "wwwoffle.h"
 #include "io.h"
 #include "misc.h"
+#include "config.h"
 #include "proto.h"
 #include "errors.h"
-#include "config.h"
 #include "sockets.h"
 #include "document.h"
 #include "version.h"
@@ -480,7 +480,7 @@ int main(int argc, char** argv)
     int socket;
     char *line=NULL;
 
-    socket=OpenClientSocket(host,port,NULL,0,0,NULL);
+    socket=OpenClientSocket(host,port);
 
     if(socket==-1)
        PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port);
@@ -553,7 +553,7 @@ int main(int argc, char** argv)
              continue;
             }
 
-          socket=OpenClientSocket(host,port,NULL,0,0,NULL);
+          socket=OpenClientSocket(host,port);
 
           if(socket==-1)
              PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port);
@@ -734,7 +734,7 @@ int main(int argc, char** argv)
     if(!IsProtocolHandled(Url))
        PrintMessage(Fatal,"Cannot post or put protocol '%s'.",Url->proto);
 
-    socket=OpenClientSocket(host,port,NULL,0,0,NULL);
+    socket=OpenClientSocket(host,port);
 
     if(socket==-1)
        PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port);
@@ -831,7 +831,7 @@ int main(int argc, char** argv)
     if(!IsProtocolHandled(Url))
        PrintMessage(Fatal,"Cannot fetch data from protocol '%s'.",Url->proto);
 
-    socket=OpenClientSocket(host,port,NULL,0,0,NULL);
+    socket=OpenClientSocket(host,port);
 
     if(socket==-1)
        PrintMessage(Fatal,"Cannot open connection to wwwoffle server %s port %d.",host,port);

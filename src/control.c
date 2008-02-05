@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2004,2005,2006,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2004,2005,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -184,7 +184,7 @@ static void ActionControlPage(int fd,Action action,char *command)
 {
  char *localhost=GetLocalHost();
  ssize_t error=0;
- int socket=OpenClientSocket(localhost,ConfigInteger(WWWOFFLE_Port),NULL,0,0,NULL);
+ int socket=OpenClientSocket(localhost,ConfigInteger(WWWOFFLE_Port));
 
  if(socket==-1)
    {

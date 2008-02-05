@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2004,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2004,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -135,14 +135,14 @@ ssize_t io_read_with_timeout(int fd,io_buffer *out,unsigned timeout)
     fd_set readfd;
     struct timeval tv;
 
+    tv.tv_sec=timeout;
+    tv.tv_usec=0;
+
     do
       {
        FD_ZERO(&readfd);
 
        FD_SET(fd,&readfd);
-
-       tv.tv_sec=timeout;
-       tv.tv_usec=0;
 
        n=select(fd+1,&readfd,NULL,NULL,&tv);
 

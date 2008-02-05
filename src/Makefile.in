@@ -214,7 +214,7 @@ conv_urlhash_file.o: conv_urlhash_file.c autoconfig.h wwwoffle.h io.h misc.h    
 restore_Ufiles.o   : restore_Ufiles.c   autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h           proto.h            version.h
 
 proto_client.o \
-proto.o            : proto.c            autoconfig.h                 misc.h            errors.h config.h           proto.h
+proto.o            : proto.c            autoconfig.h                 misc.h headbody.h errors.h config.h sockets.h proto.h
 http.o             : http.c             autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h sockets.h proto.h
 https.o            : https.c            autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h sockets.h proto.h                                            certificates.h
 finger.o           : finger.c           autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h sockets.h proto.h
@@ -247,7 +247,7 @@ certinfo.o         : certinfo.c         autoconfig.h wwwoffle.h io.h misc.h     
 monitor.o          : monitor.c          autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h
 refresh_client.o \
 refresh.o          : refresh.c          autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h           proto.h document.h
-search.o           : search.c           autoconfig.h wwwoffle.h io.h misc.h            errors.h                    proto.h
+search.o           : search.c           autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h           proto.h
 
 cgi.o              : cgi.c              autoconfig.h wwwoffle.h io.h misc.h headbody.h errors.h config.h sockets.h                    version.h
 local_test.o \
@@ -269,11 +269,11 @@ iozlib.o           : iozlib.c           autoconfig.h            io.h misc.h     
 errors.o           : errors.c           autoconfig.h            io.h misc.h            errors.h
 headbody.o         : headbody.c         autoconfig.h                 misc.h headbody.h                                                          configpriv.h
 miscencdec.o       : miscencdec.c       autoconfig.h                 misc.h                                                                                                          md5.h
-miscurl.o          : miscurl.c          autoconfig.h                 misc.h                     config.h           proto.h
+miscurl.o          : miscurl.c          autoconfig.h                 misc.h            errors.h config.h sockets.h proto.h
 
 certificates.o     : certificates.c     autoconfig.h wwwoffle.h io.h misc.h            errors.h config.h                                                              certificates.h
 
-sockets.o          : sockets.c          autoconfig.h            io.h misc.h            errors.h config.h sockets.h                              configpriv.h                              \
+sockets.o          : sockets.c          autoconfig.h            io.h misc.h            errors.h config.h sockets.h proto.h                      configpriv.h                              \
                      sockets4.c sockets6.c
 
 md5.o              : md5.c                                                                                                                                                           md5.h

@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2004,2006,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2004,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -103,6 +103,7 @@ void init_io(int fd)
 
  io_contexts[fd]=(io_context*)calloc(1,sizeof(io_context));
  io_contexts[fd]->content_remaining=CUNDEF;
+ /* io_contexts[fd]->content_overflow=0; */
 }
 
 
@@ -146,6 +147,8 @@ void reinit_io(int fd)
  context->r_raw_bytes=0;
  context->w_raw_bytes=0;
  context->content_remaining=CUNDEF;
+ context->content_overflow=0;
+ context->read_eof=0;
  context->saved_errno=0;
 }
 
@@ -202,13 +205,13 @@ void configure_io_content_length(int fd,unsigned long content_length)
 
  context=io_contexts[fd];
 
- if(context->r_file_data && !iobuf_isempty(context->r_file_data)) {
+ if(content_length!=CUNDEF && context->r_file_data && !iobuf_isempty(context->r_file_data)) {
    size_t nb=iobuf_numbytes(context->r_file_data);
 
    if(nb>content_length) {
      /* If the data in the read data buffer exceeds content length,
-	truncate the read data buffer (shouldn't normally happen). */
-     context->r_file_data->rear -= nb-content_length;
+	leave the excess in the read data buffer, but remember the size. */
+     context->content_overflow = nb-content_length;
      nb=content_length;
    }
 
@@ -220,6 +223,28 @@ void configure_io_content_length(int fd,unsigned long content_length)
  /* Set the remaining content size */
 
  context->content_remaining=content_length;
+}
+
+/* io_content_remaining returns the remaining raw-content length for a file descriptor. */
+unsigned long io_content_remaining(int fd)
+{
+ io_context *context;
+ unsigned long content_rem;
+
+ if(fd<0)
+    PrintMessage(Fatal,"IO: Function io_content_remaining(%d) was called with an invalid argument.",fd);
+
+ if(nio<=fd || !io_contexts[fd])
+    PrintMessage(Fatal,"IO: Function io_content_remaining(%d) was called without calling init_io(%d) first.",fd,fd);
+
+ context= io_contexts[fd];
+ content_rem= context->content_remaining;
+
+ /* If the read buffer is non-empty, add the remaining bytes in the buffer. */
+ if(content_rem!=CUNDEF && context->r_file_data && !iobuf_isempty(context->r_file_data))
+   content_rem += iobuf_numbytes(context->r_file_data) - context->content_overflow;
+
+ return content_rem;
 }
 
 
@@ -610,6 +635,8 @@ ssize_t read_data(int fd,char *buffer,size_t n)
    return -1;
  }
 
+ if(n==0) return 0;
+
  /* Create the output buffer */
 
  iobuffer.data=buffer;
@@ -626,7 +653,7 @@ ssize_t read_data(int fd,char *buffer,size_t n)
     if(!context->r_chunk_context)
       {
 	if(context->r_file_data && !iobuf_isempty(context->r_file_data)) {
-	  size_t nb=iobuf_numbytes(context->r_file_data);
+	  size_t nb= iobuf_numbytes(context->r_file_data) - context->content_overflow;
 
 	  if(nb>n)
 	    nb=n;
@@ -635,7 +662,7 @@ ssize_t read_data(int fd,char *buffer,size_t n)
 	   context->r_file_data->front+=nb;
 	   nr=nb;
 	}
-	else if(context->content_remaining) {
+	else if(context->content_remaining && !context->read_eof) {
 #if USE_GNUTLS
 	  if(context->gnutls_context)
 	    err=io_gnutls_read_with_timeout(context->gnutls_context,&iobuffer,context->r_timeout);
@@ -644,10 +671,19 @@ ssize_t read_data(int fd,char *buffer,size_t n)
 	    err=io_read_with_timeout(fd,&iobuffer,context->r_timeout);
 
 	  if(err<0) goto return_err;
+	  if(err==0) context->read_eof=1;
 	  context->r_raw_bytes+=err;
 	  if(context->content_remaining!=CUNDEF) {
-	    if(err>context->content_remaining)
+	    if(err>context->content_remaining) {
+	      /* store excess data in r_file_data */
+	      size_t rem= err-context->content_remaining;
+	      context->r_file_data=resize_io_buffer(context->r_file_data,rem);
+	      memcpy(context->r_file_data->data,buffer+context->content_remaining,rem);
+	      context->r_file_data->front=0;
+	      context->r_file_data->rear=rem;
+	      context->content_overflow=rem;
 	      err=context->content_remaining;
+	    }
 	    context->content_remaining-=err;
 	  }
 	  nr=err;
@@ -659,27 +695,37 @@ ssize_t read_data(int fd,char *buffer,size_t n)
       {
        do
          {
-	  if(context->content_remaining && iobuf_isempty(context->r_file_data)) {
+	  io_buffer *rdata=context->r_file_data;
+	  if(context->content_remaining && iobuf_isempty(rdata) && !context->read_eof) {
 #if USE_GNUTLS
 	    if(context->gnutls_context)
-	      err=io_gnutls_read_with_timeout(context->gnutls_context,context->r_file_data,context->r_timeout);
+	      err=io_gnutls_read_with_timeout(context->gnutls_context,rdata,context->r_timeout);
 	    else
 #endif
-	      err=io_read_with_timeout(fd,context->r_file_data,context->r_timeout);
+	      err=io_read_with_timeout(fd,rdata,context->r_timeout);
 	    if(err<0) goto return_err;
+	    if(err==0) context->read_eof=1;
 	    context->r_raw_bytes+=err;
 	    if(context->content_remaining!=CUNDEF) {
+	      /* With chunked encoding a defined content-length header should
+		 never happen in practice. */
 	      if(err>context->content_remaining) {
-		context->r_file_data->rear -= err-context->content_remaining;
+		/* leave excess data in context->r_file_data, but remember its size. */
+		context->content_overflow = err-context->content_remaining;
 		err=context->content_remaining;
 	      }
 	      context->content_remaining-=err;
 	    }
 	  }
-	  err=io_chunk_decode(context->r_file_data,context->r_chunk_context,&iobuffer);
+	  rdata->rear -= context->content_overflow;
+	  err=io_chunk_decode(rdata,context->r_chunk_context,&iobuffer);
+	  rdata->rear += context->content_overflow;
 	  if(err<0) goto return_err;
 	  if(err) {
-	    context->content_remaining=0;
+	    if(context->content_remaining==CUNDEF) {
+	      context->content_remaining=0;
+	      context->content_overflow = iobuf_numbytes(rdata);
+	    }
 	    break;
 	  }
          }
@@ -694,24 +740,29 @@ ssize_t read_data(int fd,char *buffer,size_t n)
       {
        do
          {
-	  if(context->content_remaining) {
+	  io_buffer *rdata=context->r_file_data;
+	  if(context->content_remaining && iobuf_hasroom(rdata) && !context->read_eof) {
 #if USE_GNUTLS
 	    if(context->gnutls_context)
-	      err=io_gnutls_read_with_timeout(context->gnutls_context,context->r_file_data,context->r_timeout);
+	      err=io_gnutls_read_with_timeout(context->gnutls_context,rdata,context->r_timeout);
 	    else
 #endif
-	      err=io_read_with_timeout(fd,context->r_file_data,context->r_timeout);
+	      err=io_read_with_timeout(fd,rdata,context->r_timeout);
 	    if(err<0) goto return_err;
+	    if(err==0) context->read_eof=1;
 	    context->r_raw_bytes+=err;
 	    if(context->content_remaining!=CUNDEF) {
 	      if(err>context->content_remaining) {
-		context->r_file_data->rear -= err-context->content_remaining;
+		/* leave excess data in context->r_file_data, but remember its size. */
+		context->content_overflow = err-context->content_remaining;
 		err=context->content_remaining;
 	      }
 	      context->content_remaining-=err;
 	    }
 	  }
-	  err=io_zlib_uncompress(context->r_file_data,context->r_zlib_context,&iobuffer);
+	  rdata->rear -= context->content_overflow;
+	  err=io_zlib_uncompress(rdata,context->r_zlib_context,&iobuffer);
+	  rdata->rear += context->content_overflow;
 	  if(err<0) goto return_err;
          }
        while(!err && iobuffer.rear==0);
@@ -723,27 +774,37 @@ ssize_t read_data(int fd,char *buffer,size_t n)
          {
 	  do
 	    {
-	     if(context->content_remaining && iobuf_isempty(context->r_file_data)) {
+	     io_buffer *rdata=context->r_file_data;
+	     if(context->content_remaining && iobuf_isempty(rdata) && !context->read_eof) {
 #if USE_GNUTLS
 	       if(context->gnutls_context)
-		 err=io_gnutls_read_with_timeout(context->gnutls_context,context->r_file_data,context->r_timeout);
+		 err=io_gnutls_read_with_timeout(context->gnutls_context,rdata,context->r_timeout);
 	       else
 #endif
-		 err=io_read_with_timeout(fd,context->r_file_data,context->r_timeout);
+		 err=io_read_with_timeout(fd,rdata,context->r_timeout);
 	       if(err<0) goto return_err;
+	       if(err==0) context->read_eof=1;
 	       context->r_raw_bytes+=err;
 	       if(context->content_remaining!=CUNDEF) {
+		 /* With chunked encoding a defined content-length header should
+		    never happen in practice. */
 		 if(err>context->content_remaining) {
-		   context->r_file_data->rear -= err-context->content_remaining;
+		   /* leave excess data in context->r_file_data, but remember its size. */
+		   context->content_overflow = err-context->content_remaining;
 		   err=context->content_remaining;
 		 }
 		 context->content_remaining-=err;
 	       }
 	     }
-	     err=io_chunk_decode(context->r_file_data,context->r_chunk_context,context->r_zlch_data);
+	     rdata->rear -= context->content_overflow;
+	     err=io_chunk_decode(rdata,context->r_chunk_context,context->r_zlch_data);
+	     rdata->rear += context->content_overflow;
 	     if(err<0) goto return_err;
 	     if(err) {
-	       context->content_remaining=0;
+	       if(context->content_remaining==CUNDEF) {
+		 context->content_remaining=0;
+		 context->content_overflow = iobuf_numbytes(rdata);
+	       }
 	       break;
 	     }
 	    }
@@ -795,9 +856,8 @@ char *read_line(int fd,char *line)
  /* Check for a previous error */
 
  if(context->saved_errno) {
-   if(line) free(line);
    errno=context->saved_errno;
-   return NULL;
+   goto free_line_return_null;
  }
 
  /* Create the temporary line buffer if there is not one */
@@ -824,6 +884,9 @@ char *read_line(int fd,char *line)
 	 Probably not important, wasn't possible with old io.c either.
 	 FIXME */
 
+      if(context->read_eof)
+	goto free_line_return_null;
+
 #if USE_GNUTLS
       if(context->gnutls_context)
 	nb=io_gnutls_read_with_timeout(context->gnutls_context,line_data,context->r_timeout);
@@ -834,8 +897,10 @@ char *read_line(int fd,char *line)
       if(nb<=0) {
 	if(nb<0)
 	  context->saved_errno= errno?errno:EIO;
-	free(line);
-	return(NULL);
+	else
+	  context->read_eof=1;
+
+	goto free_line_return_null;
       }
 
       context->r_raw_bytes+=nb;
@@ -863,6 +928,10 @@ char *read_line(int fd,char *line)
  line[n]=0;
 
  return(line);
+
+free_line_return_null:
+ if(line) free(line);
+ return(NULL);
 }
 
 
@@ -955,25 +1024,34 @@ ssize_t write_buffer_data(int fd,const char *data,size_t n)
 
  buffer_data=context->w_buffer_data;
  if(iobuf_isempty(buffer_data)) iobuf_reset(buffer_data);
- if(n<=WRITE_BUFFER_SIZE && (n+buffer_data->rear)<= buffer_data->size)
+ if((n+buffer_data->rear)<= buffer_data->size && (!iobuf_isempty(buffer_data) || n<WRITE_BUFFER_SIZE))
    {
     memcpy(buffer_data->data+buffer_data->rear,data,n);
     buffer_data->rear+=n;
 
-    if(iobuf_numbytes(buffer_data)>WRITE_BUFFER_SIZE) {
+    if(iobuf_numbytes(buffer_data)>=WRITE_BUFFER_SIZE) {
        ssize_t err=io_write_data(fd,context,buffer_data);
        if(err<0) return(err);
     }
-
-    return(n);
    }
  else
    {
     io_buffer iobuffer;
+    size_t m=0;
+    ssize_t err;
 
     if(!iobuf_isempty(buffer_data))
       {
-       ssize_t err=io_write_data(fd,context,buffer_data);
+       if(iobuf_numbytes(buffer_data)<WRITE_BUFFER_SIZE) {
+	 m= buffer_data->front+WRITE_BUFFER_SIZE;
+	 if(m>buffer_data->size) m=buffer_data->size;
+	 m -= buffer_data->rear;
+	 if(m>n) m=n;
+	 memcpy(buffer_data->data+buffer_data->rear,data,m);
+	 buffer_data->rear+=m;
+       }
+
+       err=io_write_data(fd,context,buffer_data);
        if(err<0) return(err);
       }
 
@@ -981,11 +1059,14 @@ ssize_t write_buffer_data(int fd,const char *data,size_t n)
 
     iobuffer.data=(char*)data;
     iobuffer.size=n;
-    iobuffer.front=0;
+    iobuffer.front=m;
     iobuffer.rear=n;
 
-    return(io_write_data(fd,context,&iobuffer));
+    err=io_write_data(fd,context,&iobuffer);
+    if(err<0) return(err);
    }
+
+ return(n);
 }
 
 
@@ -1213,7 +1294,7 @@ int tell_io(int fd,unsigned long* r,unsigned long *w)
   unsigned long *w Returns the raw number of bytes written.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int finish_tell_io(int fd,unsigned long* r,unsigned long *w)
+int finish_tell_io_full(int fd, int partialreset, unsigned long* r,unsigned long *w)
 {
  io_context *context;
  int retval=0;
@@ -1273,7 +1354,7 @@ cleanup_return:
  /* Destroy the encryption information */
 
 #if USE_GNUTLS
- if(context->gnutls_context)
+ if(!partialreset && context->gnutls_context)
     io_finish_gnutls(context->gnutls_context);
 #endif
 
@@ -1298,7 +1379,7 @@ cleanup_return:
  if(context->r_chunk_context)
     destroy_io_chunk(context->r_chunk_context);
 
- if(context->r_file_data)
+ if(!partialreset && context->r_file_data)
     destroy_io_buffer(context->r_file_data);
 
  if(context->w_buffer_data)
@@ -1318,11 +1399,31 @@ cleanup_return:
  if(context->w_file_data)
     destroy_io_buffer(context->w_file_data);
 
- /* context->gnutls_context freed by io_finish_gnutls */
+ if(partialreset) {
+#if USE_ZLIB
+   context->r_zlib_context=NULL;
+   context->r_zlch_data=NULL;
+#endif
+   context->r_chunk_context=NULL;
+   /* keep context->r_file_data */
+   context->content_remaining=CUNDEF;
+   context->content_overflow=0;
+   context->w_buffer_data=NULL;
+#if USE_ZLIB
+   context->w_zlib_context=NULL;
+   context->w_zlch_data=NULL;
+#endif
+   context->w_chunk_context=NULL;
+   context->w_file_data=NULL;
+   /* keep context->gnutls_context */
+ }
+ else {
+   /* context->gnutls_context freed by io_finish_gnutls */
 
- free(context);
+   free(context);
 
- io_contexts[fd]=NULL;
+   io_contexts[fd]=NULL;
+ }
 
  return retval;
 }
@@ -1352,16 +1453,16 @@ ssize_t read_all_or_timeout(int fd,char *buf,size_t n,unsigned timeout)
  while (total<n) {
    int nsel; ssize_t m;
    if(timeout) {
-     do {
-       fd_set readfd;
-       struct timeval tv;
+     fd_set readfd;
+     struct timeval tv;
 
+     tv.tv_sec=timeout;
+     tv.tv_usec=0;
+
+     do {
        FD_ZERO(&readfd);
 
        FD_SET(fd,&readfd);
-
-       tv.tv_sec=timeout;
-       tv.tv_usec=0;
 
        nsel=select(fd+1,&readfd,NULL,NULL,&tv);
 
@@ -1413,4 +1514,113 @@ ssize_t write_all(int fd,const char *data,size_t n)
    }
 
  return written;
+}
+
+/* Check if there is more data to read from a file descriptor.
+
+   check_more_to_read polls a file descriptor fd, and in case of a read event,
+   tries to read some data. The second file descriptor fd2 is also polled
+   (unless it is equal to -1), but no attempt is made to read actual data from it.
+
+   check_more_to_read returns 2  if there was a read event on the second file descriptor fd2,
+			      1  if there is more data to read on fd,
+			      0  if an end-of-file condition was detected,
+			      -1 if there was an error,
+			      -2 if there was no read event within the timeout period.
+*/
+
+int check_more_to_read(int fd, int fd2, unsigned timeout)
+{
+ io_context *context;
+ int maxfd,n;
+ fd_set readfds;
+ struct timeval tv;
+ ssize_t nb;
+
+ if(fd<0)
+    PrintMessage(Fatal,"IO: Function check_more_to_read(%d) was called with an invalid argument.",fd);
+
+ if(nio<=fd || !io_contexts[fd])
+    PrintMessage(Fatal,"IO: Function check_more_to_read(%d) was called without calling init_io(%d) first.",fd,fd);
+
+ context=io_contexts[fd];
+
+ /* Check for a previous error */
+
+ if(context->saved_errno) {
+   errno=context->saved_errno;
+   return -1;
+ }
+
+ if(context->r_file_data) {
+   if(!iobuf_isempty(context->r_file_data))
+     return 1;
+ }
+ else {
+   /* Create a read buffer if there is not one. */
+    context->r_file_data=create_io_buffer(LINE_BUFFER_SIZE);
+ }
+
+ if(context->read_eof)
+   return 0;
+
+ tv.tv_sec=timeout;
+ tv.tv_usec=0;
+
+ do {
+   FD_ZERO(&readfds);
+
+   FD_SET(fd,&readfds);
+   maxfd=fd;
+
+   if(fd2!=-1) {
+     FD_SET(fd2,&readfds);
+     if(fd2>maxfd) maxfd=fd2;
+   }
+
+   n=select(maxfd+1,&readfds,NULL,NULL,&tv);
+
+   if(n==0) {
+     errno=ETIMEDOUT;
+     return(-2);
+   }
+   else if(n<0 && errno!=EINTR)
+     return(-1);
+ }
+ while(n<=0);
+
+ if(fd2!=-1 && FD_ISSET(fd2,&readfds))
+    return 2;
+
+#if USE_GNUTLS
+ if(context->gnutls_context)
+   nb=io_gnutls_read_with_timeout(context->gnutls_context,context->r_file_data,0);
+ else
+#endif
+   nb=io_read_with_timeout(fd,context->r_file_data,0);
+
+ if(nb<0) {
+   if(errno)
+     context->saved_errno= errno;
+   return -1;
+ }
+ else if(nb==0) {
+   context->read_eof=1;
+   return 0;
+ }
+ else
+   return 1;
+}
+
+
+/* io_read_eof returns end-of-file flag. */
+int io_read_eof(int fd)
+{
+ if(fd<0)
+    PrintMessage(Fatal,"IO: Function io_read_eof(%d) was called with an invalid argument.",fd);
+
+ if(nio<=fd || !io_contexts[fd])
+    PrintMessage(Fatal,"IO: Function io_read_eof(%d) was called without calling init_io(%d) first.",fd,fd);
+
+ return io_contexts[fd]->read_eof;
 }

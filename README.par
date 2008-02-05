@@ -1,14 +1,13 @@
-	  Alternative WWWOFFLE implementation - version 2.9c-par
+	  Alternative WWWOFFLE implementation - version 2.9c-parexp
                              by Paul Rombouts
-	  ======================================================
+	  =========================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
 am making available so other people can run it and/or study the source code.
-Present version is 2.9c-par (I've simply appended my initials to the version
-number). Versions 2.8e-par and later introduce an important efficiency
-improvement: the number of files in the spool directory are reduced by nearly
-50% by using a single compact database file to remember the URLs belonging to
-the cached webpages.
+Present version is 2.9c-parexp (I've simply appended my initials to the version
+number, "exp" stands for experimental). This version has experimental support
+for persistent connections, which has the potential to greatly reduce the number
+of WWWOFFLE child processes spawned and TCP connections opened.
 
 The first part of this file describes how to patch, compile, install and run
 wwwoffled. Please note that if you wish to use an existing WWWOFFLE spool
@@ -61,21 +60,42 @@ That's it! You should now be able to run wwwoffled and enjoy the improved
 performance. You should be able to notice that WWWOFFLE accesses the hard disk
 less often and that especially the cache index pages are generated much
 faster. To give you an idea of the speedup: on my system the time to do a
-complete "wwwoffle -purge" with "use-url = yes" has been reduced by a factor
-of 4.
+complete "wwwoffle -purge" with "use-url = yes" has been reduced by a factor of
+4.
+After enabling persistent connections (requires allow-keep-alive=yes, see below)
+certain pages (like ones with with many small images) should load faster.
 
 Additional notes:
-1) Should you want to go back to using AMB's original version, you will have to
+
+1) There are a number of known issues with the current implementation of
+   persistent connections:
+   - HTTP/1.1 pipe-lining is not (yet) supported. If a browser attempts pipe-lining
+     this may result in delays and hang-ups. Mozilla-type browsers don't have
+     pipe-lining enabled by default, but if in doubt check in the about:config
+     page that:
+
+	  network.http.proxy.keep-alive = true
+	  network.http.proxy.pipelining = false
+
+   - There may be some delay before a "wwwoffle -config" command has effect.
+   - When you shutdown the WWWOFFLE daemon there may be some delay before
+     it definitely exits, because wwwoffled waits for all the child processes
+     to exit before the main process does and the child processes with persistent
+     connections are longer lived. This may be fixed in the future, but for
+     now make sure you close the browser before (or soon after) shutting down
+     WWWOFFLE, or use a short keep-alive-timeout.
+
+2) Should you want to go back to using AMB's original version, you will have to
    restore the U* files first by running the "restore_Ufiles" utility in the
    wwwoffle-2.9c/src directory.
 
-2) My patch unfortunately breaks the functionality of the wwwoffle-tools
+3) My patch unfortunately breaks the functionality of the wwwoffle-tools
    (wwwoffle-fsck wwwoffle-gunzip wwwoffle-gzip wwwoffle-hash wwwoffle-ls
    wwwoffle-mv wwwoffle-read wwwoffle-rm wwwoffle-write). Since I do not use
    them myself, I have no immediate plans for fixing them. However, if I receive
    enough requests, I will reconsider.
 
-3) Note to users of languages besides English: I've modified some of the
+4) Note to users of languages besides English: I've modified some of the
    WWWOFFLE message templates in the English language directory
    html/en/messages. If you want to use a different language you will have to
    look at the modifications in the templates that have been patched and apply
@@ -86,6 +106,13 @@ Additional notes:
 
 
 I've introduced a few extensions to the way WWWOFFLE can be configured:
+
+- New in version 2.9c-parexp: There four new configuration options:
+  allow-keep-alive, keep-alive-timeout, post-keep-alive, proxy-keep-alive.
+  If you want to try out persistent connections, make sure to set
+  allow-keep-alive=yes in the Options section of wwwoffle.conf. The default
+  values of the other options should be OK in most cases. You can read about
+  them in the man page or README.CONF.html
 
 - New in version 2.8e-par-9: I have added a new option to the OnlineOptions
   section called keep-cache-if-header-matches. This option is similar to

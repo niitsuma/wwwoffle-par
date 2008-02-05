@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2004,2005,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2004,2005,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -23,8 +23,10 @@
 #include <ctype.h>
 
 #include "misc.h"
+#include "errors.h"
 #include "config.h"
 #include "proto.h"
+#include "sockets.h"
 
 
 inline static const char *strchr_with_endptr(const char *str,const char *endptr,int c)
@@ -376,6 +378,7 @@ URL *MakeModifiedURL(const URL *Url,int modflags,const char *proto,const char *h
    newUrl->private_link=NULL;
 
    newUrl->hashvalid=0;
+   newUrl->addrvalid=0;
  }
  else {
    /* Clone Url without modifications */
@@ -399,7 +402,9 @@ URL *MakeModifiedURL(const URL *Url,int modflags,const char *proto,const char *h
    newUrl->private_link= Url->private_link?((Url->private_link!=Url->name)?strdup(Url->private_link):newUrl->name):NULL;
 
    newUrl->hash=Url->hash;
+   newUrl->addr=Url->addr;
    newUrl->hashvalid=Url->hashvalid;
+   newUrl->addrvalid=Url->addrvalid;
  }
 
  return(newUrl);

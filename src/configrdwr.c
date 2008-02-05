@@ -44,10 +44,10 @@
 
 #include "io.h"
 #include "misc.h"
-#include "proto.h"
-#include "errors.h"
 #include "configpriv.h"
 #include "config.h"
+#include "proto.h"
+#include "errors.h"
 
 
 #ifndef O_BINARY

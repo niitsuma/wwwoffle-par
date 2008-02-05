@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -115,6 +115,15 @@ ConfigItem DNSTimeout;
 /*+ The amount of time that a socket will wait for the intial connection. +*/
 ConfigItem ConnectTimeout;
 
+/*+ The amount of time to wait before an inactive persistent connection is dropped. +*/
+ConfigItem KeepAliveTimeout;
+
+/*+ The option to allow persistent connections. +*/
+ConfigItem AllowKeepAlive;
+
+/*+ The option to allow persistent connections after finishing a POST request. +*/
+ConfigItem PostKeepAlive;
+
 /*+ The option to retry a failed connection. +*/
 ConfigItem ConnectRetry;
 
@@ -146,6 +155,9 @@ static ConfigItemDef options_itemdefs[]={
  {"socket-timeout"       ,&SocketTimeout      ,0,0,Fixed,TimeSecs   ,"2m"       },
  {"dns-timeout"          ,&DNSTimeout         ,0,0,Fixed,TimeSecs   ,"1m"       },
  {"connect-timeout"      ,&ConnectTimeout     ,0,0,Fixed,TimeSecs   ,"30"       },
+ {"keep-alive-timeout"   ,&KeepAliveTimeout   ,0,0,Fixed,TimeSecs   ,"30"       },
+ {"allow-keep-alive"     ,&AllowKeepAlive     ,0,0,Fixed,Boolean    ,"no"       },
+ {"post-keep-alive"      ,&PostKeepAlive      ,0,0,Fixed,Boolean    ,"yes"      },
  {"connect-retry"        ,&ConnectRetry       ,0,0,Fixed,Boolean    ,"no"       },
  {"dir-perm"             ,&DirPerm            ,0,0,Fixed,FileMode   ,XSTR(DEF_DIR_PERM) },
  {"file-perm"            ,&FilePerm           ,0,0,Fixed,FileMode   ,XSTR(DEF_FILE_PERM) },
@@ -750,6 +762,9 @@ ConfigItem Proxies;
 ConfigItem ProxyAuthUser,       /*+ username. +*/
            ProxyAuthPass;       /*+ password. +*/
 
+/*+ The option to allow persistent connections to other proxies. +*/
+ConfigItem ProxyKeepAlive;
+
 /*+ The SSL proxy to use. +*/
 ConfigItem SSLProxy;
 
@@ -761,12 +776,13 @@ ConfigItem SocksRemoteDNS;
 
 /*+ The item defintions in the Proxy section. +*/
 static ConfigItemDef proxy_itemdefs[]={
+ {"proxy"           ,&Proxies       ,1,0,Fixed,HostAndPortOrNone,NULL},
  {"auth-username"   ,&ProxyAuthUser ,1,0,Fixed,String           ,NULL},
  {"auth-password"   ,&ProxyAuthPass ,1,0,Fixed,String           ,NULL},
+ {"proxy-keep-alive",&ProxyKeepAlive,1,0,Fixed,Boolean          ,"yes"},
  {"socks"           ,&SocksProxy    ,1,0,Fixed,HostAndPortOrNone,NULL},
  {"socks-remote-dns",&SocksRemoteDNS,1,0,Fixed,Boolean          ,"no"},
- {"ssl"             ,&SSLProxy      ,1,0,Fixed,HostAndPortOrNone,NULL},
- {"proxy"           ,&Proxies       ,1,0,Fixed,HostAndPortOrNone,NULL}
+ {"ssl"             ,&SSLProxy      ,1,0,Fixed,HostAndPortOrNone,NULL}
 };
 
 /*+ The Proxy section. +*/

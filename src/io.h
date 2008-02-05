@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2004,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2004,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -45,6 +45,7 @@ void reinit_io(int fd);
 void configure_io_timeout(int fd,int timeout_r,int timeout_w);
 inline static void configure_io_timeout_rw(int fd,int timeout) {configure_io_timeout(fd,timeout,timeout);}
 void configure_io_content_length(int fd,unsigned long content_length);
+unsigned long io_content_remaining(int fd);
 
 #if USE_ZLIB
 int configure_io_zlib(int fd,int zlib_r,int zlib_w);
@@ -73,12 +74,16 @@ ssize_t /*@alt void@*/ write_formatted(int fd,const char *fmt,...) /*@printflike
 
 int tell_io(int fd,/*@out@*/ /*@null@*/ unsigned long* r,/*@out@*/ /*@null@*/ unsigned long *w);
 
-#define finish_io(fd) finish_tell_io(fd,NULL,NULL)
+#define finish_io(fd) finish_tell_io_full(fd,0,NULL,NULL)
+#define finish_tell_io(fd,r,w) finish_tell_io_full(fd,0,r,w)
+#define finish_io_content(fd) finish_tell_io_full(fd,1,NULL,NULL)
 
-int finish_tell_io(int fd,/*@out@*/ /*@null@*/ unsigned long* r,/*@out@*/ /*@null@*/ unsigned long *w);
+int finish_tell_io_full(int fd,int partialreset,/*@out@*/ /*@null@*/ unsigned long* r,/*@out@*/ /*@null@*/ unsigned long *w);
 
 ssize_t read_all_or_timeout(int fd,char *buf,size_t n,unsigned timeout);
 #define read_all(fd,buf,n) read_all_or_timeout(fd,buf,n,0)
 ssize_t write_all(int fd,const char *data,size_t n);
+int check_more_to_read(int fd, int fd2, unsigned timeout);
+int io_read_eof(int fd);
 
 #endif /* IO_H */

@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1996,97,98,99,2000,01,02,03,04 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2004,2005,2006 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2004,2005,2006,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -18,9 +18,13 @@
 #ifndef SOCKETS_H
 #define SOCKETS_H    /*+ To stop multiple inclusions. +*/
 
+#include "misc.h"
+
 /* in sockets.c */
 
-int OpenClientSocket(char* host,int port, char *shost,int sport,int socks_remote_dns,char *shost_ipbuf);
+int OpenClientSocketAddr(IPADDR *addr,int port, IPADDR *saddr,char *shost,int sport);
+int OpenClientSocket(char *host,int port);
+int OpenUrlSocket(URL *Url,socksdata_t *socksproxy);
 
 int OpenServerSocket(char* host,int port);
 int AcceptConnect(int socket);
@@ -35,33 +39,29 @@ char /*@null@*/ *GetFQDN(void);
 
 void SetDNSTimeout(int timeout);
 void SetConnectTimeout(int timeout);
+int resolve_name(char *name, IPADDR *a);
+socksdata_t *MakeSocksData(char *hostport, unsigned short remotedns, socksdata_t *socksbuf);
 
-/* following Added by Paul Rombouts */
-#include <sys/param.h>
-
-#if USE_IPV6
-#define max_hostname_len NI_MAXHOST
-#define ipaddr_strlen    INET6_ADDRSTRLEN
-
-#else /* use IPV4 */
-#define max_hostname_len MAXHOSTNAMELEN
-#define ipaddr_strlen    16
-#endif
-
-/* A macro to prepare hostnames/ports for a call to OpenClientSocket()
-   in case a SOCKS proxy is used.
-   sproxy should be a string containing the hostname:port
-   of the SOCKS server.
-*/
-#define SETSOCKSHOSTPORT(sproxy,host,port,shost,sport)		\
-{								\
-  char *tmp_hoststr, *tmp_portstr; size_t tmp_hostlen;		\
-								\
-  (shost)=(host);						\
-  (sport)=(port);						\
-  SplitHostPort(sproxy,&tmp_hoststr,&tmp_hostlen,&tmp_portstr);	\
-  (host)=strndupa(tmp_hoststr,tmp_hostlen);			\
-  (port)=(tmp_portstr?atoi(tmp_portstr):DEFSOCKSPORT);		\
+/* Get the binary IP address of a URL host. */
+inline static IPADDR *get_url_ipaddr(URL *Url)
+{
+  if(!(Url->addrvalid)) {
+    if(!resolve_name(Url->host,&Url->addr))
+      return NULL;
+    Url->addrvalid=1;
+  }
+  return &Url->addr;
 }
+
+/* Macros to compare two IP addresses. The arguments a and b should have type IPADDR*. */
+#if USE_IPV6
+#define IPADDR_EQUIV(a,b) \
+	((((uint32_t *) (a))[0] == ((uint32_t *) (b))[0]) && \
+	 (((uint32_t *) (a))[1] == ((uint32_t *) (b))[1]) && \
+	 (((uint32_t *) (a))[2] == ((uint32_t *) (b))[2]) && \
+	 (((uint32_t *) (a))[3] == ((uint32_t *) (b))[3]))
+#else /* use IPV4 */
+#define IPADDR_EQUIV(a,b) ((a)->s_addr==(b)->s_addr)
+#endif
 
 #endif /* SOCKETS_H */

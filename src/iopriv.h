@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2004,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2004,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -42,6 +42,7 @@ io_buffer;
 #define iobuf_reset(p) ((p)->front=(p)->rear=0)
 #define iobuf_numbytes(p) ((p)->rear-(p)->front)
 #define iobuf_isempty(p) ((p)->front>=(p)->rear)
+#define iobuf_hasroom(p) ((p)->front>=(p)->rear || (p)->rear<(p)->size)
 #define iobuf_datastart(p) ((p)->data+(p)->front)
 
 
@@ -126,6 +127,7 @@ typedef struct io_context
 
  unsigned long r_raw_bytes;     /*+ The number of raw bytes read. +*/
  unsigned long content_remaining; /*+ The expected number of remaining raw bytes still to read. +*/
+ unsigned long content_overflow; /*+ The number of bytes in r_file_data that exceeds the expected content-length. +*/
 
  /* Write parameters */
 
@@ -155,6 +157,7 @@ typedef struct io_context
 
  /* Error flags */
 
+ int read_eof;                  /*+ Indicates whether an end-of-file occurred while reading raw data. +*/
  int saved_errno;               /*+ Saved errno of last failed I/O operation. +*/
 }
 io_context;

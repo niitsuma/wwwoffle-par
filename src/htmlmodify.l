@@ -59,9 +59,9 @@ val             ({alphanum}|{nonascii}|{safepunct})+
 #include "wwwoffle.h"
 #include "io.h"
 #include "misc.h"
+#include "config.h"
 #include "proto.h"
 #include "errors.h"
-#include "config.h"
 #include "document.h"
 
 
@@ -1690,7 +1690,7 @@ static void modify_html(URL *Url)
        if(prefix)
          {YY_OUTPUT(" --");}
        if(yychar==LEX_TAG_END_XHTML && !prefix)
-         {YY_OUTPUT(" />");}
+         {YY_OUTPUT("/>");}
        else
          {YY_OUTPUT(">");}
 

@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -38,6 +38,8 @@
 # endif
 #endif
 
+#include <netinet/in.h>
+
 
 /*+ The longest string needed to contain an integer. +*/
 #define MAX_INT_STR 20  /* to hold a 64-bit unsigned long: 18446744073709551615ULL */
@@ -47,6 +49,12 @@ typedef struct {
   uint32_t elem[4];
 }
 md5hash_t;
+
+#if USE_IPV6
+#define IPADDR struct in6_addr
+#else /* use IPV4 */
+#define IPADDR struct in_addr
+#endif
 
 
 /*+ A URL data type. +*/
@@ -78,10 +86,20 @@ typedef struct _URL
  char *private_dir;             /*+ The directory name for the host to avoid using ':' on Win32 (may point to hostport).  Private data. +*/
 #endif
 
- md5hash_t hash;                /*+ The (binary) hash value used to make the filename for this URL +*/
+ md5hash_t hash;                /*+ The (binary) hash value used to make the filename for this URL. +*/
+ IPADDR addr;                   /*+ The binary IP address belonging to the host name for this URL. +*/
  char hashvalid;                /*+ Set to true if the hash field contains the correct hash value. +*/
+ char addrvalid;                /*+ Set to true if the addr field contains the correct IP address. +*/
 }
 URL;
+
+
+typedef struct {
+  IPADDR addr;
+  unsigned short port;
+  unsigned short remotedns;
+}
+socksdata_t;
 
 
 /*+ A request or reply header type. +*/

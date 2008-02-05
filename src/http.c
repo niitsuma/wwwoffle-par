@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2006,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2003,2004,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -29,13 +29,6 @@
 #include "proto.h"
 
 
-/*+ Set to the name of the proxy if there is one. +*/
-static URL /*@null@*/ /*@only@*/ *proxyUrl=NULL;
-
-/*+ The file descriptor of the server. +*/
-static int server=-1;
-
-
 /*++++++++++++++++++++++++++++++++++++++
   Open a connection to get a URL using HTTP.
 
@@ -44,15 +37,13 @@ static int server=-1;
   URL *Url The URL to open.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *HTTP_Open(URL *Url)
+char *HTTP_Open(Connection *connection,URL *Url)
 {
  char *msg=NULL;
  char *proxy=NULL,*sproxy=NULL;
- char *server_host=NULL;
- int server_port=0;
- char *socks_host=NULL;
- int socks_port=0;
- int socksremotedns=0;
+ int socksremotedns=0,server=-1;
+ URL *proxyUrl=NULL;
+ socksdata_t *socksdata=NULL,socksbuf;
 
  /* Sort out the host. */
 
@@ -62,33 +53,23 @@ char *HTTP_Open(URL *Url)
    socksremotedns=ConfigBooleanURL(SocksRemoteDNS,Url);
  }
 
- if(proxyUrl) {
-   FreeURL(proxyUrl);
-   proxyUrl=NULL;
- }
- if(proxy) {
-   proxyUrl=CreateURL("http",proxy,"/",NULL,NULL,NULL);
-   server_host=proxyUrl->host;
-   server_port=proxyUrl->portnum;
- }
- else {
-   server_host=Url->host;
-   server_port=Url->portnum;
- }
-
- if(sproxy)
-   SETSOCKSHOSTPORT(sproxy,server_host,server_port,socks_host,socks_port);
+ if(proxy)
+   Url=proxyUrl=CreateURL("http",proxy,"/",NULL,NULL,NULL);
 
  /* Open the connection. */
 
- server=OpenClientSocket(server_host,server_port,socks_host,socks_port,socksremotedns,NULL);
-
- if(server==-1)
-    msg=GetPrintMessage(Warning,"Cannot open the HTTP connection to %s port %d; [%!s].",server_host,server_port);
+ if((sproxy && !(socksdata= MakeSocksData(sproxy,socksremotedns,&socksbuf))) ||
+    (server=OpenUrlSocket(Url,socksdata))==-1)
+   {
+     msg=GetPrintMessage(Warning,"Cannot open the HTTP connection to %s port %d; [%!s].",Url->host,Url->portnum);
+     if(proxyUrl) FreeURL(proxyUrl);
+   }
  else
    {
-    init_io(server);
-    configure_io_timeout_rw(server,ConfigInteger(SocketTimeout));
+     init_io(server);
+     configure_io_timeout_rw(server,ConfigInteger(SocketTimeout));
+     connection->fd=server;
+     connection->proxyUrl=proxyUrl;
    }
 
  return(msg);
@@ -107,9 +88,10 @@ char *HTTP_Open(URL *Url)
   Body *request_body The body of the HTTP request for the URL.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *HTTP_Request(URL *Url,Header *request_head,Body *request_body)
+char *HTTP_Request(Connection *connection,URL *Url,Header *request_head,Body *request_body)
 {
  char *msg=NULL,*head; size_t headlen;
+ URL *proxyUrl=connection->proxyUrl;
 
  /* Make the request OK for a proxy or not. */
 
@@ -127,11 +109,10 @@ char *HTTP_Request(URL *Url,Header *request_head,Body *request_body)
  else
     PrintMessage(ExtraDebug,"Outgoing Request Head (to server)\n%s",head);
 
- if(write_data(server,head,headlen)==-1)
+ if(write_data(connection->fd,head,headlen)<0)
     msg=GetPrintMessage(Warning,"Failed to write head to remote HTTP %s; [%!s].",proxyUrl?"proxy":"server");
- if(request_body)
-    if(write_data(server,request_body->content,request_body->length)==-1)
-       msg=GetPrintMessage(Warning,"Failed to write body to remote HTTP %s; [%!s].",proxyUrl?"proxy":"server");
+ else if(request_body && write_data(connection->fd,request_body->content,request_body->length)<0)
+    msg=GetPrintMessage(Warning,"Failed to write body to remote HTTP %s; [%!s].",proxyUrl?"proxy":"server");
 
  free(head);
 
@@ -142,16 +123,15 @@ char *HTTP_Request(URL *Url,Header *request_head,Body *request_body)
 /*++++++++++++++++++++++++++++++++++++++
   Read a line from the header of the reply for the URL.
 
-  int HTTP_ReadHead Returns the server socket file descriptor.
-
-  Header **reply_head Returns the header of the reply.
+  Header *HTTP_ReadHead Returns the header of the reply.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int HTTP_ReadHead(Header **reply_head)
+Header *HTTP_ReadHead(Connection *connection)
 {
- ParseReply(server,reply_head);
+ Header *reply_head=NULL;
+ ParseReply(connection->fd,&reply_head);
 
- return(server);
+ return reply_head;
 }
 
 
@@ -165,9 +145,15 @@ int HTTP_ReadHead(Header **reply_head)
   size_t n The number of bytes to read.
   ++++++++++++++++++++++++++++++++++++++*/
 
-ssize_t HTTP_ReadBody(char *s,size_t n)
+ssize_t HTTP_ReadBody(Connection *connection,char *s,size_t n)
 {
- return(read_data(server,s,n));
+ return(read_data(connection->fd,s,n));
+}
+
+
+int HTTP_FinishBody(Connection *connection)
+{
+ return(finish_io_content(connection->fd));
 }
 
 
@@ -177,19 +163,20 @@ ssize_t HTTP_ReadBody(char *s,size_t n)
   int HTTP_Close Return 0 on success, -1 on error.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int HTTP_Close(void)
+int HTTP_Close(Connection *connection)
 {
  unsigned long r,w;
+ int server=connection->fd;
 
  if(finish_tell_io(server,&r,&w)<0)
    PrintMessage(Inform,"Error finishing IO on socket with remote host [%!s].");
 
  PrintMessage(Inform,"Server bytes; %lu Read, %lu Written.",r,w); /* Used in audit-usage.pl */
 
- if(proxyUrl) {
-   FreeURL(proxyUrl);
-   proxyUrl=NULL;
- }
+#if 0
+ /* We can clean up the connection context here, or rely on ConnectionClose to do it. */
+ if(connection->proxyUrl) {FreeURL(connection->proxyUrl); connection->proxyUrl=NULL;}
+#endif
 
  return(CloseSocket(server));
 }

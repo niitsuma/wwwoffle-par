@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -130,6 +130,10 @@ int ChangeToSpoolDir(const char *dir);
 int /*@alt void@*/ ChangeBackToSpoolDir(void);
 int CloseSpoolDir();
 
+int SetCurrentOnlineStatus(int online);
+int GetCurrentOnlineStatus(int *online);
+int CleanupCurrentOnlineStatus();
+
 
 /* In parse.c */
 
@@ -163,9 +167,10 @@ void ModifyReply(const URL *Url,Header *reply_head);
 
 extern ssize_t out_err;
 extern int head_only;
+extern int client_keep_connection;
 void SetMessageOptions(int compressed,int chunked);
 void HTMLMessage(int fd,int status_val,const char *status_str,/*@null@*/ const char *location,const char *template, ...);
-void HTMLMessageHead(int fd,int status_val,const char *status_str, ...);
+int  HTMLMessageHead(int fd,int status_val,const char *status_str, ...);
 void HTMLMessageBody(int fd,const char *template, ...);
 char /*@observer@*/ *HTMLMessageString(const char *template, ...);
 void FinishMessages(void);

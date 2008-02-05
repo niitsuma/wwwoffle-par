@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -174,39 +174,9 @@ URL *ParseRequest(int fd,Header **request_head,Body **request_body)
  if(!strcmp((*request_head)->method,"POST") ||
     !strcmp((*request_head)->method,"PUT"))
    {
-    if((val=GetHeader(*request_head,"Content-Length")))
+    if(GetHeader2(*request_head,"Transfer-Encoding","chunked"))
       {
-       int length=atoi(val),nread;
-
-       if(length<0)
-         {
-          PrintMessage(Warning,"POST or PUT request must have a non-negative Content-Length header.");
-	  goto free_return_null;
-	 }
-
-       *request_body=CreateBody(length);
-
-       for(nread=0;nread<length;) {
-	 int m=read_data(fd,&(*request_body)->content[nread],length-nread);
-	 if(m<0) {
-	   PrintMessage(Warning,"Error reading body of POST or PUT request [%!s].");
-	   goto free_return_null;
-	 }
-	 if(m==0)
-	   break;
-	 nread += m;
-       }
-
-       if(nread!=length) {
-	 PrintMessage(Warning,"POST or PUT request must have same data length as specified in Content-Length header (%d compared to %d).",length,nread);
-	 goto free_return_null;
-       }
-
-       (*request_body)->content[length]=0;
-      }
-    else if(GetHeader2(*request_head,"Transfer-Encoding","chunked"))
-      {
-	int length,lenalloc;
+       int length,lenalloc;
 
        PrintMessage(Debug,"Client has used chunked encoding.");
        configure_io_chunked(fd,1,-1);
@@ -232,11 +202,48 @@ URL *ParseRequest(int fd,Header **request_head,Body **request_body)
        *request_body=ReallocBody(*request_body,length);
        (*request_body)->content[length]=0;
       }
+    else if((val=GetHeader(*request_head,"Content-Length")))
+      {
+       int length=atoi(val),nread;
+
+       if(length<0)
+         {
+          PrintMessage(Warning,"POST or PUT request must have a non-negative Content-Length header.");
+	  goto free_return_null;
+	 }
+
+       configure_io_content_length(fd,length);
+       *request_body=CreateBody(length);
+
+       for(nread=0;nread<length;) {
+	 int m=read_data(fd,&(*request_body)->content[nread],length-nread);
+	 if(m<0) {
+	   PrintMessage(Warning,"Error reading body of POST or PUT request [%!s].");
+	   goto free_return_null;
+	 }
+	 if(m==0)
+	   break;
+	 nread += m;
+       }
+
+       if(nread!=length) {
+	 PrintMessage(Warning,"POST or PUT request must have same data length as specified in Content-Length header (%d compared to %d).",length,nread);
+	 goto free_return_null;
+       }
+
+       (*request_body)->content[length]=0;
+      }
     else
       {
        PrintMessage(Warning,"POST or PUT request must have Content-Length header or use chunked encoding.");
        goto free_return_null;
       }
+
+    /* Finish with reading the request body. */
+    if(finish_io_content(fd)<0) {
+      PrintMessage(Warning,"Error reading body of POST or PUT request, finish_io_content failed [%!s].");
+      goto free_return_null;
+    }
 
     {
       md5hash_t h;
@@ -391,10 +398,12 @@ int RequireChanges(int fd,const URL *Url,char **ims,char **inm)
 
            if((now-then)>maxage)
              {
-	      char maxage_str[MAXDURATIONSIZE];
+	      if(StderrLevel>=0 && StderrLevel<=Debug) {
+		char maxage_str[MAXDURATIONSIZE];
 
-	      DurationToString_r(maxage,maxage_str);
-              PrintMessage(Debug,"Requesting URL (Cache-Control expiry time of %s from '%s').",maxage_str,date);
+		DurationToString_r(maxage,maxage_str);
+		PrintMessage(Debug,"Requesting URL (Cache-Control expiry time of %s from '%s').",maxage_str,date);
+	      }
               retval=1;
 	      goto cleanup_return;
              }
@@ -442,11 +451,13 @@ int RequireChanges(int fd,const URL *Url,char **ims,char **inm)
 
        if(requestchanged<0 || (now-buf.st_mtime)<requestchanged)
          {
-	  char age[MAXDURATIONSIZE],config_age[MAXDURATIONSIZE];
+	  if(StderrLevel>=0 && StderrLevel<=Debug) {
+	    char age[MAXDURATIONSIZE],config_age[MAXDURATIONSIZE];
 
-	  DurationToString_r(now-buf.st_mtime,age);
-	  DurationToString_r(requestchanged,config_age);
-          PrintMessage(Debug,"Not requesting URL (Last changed %s ago, config is %s).", age,config_age);
+	    DurationToString_r(now-buf.st_mtime,age);
+	    DurationToString_r(requestchanged,config_age);
+	    PrintMessage(Debug,"Not requesting URL (Last changed %s ago, config is %s).", age,config_age);
+	  }
           retval=0;
          }
        else if(!ConfigBooleanURL(RequestConditional,Url))
@@ -1088,6 +1099,10 @@ void ModifyReply(const URL *Url,Header *reply_head)
    nextline: ;
    }
  }
+
+ /* Remove some headers */
+
+ RemoveFromHeader(reply_head,"Keep-Alive");
 
  /* Remove headers used by WWWOFFLE for internal use only. */
 

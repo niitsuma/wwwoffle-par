@@ -25,9 +25,9 @@
 #include "io.h"
 #include "misc.h"
 #include "headbody.h"
+#include "config.h"
 #include "proto.h"
 #include "errors.h"
-#include "config.h"
 #include "document.h"
 
 

@@ -228,14 +228,14 @@ ssize_t io_gnutls_read_with_timeout(io_gnutls *context,io_buffer *out,unsigned t
     fd_set readfd;
     struct timeval tv;
 
+    tv.tv_sec=timeout;
+    tv.tv_usec=0;
+
     do
       {
        FD_ZERO(&readfd);
 
        FD_SET(context->fd,&readfd);
-
-       tv.tv_sec=timeout;
-       tv.tv_usec=0;
 
        n=select(context->fd+1,&readfd,NULL,NULL,&tv);
 

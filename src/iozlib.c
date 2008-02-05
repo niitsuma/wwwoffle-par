@@ -401,7 +401,7 @@ int io_zlib_uncompress(io_buffer *in,io_zlib *context,io_buffer *out)
        context->ht_bytenr=1;
     }
    }
- else if(err!=Z_OK)
+ else if(err!=Z_OK && err!=Z_BUF_ERROR)
    {
     set_zerror(err,context->stream.msg);
     return(-1);

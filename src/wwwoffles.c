@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06,07 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -105,7 +105,7 @@ Mode;
 static URL *modify_Url;         /*+ the URL that is being modified. +*/
 
 /*+ Variables to allow the modifications to take place on the data stream; +*/
-static const Protocol *modify_UrlProtocol; /*+ the Protocol for the URL that is being modified. +*/
+static Connection *modify_connection; /*+ the connection for the URL that is being modified. +*/
 
 /*+ Variables to allow the modifications to take place on the data stream; +*/
 static int modify_read_fd,      /*+ the file descriptor to read from. +*/
@@ -131,21 +131,23 @@ static ssize_t modify_err,      /*+ the error when writing. +*/
 
 int wwwoffles(int online,int fetching,int client)
 {
- int outgoing_read=-1,outgoing_write=-1,spool=-1,tmpclient=-1,server=-1,is_server=0;
+ int outgoing_read=-1,outgoing_write=-1,spool=-1,tmpclient=-1,is_server=0;
  int exitval=-1,fetch_again=0;
  URL *outgoingUrl=NULL;
  Header *request_head=NULL,*reply_head=NULL;
  Body   *request_body=NULL;
  int reply_status=-1;
  URL *Url=NULL,*Urlpw=NULL;
- const Protocol* UrlProtocol=NULL;
+ Connection *connection=NULL;
  Mode mode=None;
  int outgoing_exists=0,outgoing_exists_pw=0,createlasttimespoolfile=0;
  time_t spool_exists=0,spool_exists_pw=0;
  int conditional_request_ims=0,conditional_request_inm=0,not_modified_spool=0;
  int offline_request=1;
+ int caching_ssl_connection=0;
  int is_client_wwwoffle=0;
  int is_client_searcher=0;
+ int new_server_connection=0,server_keep_connection=0;
 #if USE_ZLIB
  int client_compression=0,request_compression=0,server_compression=0;
 #endif
@@ -162,6 +164,7 @@ int wwwoffles(int online,int fetching,int client)
  InitErrorHandler("wwwoffles",-1,-1); /* change name nothing else */
 
  head_only=0;
+ client_keep_connection=0;
 
  if(online==1 && !fetching)
     mode=Real;
@@ -175,22 +178,22 @@ int wwwoffles(int online,int fetching,int client)
     PrintMessage(Fatal,"Started in a mode that is not allowed (online=%d, fetching=%d).",online,fetching);
 
 
- /*----------------------------------------
-   mode = Spool, Real, SpoolOrReal or Fetch
-
-   Set up the input file to read the request from, either client or stored in outgoing.
-   ----------------------------------------*/
-
  /* Check the client file descriptor (client connection). */
 
  if(client==-1 && mode!=Fetch)
     PrintMessage(Fatal,"Cannot use client file descriptor %d.",client);
 
+ /*----------------------------------------
+   mode = Spool, Real, SpoolOrReal or Fetch
+
+   Parse the request and make some checks on the type of request and request options.
+   ----------------------------------------*/
+
+ /* Get the URL from the request and read the header and body (if present). */
+
+ if(mode!=Fetch) {   /* mode==Real || mode==Spool || mode==SpoolOrReal */
 #if USE_GNUTLS
-
- /* Check if we are using http or https client connection. */
-
- if(mode!=Fetch)
+   /* Check if we are using http or https client connection. */
    {
     char *host,*ip;
     int port;
@@ -204,13 +207,18 @@ int wwwoffles(int online,int fetching,int client)
              PrintMessage(Fatal,"Cannot start SSL/TLS connection");
       }
    }
-
 #endif
-
- /* Open up the outgoing file for reading the stored request from. */
-
- if(mode==Fetch)
+ parse_request:
+   Url=ParseRequest(client,&request_head,&request_body);
+   if(caching_ssl_connection && Url) {
+     URL *httpsUrl=MakeModifiedURL(Url,REPLACEURLPROTO,"https",NULL,NULL,NULL,NULL,NULL);
+     FreeURL(Url);
+     Url=httpsUrl;
+   }
+ }
+ else /* if(mode==Fetch) */
    {
+    /* Set up the input file to read the request from, stored in outgoing. */
     outgoing_read=OpenExistingOutgoingSpoolFile(&outgoingUrl);
 
     if(outgoing_read==-1 || !outgoingUrl)
@@ -220,29 +228,10 @@ int wwwoffles(int online,int fetching,int client)
       }
 
     init_io(outgoing_read);
-   }
-
-
- /*----------------------------------------
-   mode = Spool, Real, SpoolOrReal or Fetch
-
-   Parse the request and make some checks on the type of request and request options.
-   ----------------------------------------*/
-
- /* Get the URL from the request and read the header and body (if present). */
-
- if(mode==Real || mode==Spool || mode==SpoolOrReal)
-    Url=ParseRequest(client,&request_head,&request_body);
- else /* if(mode==Fetch) */
-   {
     Url=ParseRequest(outgoing_read,&request_head,&request_body);
     if(Url) FreeURL(Url);
     Url=outgoingUrl;
    }
-
-#if USE_GNUTLS
- checkrequest:
-#endif
 
  if(StderrLevel==ExtraDebug)
    {
@@ -281,6 +270,13 @@ int wwwoffles(int online,int fetching,int client)
 
     exitval=1; goto free_request_head_body;
    }
+
+ /* Check if the client wants a persistent connection. */
+ client_keep_connection= (!fetching && ConfigBoolean(AllowKeepAlive) &&
+			  !GetHeader2(request_head,"Connection","close") &&
+			  (GetHeader2(request_head,"Connection","Keep-Alive") ||
+			   !strcmp(request_head->version,"HTTP/1.1")));
+
 
  /* Check if the client can use compression and work out which type. */
 
@@ -354,7 +350,7 @@ int wwwoffles(int online,int fetching,int client)
 	   HTMLMessageHead(client,407,"WWWOFFLE Proxy Authentication Required",
 			   "Proxy-Authenticate","Basic realm=\"wwwoffle-proxy\"",
 			   NULL);
-	   if(out_err!=-1 && !head_only)
+	   if(out_err!=-1 && strcmp(request_head->method,"HEAD"))
 	     HTMLMessageBody(client,"ProxyAuthFail",
 			     NULL);
 	   mode=InternalPage; goto internalpage;
@@ -448,11 +444,9 @@ int wwwoffles(int online,int fetching,int client)
 #if USE_GNUTLS
     else if(ConfigBoolean(SSLEnableCaching) && IsSSLAllowed(Url,1)) /* cache SSL connection */
       {
-       URL *httpsUrl;
-
        PrintMessage(Inform,"SSL(cached)='%s'.",Url->hostport); /* Used in audit-usage.pl */
 
-       if(write_string(client,"HTTP/1.0 200 WWWOFFLE SSL OK\r\n\r\n")==-1) {
+       if(write_string(client,"HTTP/1.0 200 WWWOFFLE SSL OK\r\n\r\n")<0) {
 	 PrintMessage(Inform,"Error writing to client [%!s]; client disconnected?");
 	 exitval=0; goto clean_up;
        }
@@ -468,14 +462,8 @@ int wwwoffles(int online,int fetching,int client)
        if(request_body)
 	 FreeBody(request_body);
 
-       httpsUrl=ParseRequest(client,&request_head,&request_body);
-
-       if(httpsUrl) {
-	 Url=MakeModifiedURL(httpsUrl,REPLACEURLPROTO,"https",NULL,NULL,NULL,NULL,NULL);
-	 FreeURL(httpsUrl);
-       }
-
-       goto checkrequest;
+       caching_ssl_connection=1;
+       goto parse_request;
       }
 #endif
     else
@@ -1273,14 +1261,14 @@ passwordagain:
 
  /* If a HEAD request when online then don't cache */
 
- if((mode==Real || mode==RealRefresh) && head_only)
+ if(mode==RealRefresh && head_only)
    {
     mode=RealNoCache;
    }
 
  /* If not caching then only use the password version. */
 
- if(mode==RealNoCache && Urlpw)
+ if((mode==RealNoCache || (mode==Real && head_only)) && Urlpw)
    {
     FreeURL(Url);
     Url=Urlpw;
@@ -1307,6 +1295,10 @@ passwordagain:
 
     if(mode==Spool)
        mode=SpoolGet;
+
+    /* Keep-Alive and POST is tricky, so we may want to disallow persistent connections. */
+    if(!ConfigBoolean(PostKeepAlive))
+      client_keep_connection= 0;
    }
 
  /* Check if the URL indicates the request for */
@@ -1348,12 +1340,12 @@ passwordagain:
    ----------------------------------------*/
 
  {
-  char *user_agent=GetHeader(request_head,"User-Agent");
-  if(user_agent)
-     is_client_searcher=!strcasecmp_litbeg(user_agent,"htdig") ||
+  char *user_agent;
+  is_client_searcher= ((user_agent=GetHeader(request_head,"User-Agent")) &&
+		       (!strcasecmp_litbeg(user_agent,"htdig") ||
                         !strcasecmp_litbeg(user_agent,"mnoGoSearch") ||
                         !strcasecmp_litbeg(user_agent,"UdmSearch") ||
-                        !strcasecmp_litbeg(user_agent,"WDG_Validator");
+			!strcasecmp_litbeg(user_agent,"WDG_Validator")));
  }
 
  if(is_client_searcher)
@@ -1550,35 +1542,47 @@ passwordagain:
 
 	 if(RequireChanges(spool,Url,&ims,&inm))
 	   {
-	     if(conditional_request_ims || conditional_request_inm) {
-	       lseek(spool,0,SEEK_SET);
-	       reinit_io(spool);
+	     if(head_only) {
+	       mode=RealNoCache;
 
-	       /* We may want to send a not-modified header to the client when the
-		  server also replies "Not Modified".
-		  Check this with the present request_head, because the
-		  original conditional request headers from the client
-		  are going to be replaced.
-	       */
-
-	       not_modified_spool= !IsModified(spool,request_head);
+	       if(conditional_request_ims)
+		 RemoveFromHeader(request_head,"If-Modified-Since");
+	       if(conditional_request_inm)
+		 RemoveFromHeader(request_head,"If-None-Match");
+	       if(inm) free(inm);
+	       if(ims) free(ims);
 	     }
+	     else {
+	       if(conditional_request_ims || conditional_request_inm) {
+		 lseek(spool,0,SEEK_SET);
+		 reinit_io(spool);
+
+		 /* We may want to send a not-modified header to the client when the
+		    server also replies "Not Modified".
+		    Check this with the present request_head, because the
+		    original conditional request headers from the client
+		    are going to be replaced.
+		 */
+
+		 not_modified_spool= !IsModified(spool,request_head);
+	       }
 	     
-	     /* Remove the conditional headers only after calling IsModified(). */
+	       /* Remove the conditional headers only after calling IsModified(). */
 
-	     if(conditional_request_ims)
-	       RemoveFromHeader(request_head,"If-Modified-Since");
-	     if(conditional_request_inm)
-	       RemoveFromHeader(request_head,"If-None-Match");
-	     if(inm) {
-	       AddToHeader(request_head,"If-None-Match",inm);
-	       PrintMessage(Debug,"Requesting URL (Conditional request with If-None-Match: %s).",inm);
-	       free(inm);
-	     }
-	     if(ims) {
-	       AddToHeader(request_head,"If-Modified-Since",ims);
-	       PrintMessage(Debug,"Requesting URL (Conditional request with If-Modified-Since: %s).",ims);
-	       free(ims);
+	       if(conditional_request_ims)
+		 RemoveFromHeader(request_head,"If-Modified-Since");
+	       if(conditional_request_inm)
+		 RemoveFromHeader(request_head,"If-None-Match");
+	       if(inm) {
+		 AddToHeader(request_head,"If-None-Match",inm);
+		 PrintMessage(Debug,"Requesting URL (Conditional request with If-None-Match: %s).",inm);
+		 free(inm);
+	       }
+	       if(ims) {
+		 AddToHeader(request_head,"If-Modified-Since",ims);
+		 PrintMessage(Debug,"Requesting URL (Conditional request with If-Modified-Since: %s).",ims);
+		 free(ims);
+	       }
 	     }
 	   }
 
@@ -1589,7 +1593,7 @@ passwordagain:
 	     mode=Spool;
 	     DeleteLockWebpageSpoolFile(Url);
 
-	     if(conditional_request_ims || conditional_request_inm)
+	     if((conditional_request_ims || conditional_request_inm) && !head_only)
 	       {
 		 lseek(spool,0,SEEK_SET);
 		 reinit_io(spool);
@@ -1708,7 +1712,6 @@ passwordagain:
    Set up the spool file, outgoing file and server connection as appropriate.
    ----------------------------------------*/
 
- UrlProtocol=GetProtocol(Url);
 
  /* Set up the file descriptor for the spool file (to write). */
 
@@ -1798,68 +1801,86 @@ passwordagain:
 
  if(mode==Real || mode==RealNoCache || mode==Fetch)
    {
-    char *err=(UrlProtocol->open)(Url);
+     /* If we already have a connection to the same host and port, re-use that. */
 
-    /* Retry if the option is set. */
+     if(connection) {
+       if(ConnectionIsReusable(connection,Url))
+	 PrintMessage(Debug,"Re-using existing server/proxy connection for %s",Url->hostport);
+       else {
+	 ConnectionClose(connection);
+	 connection=NULL;
+       }
+     }
 
-    if(err && ConfigBoolean(ConnectRetry))
-      {
-       PrintMessage(Inform,"Waiting to try connection again.");
-       sleep(10);
-       free(err);
-       err=(UrlProtocol->open)(Url);
-      }
+     if(!connection) {
+       char *err=NULL;
 
-    /* In case of an error ... */
+       server_keep_connection=0;
+       connection=ConnectionOpen(Url,&err);
 
-    if(err)
-      {
-       /* Store the error in the cache. */
+       /* Retry if the option is set. */
 
-       if(mode==Real || mode==Fetch)
-         {
-          lseek(spool,0,SEEK_SET);
-          ftruncate(spool,0);
-          reinit_io(spool);
+       if(!connection && ConfigBoolean(ConnectRetry))
+	 {
+	   PrintMessage(Inform,"Waiting to try connection again.");
+	   sleep(10);
+	   free(err);
+	   connection=ConnectionOpen(Url,&err);
+	 }
 
-          HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
-                      "url",Url->name,
-                      "reason",err,
-                      "cache","yes",
-                      "backup",spool_exists?"yes":NULL,
-                      NULL);
+       /* In case of an error ... */
 
-          finish_io(spool);
-          close(spool);
-	  spool=-1;
+       if(!connection)
+	 {
+	   /* Store the error in the cache. */
 
-          DeleteLockWebpageSpoolFile(Url);
-         }
+	   if(mode==Real || mode==Fetch)
+	     {
+	       lseek(spool,0,SEEK_SET);
+	       ftruncate(spool,0);
+	       reinit_io(spool);
 
-       /* In Fetch mode print message and exit. */
+	       HTMLMessage(spool,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
+			   "url",Url->name,
+			   "reason",err,
+			   "cache","yes",
+			   "backup",spool_exists?"yes":NULL,
+			   NULL);
 
-       if(mode==Fetch)
-         {
-          if(client!=-1)
-             write_formatted(client,"Fetch Failure %s [Server Connection Failed]\n",Url->name);
-          free(err);
-          exitval=1; goto clean_up;
-         }
+	       finish_io(spool);
+	       close(spool);
+	       spool=-1;
 
-       /* Write the error to the client. */
+	       DeleteLockWebpageSpoolFile(Url);
+	     }
 
-       else /* if(mode==Real || mode==RealNoCache) */
-         {
-          HTMLMessage(client,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
-                      "url",Url->name,
-                      "reason",err,
-                      "cache",NULL,
-                      "backup",spool_exists?"yes":NULL,
-                      NULL);
-          free(err);
-          mode=InternalPage; goto internalpage;
-         }
-      }
+	   /* In Fetch mode print message and exit. */
+
+	   if(mode==Fetch)
+	     {
+	       if(client!=-1)
+		 write_formatted(client,"Fetch Failure %s [Server Connection Failed]\n",Url->name);
+	       free(err);
+	       exitval=1; goto clean_up;
+	     }
+
+	   /* Write the error to the client. */
+
+	   else /* if(mode==Real || mode==RealNoCache) */
+	     {
+	       HTMLMessage(client,503,"WWWOFFLE Remote Host Error",NULL,"RemoteHostError",
+			   "url",Url->name,
+			   "reason",err,
+			   "cache",NULL,
+			   "backup",spool_exists?"yes":NULL,
+			   NULL);
+	       free(err);
+	       mode=InternalPage; goto internalpage;
+	     }
+	 }
+       else
+	   new_server_connection=1;
+     }
    }
 
 
@@ -1876,6 +1897,11 @@ passwordagain:
     /* Censor / Cannonicalise URL / POST & PUT URL hacking / HTTP-1.1 etc. */
 
     ModifyRequest(Url,request_head);
+
+    if(client_keep_connection) {
+      ReplaceOrAddInHeader(request_head,"Connection","Keep-Alive");
+      ReplaceOrAddInHeader(request_head,"Proxy-Connection","Keep-Alive");
+    }
 
     /* Add the compression request header */
 
@@ -1900,7 +1926,6 @@ passwordagain:
        request_chunked=1;
 
        ChangeVersionInHeader(request_head,"HTTP/1.1");
-       AddToHeader(request_head,"TE","chunked");
 
        /* The following line is required by HTTP/1.1 specification.  The "bad-behaviour"
           PHP script may stop WWWOFFLE access to web sites if it is not present.
@@ -1908,6 +1933,7 @@ passwordagain:
           header and keep WWWOFFLE waiting until there is a connection timeout.
        */
        AddToHeader(request_head,"Connection","TE");
+       AddToHeader(request_head,"TE","chunked");
       }
    }
 
@@ -1920,14 +1946,64 @@ passwordagain:
 
  if(mode==Real || mode==RealNoCache || mode==Fetch)
    {
-    char *err=(UrlProtocol->request)(Url,request_head,request_body);
+    char *err=NULL;
+
+    if(!new_server_connection) {
+      /* Before sending the request, check for potential problems with
+	 the existing connection to the server. */
+      int server=ConnectionFd(connection);
+      if(server!=-1) {
+	int more= check_more_to_read(server,-1,0);
+	if(more==-2)
+	  errno=0; /* OK, this was expected. */
+	else {
+	    PrintMessage(Debug,
+			 more<0?"Error on socket to remote server [%!s], re-connecting to %s":
+			 more==0?"Remote server closed the connection, re-connecting to %s":
+			 "Unexpected data from remote server before request was sent, closing and re-connecting to %s",
+			 Url->hostport);
+
+	    server_keep_connection=0;
+	    ConnectionClose(connection);
+	    connection=ConnectionOpen(Url,&err);
+
+	    if(connection)
+	      new_server_connection=1;
+	    else
+	      goto request_error;
+	}
+      }
+    }
+
+    err=ConnectionRequest(connection,Url,request_head,request_body);
 
     is_server=1;
+
+    if(err && errno==EPIPE && !new_server_connection) {
+      server_keep_connection=0;
+
+      /* If the remote server closed the persistent connection, try to reconnect. */
+      free(err); err=NULL;
+      ConnectionClose(connection);
+      connection=NULL;
+
+      PrintMessage(Debug,"Re-connecting to %s",Url->hostport);
+
+      connection=ConnectionOpen(Url,&err);
+
+      if(connection) {
+	new_server_connection=1;
+	err=ConnectionRequest(connection,Url,request_head,request_body);
+      }
+    }
 
     /* In case of an error ... */
 
     if(err)
+    request_error:
       {
+       server_keep_connection=0;
+
        /* Store the error in the cache. */
 
        if(mode==Real || mode==Fetch)
@@ -2024,13 +2100,15 @@ passwordagain:
 
  if(mode==Real || mode==RealNoCache || mode==Fetch)
    {
+    int serverfd;
     char *headerpattern;
 
     /* Get the header */
+   retry_readhead:
+    errno=0;
+    reply_head=ConnectionReadHead(connection);
 
-    server=UrlProtocol->readhead(&reply_head);
-
-    is_server=1;
+    is_server=2;
 
     /* Check for a "100 Continue" status which shouldn't happen, but might.  */
 
@@ -2043,7 +2121,7 @@ passwordagain:
 	}
 
 	FreeHeader(reply_head);
-	server=UrlProtocol->readhead(&reply_head);
+	reply_head=ConnectionReadHead(connection);
       }
 
     /* In case of error ... */
@@ -2051,8 +2129,37 @@ passwordagain:
     if(!reply_head)
       {
        int saved_errno=errno;
-       char *errmsg=GetPrintMessage(Warning,errno?"Error reading reply header from remote host [%!s].":"Could not parse reply header from remote host.");
-       if(saved_errno == ETIMEDOUT) {
+       int server=connection->fd;
+       char *errmsg=GetPrintMessage(Warning,errno?"Error reading reply header from remote host [%!s].":
+				    (server!=-1 && io_read_eof(server))?"Remote host closed connection before reply header could be read.":
+				    "Could not parse reply header from remote host.");
+
+       server_keep_connection=0;
+
+       if(!saved_errno) {
+	 if(server!=-1 && io_read_eof(server) && !new_server_connection) {
+	   /* If the remote server closed the persistent connection, try to reconnect.
+	      Do not attempt to resend a POST request, because that method is
+	      not considered idempotent (RFC 2616 section 8.1.4). */
+	   if(strcmp(request_head->method,"POST")) {
+	     free(errmsg); errmsg=NULL;
+	     ConnectionClose(connection);
+	     connection=NULL;
+
+	     PrintMessage(Debug,"Re-connecting to %s",Url->hostport);
+
+	     connection=ConnectionOpen(Url,&errmsg);
+
+	     if(connection) {
+	       new_server_connection=1;
+	       errmsg=ConnectionRequest(connection,Url,request_head,request_body);
+	       if(!errmsg)
+		 goto retry_readhead;
+	     }
+	   }
+	 }
+       }
+       else if(saved_errno == ETIMEDOUT) {
 	 free(errmsg);
 	 errmsg=strdup("TimeoutReply");
        }
@@ -2110,6 +2217,14 @@ passwordagain:
       free(headerstring);
     }
 
+    /* Check if we can keep the connection to the remote server. */
+    server_keep_connection= (client_keep_connection && ConnectionAllowKeepAlive(connection) &&
+			     !GetHeader2(reply_head,"Connection","close") &&
+			     (GetHeader2(reply_head,"Connection","Keep-Alive") ||
+			      (reply_head->version && !strcmp(reply_head->version,"HTTP/1.1"))));
+
+    serverfd=connection->fd;
+
     /* Check for compression header */
 
 #if USE_ZLIB
@@ -2125,7 +2240,7 @@ passwordagain:
 	{
 	  PrintMessage(Inform,"Server has used 'Content-Encoding: %s'.",content_encoding); /* Used in audit-usage.pl */
 	  RemoveFromHeader(reply_head,"Content-Encoding");
-	  configure_io_zlib(server,server_compression,-1);
+	  configure_io_zlib(serverfd,server_compression,-1);
 	}
     }
 #endif
@@ -2139,7 +2254,7 @@ passwordagain:
 	{
 	  PrintMessage(Inform,"Server has used 'Transfer-Encoding: %s'.",transfer_encoding); /* Used in audit-usage.pl */
 	  RemoveFromHeader(reply_head,"Transfer-Encoding");
-	  configure_io_chunked(server,1,-1);
+	  configure_io_chunked(serverfd,1,-1);
 	}
     }
 
@@ -2152,6 +2267,12 @@ passwordagain:
     if(reply_status==304)
       {
        PrintMessage(Inform,"Cache Access Status='Unmodified on Server'."); /* Used in audit-usage.pl */
+       /* A 304 response should have no body. */
+       if(!server_compression && !server_chunked && serverfd!=-1) {
+	 char *lenstr=GetHeader(reply_head,"Content-Length");
+	 if(!lenstr || !strcmp(lenstr,"0"))
+	   configure_io_content_length(serverfd,0);
+       }
 
        /* Restore the backup version of the page if writing to the cache. */
 
@@ -2329,7 +2450,7 @@ passwordagain:
    {
     ssize_t err=0,spool_err=0,n=0;
     unsigned long bytes_start,content_length=CUNDEF;
-    int modify=0;
+    int modify=0,serverfd;
     char buffer[IO_BUFFER_SIZE];
 
     /* Print a message for auditing. */
@@ -2388,7 +2509,21 @@ passwordagain:
              modify=0;
       }
 
-    {
+    if(reply_head->status==304 && !server_compression && !server_chunked &&
+       !GetHeader(reply_head,"Content-Length"))
+      {
+	/* A 304 response should have no body. */
+	content_length=0;
+	client_chunked=0;
+	client_compression=0;
+	modify=0;
+      }
+
+    if(!strcmp(request_head->method,"HEAD"))
+      content_length=0;
+    else if(server_chunked)
+      RemoveFromHeader(reply_head,"Content-Length"); /* Should be unnecessary */
+    else {
       char *lenstr=GetHeader(reply_head,"Content-Length");
       if(lenstr) {
 	char *endptr;
@@ -2402,7 +2537,12 @@ passwordagain:
 	else
 	  content_length=len;
 
-	if(server_compression || modify || content_length==CUNDEF)
+	if(content_length==0) {
+	  client_chunked=0;
+	  client_compression=0;
+	  modify=0;
+	}
+	else if(server_compression || modify || content_length==CUNDEF)
 	  RemoveFromHeader(reply_head,"Content-Length");
       }
     }
@@ -2447,6 +2587,16 @@ passwordagain:
 	  }
       }
 
+    /* Change the Connection headers to "Keep-Alive" if we intend to keep the connection to the client. */
+    if(client_keep_connection) {
+      if(head_only || client_chunked || content_length==0 || GetHeader(reply_head,"Content-Length")) {
+	ReplaceOrAddInHeader(reply_head,"Connection","Keep-Alive");
+	ReplaceOrAddInHeader(reply_head,"Proxy-Connection","Keep-Alive");
+      }
+      else
+	client_keep_connection=0;
+    }
+
     /* Write the header to the client if this is the actual reply. */
 
     if(mode!=RealNoPassword)
@@ -2456,14 +2606,17 @@ passwordagain:
 	if(StderrLevel==ExtraDebug)
 	  PrintMessage(ExtraDebug,"Outgoing Reply Head (to client)\n%s",head);
 
-	if((err=write_data(client,head,headlen))<0)
+	if((err=write_data(client,head,headlen))<0) {
 	  PrintMessage(Inform,"Error writing to client [%!s]; client disconnected?");
+	  client_keep_connection=0;
+	}
 
 	free(head);
       }
 
-    if(server!=-1) /* can happen if ftp built-in error message */
-       tell_io(server,&bytes_start,NULL);
+    serverfd=connection->fd;
+    if(serverfd!=-1) /* can happen if ftp built-in error message */
+       tell_io(serverfd,&bytes_start,NULL);
 
     if(err>=0) {
       /* Initialise the client compression. */
@@ -2479,8 +2632,8 @@ passwordagain:
 	configure_io_chunked(client,-1,1);
 
       /* Don't read more than the announced content length */
-      if(content_length!=CUNDEF)
-	configure_io_content_length(server,content_length);
+      if(content_length!=CUNDEF && serverfd!=-1)
+	configure_io_content_length(serverfd,content_length);
 
       /* While there is data to read ... */
 
@@ -2491,7 +2644,7 @@ passwordagain:
 	  PrintMessage(Debug,"Modifying page content of type '%s'",content_type);
 
 	  modify_Url=Url;
-	  modify_UrlProtocol=UrlProtocol;
+	  modify_connection=connection;
 	  modify_read_fd=-1;
 	  modify_write_fd=client;
 	  modify_copy_fd=(spool_err>=0?spool:-1);
@@ -2505,16 +2658,43 @@ passwordagain:
 
 	  n=modify_n;
 	  err=modify_err;
+	  if(modify_err<0)
+	    client_keep_connection=0;
 	  if(modify_copy_fd==-1) spool_err=-1;
 	}
       else
 	for(;;)
 	  {
-	    n=(UrlProtocol->readbody)(buffer,IO_BUFFER_SIZE);
-	    if(n<0)
+	    n=ConnectionReadBody(connection,buffer,IO_BUFFER_SIZE);
+	    if(n<0) {
 	      PrintMessage(Warning,"Error reading reply body from remote host [%!s].");
-	    if(n<=0)
+	      if(!client_chunked && mode!=RealNoPassword && !head_only)
+		client_keep_connection=0;
 	      break;
+	    }
+	    else if(n==0) {
+	      if(client_keep_connection && !client_chunked && mode!=RealNoPassword && !head_only && serverfd!=-1) {
+		unsigned long content_remaining= io_content_remaining(serverfd);
+		if(content_remaining) {
+		  PrintMessage(Inform, io_read_eof(serverfd)?
+			       ((content_remaining!=CUNDEF)?
+				"Remote server unexpectedly closed connection, "
+				"could not process remaining raw content (%lu bytes) from server, "
+				"dropping persistent connection to client.":
+				"Remote server unexpectedly closed connection, "
+				"length of remaining raw content from server is undefined, "
+				"dropping persistent connection to client."):
+			       ((content_remaining!=CUNDEF)?
+				"Could not process remaining raw content (%lu bytes) from server, "
+				"dropping persistent connection to client.":
+				"Length of remaining raw content from server is undefined, "
+				"dropping persistent connection to client."),
+			       content_remaining);
+		  client_keep_connection=0;
+		}
+	      }
+	      break;
+	    }
 
 	    /* Write the data to the cache. */
 
@@ -2527,6 +2707,7 @@ passwordagain:
 	    if(mode!=RealNoPassword && !head_only) {
 	      if((err=write_data(client,buffer,n))<0) {
 		PrintMessage(Inform,"Error writing to client [%!s]; client disconnected?");
+		client_keep_connection=0;
 		break;
 	      }
 	    }
@@ -2541,14 +2722,14 @@ passwordagain:
       {
        /* In case of error writing to client decide if to continue reading from server. */
 
-       if(err<0 && spool_err>=0 && server!=-1)
+       if(err<0 && spool_err>=0 && serverfd!=-1)
          {
 	  int intr_percent=ConfigIntegerURL(IntrDownloadPercent,Url);
           unsigned long intr_size=(unsigned long)ConfigIntegerURL(IntrDownloadSize,Url)<<10;
 	  unsigned long bytes_end,bytes;
 
-	  /* if(server!=-1) */ /* can happen if ftp built-in error message */
-	    tell_io(server,&bytes_end,NULL);
+	  /* if(serverfd!=-1) */ /* can happen if ftp built-in error message */
+	    tell_io(serverfd,&bytes_end,NULL);
 	  bytes=bytes_end-bytes_start;
 
 	  PrintMessage(Debug,"Content-Length=%ld, bytes=%lu, intr-size=%lu intr-percent=%d.",
@@ -2562,7 +2743,7 @@ passwordagain:
 
 	      for(;;)
 		{
-		  n=(UrlProtocol->readbody)(buffer,IO_BUFFER_SIZE);
+		  n=ConnectionReadBody(connection,buffer,IO_BUFFER_SIZE);
 		  if(n<0)
 		    PrintMessage(Warning,"Error reading reply body from remote host [%!s].");
 		  if(n<=0)
@@ -2576,7 +2757,7 @@ passwordagain:
 		  }
 
 		  if(content_length==CUNDEF) {
-		    tell_io(server,&bytes_end,NULL);
+		    tell_io(serverfd,&bytes_end,NULL);
 		    bytes=bytes_end-bytes_start;
 		    if(!(bytes<intr_size))
 		      break;
@@ -2692,20 +2873,23 @@ passwordagain:
       free(head);
     }
 
-    {
-      char *lenstr=GetHeader(reply_head,"Content-Length");
-      if(lenstr) {
-	/* Don't read more than the announced content length */
-	char *endptr;
-	long len;
-	errno=0;
-	len=strtol(lenstr,&endptr,10);
-	if(*endptr || errno)
-	  PrintMessage(Warning,"Ignoring unparsable Content-Length (%s) in reply from host '%s'.",lenstr,Url->hostport);
-	else if(len<0)
-	  PrintMessage(Warning,"Ignoring negative Content-Length (%s) in reply from host '%s'.",lenstr,Url->hostport);
-	else
-	  configure_io_content_length(server,len);
+    if(!server_chunked) {
+      int serverfd=connection->fd;
+      if(serverfd!=-1) {
+	char *lenstr=GetHeader(reply_head,"Content-Length");
+	if(lenstr) {
+	  /* Don't read more than the announced content length */
+	  char *endptr;
+	  long len;
+	  errno=0;
+	  len=strtol(lenstr,&endptr,10);
+	  if(*endptr || errno)
+	    PrintMessage(Warning,"Ignoring unparsable Content-Length (%s) in reply from host '%s'.",lenstr,Url->hostport);
+	  else if(len<0)
+	    PrintMessage(Warning,"Ignoring negative Content-Length (%s) in reply from host '%s'.",lenstr,Url->hostport);
+	  else
+	    configure_io_content_length(serverfd,len);
+	}
       }
     }
 
@@ -2715,7 +2899,7 @@ passwordagain:
       char buffer[IO_BUFFER_SIZE];
 
       for(;;) {
-	n=(UrlProtocol->readbody)(buffer,IO_BUFFER_SIZE);
+	n=ConnectionReadBody(connection,buffer,IO_BUFFER_SIZE);
 	if(n<0)
 	  PrintMessage(Warning,"Error reading reply body from remote host [%!s].");
 	if(n<=0)
@@ -2968,15 +3152,27 @@ passwordagain:
 	     }
 	 }
 
-       /* Write the header to the client. */
-
+       /* Add a Content-Length header line if appropriate, otherwise remove any existing one. */
        if(size && !spool_compression && !modify && !client_compression) {
 	   char length[MAX_INT_STR+1];
 	   sprintf(length,"%lu",content_length);
 	   ReplaceOrAddInHeader(reply_head,"Content-Length",length);
+	   configure_io_content_length(spool,content_length);
        }
        else
 	 RemoveFromHeader(reply_head,"Content-Length");
+
+       /* Change the Connection headers to "Keep-Alive" if we intend to keep the connection to the client. */
+       if(client_keep_connection) {
+	 if(head_only || client_chunked || GetHeader(reply_head,"Content-Length")) {
+	   ReplaceOrAddInHeader(reply_head,"Connection","Keep-Alive");
+	   ReplaceOrAddInHeader(reply_head,"Proxy-Connection","Keep-Alive");
+	 }
+	 else
+	   client_keep_connection=0;
+       }
+
+       /* Write the header to the client. */
 
        {
 	 size_t reply_head_size;
@@ -2984,8 +3180,10 @@ passwordagain:
 
 	 if(StderrLevel==ExtraDebug)
 	   PrintMessage(ExtraDebug,"Outgoing Reply Head (to client)\n%s",head);
-	 if((err=write_data(client,head,reply_head_size))<0)
+	 if((err=write_data(client,head,reply_head_size))<0) {
 	   PrintMessage(Inform,"Error writing to client [%!s]; client disconnected?");
+	   client_keep_connection=0;
+	 }
 	 free(head);
        }
 
@@ -3014,7 +3212,7 @@ passwordagain:
 	       PrintMessage(Debug,"Modifying page content of type '%s'",content_type);
 
 	       modify_Url=NULL;
-	       modify_UrlProtocol=NULL;
+	       modify_connection=NULL;
 	       modify_read_fd=spool;
 	       modify_write_fd=client;
 	       modify_copy_fd=-1;
@@ -3025,6 +3223,9 @@ passwordagain:
 		 OutputHTMLWithModifications(Url,spool,content_type);
 	       else if(modify==2)
 		 OutputGIFWithModifications();
+
+	       if(modify_err<0)
+		 client_keep_connection=0;
 	     }
 	   else
 	     {
@@ -3033,13 +3234,35 @@ passwordagain:
 
 	       for(;;) {
 		 n=read_data(spool,buffer,IO_BUFFER_SIZE);
-		 if(n<0)
+		 if(n<0) {
 		   PrintMessage(Warning,"Error reading spool file for '%s' [%!s].",Url->name);
-		 if(n<=0)
+		   if(!client_chunked)
+		     client_keep_connection=0;
 		   break;
+		 }
+		 else if(n==0) {
+		   if(client_keep_connection && !client_chunked) {
+		     unsigned long content_remaining= io_content_remaining(spool);
+		     if(content_remaining) {
+		       /* This is very unlikely, but it might happen
+			  if the spool file is modified by another process
+			  while we are reading it. */
+		       PrintMessage(Inform, (content_remaining!=CUNDEF)?
+				    "Could not read remaining raw content (%lu bytes) from spool file, "
+				    "dropping persistent connection to client.":
+				    "Length of remaining raw content of spool file is undefined, "
+				    "dropping persistent connection to client.",
+				    content_remaining);
+		       client_keep_connection=0;
+		     }
+		   }
+		   break;
+		 }
+
 		 if(write_data(client,buffer,n)<0)
 		   {
 		     PrintMessage(Inform,"Error writing to client [%!s]; disconnected?");
+		     client_keep_connection=0;
 		     break;
 		   }
 	       }
@@ -3319,9 +3542,20 @@ passwordagain:
 	   char length[MAX_INT_STR+1];
 	   sprintf(length,"%lu",content_length);
 	   ReplaceOrAddInHeader(reply_head,"Content-Length",length);
+	   configure_io_content_length(tmpclient,content_length);
        }
        else
 	 RemoveFromHeader(reply_head,"Content-Length");
+
+       /* Change the Connection headers to "Keep-Alive" if we intend to keep the connection to the client. */
+       if(client_keep_connection) {
+	 if(head_only || client_chunked || GetHeader(reply_head,"Content-Length")) {
+	   ReplaceOrAddInHeader(reply_head,"Connection","Keep-Alive");
+	   ReplaceOrAddInHeader(reply_head,"Proxy-Connection","Keep-Alive");
+	 }
+	 else
+	   client_keep_connection=0;
+       }
 
        /* Write the header to the client. */
 
@@ -3331,8 +3565,10 @@ passwordagain:
 
 	 if(StderrLevel==ExtraDebug)
 	   PrintMessage(ExtraDebug,"Outgoing Reply Head (to client):\n%s",head);
-	 if((err=write_data(client,head,headlen))<0)
+	 if((err=write_data(client,head,headlen))<0) {
 	   PrintMessage(Inform,"Error writing to client [%!s]; client disconnected?");
+	   client_keep_connection=0;
+	 }
 
 	 free(head);
        }
@@ -3358,12 +3594,32 @@ passwordagain:
 
 	   for(;;) {
 	     n=read_data(tmpclient,buffer,IO_BUFFER_SIZE);
-	     if(n<0)
+	     if(n<0) {
 	       PrintMessage(Warning,"Error reading temporary spool file for '%s' [%!s].",Url->name);
-	     if(n<=0)
+	       if(!client_chunked)
+		 client_keep_connection=0;
 	       break;
+	     }
+	     else if(n==0) {
+	       if(client_keep_connection && !client_chunked) {
+		 unsigned long content_remaining= io_content_remaining(tmpclient);
+		 if(content_remaining) {
+		   /* Should never happen. */
+		   PrintMessage(Warning, (content_remaining!=CUNDEF)?
+				"Could not read remaining raw content (%lu bytes) from temporary spool file, "
+				"dropping persistent connection to client.":
+				"Length of remaining raw content of temporary spool file is undefined, "
+				"dropping persistent connection to client.",
+				content_remaining);
+		   client_keep_connection=0;
+		 }
+	       }
+	       break;
+	     }
+
 	     if(write_data(client,buffer,n)<0) {
 	       PrintMessage(Inform,"Error writing to client [%!s]; client disconnected?");
+	       client_keep_connection=0;
 	       break;
 	     }
 	   }
@@ -3395,21 +3651,72 @@ clean_up:
    Tidy up and exit.
    ----------------------------------------*/
 
- if(is_server) {
-   /* Delete the outgoing spool file if we just got it from the server. */
 
-   if(outgoing_exists)
-     {
-       char *err=DeleteOutgoingSpoolFile(Url);
-       if(err) free(err);
-       outgoing_exists=0;
+ /* If we have a connection to a server we don't intend to keep, then close it. */
+
+ if(connection) {
+   if(!client_keep_connection)
+     server_keep_connection=0;
+   else if(server_keep_connection) {
+     if(is_server>=2) {
+       unsigned long content_remaining=0;
+       int server=connection->fd;
+       if(server!=-1)
+	 content_remaining= io_content_remaining(server);
+
+       /* Tidy up after reading content. */
+       if(ConnectionFinishBody(connection)<0) {
+	 PrintMessage(Inform,"Finishing reading content from server failed [%!s].");
+	 server_keep_connection=0;
+       }
+       else if(content_remaining && (content_remaining!=CUNDEF || connection->fd!=-1)) {
+	 PrintMessage(Inform, (content_remaining!=CUNDEF)?
+		      "Could not process remaining raw content (%lu bytes) from server.":
+		      "Length of remaining raw content from server is undefined.",
+		      content_remaining);
+	 server_keep_connection=0;
+       }
+       else if((server=ConnectionFd(connection))!=-1) {
+	 int more= check_more_to_read(server,-1,0);
+	 if(more==-2)
+	   errno=0;  /* OK, this was expected. */
+	 else {
+	   /* We are not pipelining, so any remaining extra data should be 
+	      considered unrequested junk. */
+	   PrintMessage(Inform, more<0?"Error on socket connection to remote server [%!s].":
+			more==0?"Remote server unexpectedly closed the connection.":
+			"Unexpected data from remote server, closing connection.");
+#if 0
+	   if(more>0 && StderrLevel==ExtraDebug) {
+	     char *str=NULL;
+	     str=read_line(server,str);
+	     PrintMessage(ExtraDebug,"Extra line from remote server: %s",str);
+	     free(str);
+	   }
+#endif
+	   server_keep_connection=0;
+	 }
+       }
      }
+     else if(is_server)
+       server_keep_connection=0;  /* Shouldn't get here */
+   }
+       
 
-   /* If we had a connection to a server then close it. */
-
-   (UrlProtocol->close)();
-   is_server=0;
+   if(!server_keep_connection) {
+     ConnectionClose(connection);
+     connection=NULL;
+   }
  }
+
+ /* Delete the outgoing spool file if we just got it from the server. */
+
+ if(is_server && outgoing_exists)
+   {
+    char *err=DeleteOutgoingSpoolFile(Url);
+    if(err) free(err);
+    outgoing_exists=0;
+   }
 
  /* If there is a temporary file open then close it. */
 
@@ -3498,29 +3805,6 @@ free_request_head_body:
  if(request_body)
     FreeBody(request_body);
 
- /* If there is a client then close it down cleanly. */
-
-close_client:
- if(client>=0)
-   {
-    if(mode==Fetch)
-      {
-       finish_io(client);
-       CloseSocket(client);
-      }
-    else /* mode!=Fetch */
-      {
-       unsigned long r,w;
-
-       if(finish_tell_io(client,&r,&w)<0)
-	 PrintMessage(Inform,"Error writing to client: finishing IO failed [%!s].");
-
-       PrintMessage(Inform,"Client bytes; %d Read, %d Written.",r,w); /* Used in audit-usage.pl */
-
-       ShutdownSocket(client);
-      }
-   }
-
  /* Tidy up messages and header parsing. */
 
  FinishMessages();
@@ -3532,6 +3816,110 @@ close_client:
  /* proxy_user is an malloc-ed string */
 
  if(proxy_user) {free(proxy_user); proxy_user=NULL;}
+
+ /* If there is a client then close it down cleanly. */
+
+close_client:
+ if(client>=0)
+   {
+    if(fetching)
+      {
+       finish_io(client);
+       CloseSocket(client);
+      }
+    else /* mode!=Fetch */
+      {
+       unsigned long r,w;
+
+       if(client_keep_connection && exitval==-1) {
+	 /* First finish writing the content to the client. */
+	 if(finish_io_content(client)<0)
+	   PrintMessage(Inform,"Finishing writing content to client failed [%!s]; dropping persistent connection.");
+	 else {
+	   int more,server,timeout=ConfigInteger(KeepAliveTimeout),timerem=timeout;
+	   time_t timestart=time(NULL);
+
+	   while((more=check_more_to_read(client,server=ConnectionFd(connection),timerem))>1) {
+	     if(server!=-1) {
+	       if(StderrLevel>=0 && StderrLevel<=Debug) {
+		 more=check_more_to_read(server,-1,0);
+		 PrintMessage(Debug,
+			      more<0?"Error on socket connection to remote server [%!s].":
+			      more==0?"Remote server closed the connection.":
+			      "Unexpected data from remote server, closing connection.");
+#if 0
+		 if(more>0 && StderrLevel==ExtraDebug) {
+		   char *str=NULL;
+		   str=read_line(server,str);
+		   PrintMessage(ExtraDebug,"Extra line from remote server: %s",str);
+		   free(str);
+		 }
+#endif
+	       }
+	     }
+	     else
+	       PrintMessage(Fatal,"Unexpected read event reported by check_more_to_read.");
+
+	     if(connection) {
+	       ConnectionClose(connection);
+	       connection=NULL;
+	     }
+
+	     timerem = timeout - (time(NULL) - timestart);
+	     if(timerem<0) timerem=0;
+	   }
+
+	   if(more>0) {
+	     PrintMessage(Debug,"Receiving new request from client on persistent connection.");
+
+	     /* reset various variables and read the new request from the client. */
+	     GetCurrentOnlineStatus(&online);
+
+	     outgoing_read=-1; outgoing_write=-1; spool=-1; tmpclient=-1; is_server=0;
+	     outgoingUrl=NULL;
+	     request_head=NULL; reply_head=NULL;
+	     request_body=NULL;
+	     reply_status=-1;
+	     Url=NULL; Urlpw=NULL;
+	     outgoing_exists=0; outgoing_exists_pw=0; createlasttimespoolfile=0;
+	     spool_exists=0; spool_exists_pw=0;
+	     conditional_request_ims=0; conditional_request_inm=0; not_modified_spool=0;
+	     offline_request=1;
+	     new_server_connection=0;
+#if USE_ZLIB
+	     client_compression=0; request_compression=0; server_compression=0;
+#endif
+	     client_chunked=0; request_chunked=0; server_chunked=0;
+	     redirect_count=0;
+	     head_only=0;
+
+	     mode= ((online>0)? Real: (online<0)? SpoolOrReal: Spool);
+	     goto parse_request;
+	   }
+	   else
+	     PrintMessage(Inform,more<0?
+			  "Could not read new request from client on persistent connection [%!s].":
+			  "Client closed persistent connection.");
+	 }
+
+	 /* client_keep_connection=0; */
+       }
+
+       if(finish_tell_io(client,&r,&w)<0)
+	 PrintMessage(Inform,"Error writing to client: finishing IO failed [%!s].");
+
+       PrintMessage(Inform,"Client bytes; %d Read, %d Written.",r,w); /* Used in audit-usage.pl */
+
+       ShutdownSocket(client);
+      }
+   }
+
+ /* If we still have a connection to a server then close it. */
+
+ if(connection) {
+   ConnectionClose(connection);
+   connection=NULL;
+ }
 
  /* If we need to fetch more then tell the parent process. */
 
@@ -3556,17 +3944,17 @@ ssize_t wwwoffles_read_data(char *data,size_t len)
  if(modify_err==-1)
     return(0);
 
- if(modify_Url)
-    modify_n=(modify_UrlProtocol->readbody)(data,len);
+ if(modify_connection)
+   modify_n=ConnectionReadBody(modify_connection,data,len);
  else
-    modify_n=read_data(modify_read_fd,data,len);
+   modify_n=read_data(modify_read_fd,data,len);
 
  if(modify_n>0)
    {
     /* Write the data to the cache. */
 
     if(modify_copy_fd!=-1)
-      if(write_data(modify_copy_fd,data,modify_n)==-1) {
+      if(write_data(modify_copy_fd,data,modify_n)<0) {
           PrintMessage(Warning,"Cannot write to cache file; disk full?");
 	  modify_copy_fd=-1;
       }

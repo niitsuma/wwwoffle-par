@@ -8,7 +8,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -1917,6 +1917,78 @@ int CloseSpoolDir()
   return err;
 }
 
+/* The following functions for recording the WWWOFFLE online status
+   as a symbolic link have been added by Paul A. Rombouts.
+
+  Copyright (C) 2008  Paul A. Rombouts.
+*/
+
+#define ONLINESTATUSLINK "wwwofflestatus"
+
+int SetCurrentOnlineStatus(int online)
+{
+  if(CleanupCurrentOnlineStatus()<0)
+    return -1;
+
+  if(symlink(online>0?"online": online<0?"autodial": "offline", ONLINESTATUSLINK)<0) {
+    PrintMessage(Warning,"Cannot create '%s' symlink [%!s].",ONLINESTATUSLINK);
+    return -1;
+  }
+
+  return 0;
+}
+
+int GetCurrentOnlineStatus(int *online)
+{
+  char buf[10];
+  ssize_t len=readlink(ONLINESTATUSLINK,buf,sizeof(buf));
+
+  if(len<0) {
+    PrintMessage(Warning,"Cannot read symlink '%s' [%!s].",ONLINESTATUSLINK);
+    return -1;
+  }
+  if(len>=sizeof(buf)) {
+    PrintMessage(Warning,"Symlink '%s' contains an unexpectedly long value",ONLINESTATUSLINK);
+    return -1;
+  }
+
+  buf[len]=0;
+
+  if(!strcasecmp(buf,"online"))
+    *online= 1;
+  else if(!strcasecmp(buf,"offline"))
+    *online= 0;
+  else if(!strcasecmp(buf,"autodial"))
+    *online= -1;
+  else  {
+    PrintMessage(Warning,"Symlink '%s' contains an unexpected value: %s",ONLINESTATUSLINK,buf);
+    return -1;
+  }
+
+  return 0;
+}
+
+int CleanupCurrentOnlineStatus()
+{
+  struct stat buf;
+
+  if(!lstat(ONLINESTATUSLINK,&buf)) {
+    if(!S_ISLNK(buf.st_mode)) {
+      PrintMessage(Warning,"'%s' already exists and is not a symlink.",ONLINESTATUSLINK);
+      return -1;
+    }
+    if(unlink(ONLINESTATUSLINK)<0 && errno!=ENOENT) {
+      PrintMessage(Warning,"Cannot delete '%s' [%!s].",ONLINESTATUSLINK);
+      return -1;
+    }
+  }
+  else if(errno!=ENOENT) {
+    PrintMessage(Warning,"Cannot lstat '%s' [%!s].",ONLINESTATUSLINK);
+    return -1;
+  }
+
+  return 0;
+}
 
 /*
   The following functions for manipulating the URL hash table 

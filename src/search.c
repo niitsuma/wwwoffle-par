@@ -61,6 +61,7 @@
 #include "io.h"
 #include "misc.h"
 #include "errors.h"
+#include "config.h"
 #include "proto.h"
 
 
