@@ -11,7 +11,7 @@ bind-ipv6 = (hostname) | (ip-address) | none
 Specify the hostname or IP address to bind the HTTP proxy and WWWOFFLE control port sockets to using IPv6 (default='::').  If 'none' is specified then no IPv6 socket is bound.  This requires the IPv6 compilation option.  If this is changed from the default value then the first entry in the LocalHost section may need to be changed to match.
 ITEM http-port
 http-port = (port)
-An integer specifying the port number for connections to access the internal WWWOFFLE pages and for HTTP/HTTPS/FTP proxying (default=8080). This is the port number that must be specified in the client to connect to the WWWOFFLE proxy for HTTP/HTTPS/FTP proxying.
+An integer specifying the port number for connections to access the internal WWWOFFLE pages and for HTTP/HTTPS/FTP proxying (default=8080).  This is the port number that must be specified in the client to connect to the WWWOFFLE proxy for HTTP/HTTPS/FTP proxying.
 ITEM https-port
 https-port = (port)
 An integer specifying the port number for encrypted connections to access the internal WWWOFFLE pages and for HTTP/FTP proxying (default=8443).  Requires gnutls compilation option.
@@ -169,10 +169,10 @@ enable-caching = yes | no
 If caching (involving decryption and re-encryption) of Secure Sockets Layer (SSL) server connections is allowed (default = no).
 ITEM allow-tunnel
 allow-tunnel = (host[:port])
-A hostname and port number (a <a href="/configuration/#WILDCARD">WILDCARD</a> match) for an SSL server that can be connected to using WWWOFFLE as a tunnelling proxy (no caching or decryption of the data) (default is no hosts or ports allowed).  This option should be set to *:443 to allow https to the default port number. There can be more than one option for other ports or hosts as required. This option takes precedence over the allow-cache option.  The host value is matched against the URL as presented, no hostname to IP or IP to hostname lookups are performed to find alternative equivalent names.
+A hostname and port number (a <a href="/configuration/#WILDCARD">WILDCARD</a> match) for an SSL server that can be connected to using WWWOFFLE as a tunnelling proxy (no caching or decryption of the data) (default is no hosts or ports allowed). This option should be set to *:443 to allow https to the default port number.  There can be more than one option for other ports or hosts as required.  This option takes precedence over the allow-cache option. The host value is matched against the URL as presented, no hostname to IP or IP to hostname lookups are performed to find alternative equivalent names.
 ITEM disallow-tunnel
 disallow-tunnel = (host[:port])
-A hostname and port number (a <a href="/configuration/#WILDCARD">WILDCARD</a> match) for an SSL server that can not be connected to using WWWOFFLE as a tunnelling proxy.  There can be more than one option for other ports or hosts as required.  This option takes precedence over the allow-tunnel option.  The host value is matched against the URL as presented, no hostname to IP or IP to hostname lookups are performed to find alternative equivalent names.
+A hostname and port number (a <a href="/configuration/#WILDCARD">WILDCARD</a> match) for an SSL server that can not be connected to using WWWOFFLE as a tunnelling proxy.  There can be more than one option for other ports or hosts as required. This option takes precedence over the allow-tunnel option.  The host value is matched against the URL as presented, no hostname to IP or IP to hostname lookups are performed to find alternative equivalent names.
 ITEM allow-cache
 allow-cache = (host[:port])
 A hostname and port number (a <a href="/configuration/#WILDCARD">WILDCARD</a> match) for an SSL server that can be connected to using WWWOFFLE as a caching proxy (decryption of the data) (default is no hosts or ports allowed).  This option should be set to *:443 to allow https to the default port number.  There can be more than one option for other ports or hosts as required.  The host value is matched against the URL as presented, no hostname to IP or IP to hostname lookups are performed to find alternative equivalent names.
@@ -323,12 +323,12 @@ SECTION LocalNet
 A list of hostnames whose web servers are always accessible even when offline and are not to be cached by WWWOFFLE because they are on a local network.
 ITEM 
 (host)
-A hostname or IP address that is always available and is not to be cached by WWWOFFLE.  The host name matching uses <a href="/configuration/#WILDCARD">WILDCARD</a>s.  A host can be excluded by appending a '!' to the start of the name.  The host value is matched against the URL as presented, no hostname to IP or IP to hostname lookups are performed to find alternative equivalent names. The entries can be hostnames, IPv4 addresses or IPv6 addresses enclosed within '[...]'.  All entries here are assumed to be reachable even when offline.  None of the hosts named here are cached or fetched via a proxy.
+A hostname or IP address that is always available and is not to be cached by WWWOFFLE.  The host name matching uses <a href="/configuration/#WILDCARD">WILDCARD</a>s.  A host can be excluded by appending a '!' to the start of the name.  The host value is matched against the URL as presented, no hostname to IP or IP to hostname lookups are performed to find alternative equivalent names.  The entries can be hostnames, IPv4 addresses or IPv6 addresses enclosed within '[...]'.  All entries here are assumed to be reachable even when offline.  None of the hosts named here are cached or fetched via a proxy.
 SECTION AllowedConnectHosts
 A list of client hostnames that are allowed to connect to the server.
 ITEM 
 (host)
-A hostname or IP address that is allowed to connect to the server. The host name matching uses <a href="/configuration/#WILDCARD">WILDCARD</a>s.  A host can be excluded by appending a '!' to the start of the name.  If the IP address or hostname (if available) of the machine connecting matches then it is allowed. The entries can be hostnames, IPv4 addresses or IPv6 addresses enclosed within '[...]'.  All of the hosts named in LocalHost are also allowed to connect.
+A hostname or IP address that is allowed to connect to the server. The host name matching uses <a href="/configuration/#WILDCARD">WILDCARD</a>s.  A host can be excluded by appending a '!' to the start of the name.  If the IP address or hostname (if available) of the machine connecting matches then it is allowed.  The entries can be hostnames, IPv4 addresses or IPv6 addresses enclosed within '[...]'.  All of the hosts named in LocalHost are also allowed to connect.
 SECTION AllowedConnectUsers
 A list of the users that are allowed to connect to the server and their passwords.
 ITEM 
@@ -338,7 +338,7 @@ SECTION DontCache
 A list of URLs that are not to be cached by WWWOFFLE.
 ITEM 
 [!]URL-SPECIFICATION
-Do not cache any URLs that match this.  The <a href="/configuration/#URL-SPECIFICATION">URL-SPECIFICATION</a> can be negated to allow matches to be cached.  The URLs that are not cached will not be requested if offline.
+Do not cache any URLs that match this.  The <a href="/configuration/#URL-SPECIFICATION">URL-SPECIFICATION</a> can be negated to allow matches to be cached.  The URLs that are not cached will not have requests recorded if offline or fetched automatically.
 SECTION DontGet
 A list of URLs that are not to be got by WWWOFFLE when it is fetching and not to be served from the WWWOFFLE cache even if they exist.
 ITEM 
