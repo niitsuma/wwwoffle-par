@@ -1,13 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/config.h 2.115 2006/04/06 18:13:38 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/config.h 2.117 2007/09/29 18:54:08 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9a.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
   Configuration file management functions.
   ******************/ /******************
   Written by Andrew M. Bishop
   Modified by Paul A. Rombouts
 
-  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  This file Copyright 1997-2007 Andrew M. Bishop
   Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -253,6 +253,9 @@ extern /*@null@*/ ConfigItem FetchSameHostImages;
 /*+ The option to also fetch frames. +*/
 extern /*@null@*/ ConfigItem FetchFrames;
 
+/*+ The option to also fetch iframes. +*/
+extern /*@null@*/ ConfigItem FetchIFrames;
+
 /*+ The option to also fetch scripts. +*/
 extern /*@null@*/ ConfigItem FetchScripts;
 
@@ -304,6 +307,9 @@ extern ConfigItem AnchorModifyBegin[3], /*+ (before the start tag). +*/
 
 /*+ The option to disable scripts and scripted actions. +*/
 extern /*@null@*/ ConfigItem DisableHTMLScript;
+
+/*+ The option to disable scripts after a closing body or html tag. +*/
+extern /*@null@*/ ConfigItem DisableHTMLScriptAfterBody;
 
 /*+ The option to disable external scripts with URLs in the DontGet list. +*/
 extern /*@null@*/ ConfigItem DisableHTMLDontGetScript;
@@ -433,6 +439,9 @@ extern /*@null@*/ ConfigItem SessionCookiesOnly;
 extern /*@null@*/ ConfigItem RefererSelf,    /*+ to point to itself. +*/
                              RefererSelfDir; /*+ to point to the parent directory. +*/
 
+/* A flag to remove the 'Referer' header depending on the referring URL */
+extern /*@null@*/ ConfigItem RefererFrom;
+
 /*+ A flag to cause a 'User-Agent' header always to be added. +*/
 extern /*@null@*/ ConfigItem ForceUserAgent;
 
@@ -448,6 +457,9 @@ extern /*@null@*/ ConfigItem FTPPassWord;
 /*+ The information that is needed to allow non-anonymous access, +*/
 extern /*@null@*/ ConfigItem FTPAuthUser,         /*+ username. +*/
                              FTPAuthPass;         /*+ password. +*/
+
+/*+ Flag indicating whether to try EPSV command. +*/
+extern /*@null@*/ ConfigItem FTPTryEPSV;
 
 
 /* MIMETypes section */

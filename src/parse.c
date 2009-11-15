@@ -1,5 +1,5 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/parse.c 2.134 2006/06/25 14:25:11 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/parse.c 2.135 2007/09/08 18:56:08 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Functions to parse the HTTP requests.
@@ -154,21 +154,28 @@ URL *ParseRequest(int fd,Header **request_head,Body **request_body)
    {
     char *p=val;
 
-    while(*p && *p!=' ') ++p;
-    while(*p && *p==' ') ++p;
-    if(*p)
-      {
-	size_t userpass_size=base64declenmax(strlen(p))+1;
-	char userpass[userpass_size];
-	char *user,*pass;
+    for(;;) {if(!*p) goto skip_authorization; if(isspace(*p)) break; ++p;}
+    {
+      size_t len=p-val;
 
-	pass=user=(char *)Base64Decode((unsigned char *)p,NULL,(unsigned char *)userpass,userpass_size);
-	while(*pass && *pass!=':') ++pass;
+      /* Only handle Basic access authentication, ignore other types for now. */
+      if(!(len==strlitlen("Basic") && !strncasecmp(val,"Basic",len)))
+	goto skip_authorization;
+    }
+    for(;;) {++p; if(!*p) goto skip_authorization; if(!isspace(*p)) break;}
+    {
+      size_t userpass_size=base64declenmax(strlen(p))+1;
+      char userpass[userpass_size];
+      char *user,*pass;
 
-	if(*pass) *pass++=0; else pass=NULL;
+      pass=user=(char *)Base64Decode((unsigned char *)p,NULL,(unsigned char *)userpass,userpass_size);
+      while(*pass && *pass!=':') ++pass;
 
-	ChangePasswordURL(Url,user,pass);
-      }
+      if(*pass) *pass++=0; else pass=NULL;
+
+      ChangePasswordURL(Url,user,pass);
+    }
+   skip_authorization:;
    }
 
  if(!strcmp((*request_head)->method,"POST") ||
@@ -383,10 +390,31 @@ int RequireChanges(int fd,const URL *Url,char **ims,char **inm)
    }
  else
    {
-    time_t now=time(NULL);
-    int temp_redirection = ((status==301 || status==302 || status==303 || status==307) && ConfigBooleanURL(RequestRedirection,Url));
+    time_t now;
+    int temp_redirection,must_revalidate=0;
 
-    if(temp_redirection || ConfigBooleanURL(RequestExpired,Url))
+    if(ConfigBooleanURL(RequestNoCache,Url))
+      {
+       char *head,*val;
+
+       if(GetHeader2(spooled_head,head="Pragma"       ,val="no-cache") ||
+          GetHeader2(spooled_head,head="Cache-Control",val="no-cache"))
+         {
+          PrintMessage(Debug,"Requesting URL (No cache header '%s: %s').",head,val);
+          retval=1;
+	  goto cleanup_return;
+         }
+       else if(GetHeader2(spooled_head,head="Cache-Control",val="must-revalidate"))
+	 {
+	  PrintMessage(Debug,"Checking expiry time ('%s: %s').",head,val);
+	  must_revalidate=1;
+	 }
+      }
+
+    now=time(NULL);
+    temp_redirection = ((status==301 || status==302 || status==303 || status==307) && ConfigBooleanURL(RequestRedirection,Url));
+
+    if(temp_redirection || must_revalidate || ConfigBooleanURL(RequestExpired,Url))
       {
        char *expires,*maxage_val,*date;
 
@@ -427,19 +455,6 @@ int RequireChanges(int fd,const URL *Url,char **ims,char **inm)
 	 }
       }
 
-    if(ConfigBooleanURL(RequestNoCache,Url))
-      {
-       char *head,*val;
-
-       if(GetHeader2(spooled_head,head="Pragma"       ,val="no-cache") ||
-          GetHeader2(spooled_head,head="Cache-Control",val="no-cache"))
-         {
-          PrintMessage(Debug,"Requesting URL (No cache header '%s: %s').",head,val);
-          retval=1;
-	  goto cleanup_return;
-         }
-      }
-
     if(ConfigBooleanURL(RequestChangedOnce,Url) && buf.st_mtime>OnlineTime)
       {
 	PrintMessage(Debug,"Not requesting URL (Only once per online session).");
@@ -460,10 +475,10 @@ int RequireChanges(int fd,const URL *Url,char **ims,char **inm)
 	  }
           retval=0;
          }
-       else if(!ConfigBooleanURL(RequestConditional,Url))
-          retval=1;
-       else
-         {
+       else {
+	 retval=1;
+
+         if(ConfigBooleanURL(RequestConditional,Url)) {
 	   char *date;
 	   char *lastmodified=GetHeader(spooled_head,"Last-Modified");
 	   char *etag;
@@ -481,9 +496,8 @@ int RequireChanges(int fd,const URL *Url,char **ims,char **inm)
 			 (date=GetHeader(spooled_head,"Date"))?date:
 			 (date=GetHeader(spooled_head,"wwwoffle-cache-date"))?date:
 			 RFC822Date(buf.st_mtime,1));
-
-	   retval=1;
          }
+       }
       }
    }
 
@@ -724,9 +738,21 @@ void ModifyRequest(const URL *Url,Header *request_head)
        ReplaceOrAddInHeader(request_head,"Authorization",auth);
      }
    }
- else
-   RemoveFromHeader(request_head,"Authorization");
+ else {
+   char *val=GetHeader(request_head,"Authorization");
+   if(val) {
+     char *p=val;
+     size_t len;
 
+     while(*p && !isspace(*p)) ++p;
+     len=p-val;
+
+     /* Only remove Basic access authentication, ignore other types for now. */
+     if(len==strlitlen("Basic") && !strncasecmp(val,"Basic",len))
+       RemoveFromHeader(request_head,"Authorization");
+   }
+ }
+   
 
  /* Remove some headers */
 
@@ -762,6 +788,19 @@ void ModifyRequest(const URL *Url,Header *request_head)
    ReplaceOrAddInHeader(request_head,"Referer",newval);
  dontrefertoself: ;
  }
+
+ if((referer=GetHeader(request_head,"Referer")))
+   {
+    URL *refurl=SplitURL(referer);
+
+    if(ConfigBooleanURL(RefererFrom,refurl))
+      {
+       PrintMessage(Debug,"CensorRequestHeader (RefererFrom) removed '%s'.",referer);
+       RemoveFromHeader(request_head,"Referer");
+      }
+
+    FreeURL(refurl);
+   }
 
  /* Force the insertion of a User-Agent header */
 

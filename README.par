@@ -1,13 +1,13 @@
-	  Alternative WWWOFFLE implementation - version 2.9c-parexp
+	  Alternative WWWOFFLE implementation - version 2.9d
                              by Paul Rombouts
 	  =========================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
 am making available so other people can run it and/or study the source code.
-Present version is 2.9c-parexp (I've simply appended my initials to the version
-number, "exp" stands for experimental). This version has experimental support
-for persistent connections, which has the potential to greatly reduce the number
-of WWWOFFLE child processes spawned and TCP connections opened.
+Present version is 2.9d (I've simply appended my initials to the version
+number). This version continues the experimental support for persistent
+connections, which has the potential to greatly reduce the number of WWWOFFLE
+child processes spawned and TCP connections opened.
 
 The first part of this file describes how to patch, compile, install and run
 wwwoffled. Please note that if you wish to use an existing WWWOFFLE spool
@@ -17,11 +17,11 @@ more detail the changes I've made to AMB's code.
 
 Before compiling and installing WWWOFFLE according to AMB's installation
 instructions described in the INSTALL file you must first apply my patch file
-wwwoffled-2.9c-par.diff.gz. Use a freshly untarred copy of Andrew Bishop's
-original version 2.9c source, cd into the source directory wwwoffle-2.9c and
+wwwoffled-2.9d-par.diff.gz. Use a freshly untarred copy of Andrew Bishop's
+original version 2.9d source, cd into the source directory wwwoffle-2.9d and
 apply the command:
 
-gzip -cd <path_to_patch>/wwwoffle-2.9c-par.diff.gz | patch -p2 -N -E
+gzip -cd <path_to_patch>/wwwoffle-2.9d-par.diff.gz | patch -p2 -N -E
 
 Notes:
 1) The current patch breaks IPv6 functionality. Because in version 2.9 IPv6 is
@@ -51,7 +51,7 @@ Notes:
    called "urlhashtable". You need to execute the following steps as root:
    - First it is recommended that you make a backup copy of your spool directory
      (don't worry, the conversion is reversible, this is just a precaution).
-   - Change to the wwwoffle-2.9c/src directory and run "./make_urlhash_file" .
+   - Change to the wwwoffle-2.9d/src directory and run "./make_urlhash_file" .
    - The U* files are no longer needed and just waste disk space. You can run
      the script "rm_Ufiles.sh" to remove them immediately; otherwise they will
      removed the next time you run "wwwoffle -purge".
@@ -87,7 +87,7 @@ Additional notes:
 
 2) Should you want to go back to using AMB's original version, you will have to
    restore the U* files first by running the "restore_Ufiles" utility in the
-   wwwoffle-2.9c/src directory.
+   wwwoffle-2.9d/src directory.
 
 3) My patch unfortunately breaks the functionality of the wwwoffle-tools
    (wwwoffle-fsck wwwoffle-gunzip wwwoffle-gzip wwwoffle-hash wwwoffle-ls
@@ -107,7 +107,14 @@ Additional notes:
 
 I've introduced a few extensions to the way WWWOFFLE can be configured:
 
-- New in version 2.9c-parexp: There four new configuration options:
+- New in version 2.9d: there is a new configuration option "try-epsv" which
+  effects FTP connections. When establishing an FTP data connection, the default
+  is to try the EPSV command before trying the PASV command.  This works fine in
+  most cases, but some servers respond in an unexpected way to the EPSV command,
+  causing the connection to fail. Setting "try-epsv = no" may serve as an
+  effective work-around in such cases.
+
+- New in version 2.9c-parexp: There are four new configuration options:
   allow-keep-alive, keep-alive-timeout, post-keep-alive, proxy-keep-alive.
   If you want to try out persistent connections, make sure to set
   allow-keep-alive=yes in the Options section of wwwoffle.conf. The default

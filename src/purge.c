@@ -688,7 +688,7 @@ static int PurgeHost(int fd,int dirfd,const char *proto,const char *hostport,uns
 
  /* Check if the directory can be deleted */
 
- if(fchdir(dirfd) && (ChangeBackToSpoolDir() || chdir(proto)))
+ if(fchdir(dirfd) && (ChangeBackToSpoolDir(), chdir(proto)))
    {PrintMessage(Warning,"Cannot change back to protocol directory '%s' [%!s].",proto);return -1;}
 
  if(*host_file_blocks==0)
@@ -1208,7 +1208,7 @@ static unsigned long compress_file(const char *proto,const char *hostport,const 
  /* Add the headers to say it is compressed. */
 
  AddToHeader(spool_head,"Content-Encoding","x-gzip");
- AddToHeader(spool_head,"Pragma","wwwoffle-compressed");
+ AddToHeaderCombined(spool_head,"Pragma","wwwoffle-compressed");
  RemoveFromHeader(spool_head,"Content-Length");
 
  /* Create a new file to write to. */
@@ -1326,7 +1326,7 @@ static void MarkProto(const char *proto)
          {
           MarkHost(proto,ent->d_name);
 
-          if(fchdir(dirfd(dir)) && (ChangeBackToSpoolDir() || chdir(proto))) {
+          if(fchdir(dirfd(dir)) && (ChangeBackToSpoolDir(), chdir(proto))) {
 	    PrintMessage(Warning,"Cannot change back to protocol directory '%s' [%!s].",proto);
 	    break;
 	  }

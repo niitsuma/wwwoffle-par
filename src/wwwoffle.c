@@ -1,13 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle.c 2.81 2006/01/08 10:27:22 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle.c 2.82 2007/09/29 18:54:08 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
   A user level program to interact with the server.
   ******************/ /******************
   Written by Andrew M. Bishop
   Modified by Paul A. Rombouts
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  This file Copyright 1996-2007 Andrew M. Bishop
   Parts of this file Copyright (C) 2002,2004,2005,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -99,7 +99,7 @@ int main(int argc, char** argv)
  int i;
  int recursive_mode=0,depth=0;
  int force=0;
- int stylesheets=0,images=0,frames=0,scripts=0,objects=0,nothing=0;
+ int stylesheets=0,images=0,frames=0,iframes=0,scripts=0,objects=0,nothing=0;
  char *config_file=NULL;
  int exitval=0;
 
@@ -581,7 +581,7 @@ int main(int argc, char** argv)
              else
                 depth=0;
 
-             refresh=CreateRefreshPath(Url,limit,depth,force,stylesheets,images,frames,scripts,objects);
+             refresh=CreateRefreshPath(Url,limit,depth,force,stylesheets,images,frames,iframes,scripts,objects);
 
              if(limit)
                 free(limit);
@@ -700,6 +700,9 @@ int main(int argc, char** argv)
              add_url_list(links);
 
           if(frames && (links=GetReferences(RefFrame)))
+             add_url_list(links);
+
+          if(iframes && (links=GetReferences(RefIFrame)))
              add_url_list(links);
 
           if(scripts && (links=GetReferences(RefScript)))

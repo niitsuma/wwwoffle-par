@@ -95,6 +95,7 @@ char *FTP_Open(Connection *connection,URL *Url)
     connection->proxyUrl=proxyUrl;
     connection->socksproxy=socksdata;
     connection->loggedin=0;
+    connection->tryepsv=ConfigBooleanURL(FTPTryEPSV,Url);
     connection->expectmore=0;
 #if 0
     /* We can also rely on ConnectionOpen to initialise this. */
@@ -521,6 +522,8 @@ char *FTP_Request(Connection *connection,URL *Url,Header *request_head,Body *req
 
  /* Create the data connection. */
 
+ if(!connection->tryepsv) goto trypasv;
+
  if(write_string(server_ctrl,"EPSV\r\n")<0)
    {
     msg=GetPrintMessage(Warning,"Failed to write 'EPSV' command to remote FTP host; [%!s].");
@@ -559,7 +562,9 @@ char *FTP_Request(Connection *connection,URL *Url,Header *request_head,Body *req
     msg=GetPrintMessage(Warning,"Got '%s' message after sending 'EPSV' command",str);
     goto free_return;
    }
- else
+ else {
+   connection->tryepsv=0;
+ trypasv:
    {
     int port_l,port_h;
 
@@ -613,6 +618,7 @@ char *FTP_Request(Connection *connection,URL *Url,Header *request_head,Body *req
        if(host[l]==',')
           host[l]='.';
    }
+ }
 
  /* Open the FTP data connection. */
 

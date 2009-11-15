@@ -1,13 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/spool.c 2.98 2006/11/14 17:10:19 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/spool.c 2.99 2007/10/05 16:45:40 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9a.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
   Handle all of the spooling of files in the spool directory.
   ******************/ /******************
   Written by Andrew M. Bishop
   Modified by Paul A. Rombouts
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  This file Copyright 1996-2007 Andrew M. Bishop
   Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -501,9 +501,12 @@ int OpenWebpageSpoolFile(int rw,URL *Url)
     utime(".",NULL);
 
     ChangeBackToSpoolDir();
-    chdir(Url->proto);
 
-    utime(".",NULL);
+    if(chdir(Url->proto)==0)
+      utime(".",NULL);
+    else
+      PrintMessage(Warning,"Cannot change to directory '%s' [%!s].",Url->proto);
+
    }
 
  /* Change dir back. */
@@ -577,9 +580,11 @@ char *DeleteWebpageSpoolFile(URL *Url,int all)
     closedir(dir);
 
     ChangeBackToSpoolDir();
-    chdir(Url->proto);
-
-    if(rmdir(URLToDirName(Url))) {
+    if(chdir(Url->proto)) {
+      if(err) free(err);
+      err=GetPrintMessage(Warning,"Cannot change to directory '%s' [%!s].",Url->proto);
+    }
+    else if(rmdir(URLToDirName(Url))) {
       if(err) free(err);
       err=GetPrintMessage(Warning,"Cannot delete what should be an empty directory '%s/%s' [%!s].",Url->proto,URLToDirName(Url));
     }
@@ -1823,7 +1828,7 @@ static int ChangeToCacheDir(URL *Url,int create,int errors)
 
 static int ChangeToSpecialDir(const char *dirname,int create,int errors)
 {
- /* Create the spool host directory if requested and change to it. */
+ /* Create the special directory if requested and change to it. */
 
  if(create && !createdir(NULL,dirname))
    return(1);
@@ -1873,20 +1878,17 @@ int ChangeToSpoolDir(const char *dir)
 /*++++++++++++++++++++++++++++++++++++++
   Change back to the spool directory.
 
-  int ChangeBackToSpoolDir Return -1 in case of error.
+  ChangeBackToSpoolDir either succeeds or raises a fatal error.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int ChangeBackToSpoolDir(void)
+void ChangeBackToSpoolDir(void)
 {
 #if defined(__CYGWIN__)
-
-  return chdir(sSpoolDir);
-
+  if (chdir(sSpoolDir)==-1)
 #else
-
- return fchdir(fSpoolDir);
-
+  if (fchdir(fSpoolDir)==-1)
 #endif
+    PrintMessage(Fatal,"Cannot change back to spool directory [%!s].");
 }
 
 

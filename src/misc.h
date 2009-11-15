@@ -145,6 +145,8 @@ char /*@special@*/ *CanonicaliseHost(const char *host) /*@allocates result@*/;
 void CanonicaliseName(char *name);
 
 inline static void SplitHostPort(char *hostport,char **host,size_t *hostlen,char **port)
+  __attribute__((always_inline));
+inline static void SplitHostPort(char *hostport,char **host,size_t *hostlen,char **port)
 {
   *port=NULL;
   if(*hostport=='[') {   /* IPv6 */
@@ -183,6 +185,8 @@ char /*@only@*/ **SplitFormArgs(const char *str);
 char *TrimArgs(/*@returned@*/ char *str);
 
 inline static int md5_cmp(md5hash_t *a, md5hash_t *b)
+  __attribute__((always_inline));
+inline static int md5_cmp(md5hash_t *a, md5hash_t *b)
 {
   if(a->elem[0] < b->elem[0]) return -1;
   if(a->elem[0] > b->elem[0]) return 1;
@@ -199,9 +203,11 @@ inline static int md5_cmp(md5hash_t *a, md5hash_t *b)
 void MakeHash(const char *args, unsigned len, /*@out@*/ md5hash_t *h);
 inline static void MakeStrHash(const char *args, md5hash_t *h) {MakeHash(args,strlen(args),h);}
 char *hashbase64encode(md5hash_t *h, unsigned char *buf, unsigned buflen);
+char *GetHash(URL *Url,char *buf, unsigned buflen);
 
 /* Added by Paul Rombouts:
    Get the binary hash value of a URL. */
+inline static md5hash_t *geturlhash(URL *Url)  __attribute__((always_inline));
 inline static md5hash_t *geturlhash(URL *Url)
 {
   if(!(Url->hashvalid)) {
@@ -211,16 +217,6 @@ inline static md5hash_t *geturlhash(URL *Url)
   return &Url->hash;
 }
 
-/* Added by Paul Rombouts:
-   Get the base64 encoded string version of the URL hash. */
-inline static char *GetHash(URL *Url,char *buf, unsigned buflen)
-{
-  if(!(Url->hashvalid)) {
-    MakeStrHash(Url->file,&Url->hash);
-    Url->hashvalid=1;
-  }
-  return hashbase64encode(&Url->hash,(unsigned char *)buf,buflen);
-}
 
 #define MAXDATESIZE 32
 #define MAXDURATIONSIZE 64
@@ -247,16 +243,20 @@ char *HTMLcommentstring(char *c);
 
 /* following inline functions and macros were added by Paul Rombouts */
 
+inline static void upcase(char *p)  __attribute__((always_inline));
 inline static void upcase(char *p)
 {
   for(;*p;++p) *p=toupper(*p);
 }
 
+inline static void downcase(char *p)  __attribute__((always_inline));
 inline static void downcase(char *p)
 {
   for(;*p;++p) *p=tolower(*p);
 }
 
+inline static void str_append(char **dst, const char *src)
+  __attribute__((always_inline));
 inline static void str_append(char **dst, const char *src)
 {
   size_t strlen_dst=(*dst)?strlen(*dst):0;
@@ -266,6 +266,8 @@ inline static void str_append(char **dst, const char *src)
 }
 
 inline static void strn_append(char **dst, size_t *lendst, const char *src)
+  __attribute__((always_inline));
+inline static void strn_append(char **dst, size_t *lendst, const char *src)
 {
   size_t lensrc=strlen(src);
   size_t newlen=*lendst+lensrc;
@@ -274,6 +276,7 @@ inline static void strn_append(char **dst, size_t *lendst, const char *src)
   *lendst=newlen;
 }
 
+inline static void chomp_str(char *str)  __attribute__((always_inline));
 inline static void chomp_str(char *str)
 {
   char *p=strchrnul(str,0);

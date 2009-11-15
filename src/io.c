@@ -1084,7 +1084,12 @@ ssize_t write_buffer_data(int fd,const char *data,size_t n)
 
 static ssize_t io_write_data(int fd,io_context *context,io_buffer *iobuffer)
 {
- ssize_t err=0,nw=iobuf_numbytes(iobuffer);
+ ssize_t err=0,nw;
+
+ if(iobuf_isempty(iobuffer))
+    return(0);
+
+ nw=iobuf_numbytes(iobuffer);
 
  /* Write the output data */
 

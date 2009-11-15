@@ -65,6 +65,7 @@ struct _Connection
   unsigned long rbytes, /*+ The number of raw bytes read. +*/
                 wbytes; /*+ The number of raw bytes written. +*/
   short int loggedin;   /*+ Indicates whether we have logged in (ftp). +*/
+  short int tryepsv;    /*+ Indicates whether the EPSV command should be tried first. +*/
   short int expectmore; /*+ Indicates whether to expect a further response from the control socket (ftp). +*/
 };
 

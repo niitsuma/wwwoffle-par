@@ -1,13 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configdata.c 2.160 2006/04/06 18:13:38 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/configdata.c 2.162 2007/09/29 18:54:08 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
   Configuration data functions.
   ******************/ /******************
   Written by Andrew M. Bishop
   Modified by Paul A. Rombouts
 
-  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  This file Copyright 1997-2007 Andrew M. Bishop
   Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -352,6 +352,9 @@ ConfigItem FetchSameHostImages;
 /*+ The option to also fetch frames. +*/
 ConfigItem FetchFrames;
 
+/*+ The option to also fetch iframes. +*/
+ConfigItem FetchIFrames;
+
 /*+ The option to also fetch scripts. +*/
 ConfigItem FetchScripts;
 
@@ -366,6 +369,7 @@ static ConfigItemDef fetchoptions_itemdefs[]={
  {"icon-images"          ,&FetchIconImages    ,1,0,Fixed,Boolean,"no" },
  {"only-same-host-images",&FetchSameHostImages,1,0,Fixed,Boolean,"no" },
  {"frames"               ,&FetchFrames        ,1,0,Fixed,Boolean,"no" },
+ {"iframes"              ,&FetchIFrames       ,1,0,Fixed,Boolean,"no" },
  {"scripts"              ,&FetchScripts       ,1,0,Fixed,Boolean,"no" },
  {"objects"              ,&FetchObjects       ,1,0,Fixed,Boolean,"no" }
 };
@@ -433,6 +437,9 @@ ConfigItem AnchorModifyBegin[3], /*+ (before the start tag). +*/
 
 /*+ The option to disable scripts and scripted actions. +*/
 ConfigItem DisableHTMLScript;
+
+/*+ The option to disable scripts after a closing body or html tag. +*/
+ConfigItem DisableHTMLScriptAfterBody;
 
 /*+ The option to disable external scripts with URLs in the DontGet list. +*/
 ConfigItem DisableHTMLDontGetScript;
@@ -506,6 +513,7 @@ static ConfigItemDef modifyhtml_itemdefs[]={
  {"anchor-not-cached-begin"  ,&AnchorModifyBegin[2]       ,1,0,Fixed,String ,NULL},
  {"anchor-not-cached-end"    ,&AnchorModifyEnd[2]         ,1,0,Fixed,String ,NULL},
  {"disable-script"           ,&DisableHTMLScript          ,1,0,Fixed,Boolean,"no"},
+ {"disable-script-after-body",&DisableHTMLScriptAfterBody ,1,0,Fixed,Boolean,"no"},
  {"disable-dontget-script"   ,&DisableHTMLDontGetScript   ,1,0,Fixed,Boolean,"no"},
  {"disable-applet"           ,&DisableHTMLApplet          ,1,0,Fixed,Boolean,"no"},
  {"disable-style"            ,&DisableHTMLStyle           ,1,0,Fixed,Boolean,"no"},
@@ -690,6 +698,9 @@ ConfigItem CensorOutgoingHeader;
 ConfigItem RefererSelf,    /*+ to point to itself. +*/
            RefererSelfDir; /*+ to point to the parent directory. +*/
 
+/* A flag to remove the 'Referer' header depending on the referring URL */
+ConfigItem RefererFrom;
+
 /*+ A flag to cause a 'User-Agent' header always to be added. +*/
 ConfigItem ForceUserAgent;
 
@@ -697,6 +708,7 @@ ConfigItem ForceUserAgent;
 static ConfigItemDef censoroutgoingheader_itemdefs[]={
  {"referer-self"    ,&RefererSelf         ,1,0,Fixed ,Boolean,"no"},
  {"referer-self-dir",&RefererSelfDir      ,1,0,Fixed ,Boolean,"no"},
+ {"referer-from"    ,&RefererFrom         ,1,0,Fixed ,Boolean,"no"},
  {"force-user-agent",&ForceUserAgent,      1,0,Fixed ,Boolean,"no"},
  {""                ,&CensorOutgoingHeader,1,1,String,String ,NULL}
 };
@@ -719,12 +731,16 @@ ConfigItem FTPPassWord;
 ConfigItem FTPAuthUser,         /*+ username. +*/
            FTPAuthPass;         /*+ password. +*/
 
+/*+ Flag indicating whether to try EPSV command. +*/
+ConfigItem FTPTryEPSV;
+
 /*+ The item definitions in the FTPOptions section. +*/
 static ConfigItemDef ftpoptions_itemdefs[]={
  {"anon-username",&FTPUserName,0,0,Fixed,String,"anonymous"},
  {"anon-password",&FTPPassWord,0,0,Fixed,String,NULL       }, /* 2 see InitConfigurationFile() */
  {"auth-username",&FTPAuthUser,1,0,Fixed,String,NULL       },
- {"auth-password",&FTPAuthPass,1,0,Fixed,String,NULL       }
+ {"auth-password",&FTPAuthPass,1,0,Fixed,String,NULL       },
+ {"try-epsv"     ,&FTPTryEPSV ,1,0,Fixed,Boolean,"yes"     }
 };
 
 /*+ The FTPOptions section. +*/

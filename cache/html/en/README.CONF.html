@@ -73,17 +73,17 @@ match.
 <h3><a name="StartUp_http-port"></a>http-port = (port)</h3>
 
 <p>
-An integer specifying the port number for the HTTP proxy to use
-(default=8080).  This is the port number that must be specified in the
-client to connect to the WWWOFFLE proxy.
+An integer specifying the port number for connections to access the
+internal WWWOFFLE pages and for HTTP/HTTPS/FTP proxying (default=8080).
+This is the port number that must be specified in the client to connect
+to the WWWOFFLE proxy for HTTP/HTTPS/FTP proxying.
 
 <h3><a name="StartUp_https-port"></a>https-port = (port)</h3>
 
 <p>
-An integer specifying the port number for the HTTPS proxy to use
-(default=8443).  This is the port number can be used to access the
-WWWOFFLE internal pages or proxy function.  Requires gnutls compilation
-option.
+An integer specifying the port number for encrypted connections to
+access the internal WWWOFFLE pages and for HTTP/FTP proxying
+(default=8443).  Requires gnutls compilation option.
 
 <h3><a name="StartUp_wwwoffle-port"></a>wwwoffle-port = (port)</h3>
 
@@ -173,6 +173,35 @@ to be made before giving up (default=30).
 <p>
 If a connection cannot be made to a remote server then WWWOFFLE should
 try again after a short delay (default=no).
+
+<h3><a name="Options_allow-keep-alive"></a>allow-keep-alive = yes | no</h3>
+
+<p>
+Enable the use of persistent connections to clients and web servers
+(default=no). For persistent connections to other proxy servers there
+is an additional option "proxy-keep-alive", see Proxy section.
+Note that HTTP/1.1 pipe-lining is not (yet) supported, and if a browser
+attempts pipe-lining it may result in delays and hang-ups.
+This option was added by Paul Rombouts.
+
+<h3><a name="Options_post-keep-alive"></a>post-keep-alive = yes | no</h3>
+
+<p>
+Whether to continue the use of a persistent connection to a client after
+processing a POST or PUT request (default=yes). To prevent problems with
+some older browsers it may be necessary to set this to no.
+Note that this option has no effect unless the "allow-keep-alive" option
+is enabled.
+This option was added by Paul Rombouts.
+
+<h3><a name="Options_keep-alive-timeout"></a>keep-alive-timeout = (time)</h3>
+
+<p>
+The time in seconds that WWWOFFLE will wait for a new request from a
+client on a persistent connection before giving up (default=30).
+Note that this option has no effect unless the "allow-keep-alive" option
+is enabled.
+This option was added by Paul Rombouts.
 
 <h3><a name="Options_dir-perm"></a>dir-perm = (octal int)</h3>
 
@@ -324,9 +353,16 @@ changed (default=yes).
 <h3><a name="OnlineOptions_validate-with-etag"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] validate-with-etag = yes | no</h3>
 
 <p>
-When making a conditional request to a server enable the use of the
-HTTP/1.1 cache validator 'Etag' as well as modification time
-(default=yes).
+If WWWOFFLE should always use ETag headers (if present) when a page
+is requested, and a copy exists in the cache (default=yes).
+This could cause pages/images to be re-fetched almost each time
+WWWOFFLE verifies their validity with the origin server. If they are
+hosted on a pool of servers that use different ETags for the same
+entity (which, unfortunately is often) it is highly possible.
+If set to no, WWWOFFLE will determine if the "Last-Modified" header
+is strong enough to be used alone.
+(This option was originally designed by Marc Boucher who called it
+"always-use-etag".)
 
 <h3><a name="OnlineOptions_try-without-password"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] try-without-password = yes | no</h3>
 
@@ -370,7 +406,23 @@ If the remote server replies with an error message or a redirection
 while there is a cached version with status 200 the previously cached 
 version should be kept (default=no).
 
-<h3><a name="OnlineOptions_request-compressed-data"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-compressed-data = yes | no</h3>
+<h3><a name="OnlineOptions_keep-cache-if-header-matches"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] keep-cache-if-header-matches = (string)</h3>
+
+<p>
+This option is similar to keep-cache-if-not-found, but instead of
+looking at the status code of the reply from the remote server,
+the header lines of the reply are matched against the given string.
+The string is interpreted as a pattern and may contain '*' <a href="#WILDCARD">WILDCARD</a>s.
+If the string contains a ':', the part before the first ':' is matched
+against the keys, and the rest against the values of the header lines.
+If the string doesn't contain a ':', only the keys of the header lines
+are matched against the string. The comparison is case insensitive.
+If a match is found and there is a cached version of the page with
+status 200 that doesn't match the pattern string, the previously 
+cached version is kept.
+(Option added by Paul Rombouts.)
+
+<h3><a name="OnlineOptions_request-compressed-data"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] request-compressed-data = yes | no | deflate | gzip</h3>
 
 <p>
 If the requests that are made to the server are to request compressed
@@ -398,10 +450,12 @@ browser.
 <h3><a name="OfflineOptions_cache-control-no-cache"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] cache-control-no-cache = yes | no</h3>
 
 <p>
-Whether to request a new copy of a page if the request from the client
-has 'Cache-Control: no-cache' (default=yes).  This option should be
-set to 'no' if when browsing offline all pages are re-requested by a
+Whether to request a new copy of a page if the request from the
+client has 'Cache-Control: no-cache' (default=yes).
+This option can be set to 'no' for certain URL-specs to
+reduce the number of outgoing requests that are generated by a
 'broken' browser.
+This option was added by Paul Rombouts.
 
 <h3><a name="OfflineOptions_cache-control-max-age-0"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] cache-control-max-age-0 = yes | no</h3>
 
@@ -445,7 +499,9 @@ be connected to using WWWOFFLE as a tunnelling proxy (no caching or
 decryption of the data) (default is no hosts or ports allowed).  This
 option should be set to *:443 to allow https to the default port number.
 There can be more than one option for other ports or hosts as required.
-This option takes precedence over the allow-cache option.
+This option takes precedence over the allow-cache option.  The host
+value is matched against the URL as presented, no hostname to IP or IP
+to hostname lookups are performed to find alternative equivalent names.
 
 <h3><a name="SSLOptions_disallow-tunnel"></a>disallow-tunnel = (host[:port])</h3>
 
@@ -453,7 +509,9 @@ This option takes precedence over the allow-cache option.
 A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an SSL server that can
 not be connected to using WWWOFFLE as a tunnelling proxy.  There can be
 more than one option for other ports or hosts as required.  This option
-takes precedence over the allow-tunnel option.
+takes precedence over the allow-tunnel option.  The host value is
+matched against the URL as presented, no hostname to IP or IP to
+hostname lookups are performed to find alternative equivalent names.
 
 <h3><a name="SSLOptions_allow-cache"></a>allow-cache = (host[:port])</h3>
 
@@ -462,14 +520,18 @@ A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an SSL
 be connected to using WWWOFFLE as a caching proxy (decryption of the
 data) (default is no hosts or ports allowed).  This option should be set
 to *:443 to allow https to the default port number.  There can be more
-than one option for other ports or hosts as required.
+than one option for other ports or hosts as required.  The host value is
+matched against the URL as presented, no hostname to IP or IP to
+hostname lookups are performed to find alternative equivalent names.
 
 <h3><a name="SSLOptions_disallow-cache"></a>disallow-cache = (host[:port])</h3>
 
 <p>
 A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an SSL server that can
 not be connected to using WWWOFFLE as a caching proxy.  This option
-takes precedence over the allow-cache option.
+takes precedence over the allow-cache option.  The host value is matched
+against the URL as presented, no hostname to IP or IP to hostname
+lookups are performed to find alternative equivalent names.
 
 <h2><a name="FetchOptions"></a>FetchOptions</h2>
 
@@ -512,6 +574,11 @@ also be selected (default=no).
 
 <p>
 If frames are to be fetched (default=no).
+
+<h3><a name="FetchOptions_iframes"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] iframes = yes | no</h3>
+
+<p>
+If inline frames (iframes) are to be fetched (default=no).
 
 <h3><a name="FetchOptions_scripts"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] scripts = yes | no</h3>
 
@@ -585,6 +652,18 @@ With this option enabled there is a small speed penalty.
 At the bottom of all of the spooled pages the date that the page was
 cached and some navigation buttons are to be added (default=no).
 
+<h3><a name="ModifyHTML_insert-file"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] insert-file = (path name)</h3>
+
+<p>
+At the end of the page the content of a local file is to be inserted
+literally, without modifications (default=none). If add-cache-info is
+also enabled, the file is inserted after the cache info. The path name
+should start with a '/' and is interpreted as a relative local URL. The
+file should contain HTML code without &lt;html&gt;, &lt;head&gt; or &lt;body&gt; tags. The
+content will be inserted before the &lt;/body&gt; and &lt;/html&gt; end tags, if
+present in the page being modified.
+	(option added by Paul Rombouts.)
+
 <h3><a name="ModifyHTML_anchor-cached-begin"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] anchor-cached-begin = (HTML code) | </h3>
 
 <p>
@@ -630,6 +709,18 @@ requested are to have the specified HTML inserted at the end
 <p>
 Removes all scripts and scripted events (default=no).
 
+<h3><a name="ModifyHTML_disable-script-after-body"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-script-after-body = yes | no</h3>
+
+<p>
+Removes all scripts after a closing body or html tag (default=no).
+
+<h3><a name="ModifyHTML_disable-dontget-script"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-dontget-script = yes | no</h3>
+
+<p>
+Removes external scripts with URLs that are in the DontGet section of
+the configuration file (default=no).
+(Option added by Paul Rombouts.)
+
 <h3><a name="ModifyHTML_disable-applet"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-applet = yes | no</h3>
 
 <p>
@@ -667,12 +758,25 @@ Removes any inline frames (the &lt;iframe&gt; tag) from HTML (default=no).
 <p>
 Removes any meta tags in the HTML header that re-direct the client to
 change to another page after an optional delay (default=no).
+It is also possible to replace the delay with a time of your own
+choice, see below.
 
 <h3><a name="ModifyHTML_disable-meta-refresh-self"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-meta-refresh-self = yes | no</h3>
 
 <p>
 Removes any meta tags in the HTML header that re-direct the client to
 reload the same page after a delay (default=no).
+It is also possible to replace the delay with a time of your own
+choice, see below.
+
+<h3><a name="ModifyHTML_replacement-meta-refresh-time"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] replacement-meta-refresh-time = (time)</h3>
+
+<p>
+The replacement delay time (in seconds) to use when
+disable-meta-refresh or disable-meta-refresh-self is enabled.
+The default is -1, which means no substitution takes place and the
+meta tag is removed.
+This option was added by Paul Rombouts.
 
 <h3><a name="ModifyHTML_disable-meta-set-cookie"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] disable-meta-set-cookie = yes | no</h3>
 
@@ -750,8 +854,10 @@ A hostname or IP address that in connection with the port number (in
 the StartUp section) specifies the WWWOFFLE proxy HTTP server.  The
 hostnames must match exactly, it is not a <a href="#WILDCARD">WILDCARD</a> match.  The first
 named host is used as the server name for several features so must be
-a name that will work from any client host on the network.  None of
-the hosts named here are cached or fetched via a proxy.
+a name that will work from any client host on the network.  The entries
+can be hostnames, IPv4 addresses or IPv6 addresses enclosed within
+'[...]'.  None of the hosts named here are cached or fetched via a
+proxy.
 
 <h2><a name="LocalNet"></a>LocalNet</h2>
 
@@ -764,10 +870,12 @@ and are not to be cached by WWWOFFLE because they are on a local network.
 <p>
 A hostname or IP address that is always available and is not to be
 cached by WWWOFFLE.  The host name matching uses <a href="#WILDCARD">WILDCARD</a>s.  A host
-can be excluded by appending a '!' to the start of the name, all
-possible aliases and IP addresses for the host are also required.  All
-entries here are assumed to be reachable even when offline.  None of
-the hosts named here are cached or fetched via a proxy.
+can be excluded by appending a '!' to the start of the name.  The host
+value is matched against the URL as presented, no hostname to IP or IP
+to hostname lookups are performed to find alternative equivalent names.
+The entries can be hostnames, IPv4 addresses or IPv6 addresses enclosed
+within '[...]'.  All entries here are assumed to be reachable even when
+offline.  None of the hosts named here are cached or fetched via a proxy.
 
 <h2><a name="AllowedConnectHosts"></a>AllowedConnectHosts</h2>
 
@@ -779,9 +887,11 @@ A list of client hostnames that are allowed to connect to the server.
 <p>
 A hostname or IP address that is allowed to connect to the server.
 The host name matching uses <a href="#WILDCARD">WILDCARD</a>s.  A host can be excluded by
-appending a '!' to the start of the name, all possible aliases and IP
-addresses for the host are also required.  All of the hosts named in
-LocalHost are also allowed to connect.
+appending a '!' to the start of the name.  If the IP address or hostname
+(if available) of the machine connecting matches then it is allowed.
+The entries can be hostnames, IPv4 addresses or IPv6 addresses enclosed
+within '[...]'.  All of the hosts named in LocalHost are also allowed to
+connect.
 
 <h2><a name="AllowedConnectUsers"></a>AllowedConnectUsers</h2>
 
@@ -865,16 +975,42 @@ when providing compressed pages to clients.
 The file extension of a URL that is not to be requested compressed
 from a server.
 
-<h2><a name="CensorHeader"></a>CensorHeader</h2>
+<h2><a name="CensorIncomingHeader"></a>CensorIncomingHeader</h2>
+
+<p>
+A list of HTTP header lines that are to be removed from the replies that come
+back from web servers.
+
+<h3><a name="CensorIncomingHeader_(header)"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] (header) = yes | no | (string)</h3>
+
+<p>
+A header field name (e.g. Set-Cookie) and
+the string to replace the header value with (default=no).  The header
+is case sensitive, and does not have a ':' at the end.  The value of
+"no" means that the header is unmodified, "yes" or no string can be
+used to remove the header or a string can be used to replace the
+header.  This only replaces headers it finds, it does not add any new
+ones.  An option for Set-Cookie here will take precedence over the
+session-cookies-only option.
+
+<h3><a name="CensorIncomingHeader_session-cookies-only"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] session-cookies-only = yes | no</h3>
+
+<p>
+Choose whether to delete the "expires" field from "Set-Cookie:" server
+headers (default=no).  Most browsers will not store such cookies
+permanently and forget them in between sessions.
+This option was added by Paul Rombouts (who got the idea from Privoxy).
+
+<h2><a name="CensorOutgoingHeader"></a>CensorOutgoingHeader</h2>
 
 <p>
 A list of HTTP header lines that are to be removed from the requests sent to
-web servers and the replies that come back from them.
+web servers.
 
-<h3><a name="CensorHeader_(header)"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] (header) = yes | no | (string)</h3>
+<h3><a name="CensorOutgoingHeader_(header)"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] (header) = yes | no | (string)</h3>
 
 <p>
-A header field name (e.g. From, Cookie, Set-Cookie, User-Agent) and
+A header field name (e.g. From, Cookie, User-Agent) and
 the string to replace the header value with (default=no).  The header
 is case sensitive, and does not have a ':' at the end.  The value of
 "no" means that the header is unmodified, "yes" or no string can be
@@ -883,14 +1019,14 @@ header.  This only replaces headers it finds, it does not add any new
 ones.  An option for Referer here will take precedence over the
 referer-self and referer-self-dir options.
 
-<h3><a name="CensorHeader_referer-self"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] referer-self = yes | no</h3>
+<h3><a name="CensorOutgoingHeader_referer-self"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] referer-self = yes | no</h3>
 
 <p>
 Sets the Referer header to the same as the URL being requested
 (default=no).  This will add the Referer header if none is contained
 in the original request.
 
-<h3><a name="CensorHeader_referer-self-dir"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] referer-self-dir = yes | no</h3>
+<h3><a name="CensorOutgoingHeader_referer-self-dir"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] referer-self-dir = yes | no</h3>
 
 <p>
 Sets the Referer header to the directory name of the URL being
@@ -898,7 +1034,13 @@ requested (default=no).  This will add the Referer header if none is
 contained in the original request.  This option takes precedence over
 referer-self.
 
-<h3><a name="CensorHeader_force-user-agent"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] force-user-agent = yes | no</h3>
+<h3><a name="CensorOutgoingHeader_referer-from"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] referer-from = yes | no</h3>
+
+<p>
+Removes the Referer header based on a match of the referring URL
+(default=no).
+
+<h3><a name="CensorOutgoingHeader_force-user-agent"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] force-user-agent = yes | no</h3>
 
 <p>
 Forces a User-Agent header to be inserted into all requests that are
@@ -978,6 +1120,33 @@ retrieved.
 The password to use on a proxy host to authenticate WWWOFFLE to it.
 The <a href="#URL-SPECIFICATION">URL-SPEC</a> in this case refers to the proxy and not the URL being
 retrieved.
+
+<h3><a name="Proxy_proxy-keep-alive"></a>&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; proxy-keep-alive = yes | no</h3>
+
+<p>
+Enable persistent connections to other proxies (default=yes).
+Note that this option has no effect unless the "allow-keep-alive" option
+is enabled.
+The <a href="#URL-SPECIFICATION">URL-SPEC</a> in this case refers to the proxy and not the URL being
+retrieved.
+This option was added by Paul Rombouts.
+
+<h3><a name="Proxy_socks"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] socks = (host[:port])</h3>
+
+<p>
+The hostname and port to use as a SOCKS 4 proxy (default: none).
+(Option added by Paul Rombouts.)
+
+<h3><a name="Proxy_socks-remote-dns"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] socks-remote-dns = yes | no</h3>
+
+<p>
+By default, when connecting through a SOCKS proxy server the destination
+host name is resolved locally and the IP address is given to the SOCKS
+server. Sometimes this is not what you want. When this option is
+enabled, WWWOFFLE will not attempt to resolve the name and will supply
+the host name directly to the SOCKS server. This option only works if
+the SOCKS server supports the SOCKS 4A protocol.
+(Option added by Paul Rombouts.)
 
 <h3><a name="Proxy_ssl"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] ssl = (host[:port])</h3>
 

@@ -285,6 +285,7 @@ Connection *ConnectionOpen(URL *Url, char **errmsg)
     connection->rbytes=0;
     connection->wbytes=0;
     connection->loggedin=0;
+    connection->tryepsv=0;
     connection->expectmore=0;
 
     err= (protocol->open)(connection, Url);

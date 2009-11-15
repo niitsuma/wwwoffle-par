@@ -1,13 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/document.h 1.12 2005/02/27 10:18:08 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/document.h 1.13 2007/09/29 18:54:08 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8f.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
   Header file for document parsing functions.
   ******************/ /******************
   Written by Andrew M. Bishop
   Modified by Paul A. Rombouts
 
-  This file Copyright 1998,99,2000,01,02,03,04,05 Andrew M. Bishop
+  This file Copyright 1998-2007 Andrew M. Bishop
   Parts of this file Copyright (C) 2002,2004,2006 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -41,6 +41,7 @@ typedef enum _RefType
  RefStyleSheet,                 /*+ A style sheet. +*/
  RefImage,                      /*+ An image. +*/
  RefFrame,                      /*+ The contents of a frame. +*/
+ RefIFrame,                     /*+ The contents of an inline frame (iframe). +*/
  RefScript,                     /*+ An included script. +*/
  RefObject,                     /*+ An included object. +*/
  RefInlineObject,               /*+ An inlined object e.g. VRML: WWWInline, referenced java class. +*/

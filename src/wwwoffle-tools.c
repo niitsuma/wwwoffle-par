@@ -1001,7 +1001,7 @@ static void gzip_file(char *proto,char *hostport,char *file,int compress)
  if(compress)
    {
     AddToHeader(spool_head,"Content-Encoding","x-gzip");
-    AddToHeader(spool_head,"Pragma","wwwoffle-compressed");
+    AddToHeaderCombined(spool_head,"Pragma","wwwoffle-compressed");
     RemoveFromHeader(spool_head,"Content-Length");
    }
  else

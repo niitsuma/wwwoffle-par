@@ -297,7 +297,12 @@ void FreeKeysOrValues(KeyOrValue *keyval,ConfigType type, int n)
 
 int MatchUrlSpecification(const UrlSpec *spec,const URL *Url)
 {
-  return((!spec->proto || !strcmp(UrlSpecProto(spec),Url->proto)) &&
+  const char *specproto, *endp;
+  return((!spec->proto ||
+	  ((specproto=UrlSpecProto(spec),endp=strchrnul(specproto,0),
+	    (endp>specproto && *--endp=='*'))?
+	   !strncmp(Url->proto,specproto,endp-specproto):
+	   !strcmp(Url->proto,specproto))) &&
 	 (!spec->host || WildcardMatch(Url->host,UrlSpecHost(spec))) &&
 	 (spec->port==-1 || (Url->port? Url->portnum==spec->port : spec->port==0)) &&
 	 (!spec->path || (spec->nocase? WildcardCaseMatch(Url->path,UrlSpecPath(spec)):WildcardMatch(Url->path,UrlSpecPath(spec)))) &&
@@ -318,7 +323,12 @@ int MatchUrlSpecification(const UrlSpec *spec,const URL *Url)
 
 int MatchUrlSpecificationProtoHostPort(const UrlSpec *spec,const URL *Url)
 {
-  return((!spec->proto || !strcmp(UrlSpecProto(spec),Url->proto)) &&
+  const char *specproto, *endp;
+  return((!spec->proto ||
+	  ((specproto=UrlSpecProto(spec),endp=strchrnul(specproto,0),
+	    (endp>specproto && *--endp=='*'))?
+	   !strncmp(Url->proto,specproto,endp-specproto):
+	   !strcmp(Url->proto,specproto))) &&
 	 (!spec->host || WildcardMatch(Url->host,UrlSpecHost(spec))) &&
 	 (spec->port==-1 || (Url->port? Url->portnum==spec->port : spec->port==0)));
 }

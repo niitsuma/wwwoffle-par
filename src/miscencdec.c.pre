@@ -502,6 +502,18 @@ char *hashbase64encode(md5hash_t *h, unsigned char *buf, unsigned buflen)
 }
 
 
+/* Added by Paul Rombouts:
+   Get the base64 encoded string version of the URL hash. */
+char *GetHash(URL *Url,char *buf, unsigned buflen)
+{
+  if(!(Url->hashvalid)) {
+    MakeStrHash(Url->file,&Url->hash);
+    Url->hashvalid=1;
+  }
+  return hashbase64encode(&Url->hash,(unsigned char *)buf,buflen);
+}
+
+
 /*+ Conversion from time_t to date string and back (day of week). +*/
 static const char* const weekdays[7]={"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
 

@@ -1,7 +1,7 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/certinfo.c 1.11 2007/04/23 09:28:19 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/certinfo.c 1.13 2007/11/27 17:32:09 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
   Generate information about the contents of the web pages that are cached in the system.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -583,8 +583,8 @@ cleanup_return:
 
 static void display_certificate(int fd,gnutls_x509_crt_t crt)
 {
- gnutls_datum_t xml={NULL,0};
- char *dn,*issuer_dn,*key_ca,*xmldata;
+ gnutls_datum_t txt={NULL,0};
+ char *dn,*issuer_dn,*key_ca,*txtdata;
  time_t activation,expiration;
  char dn_buf[256],issuer_dn_buf[256];
  char activation_str[MAXDATESIZE],expiration_str[MAXDATESIZE];
@@ -674,14 +674,14 @@ static void display_certificate(int fd,gnutls_x509_crt_t crt)
  else
     key_ca="Error";
 
- /* XML formatted certificate. */
+ /* Formatted certificate */
 
- if((err=gnutls_x509_crt_to_xml(crt,&xml,GNUTLS_XML_NORMAL))<0) {
-   PrintMessage(Warning,"Could not get XML formatted certificate [%s].",gnutls_strerror(err));
-   xmldata="*** gnutls xml conversion failed ***";
+ if((err=gnutls_x509_crt_print(crt,GNUTLS_X509_CRT_FULL,&txt))<0) {
+   PrintMessage(Warning,"Could not get formatted certificate [%s].",gnutls_strerror(err));
+   txtdata="*** gnutls certificate formatting failed ***";
  }
  else
-   xmldata=(char *)xml.data;
+   txtdata=(char *)txt.data;
 
  /* Output the information. */
 
@@ -693,12 +693,12 @@ static void display_certificate(int fd,gnutls_x509_crt_t crt)
                  "key_algo",key_algo,
                  "key_usage",key_usage,
                  "key_ca",key_ca,
-                 "xml",xmldata,
+                 "info",txtdata,
                  NULL);
 
  /* Tidy up and exit */
 
- free(xml.data);
+ free(txt.data);
 }
 
 

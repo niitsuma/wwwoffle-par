@@ -51,39 +51,12 @@ int CreateHeader(const char *line,int type,Header **head);
 
 void AddToHeader(Header *head,/*@null@*/ const char *key,const char *val);
 int AddToHeaderRaw(Header *head,const char *line);
+void AddToHeaderCombined(Header *head,const char *key,const char *val);
 
-/* The following function changed into an inline version by Paul Rombouts */
-inline static void ChangeURLInHeader(Header *head,const char *url)
-{
-  free(head->url);
-  head->url=strdup(url);
-}
+void ChangeURLInHeader(Header *head,const char *url);
+void ChangeVersionInHeader(Header *head,const char *version);
 
-inline static void ChangeVersionInHeader(Header *head,const char *version)
-{
-  free(head->version);
-  head->version=strdup(version);
-}
-
-/*++++++++++++++++++++++++++++++++++++++
-  Remove the internal WWWOFFLE POST/PUT URL extensions.
-  char *url A pointer to a string in the header.
-  ++++++++++++++++++++++++++++++++++++++*/
-/* Written by Paul Rombouts as a replacement for RemovePlingFromHeader() */
-inline static void RemovePlingFromUrl(char *url)
-{
-  char *pling,*pling2;
-
-  if((pling=strstr(url,"?!"))) {
-    if((pling2=strchr(pling+2,'!'))) {
-      ++pling; --pling2;
-      for(;pling<pling2;++pling)
-	*pling=*(pling+1);
-    }
-    *pling=0;
-  }
-}
-
+void RemovePlingFromUrl(char *url);
 
 void RemoveFromHeader(Header *head,const char* key);
 int RemoveFromHeader2(Header *head,const char* key,const char *val);

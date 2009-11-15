@@ -19,9 +19,9 @@ val             ({alphanum}|{nonascii}|{safepunct})+
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/htmlmodify.l 1.95 2007/07/08 17:53:14 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/htmlmodify.l 1.96 2007/07/21 13:23:54 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
   Parse the HTML and modify the source.
   ******************/ /******************
   Written by Andrew M. Bishop
@@ -253,6 +253,7 @@ typedef enum _disabled_t
   disabled_applet,
   disabled_flash,
   disabled_script,
+  disabled_script_after_body,
   disabled_dontget_script,
   disabled_style
 }
@@ -269,6 +270,7 @@ static const char* const tagprefix[]=
   "!-- WWWOFFLE (disable-applet) - ",
   "!-- WWWOFFLE (disable-flash) - ",
   "!-- WWWOFFLE (disable-script) - ",
+  "!-- WWWOFFLE (disable-script-after-body) - ",
   "!-- WWWOFFLE (disable-dontget-script) - ",
   "!-- WWWOFFLE (disable-style) - "
 };
@@ -985,14 +987,17 @@ static disabled_t output_img_or_object_tag(Tag *tag,int attr_type,
 
      if(!retval && replace_webbug) {
        int seen_src=0,width=1000,height=1000;
+       char *attrval;
 
        for(i=0;i<tag->nattr;i++) {
 	 if(tag->attr_type[i]==attr_type && tag->attr_val[i])
 	   seen_src=1;
-	 if(tag->attr_type[i]==att_width && tag->attr_val[i])
-	   width=atoi(tag->attr_val[i]);
-	 else if(tag->attr_type[i]==att_height && tag->attr_val[i])
-	   height=atoi(tag->attr_val[i]);
+	 if(tag->attr_type[i]==att_width && (attrval=tag->attr_val[i])
+	    && *attrval && isdigit(*attrval))
+	   width=atoi(attrval);
+	 else if(tag->attr_type[i]==att_height && (attrval=tag->attr_val[i])
+		 && *attrval && isdigit(*attrval))
+	   height=atoi(attrval);
        }
 
        if(seen_src && width<=1 && height<=1)
@@ -1484,6 +1489,7 @@ static void modify_html(URL *Url)
  char *anchor_modify_end[3];
  int anchor_modify=0;
  int disable_script=ConfigBooleanURL(DisableHTMLScript,Url);
+ int disable_script_after_body=ConfigBooleanURL(DisableHTMLScriptAfterBody,Url);
  int disable_dontget_script=ConfigBooleanURL(DisableHTMLDontGetScript,Url),is_disabled_dontget_script=0;
  int disable_applet=ConfigBooleanURL(DisableHTMLApplet,Url);
  int disable_style=ConfigBooleanURL(DisableHTMLStyle,Url),is_disabled_style_script=0;
@@ -1502,7 +1508,7 @@ static void modify_html(URL *Url)
  int replace_html_webbug_images=ConfigBooleanURL(ReplaceHTMLWebbugImages,Url);
  char *replacement_html_webbug_image=NULL,*replacement_html_webbug_image_copy=NULL;
  char *insertfile=ConfigStringURL(InsertFile,Url);
- int insertedfile=0;
+ int insertedfile=0,after_body=0;
 
  anchor_modify_begin[0]=ConfigStringURL(AnchorModifyBegin[0],Url);
  anchor_modify_begin[1]=ConfigStringURL(AnchorModifyBegin[1],Url);
@@ -1596,6 +1602,7 @@ static void modify_html(URL *Url)
 	      with text in between. */
 	   if(insertfile && (!insertedfile || tag==tag__body))
 	     {add_insertfile(insertfile); insertedfile=1;}
+	   after_body=1;
 	   break;
 	 case tag_blink: case tag__blink:
 	   if(disable_blink)
@@ -1608,12 +1615,16 @@ static void modify_html(URL *Url)
 	 case tag_script:
 	   if(disable_script)
 	     prefix="!-- WWWOFFLE (disable-script) - ";
+	   else if(after_body && disable_script_after_body)
+	     prefix="!-- WWWOFFLE (disable-script-after-body) - ";
 	   else if(disable_dontget_script)
 	     disable_output|=DISABLE_SCRIPT;
 	   break;
 	 case tag__script:
 	   if(disable_script)
 	     prefix="!-- WWWOFFLE (disable-script) - ";
+	   else if(after_body && disable_script_after_body)
+	     prefix="!-- WWWOFFLE (disable-script-after-body) - ";
 	   else if(is_disabled_dontget_script)
 	     {prefix=tagprefix[is_disabled_dontget_script]; is_disabled_dontget_script=0;}
 	   break;
@@ -1785,7 +1796,7 @@ static void modify_html(URL *Url)
 	     }
 	   break;
 	 case tag_script:
-	   if(disable_script)
+	   if(disable_script || (after_body && disable_script_after_body))
 	     commentout=1;
 	   else if(disable_dontget_script)
 	     {

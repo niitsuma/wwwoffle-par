@@ -1,14 +1,14 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/iozlib.c 1.24 2006/10/02 18:43:17 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/iozlib.c 1.25 2007/11/26 14:52:11 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9b.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
   Functions for file input and output with compression.
   ******************/ /******************
   Written by Andrew M. Bishop
   Modified by Paul A. Rombouts
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2004,2007 Paul A. Rombouts
+  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06,07 Andrew M. Bishop
+  Parts of this file Copyright (C) 2004,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -303,7 +303,9 @@ int io_zlib_compress(io_buffer *in,io_zlib *context,io_buffer *out)
 
  if(err!=Z_STREAM_END && err!=Z_OK)
    {
-    set_zerror(err,context->stream.msg);
+    set_zerror(err,
+	       context->stream.msg? context->stream.msg:
+	       err==Z_BUF_ERROR? "deflate: no progress is possible": NULL);
     return(-1);
    }
 
@@ -401,9 +403,11 @@ int io_zlib_uncompress(io_buffer *in,io_zlib *context,io_buffer *out)
        context->ht_bytenr=1;
     }
    }
- else if(err!=Z_OK && err!=Z_BUF_ERROR)
+ else if(err!=Z_OK)
    {
-    set_zerror(err,context->stream.msg);
+    set_zerror(err,
+	       context->stream.msg? context->stream.msg:
+	       err==Z_BUF_ERROR? "inflate: no progress is possible": NULL);
     return(-1);
    }
 

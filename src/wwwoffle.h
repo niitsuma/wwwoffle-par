@@ -1,13 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle.h 2.116 2006/07/21 17:38:50 amb Exp $
+  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle.h 2.117 2007/09/29 18:54:08 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9a.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
   A header file for all of the programs wwwoffle, wwwoffled.
   ******************/ /******************
   Written by Andrew M. Bishop
   Modified by Paul A. Rombouts
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  This file Copyright 1996-2007 Andrew M. Bishop
   Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -127,7 +127,7 @@ inline static char *URLToDirName(URL *Url) {return Url->hostport;}
 #endif
 
 int ChangeToSpoolDir(const char *dir);
-int /*@alt void@*/ ChangeBackToSpoolDir(void);
+void ChangeBackToSpoolDir(void);
 int CloseSpoolDir();
 
 int SetCurrentOnlineStatus(int online);
@@ -231,7 +231,7 @@ int RecurseFetch(URL *Url);
 int RecurseFetchRelocation(URL *Url,URL *locationUrl);
 char /*@only@*/ *CreateRefreshPath(URL *Url,char *limit,int depth,
                                    int force,
-                                   int stylesheets,int images,int frames,int scripts,int objects);
+                                   int stylesheets,int images,int frames,int iframes,int scripts,int objects);
 int RefreshForced(void);
 
 

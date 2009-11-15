@@ -453,11 +453,11 @@ void RequestMonitoredPages(void)
 
  dir=opendir(".");
  if(!dir)
-   {PrintMessage(Warning,"Cannot open directory 'monitor'; [%!s] no files monitored.");ChangeBackToSpoolDir();return;}
+   {PrintMessage(Warning,"Cannot open directory 'monitor'; [%!s] no files monitored.");goto changeback_return;}
 
  ent=readdir(dir);
  if(!ent)
-   {PrintMessage(Warning,"Cannot read directory 'monitor'; [%!s] no files monitored.");closedir(dir);ChangeBackToSpoolDir();return;}
+   {PrintMessage(Warning,"Cannot read directory 'monitor'; [%!s] no files monitored.");goto cleanup_return;}
 
  /* Scan through all of the files. */
 
@@ -480,7 +480,8 @@ void RequestMonitoredPages(void)
 
        PrintMessage(Debug,"Monitoring '%s' last=%dh next=%dh => %s",Url->name,last,next,next?"No":"Yes");
 
-       chdir("monitor");
+       if(chdir("monitor"))
+	 {PrintMessage(Warning,"Cannot change to directory 'monitor'; [%!s] monitoring aborted.");FreeURL(Url);goto cleanup_return;}
 
        if(next==0)
          {
@@ -518,10 +519,11 @@ void RequestMonitoredPages(void)
 
                }
 
-             chdir("monitor");
-
              finish_io(ifd);
              close(ifd);
+
+	     if(chdir("monitor"))
+	       {PrintMessage(Warning,"Cannot change to directory 'monitor'; [%!s] monitoring aborted.");FreeURL(Url);goto cleanup_return;}
 
 	     {
 	       local_URLToFileName(Url,'M',0,file)
@@ -536,9 +538,10 @@ void RequestMonitoredPages(void)
    }
  while((ent=readdir(dir)));
 
- ChangeBackToSpoolDir();
-
+cleanup_return:
  closedir(dir);
+changeback_return:
+ ChangeBackToSpoolDir();
 }
 
 

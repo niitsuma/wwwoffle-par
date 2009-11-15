@@ -64,7 +64,7 @@ inline static int is_wwwoffle_error_message(Header *head)
 			!strcasecmp(head->note,"WWWOFFLE Requested Resource Gone")));
 }
 
-inline static int keepspoolfile(URL *Url,int backup)
+static int keepspoolfile(URL *Url,int backup)
 {
   int retval=0;
   Header *spooled_head=SpooledPageHeader(Url,backup);
@@ -1382,7 +1382,7 @@ passwordagain:
 
  /* If in Real mode and there is a lockfile (cannot create new one) then just spool the cache version. */
 
- if((mode==Real || mode==SpoolOrReal) && (lockcreated=CreateLockWebpageSpoolFile(Url))<=0)
+ if((mode==Real || mode==SpoolOrReal) && !head_only && (lockcreated=CreateLockWebpageSpoolFile(Url))<=0)
    {
      if(lockcreated<0) {
        char *errmsg=GetPrintMessage(Warning,"Cannot create a lock file in the spool directory [%!s].");
@@ -1528,6 +1528,9 @@ passwordagain:
 
      if(!spool_exists || (spool=OpenWebpageSpoolFile(1,Url))==-1)
        {
+	 if(head_only)
+	   mode=RealNoCache;
+
 	 if(conditional_request_ims)
 	   RemoveFromHeader(request_head,"If-Modified-Since");
 	 if(conditional_request_inm)
@@ -1591,7 +1594,7 @@ passwordagain:
 	 else
 	   {
 	     mode=Spool;
-	     DeleteLockWebpageSpoolFile(Url);
+	     if(!head_only) DeleteLockWebpageSpoolFile(Url);
 
 	     if((conditional_request_ims || conditional_request_inm) && !head_only)
 	       {
@@ -1605,6 +1608,9 @@ passwordagain:
 		     HTMLMessageHead(client,304,"WWWOFFLE Not Modified",
 				     "Content-Length","0",
 				     NULL);
+		     finish_io(spool);
+		     close(spool);
+		     spool=-1;
 		     mode=InternalPage; goto internalpage;
 		   }
 	       }
@@ -1634,7 +1640,7 @@ passwordagain:
 	 if(spool_exists)
 	   {
 	     mode=Spool;
-	     DeleteLockWebpageSpoolFile(Url);
+	     if(!head_only) DeleteLockWebpageSpoolFile(Url);
 	   }
 
 	 /* If not then use Real mode. */
@@ -1674,6 +1680,9 @@ passwordagain:
 		     HTMLMessageHead(client,304,"WWWOFFLE Not Modified",
 				     "Content-Length","0",
 				     NULL);
+		     finish_io(spool);
+		     close(spool);
+		     spool=-1;
 		     mode=InternalPage; goto internalpage;
 		   }
 
@@ -1932,7 +1941,7 @@ passwordagain:
           If the line is included then IIS servers don't recognise the "Connection: close"
           header and keep WWWOFFLE waiting until there is a connection timeout.
        */
-       AddToHeader(request_head,"Connection","TE");
+       AddToHeaderCombined(request_head,"Connection","TE");
        AddToHeader(request_head,"TE","chunked");
       }
    }
@@ -2330,8 +2339,18 @@ passwordagain:
           else
             {
              spool=OpenWebpageSpoolFile(1,Url);
-             if(spool!=-1)
-                init_io(spool);
+
+	     if(spool==-1)
+	       {
+		 char *errmsg=GetPrintMessage(Warning,"Cannot open the spooled web page to read [%!s].");
+		 HTMLMessage(client,500,"WWWOFFLE Server Error",NULL,"ServerError",
+			     "error",errmsg,
+			     NULL);
+		 free(errmsg);
+		 mode=InternalPage; goto internalpage;
+	       }
+
+	     init_io(spool);
 
              mode=Spool;
             }
@@ -2489,6 +2508,7 @@ passwordagain:
     if(mode==Real && !head_only &&
        !is_client_wwwoffle &&
        !is_client_searcher &&
+       reply_head->status!=204 && reply_head->status!=304 &&
        /* ConfigBooleanURL(EnableHTMLModifications,Url) && */
        !GetHeader2(request_head,"Cache-Control","no-transform"))
       {
@@ -2509,16 +2529,6 @@ passwordagain:
              modify=0;
       }
 
-    if(reply_head->status==304 && !server_compression && !server_chunked &&
-       !GetHeader(reply_head,"Content-Length"))
-      {
-	/* A 304 response should have no body. */
-	content_length=0;
-	client_chunked=0;
-	client_compression=0;
-	modify=0;
-      }
-
     if(!strcmp(request_head->method,"HEAD"))
       content_length=0;
     else if(server_chunked)
@@ -2537,24 +2547,32 @@ passwordagain:
 	else
 	  content_length=len;
 
-	if(content_length==0) {
-	  client_chunked=0;
-	  client_compression=0;
+	if(content_length==0 && mode!=RealNoPassword) {
 	  modify=0;
+	  client_compression=0;
+	  if(!server_compression)
+	    client_chunked=0;
 	}
-	else if(server_compression || modify || content_length==CUNDEF)
+	if(server_compression || modify || content_length==CUNDEF)
 	  RemoveFromHeader(reply_head,"Content-Length");
+      }
+      else if ((reply_head->status==204 || reply_head->status==304) && !server_compression) {
+	/* (reply_head->status==204 || reply_head->status==304) && !server_compression && !server_chunked &&
+	   !GetHeader(reply_head,"Content-Length") */
+
+	content_length=0; /* A 204 or 304 response should have no body. */
       }
     }
 
     /* Set up compression header for the client if available and required. */
 
 #if USE_ZLIB
-    if(client_compression && !head_only && mode!=RealNoPassword)
+    if(client_compression && mode!=RealNoPassword)
       {
 	/* If it is not to be compressed then don't */
 
-	if(GetHeader(reply_head,"Content-Encoding") ||
+	if(head_only || reply_head->status==204 || reply_head->status==304 ||
+	   GetHeader(reply_head,"Content-Encoding") ||
 	   NotCompressed(GetHeader(reply_head,"Content-Type"),NULL) ||
 	   (content_length!=CUNDEF && !server_compression && content_length<=MINCOMPRSIZE))
 	  client_compression=0;
@@ -2573,10 +2591,10 @@ passwordagain:
 
     /* Set up chunked encoding header for the client if required. */
 
-    if(client_chunked && !head_only && mode!=RealNoPassword)
+    if(client_chunked && mode!=RealNoPassword)
       {
 	/* If the length is already known don't bother with chunked encoding */
-	if(GetHeader(reply_head,"Content-Length"))
+	if(head_only || reply_head->status==204 || reply_head->status==304 || GetHeader(reply_head,"Content-Length"))
 	  client_chunked=0;
 	else
 	  {
@@ -2588,7 +2606,7 @@ passwordagain:
       }
 
     /* Change the Connection headers to "Keep-Alive" if we intend to keep the connection to the client. */
-    if(client_keep_connection) {
+    if(client_keep_connection && mode!=RealNoPassword) {
       if(head_only || client_chunked || content_length==0 || GetHeader(reply_head,"Content-Length")) {
 	ReplaceOrAddInHeader(reply_head,"Connection","Keep-Alive");
 	ReplaceOrAddInHeader(reply_head,"Proxy-Connection","Keep-Alive");
@@ -2622,13 +2640,13 @@ passwordagain:
       /* Initialise the client compression. */
 
 #if USE_ZLIB
-      if(client_compression && !head_only && mode!=RealNoPassword)
+      if(client_compression && mode!=RealNoPassword)
 	configure_io_zlib(client,-1,client_compression);
 #endif
 
       /* Initialise the client chunked encoding. */
 
-      if(client_chunked && !head_only && mode!=RealNoPassword)
+      if(client_chunked && mode!=RealNoPassword)
 	configure_io_chunked(client,-1,1);
 
       /* Don't read more than the announced content length */
@@ -3052,7 +3070,8 @@ passwordagain:
 	  unsigned long spool_head_size;
 	  size=buf.st_size;
 	  tell_io(spool,&spool_head_size,NULL);
-	  content_length=size-spool_head_size;
+	  if(reply_head->status!=204 && reply_head->status!=304)
+	    content_length=size-spool_head_size;
 	}
 	else
 	  PrintMessage(Warning,"Cannot stat spool file for '%s' [%!s].",Url->name);
@@ -3076,8 +3095,10 @@ passwordagain:
 	   {
              PrintMessage(Debug,"Spooled page has 'Content-Encoding: %s'.",content_encoding);
              RemoveFromHeader(reply_head,"Content-Encoding");
-             configure_io_zlib(spool,2,-1);
-	     spool_compression=1;
+	     if(reply_head->status!=204 && reply_head->status!=304) {
+	       configure_io_zlib(spool,2,-1);
+	       spool_compression=1;
+	     }
 	   }
        }
 #endif
@@ -3091,6 +3112,7 @@ passwordagain:
        if(!head_only &&
 	  !is_client_wwwoffle &&
           !is_client_searcher &&
+	  reply_head->status!=204 && reply_head->status!=304 && content_length &&
           /* ConfigBooleanURL(EnableHTMLModifications,Url) && */
           !GetHeader2(request_head,"Cache-Control","no-transform"))
          {
@@ -3114,11 +3136,12 @@ passwordagain:
        /* Set up compression header for the client if available and required. */
 
 #if USE_ZLIB
-       if(client_compression && !head_only)
+       if(client_compression)
          {
           /* If it is not to be compressed then don't */
 
-          if(GetHeader(reply_head,"Content-Encoding") ||
+          if(head_only || reply_head->status==204 || reply_head->status==304 || !content_length ||
+	     GetHeader(reply_head,"Content-Encoding") ||
              NotCompressed(GetHeader(reply_head,"Content-Type"),NULL) ||
 	     (size && !spool_compression && content_length<=MINCOMPRSIZE))
 	    client_compression=0;
@@ -3138,10 +3161,11 @@ passwordagain:
 
        /* Set up chunked encoding header for the client if required. */
 
-       if(client_chunked && !head_only)
+       if(client_chunked)
          {
 	   /* If the content length is already known don't bother with chunked encoding */
-	   if(size && !spool_compression && !modify && !client_compression)
+	   if(head_only || reply_head->status==204 || reply_head->status==304 ||
+	      (size && !spool_compression && !modify && !client_compression))
 	     client_chunked=0;
 	   else
 	     {
@@ -3153,7 +3177,8 @@ passwordagain:
 	 }
 
        /* Add a Content-Length header line if appropriate, otherwise remove any existing one. */
-       if(size && !spool_compression && !modify && !client_compression) {
+       if(reply_head->status==204 || reply_head->status==304 ||
+	  (size && !spool_compression && !modify && !client_compression)) {
 	   char length[MAX_INT_STR+1];
 	   sprintf(length,"%lu",content_length);
 	   ReplaceOrAddInHeader(reply_head,"Content-Length",length);
@@ -3498,11 +3523,12 @@ passwordagain:
        /* Set up compression header for the client if available and required. */
 
 #if USE_ZLIB
-       if(client_compression && !head_only)
+       if(client_compression)
          {
           /* If it is not to be compressed then don't */
 
-          if(GetHeader(reply_head,"Content-Encoding") ||
+          if(head_only || reply_head->status==204 || reply_head->status==304 ||
+	     GetHeader(reply_head,"Content-Encoding") ||
              NotCompressed(GetHeader(reply_head,"Content-Type"),NULL) ||
 	     content_length<=MINCOMPRSIZE)
 	    client_compression=0;
@@ -3522,10 +3548,10 @@ passwordagain:
 
        /* Set up chunked encoding header for the client if required. */
 
-       if(client_chunked && !head_only)
+       if(client_chunked)
          {
 	   /* If the content length is already known don't bother with chunked encoding */
-	   if(!client_compression)
+	   if(/* head_only || reply_head->status==204 || reply_head->status==304 || */ !client_compression)
 	     client_chunked=0;
 	   else
 	     {

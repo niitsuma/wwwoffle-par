@@ -236,6 +236,91 @@ int AddToHeaderRaw(Header *head,const char *line)
 }
 
 
+/* Added by Paul Rombouts */
+/*++++++++++++++++++++++++++++++++++++++
+  Add a specified key and value to the header structure.
+  If a header line with the specified key already exists, combine
+  the old and new values, otherwise add a new header line.
+
+  Header *head The header structure to add to.
+
+  const char *key The key to add.
+
+  const char *val The value to add.
+  ++++++++++++++++++++++++++++++++++++++*/
+void AddToHeaderCombined(Header *head,const char *key,const char *val)
+{
+ KeyValueNode *line;
+ size_t oldlen;
+
+ line=head->line;
+ while(line) {
+   if(!strcasecmp(line->key,key))
+     goto found;
+   line=line->next;
+ }
+
+ AddToHeader(head,key,val);
+ return;
+
+found:
+ oldlen= strlen(line->val);
+ line->val= realloc(line->val, oldlen + strlen(val) + sizeof(", "));
+ stpcpy(stpcpy(line->val + oldlen, ", "), val);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Change the URL in the header.
+
+  Header *head The header to change.
+
+  const char *url The new URL.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+void ChangeURLInHeader(Header *head,const char *url)
+{
+  free(head->url);
+  head->url=strdup(url);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Change the version string in the header.
+
+  Header *head The header to change.
+
+  const char *version The new version.
+  ++++++++++++++++++++++++++++++++++++++*/
+
+void ChangeVersionInHeader(Header *head,const char *version)
+{
+  free(head->version);
+  head->version=strdup(version);
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++
+  Remove the internal WWWOFFLE POST/PUT URL extensions.
+
+  char *url A pointer to a string in the header.
+  ++++++++++++++++++++++++++++++++++++++*/
+/* Written by Paul Rombouts as a replacement for RemovePlingFromHeader() */
+void RemovePlingFromUrl(char *url)
+{
+  char *pling,*pling2;
+
+  if((pling=strstr(url,"?!"))) {
+    if((pling2=strchr(pling+2,'!'))) {
+      ++pling; --pling2;
+      for(;pling<pling2;++pling)
+	*pling=*(pling+1);
+    }
+    *pling=0;
+  }
+}
+
+
 /*++++++++++++++++++++++++++++++++++++++
   Remove the specified key and its values.
 
