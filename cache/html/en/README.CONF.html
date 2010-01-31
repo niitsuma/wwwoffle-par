@@ -318,15 +318,16 @@ over the request-changed and request-changed-once options.
 
 <p>
 While online pages that are requested from the server will be
-conditional requests so that server only sends data if the page has
-changed (default=yes).
+conditional requests so that the server only sends data if the page
+has changed (default=yes).
 
 <h3><a name="OnlineOptions_validate-with-etag"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] validate-with-etag = yes | no</h3>
 
 <p>
 When making a conditional request to a server enable the use of the
 HTTP/1.1 cache validator 'Etag' as well as modification time
-(default=yes).
+'If-Modified-Since' (default=yes).  The request-conditional option
+must also be selected for this option to take effect.
 
 <h3><a name="OnlineOptions_try-without-password"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] try-without-password = yes | no</h3>
 
@@ -425,62 +426,78 @@ Do not request any URLs that match this when offline (default=no).
 <h2><a name="SSLOptions"></a>SSLOptions</h2>
 
 <p>
-Options that control how WWWOFFLE behaves when a connection is made to it for
-a Secure Sockets Layer (SSL) server.  Normally only tunnelling (with no
-decryption or caching of the data) is possible.  When WWWOFFLE is compiled
-with the gnutls library it is possible configure WWWOFFLE to decrypt, cache
-and re-encrypt the connections.
+Options that control how WWWOFFLE behaves when a connection is made to it for an
+https or Secure Sockets Layer (SSL) server.  Normally only tunnelling (with no
+decryption or caching of the data) is possible.  When WWWOFFLE is compiled with
+the gnutls library it is possible configure WWWOFFLE to decrypt, cache and
+re-encrypt the connections.
+
+<h3><a name="SSLOptions_quick-key-gen"></a>quick-key-gen = yes | no</h3>
+
+<p>
+Normally generation of secret keys for the SSL/https functions uses the
+default GnuTLS option for random number source.  This can be slow on
+some machines so this option selects a quicker but less secure random
+number source (default = no).  Requires GnuTLS compilation option.
+
+<h3><a name="SSLOptions_expiration-time"></a>expiration-time = (age)</h3>
+
+<p>
+The length of time after creation that each certificate will expire
+(default = 1y).  Requires GnuTLS compilation option.
 
 <h3><a name="SSLOptions_enable-caching"></a>enable-caching = yes | no</h3>
 
 <p>
-If caching (involving decryption and re-encryption) of Secure Sockets
-Layer (SSL) server connections is allowed (default = no).
+If caching (involving decryption and re-encryption) of SSL/https
+server connections is allowed (default = no).  Requires GnuTLS
+compilation option.
 
 <h3><a name="SSLOptions_allow-tunnel"></a>allow-tunnel = (host[:port])</h3>
 
 <p>
-A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an SSL server that
-can be connected to using WWWOFFLE as a tunnelling proxy (no caching
-or decryption of the data) (default is no hosts or ports allowed).
-This option should be set to *:443 to allow https to the default port
-number.  There can be more than one option for other ports or hosts as
-required.  This option takes precedence over the allow-cache option.
-The host value is matched against the URL as presented, no hostname to
-IP or IP to hostname lookups are performed to find alternative
-equivalent names.
+A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an https/SSL server
+that can be connected to using WWWOFFLE as a tunnelling proxy (no
+caching or decryption of the data) (default is no hosts or ports
+allowed).  This option should be set to *:443 to allow https to the
+default port number.  There can be more than one option for other
+ports or hosts as required.  This option takes precedence over the
+allow-cache option.  The host value is matched against the URL as
+presented, no hostname to IP or IP to hostname lookups are performed
+to find alternative equivalent names.
 
 <h3><a name="SSLOptions_disallow-tunnel"></a>disallow-tunnel = (host[:port])</h3>
 
 <p>
-A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an SSL server that
-can not be connected to using WWWOFFLE as a tunnelling proxy.  There
-can be more than one option for other ports or hosts as required.
-This option takes precedence over the allow-tunnel option.  The host
-value is matched against the URL as presented, no hostname to IP or IP
-to hostname lookups are performed to find alternative equivalent
-names.
+A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an https/SSL server
+that can not be connected to using WWWOFFLE as a tunnelling proxy.
+There can be more than one option for other ports or hosts as
+required.  This option takes precedence over the allow-tunnel option.
+The host value is matched against the URL as presented, no hostname to
+IP or IP to hostname lookups are performed to find alternative
+equivalent names.
 
 <h3><a name="SSLOptions_allow-cache"></a>allow-cache = (host[:port])</h3>
 
 <p>
-A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an SSL server that
-can be connected to using WWWOFFLE as a caching proxy (decryption of
-the data) (default is no hosts or ports allowed).  This option should
-be set to *:443 to allow https to the default port number.  There can
-be more than one option for other ports or hosts as required.  The
-host value is matched against the URL as presented, no hostname to IP
-or IP to hostname lookups are performed to find alternative equivalent
-names.
+A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an https/SSL server
+that can be connected to using WWWOFFLE as a caching proxy (decryption
+of the data) (default is no hosts or ports allowed).  This option
+should be set to *:443 to allow https to the default port number.
+There can be more than one option for other ports or hosts as
+required.  The host value is matched against the URL as presented, no
+hostname to IP or IP to hostname lookups are performed to find
+alternative equivalent names.  Requires GnuTLS compilation option.
 
 <h3><a name="SSLOptions_disallow-cache"></a>disallow-cache = (host[:port])</h3>
 
 <p>
-A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an SSL server that
-can not be connected to using WWWOFFLE as a caching proxy.  This
+A hostname and port number (a <a href="#WILDCARD">WILDCARD</a> match) for an https/SSL server
+that can not be connected to using WWWOFFLE as a caching proxy.  This
 option takes precedence over the allow-cache option.  The host value
 is matched against the URL as presented, no hostname to IP or IP to
 hostname lookups are performed to find alternative equivalent names.
+Requires GnuTLS compilation option.
 
 <h2><a name="FetchOptions"></a>FetchOptions</h2>
 
@@ -501,10 +518,11 @@ If images are to be fetched (default=no).
 <h3><a name="FetchOptions_webbug-images"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] webbug-images = yes | no</h3>
 
 <p>
-If images that are 1 pixel square are also to be fetched, requires the
-images option to also be selected. (default=yes).  If these images are
-not fetched then the replace-webbug-images option in the ModifyHTML
-section can be used to stop browsers requesting them.
+If images that are declared in the HTML to be 1 pixel square are also to
+be fetched, requires the images option to also be selected
+(default=yes).  If these images are not fetched then the
+replace-webbug-images option in the ModifyHTML section can be used to
+stop browsers requesting them.
 
 <h3><a name="FetchOptions_icon-images"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] icon-images = yes | no</h3>
 
@@ -873,14 +891,14 @@ in this section.
 
 <p>
 A list of MIME types and file extensions that are not to be compressed by
-WWWOFFLE (because they are already compressed or not not worth compressing).
+WWWOFFLE (because they are already compressed or not worth compressing).
 Requires zlib compilation option.
 
 <h3><a name="DontCompress_mime-type"></a>mime-type = (mime-type)/(subtype)</h3>
 
 <p>
-The MIME type of a URL that is not to be compressed in the cache or
-when providing compressed pages to clients.
+The MIME type of a URL that is not to be compressed in the cache (when
+purging) or when providing pages to clients.
 
 <h3><a name="DontCompress_file-ext"></a>file-ext = .(file-ext)</h3>
 
@@ -1011,9 +1029,9 @@ retrieved.
 <h3><a name="Proxy_ssl"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] ssl = (host[:port])</h3>
 
 <p>
-A proxy server that should be used for Secure Socket Layer (SSL)
-connections e.g. https.  Note that for the &lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; that only the
-host is checked and that the other parts must be '*' <a href="#WILDCARD">WILDCARD</a>s.
+A proxy server that should be used for https or Secure Socket Layer
+(SSL) connections.  Note that for the &lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt; that only the host is
+checked and that the other parts must be '*' <a href="#WILDCARD">WILDCARD</a>s.
 
 <h2><a name="Alias"></a>Alias</h2>
 
