@@ -384,6 +384,9 @@ Removes the Referer header based on a match of the referring URL (default=no).
 ITEM force-user-agent
 [<URL-SPEC>] force-user-agent = yes | no
 Forces a User-Agent header to be inserted into all requests that are made by WWWOFFLE (default=no).  This User-Agent is added only if there is not an existing User-Agent header and is set to the value WWWOFFLE/&lt;version-number&gt;.  This header is inserted before censoring and may be changed by the normal header censoring method.
+ITEM pass-url-unchanged
+[<URL-SPEC>] pass-url-unchanged = yes | no
+Forces WWWOFFLE to ignore the requirements on the correct formatting of URLs and to pass through to the server the URL that was passed to it by the browser (default=no).
 SECTION FTPOptions
 Options to use when fetching files using the ftp protocol.
 ITEM anon-username

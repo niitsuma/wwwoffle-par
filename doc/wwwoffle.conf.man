@@ -1,4 +1,4 @@
-.\" $Header: /home/amb/wwwoffle/doc/RCS/wwwoffle.conf.man.template 2.84 2008/08/26 18:00:31 amb Exp $
+.\" $Header: /home/amb/CVS/wwwoffle/doc/wwwoffle.conf.man.template,v 2.84 2008-08-26 18:00:31 amb Exp $
 .\"
 .\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9e.
 .\"
@@ -744,6 +744,11 @@ made by WWWOFFLE (default=no)\.  This User\-Agent is added only if there
 is not an existing User\-Agent header and is set to the value
 WWWOFFLE/<version\-number>\.  This header is inserted before censoring
 and may be changed by the normal header censoring method\.
+.TP
+.B [<URL\-SPEC>] pass\-url\-unchanged = yes | no
+Forces WWWOFFLE to ignore the requirements on the correct formatting of
+URLs and to pass through to the server the URL that was passed to it by
+the browser (default=no)\.
 
 .SH FTPOptions
 
