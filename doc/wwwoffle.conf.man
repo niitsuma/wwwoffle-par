@@ -562,6 +562,7 @@ Removes all scripts and scripted events (default=no)\.
 .TP
 .B [<URL\-SPEC>] disable\-script\-after\-body = yes | no
 Removes all scripts after a closing body or html tag (default=no)\.
+(Option added by Paul Rombouts\.)
 .TP
 .B [<URL\-SPEC>] disable\-dontget\-script = yes | no
 Removes external scripts with URLs that are in the DontGet section of
@@ -844,6 +845,10 @@ username\.
 .B <URL\-SPEC> auth\-password = (string)
 The password to use on a host instead of the default anonymous
 password\.
+.TP
+.B [<URL\-SPEC>] try\-epsv = yes | no
+Try the EPSV command before trying PASV command (default=yes)\.
+(Option added by Paul Rombouts\.)
 
 .SH MIMETypes
 

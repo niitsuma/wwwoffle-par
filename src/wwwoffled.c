@@ -55,7 +55,7 @@
 
 
 static void usage(int verbose);
-static void demoninit(void);
+static void demoninit(short print_pid, const char *pid_file, int pfd);
 static void install_sighandlers(void);
 static void sigchild(int signum);
 static void sigexit(int signum);
@@ -122,12 +122,6 @@ static sig_atomic_t got_sighup=0;
 /*+ Remember that we got a SIGCHLD +*/
 static sig_atomic_t got_sigchld=0;
 
-/*+ True if run as a demon +*/
-static int detached=1;
-
-/*+ True if the pid of the daemon should be printed at startup +*/
-static int print_pid=0;
-
 /*+ True if the -f option was passed on the command line. +*/
 int nofork=0;
 
@@ -144,7 +138,9 @@ char *client_hostname=NULL, *client_ip=NULL;
 int main(int argc, char** argv)
 {
  int i;
- char *config_file=NULL,*log_file=NULL;
+ short detached=1, print_pid=0, quiet=0;
+ int pfd=-1;
+ char *config_file=NULL,*log_file=NULL,*pid_file=NULL;
 
  /* Parse the command line options */
 
@@ -185,6 +181,16 @@ int main(int argc, char** argv)
     if(!strcmp(argv[i],"-p"))
       {
        print_pid=1;
+       int i1=i+1;
+       if(i1<argc) {
+	 char *arg=argv[i1];
+	 if(*arg != '-') {
+	   if(*arg != '/')
+	     {fprintf(stderr,"wwwoffled: The filename '%s' following the '-p' option is not an absolute pathname.\n",arg); exit(1);}
+	   pid_file=arg;
+	   i=i1;
+	 }
+       }
        continue;
       }
 
@@ -204,6 +210,12 @@ int main(int argc, char** argv)
        continue;
       }
 
+    if(!strcmp(argv[i],"-q"))
+      {
+       quiet=1;
+       continue;
+      }
+
     fprintf(stderr,"wwwoffled: Unknown option '%s'.\n",argv[i]); exit(1);
    }
 
@@ -219,6 +231,9 @@ int main(int argc, char** argv)
     if(StderrLevel==-1)
        StderrLevel=Inform;      /* -l sets log level if no -d */
    }
+ else if(quiet && StderrLevel==-1)
+   StderrLevel=Warning;
+   
 
  /* Initialise things. */
 
@@ -245,6 +260,17 @@ int main(int argc, char** argv)
  finish_io(STDERR_FILENO);
 
  InitErrorHandler("wwwoffled",ConfigInteger(UseSyslog),1); /* enable syslog if requested. */
+
+ if(detached && print_pid && pid_file) {
+   /* Open pid file before we lose privileges. */
+   if (unlink(pid_file)!=0 && errno!=ENOENT) {
+     PrintMessage(Fatal,"Error: could not unlink pid file '%s' [%!s]",pid_file);
+   }
+   if ((pfd=open(pid_file,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW , 0600))==-1) {
+     PrintMessage(Fatal,"Error: could not open pid file '%s' [%!s]",pid_file);
+   }
+ }
+
 
  /* Print a startup message. */
 
@@ -514,9 +540,9 @@ int main(int argc, char** argv)
 
  if(detached)
    {
-    demoninit();
+    demoninit(print_pid,pid_file,pfd);
 
-    PrintMessage(Important,"Detached from terminal and changed pid to %ld.",(long)getpid());
+    PrintMessage(Important,"Detached from terminal and changed pid to %d.",(int)getpid());
 
     /* pid changes after detaching.
        Keep stderr as was if there is a log_file, otherwise disable stderr. */
@@ -908,7 +934,7 @@ static void usage(int verbose)
   Detach ourself from the controlling terminal.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void demoninit(void)
+static void demoninit(short print_pid, const char *pid_file, int pfd)
 {
  pid_t pid=0;
 
@@ -925,12 +951,26 @@ static void demoninit(void)
     PrintMessage(Fatal,"Cannot fork() to detach(2) [%!s].");
  else if(pid)
    {
-    /* print the child pid on stdout as requested */
-    if(print_pid)
-       printf("%d\n", pid);
+    /* print the child pid to file or stdout as requested */
+    if(print_pid) {
+      if(pid_file) {
+	char buf[MAX_INT_STR+2];
+	if(snprintf(buf,sizeof(buf),"%d\n",(int)pid)<0 || write_all(pfd,buf,strlen(buf))<0) {
+	  PrintMessage(Fatal,"Error: could not write to pid file '%s' [%!s]", pid_file);
+	}
+	if(close(pfd)<0) {
+	  PrintMessage(Fatal,"Error: could not close pid file '%s' [%!s]", pid_file);
+	}
+      }
+      else
+       printf("%d\n", (int)pid);
+    }
 
     exit(0);
    }
+
+  if(print_pid && pid_file)
+    close(pfd);
 }
 
 

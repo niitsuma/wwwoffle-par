@@ -598,6 +598,13 @@ int wwwoffles(int online,int fetching,int client)
 			NULL);
 	    mode=InternalPage; goto internalpage;
 	  }
+	else if(!*replace)
+	  {
+	    HTMLMessageHead(client,204,"WWWOFFLE No Content",
+			    "Content-Length","0",
+			    NULL);
+	    mode=InternalPage; goto internalpage;
+	  }
 	else
 	  {
 	    FreeURL(Url);
@@ -942,6 +949,13 @@ int wwwoffles(int online,int fetching,int client)
 	       HTMLMessage(client,404,"WWWOFFLE Host Not Got",NULL,"HostNotGot",
 			   "url",Url->name,
 			   NULL);
+	       mode=InternalPage; goto internalpage;
+	     }
+	   else if(!*replace)
+	     {
+	       HTMLMessageHead(client,204,"WWWOFFLE No Content",
+			       "Content-Length","0",
+			       NULL);
 	       mode=InternalPage; goto internalpage;
 	     }
 	   else

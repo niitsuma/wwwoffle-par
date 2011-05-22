@@ -201,6 +201,8 @@ inline static int md5_cmp(md5hash_t *a, md5hash_t *b)
 }
 
 void MakeHash(const char *args, unsigned len, /*@out@*/ md5hash_t *h);
+inline static void MakeStrHash(const char *args, md5hash_t *h)
+  __attribute__((always_inline));
 inline static void MakeStrHash(const char *args, md5hash_t *h) {MakeHash(args,strlen(args),h);}
 char *hashbase64encode(md5hash_t *h, unsigned char *buf, unsigned buflen);
 char *GetHash(URL *Url,char *buf, unsigned buflen);
@@ -236,8 +238,18 @@ void URLReplaceAmp(char *string);
 
 char /*@only@*/ *HTMLString(const char* c,int nbsp);
 char /*@only@*/ *HTML_url(char *url);
-char *HTMLcommentstring(char *c);
+char *HTMLcommentstring(char *c, size_t *lenp);
 
+char *strunescapechr(const char *str, char c);
+#if 0
+size_t strunescapelen(const char *str);
+char *strunescapecpy(char *dst, const char *src);
+char *strunescapedup(const char *str);
+#endif
+char *strunescapechr2(const char *str, const char *end, char c);
+size_t strunescapelen2(const char *str, const char *end);
+char *strunescapecpy2(char *dst, const char *src, const char *end);
+char *strunescapedup2(const char *str, const char *end);
 
 
 

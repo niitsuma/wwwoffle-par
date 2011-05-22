@@ -1077,7 +1077,7 @@ void ModifyReply(const URL *Url,Header *reply_head)
          {
 	  int locerror=1;
 	  char *replace=ConfigStringURL(DontGetReplacementURL,locUrl);
-	  if(replace) {
+	  if(replace && *replace) {
 	    URL *replaceUrl=SplitURL(replace);
 	    if(IsLocalHost(replaceUrl) &&
 	       (!strchr(replaceUrl->path+1,'/') || !strcmp_litbeg(replaceUrl->path,"/local/")) &&

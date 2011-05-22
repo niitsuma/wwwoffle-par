@@ -382,7 +382,7 @@ static char *print_message(ErrorLevel errlev,const char* fmt,va_list ap)
  if(last_time && (this_time-last_time)>3600)
    {
     last_time=this_time;
-    if(use_stderr)
+    if(use_stderr && (StderrLevel==-1 || StderrLevel<Warning))
        fprintf(stderr,"%s[%ld] Timestamp: %s",program,(long)pid,ctime(&this_time)); /* Used in audit-usage.pl */
    }
 

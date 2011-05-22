@@ -261,6 +261,8 @@ void FreeKeysOrValues(KeyOrValue *keyval,ConfigType type, int n)
     /* String */
 
    case String:
+   case StringNotNull:
+   case HTMLTagAttrPatt:
    case PathName:
    case FileExt:
    case MIMEType:
@@ -489,6 +491,10 @@ char *ConfigTypeString(ConfigType type)
      return "CompressionSpecification";    /* var */
    case String:
     return "String";             /* key */ /* val */
+   case StringNotNull:
+    return "StringNotNull";      /* key */ /* val */
+   case HTMLTagAttrPatt:
+    return "Tag-attribute Pattern"; /* key */
    case PathName:
     return "PathName";                     /* val */
    case FileExt:
@@ -749,6 +755,8 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
     /* String */
 
    case String:
+   case StringNotNull:
+   case HTMLTagAttrPatt:
    case PathName:
    case FileExt:
    case MIMEType:
@@ -759,9 +767,12 @@ static char* sprintf_key_or_value(ConfigType type,KeyOrValue key_or_val)
    case HostWild:
    case HostAndPortWild:
    case UserPass:
-   case Url:
    case UrlWild:
      return strdup(key_or_val.string? key_or_val.string : "");
+
+   case Url:
+     return strdup(key_or_val.string? (*key_or_val.string? key_or_val.string : "empty")
+				    : "");
 
     /* Url Specification */
 

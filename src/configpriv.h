@@ -104,7 +104,9 @@ typedef enum _ConfigType
 
  CompressSpec,                  /*+ For compression specifiers (0=identity, 1=deflate, 2=gzip, 3= wwwoffle default) +*/
 
- String,                        /*+ For an arbitrary string. +*/
+ String,                        /*+ For an arbitrary string (pointer may be null). +*/
+ StringNotNull,                 /*+ For an arbitrary string (pointer may not be null). +*/
+ HTMLTagAttrPatt,               /*+ A string containing HTML tag-attribute patterns. +*/
 
  PathName,                      /*+ For pathname values (string starting with '/'). +*/
  FileExt,                       /*+ A file extension (.string). +*/
@@ -137,8 +139,8 @@ typedef struct _ConfigItemDef
 {
             char       *name;     /*+ The name of the entry. +*/
             ConfigItem *item;     /*+ A pointer to the item containing the values for the entry. +*/
-            int         url_type; /*+ Set to true if there is the option of having a URL present. +*/
-            int         same_key; /*+ Set to true if the entry can repeat with the same key. +*/
+            short int   url_type; /*+ Set to true if there is the option of having a URL present. +*/
+            short int   same_key; /*+ Set to true if the entry can repeat with the same key. +*/
             ConfigType  key_type; /*+ The type of the key on the left side of the equals sign. +*/
             ConfigType  val_type; /*+ The type of the value on the right side of the equals sign. +*/
  /*@null@*/ char       *def_val;  /*+ The default value if no other is specified. +*/

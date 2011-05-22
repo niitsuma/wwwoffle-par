@@ -298,6 +298,9 @@ extern /*@null@*/ ConfigItem EnableModificationsOnline;
 /*+ The option of a tag that can be added to the bottom of the spooled pages with the date and some buttons. +*/
 extern /*@null@*/ ConfigItem AddCacheInfo;
 
+/*+ An optional local file that can be inserted at the end of an HTML head element. +*/
+extern /*@null@*/ ConfigItem InsertHeadFile;
+
 /*+ An optional local file that can be inserted as a footer. +*/
 extern /*@null@*/ ConfigItem InsertFile;
 
@@ -370,6 +373,9 @@ extern ConfigItem /*@null@*/ FixMixedCyrillic;
 
 /*+ The option to disable animated GIFs. +*/
 extern /*@null@*/ ConfigItem DisableAnimatedGIF;
+
+/* The list of style attribute replacements. */
+extern /*@null@*/ ConfigItem ReplacementStyleAttr;
 
 
 /* LocalHost section */

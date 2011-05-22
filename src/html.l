@@ -910,7 +910,7 @@ cleanup_return:
 
 /*+ Reset the current string. +*/
 #define reset_string \
-{if(string) *string=0; stringlen=0;}
+{if(!string) string=malloc(stringallocsize=64); *string=0; stringlen=0;}
 
 /*+ append information to the current string. +*/
 #define append_string(xx) \

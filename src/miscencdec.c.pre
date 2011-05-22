@@ -1001,7 +1001,7 @@ char *HTML_url(char *url)
 
       dec_path=STRDUP3(url,ques,URLDecodeGeneric);
       dec_args=URLDecodeFormArgs(ques+1);
-       
+
       dec=(char*)malloc(strlen(dec_path)+strlen(dec_args)+2);
       {
 	char *p=stpcpy(dec,dec_path);
@@ -1026,9 +1026,9 @@ char *HTML_url(char *url)
    char *HTMLcommentstring returns its original argument or a pointer
    to a newly allocated string.
  */
-char *HTMLcommentstring(char *c)
+char *HTMLcommentstring(char *c, size_t *lenp)
 {
- size_t length=0,dlength=0;
+ size_t length=0,dlength=0, totlength;
  char *result;
  char *p; const char *q;
 
@@ -1038,10 +1038,12 @@ char *HTMLcommentstring(char *c)
      ++dlength;
  }
 
+ totlength= length+dlength;
+ if(lenp) *lenp= totlength;
  if(!dlength)
    return c;
 
- result=p=(char*)malloc(length+dlength+1);
+ result=p=(char*)malloc(totlength+1);
 
  for(q=c; *q; ++q) {
    *p++=*q;
@@ -1053,4 +1055,114 @@ char *HTMLcommentstring(char *c)
 
  return(result);
 
+}
+
+/* This is like strchrnul(), but only returns a match if the char
+   is not escaped by a back-slash. */
+char *strunescapechr(const char *str, char c)
+{
+  const char *p;
+
+  for(p=str; *p; ++p) {
+    if(*p=='\\') {
+      if(!*++p) break;
+    }
+    else if(*p==c)
+      break;
+  }
+
+  return (char *)p;
+}
+
+#if 0
+size_t strunescapelen(const char *str)
+{
+  size_t len=0;
+  const char *p;
+
+  for(p=str; *p; ++p) {
+    if(*p=='\\' && !*++p)
+      break;
+
+    ++len;
+  }
+
+  return len;
+}
+
+/* Like stpcpy(), but writes a decoded version of src to dst,
+   i.e. it removes back-slashes from escape sequences. */
+char *strunescapecpy(char *dst, const char *src)
+{
+  char *p=dst; const char *q=src;
+
+  while(*q) {
+    if(*q=='\\' && !*++q)
+      break;
+
+    *p++ = *q++;
+  }
+
+  *p=0;
+  return p;
+}
+
+char *strunescapedup(const char *str)
+{
+  char *copy = malloc(strunescapelen(str)+1);
+  strunescapecpy(copy,str);
+  return copy;
+}
+#endif
+
+char *strunescapechr2(const char *str, const char *end, char c)
+{
+  const char *p;
+
+  for(p=str; p<end; ++p) {
+    if(*p=='\\') {
+      if(++p>=end) break;
+    }
+    else if(*p==c)
+      break;
+  }
+
+  return (char *)p;
+}
+
+size_t strunescapelen2(const char *str, const char *end)
+{
+  size_t len=0;
+  const char *p;
+
+  for(p=str; p<end; ++p) {
+    if(*p=='\\' && ++p>=end)
+      break;
+
+    ++len;
+  }
+
+  return len;
+}
+
+char *strunescapecpy2(char *dst, const char *src, const char *end)
+{
+  char *p=dst; const char *q=src;
+
+  while(q<end) {
+    if(*q=='\\' && ++q>=end)
+      break;
+
+    *p++ = *q++;
+  }
+
+  *p=0;
+  return p;
+}
+
+char *strunescapedup2(const char *str, const char *end)
+{
+  char *copy = malloc(strunescapelen2(str,end)+1);
+  strunescapecpy2(copy,str,end);
+  return copy;
 }

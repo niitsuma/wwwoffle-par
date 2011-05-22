@@ -821,21 +821,58 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
        if(!*itemdef->name ||
           !strcmp_beg(key,itemdef->name))
          {
-          char *ll;
+	  char *ll, *equ=NULL;
 
           if(*itemdef->name)
             {
+	     char *p;
              ll=key+strlen(itemdef->name);
-
-             if(*ll && *ll!='=' && !isspace(*ll))
-                continue;
+	     p=ll;
+	     while(*p && isspace(*p)) ++p; /* Skip blanks. */
+             if(*p) {
+	       if(*p!='=')
+		 continue;
+	       equ=p;
+	     }
             }
-          else
+          else if(itemdef->key_type==UrlSpecification)
+	    {
+	      ll = strchrnul(key,0);
+	      /* Line already trimmed at the end. */
+	    }
+	  else
             {
-	     char delimiter = (itemdef->key_type==UrlSpecification)? 0 : '=';
-             ll=key;
-             while(*ll && *ll!=delimiter && !isspace(*ll))
-                ll++;
+	     if(itemdef->key_type==HTMLTagAttrPatt) {
+	       char *p=key, *br;
+	       equ= strunescapechr(key, '=');
+	       /* Consider equal signs between brackets [ ] to be part of the key. */
+	       while(*equ && (br = strunescapechr2(p,equ,'[')) < equ) {
+		 p = strunescapechr(br+1, ']');
+		 if(*p) {
+		   if(p >= equ)
+		     equ = strunescapechr(p+1,'=');
+		   ++p;
+		 }
+		 else {
+		   /* Missing closing bracket. */
+		   equ=p;
+		   break;
+		 }
+	       }
+	       if(!*equ) equ=NULL;
+	     }
+	     else
+	       equ= strchr(key, '=');
+
+	     if(equ) {
+	       ll = equ;
+	       while(--ll>=key && isspace(*ll));
+	       ++ll;
+	     }
+	     else {
+	       ll = strchrnul(key,0);
+	       /* Line already trimmed at the end. */
+	     }
             }
 
           if(itemdef->url_type==0 && url)
@@ -846,7 +883,7 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
 
           if(itemdef->val_type==None)
             {
-             if(itemdef->key_type!=UrlSpecification && strchr(ll,'='))
+             if(itemdef->key_type!=UrlSpecification && equ)
                {
                 char *errmsg=strdup("Equal sign seen but not expected.");
                 return(errmsg);
@@ -857,8 +894,7 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
             }
           else
             {
-             val=strchr(ll,'=');
-             if(!val)
+             if(!equ)
                {
                 char *errmsg=strdup("No equal sign seen but expected.");
                 return(errmsg);
@@ -871,6 +907,7 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
                 return(errmsg);
                }
 
+	     val = equ;
              do {++val;} while(*val && isspace(*val));
             }
 
@@ -911,12 +948,12 @@ static char *ParseItem(char *line,char **url_str,char **key_str,char **val_str)
 
 static char *ParseEntry(const ConfigItemDef *itemdef,ConfigItem *item_p,const char *url_str,const char *key_str,const char *val_str)
 {
- ConfigItem item=*item_p;
+ ConfigItem item;
  UrlSpec *url;
  KeyOrValue key,val;
  char *errmsg=NULL;
 
- if(!itemdef->same_key && !itemdef->url_type && item && item->nentries)
+ if(!itemdef->same_key && !itemdef->url_type && item_p && (item=*item_p) && item->nentries)
    {
     errmsg=x_asprintf("Duplicated entry: '%s'.",key_str);
     return(errmsg);
@@ -947,6 +984,7 @@ static char *ParseEntry(const ConfigItemDef *itemdef,ConfigItem *item_p,const ch
  if(!item_p)
    goto freeval_freekey_freeurlspec_return;
 
+ item= *item_p;
  if(!item)
    {
     *item_p=item=(ConfigItem)malloc(sizeof(struct _ConfigItem));
@@ -1249,6 +1287,11 @@ char *ParseKeyOrValue(const char *text,ConfigType type,KeyOrValue *pointer)
       }
     break;
 
+   case HTMLTagAttrPatt:
+   case StringNotNull:
+     pointer->string=strdup(text);
+     break;
+
    case PathName:
     if(!*text)
       {errmsg=strdup("Expecting a pathname, got nothing.");}
@@ -1479,6 +1522,8 @@ char *ParseKeyOrValue(const char *text,ConfigType type,KeyOrValue *pointer)
    case Url:
     if(!*text || !strcasecmp(text,"none"))
        pointer->string=NULL;
+    else if(!strcasecmp(text,"empty"))
+       pointer->string=strdup("");
     else
       {
        URL *tempUrl;

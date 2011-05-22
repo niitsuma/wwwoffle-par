@@ -44,6 +44,8 @@ socksdata_t *MakeSocksData(char *hostport, unsigned short remotedns, socksdata_t
 
 /* Get the binary IP address of a URL host. */
 inline static IPADDR *get_url_ipaddr(URL *Url)
+  __attribute__((always_inline));
+inline static IPADDR *get_url_ipaddr(URL *Url)
 {
   if(!(Url->addrvalid)) {
     if(!resolve_name(Url->host,&Url->addr))

@@ -277,7 +277,7 @@ ITEM disable-script
 Removes all scripts and scripted events (default=no).
 ITEM disable-script-after-body
 [<URL-SPEC>] disable-script-after-body = yes | no
-Removes all scripts after a closing body or html tag (default=no).
+Removes all scripts after a closing body or html tag (default=no). (Option added by Paul Rombouts.)
 ITEM disable-dontget-script
 [<URL-SPEC>] disable-dontget-script = yes | no
 Removes external scripts with URLs that are in the DontGet section of the configuration file (default=no). (Option added by Paul Rombouts.)
@@ -424,6 +424,9 @@ The username to use on a host instead of the default anonymous username.
 ITEM auth-password
 <URL-SPEC> auth-password = (string)
 The password to use on a host instead of the default anonymous password.
+ITEM try-epsv
+[<URL-SPEC>] try-epsv = yes | no
+Try the EPSV command before trying PASV command (default=yes). (Option added by Paul Rombouts.)
 SECTION MIMETypes
 MIME Types to use when serving files that were not fetched using HTTP or for files on the built-in web-server.
 ITEM default

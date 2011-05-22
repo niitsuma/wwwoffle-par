@@ -428,6 +428,9 @@ ConfigItem EnableHTMLModifications;
 /*+ The option of a tag that can be added to the bottom of the spooled pages with the date and some buttons. +*/
 ConfigItem AddCacheInfo;
 
+/*+ An optional local file that can be inserted at the end of an HTML head element. +*/
+ConfigItem InsertHeadFile;
+
 /*+ An optional local file that can be inserted as a footer. +*/
 ConfigItem InsertFile;
 
@@ -501,10 +504,14 @@ ConfigItem FixMixedCyrillic;
 /*+ The option to disable animated GIFs. +*/
 ConfigItem DisableAnimatedGIF;
 
+/* The list of style attribute replacements. */
+ConfigItem ReplacementStyleAttr;
+
 /*+ The item definitions in the ModifyHTMLOptions section. +*/
 static ConfigItemDef modifyhtml_itemdefs[]={
  {"enable-modify-html"       ,&EnableHTMLModifications    ,1,0,Fixed,Boolean,"no"},
  {"add-cache-info"           ,&AddCacheInfo               ,1,0,Fixed,Boolean,"no"},
+ {"insert-head-file"         ,&InsertHeadFile             ,1,0,Fixed,PathName,NULL},
  {"insert-file"              ,&InsertFile                 ,1,0,Fixed,PathName,NULL},
  {"anchor-cached-begin"      ,&AnchorModifyBegin[0]       ,1,0,Fixed,String ,NULL},
  {"anchor-cached-end"        ,&AnchorModifyEnd[0]         ,1,0,Fixed,String ,NULL},
@@ -533,7 +540,8 @@ static ConfigItemDef modifyhtml_itemdefs[]={
  {"replacement-webbug-image" ,&ReplacementHTMLWebbugImage ,1,0,Fixed,Url    ,"/local/dontget/replacement.gif"},
  {"demoronise-ms-chars"      ,&DemoroniseMSChars          ,1,0,Fixed,Boolean,"no"},
  {"fix-mixed-cyrillic"       ,&FixMixedCyrillic           ,1,0,Fixed,Boolean,"no"},
- {"disable-animated-gif"     ,&DisableAnimatedGIF         ,1,0,Fixed,Boolean,"no"}
+ {"disable-animated-gif"     ,&DisableAnimatedGIF         ,1,0,Fixed,Boolean,"no"},
+ {""                         ,&ReplacementStyleAttr       ,1,1,HTMLTagAttrPatt,StringNotNull,NULL}
 };
 
 /*+ The ModifyHTML section. +*/
@@ -681,7 +689,7 @@ ConfigItem SessionCookiesOnly;
 /*+ The item definitions in the censor incoming headers section. +*/
 static ConfigItemDef censorincomingheader_itemdefs[]={
  {"session-cookies-only",&SessionCookiesOnly  ,1,0,Fixed ,Boolean,"no"},
- {""                    ,&CensorIncomingHeader,1,1,String,String ,NULL}
+ {""                    ,&CensorIncomingHeader,1,1,StringNotNull,String,NULL}
 };
 
 /*+ The CensorIncomingHeader section. +*/
@@ -710,7 +718,7 @@ static ConfigItemDef censoroutgoingheader_itemdefs[]={
  {"referer-self-dir",&RefererSelfDir      ,1,0,Fixed ,Boolean,"no"},
  {"referer-from"    ,&RefererFrom         ,1,0,Fixed ,Boolean,"no"},
  {"force-user-agent",&ForceUserAgent,      1,0,Fixed ,Boolean,"no"},
- {""                ,&CensorOutgoingHeader,1,1,String,String ,NULL}
+ {""                ,&CensorOutgoingHeader,1,1,StringNotNull,String,NULL}
 };
 
 /*+ The CensorOutgoingHeader section. +*/

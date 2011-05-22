@@ -608,7 +608,7 @@ static char *call_function(const char *func)
    else if(!strcmp(funcname,"htmlitems"))
      result=HTMLString(val,2);
    else if(!strcmp(funcname,"comment"))
-     result=HTMLcommentstring(val);
+     result=HTMLcommentstring(val,NULL);
  }
 
  retval=add_variable(func,result);

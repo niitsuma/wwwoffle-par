@@ -938,7 +938,7 @@ static void ConfigurationURLPage(int fd,char *url)
 		       goto found_current;
 		 }
 		 else if(itemdef->url_type) {
-		   if(itemdef->key_type!=String) {
+		   if(itemdef->key_type!=StringNotNull && itemdef->key_type!=HTMLTagAttrPatt) {
 		     for(j=0;j<item->nentries;++j) {
 		       if(!item->url[j] || MatchUrlSpecification(item->url[j],Url))
 			 goto found_current;
