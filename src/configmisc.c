@@ -1136,21 +1136,32 @@ jin:	  if(++haystack == haystack_end) goto ret0;
 	  rneedle = needle;
 	  a = tolower(*rneedle);
 
-	  if ((rhaystack!=haystack_end? tolower(*rhaystack): 0) == (int) a)
+	  if(rhaystack==haystack_end) {
+	    if(a == '\0') goto foundneedle;
+	  }
+	  else if (tolower(*rhaystack) == (int) a)
 	    do
 	      {
 		if (a == '\0')
 		  goto foundneedle;
 		++rhaystack;
 		a = tolower(*++needle);
-		if ((rhaystack!=haystack_end? tolower(*rhaystack): 0) != (int) a)
+		if(rhaystack==haystack_end) {
+		  if(a == '\0') goto foundneedle;
+		  break;
+		}
+		if (tolower(*rhaystack) != (int) a)
 		  break;
 		if (a == '\0')
 		  goto foundneedle;
 		++rhaystack;
 		a = tolower(*++needle);
+		if(rhaystack==haystack_end) {
+		  if(a == '\0') goto foundneedle;
+		  break;
+		}
 	      }
-	    while ((rhaystack!=haystack_end? tolower(*rhaystack): 0) == (int) a);
+	    while (tolower(*rhaystack) == (int) a);
 
 	  needle = rneedle;		/* took the register-poor approach */
 

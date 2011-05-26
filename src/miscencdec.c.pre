@@ -1065,44 +1065,42 @@ char *HTML_url(char *url)
    If lenp is not NULL, *lenp should initially contain the length of the input string
    or -1 and will be assigned the length of the output string.
  */
-char *HTMLcommentstring(char *c, size_t *lenp)
+char *HTMLcommentstring(char *str, size_t *lenp)
 {
  size_t length=0,dlength=0, totlength;
  char *result;
- char *p; const char *q, *q1, *end;
+ char *p; const char *q=str, *end;
+ char c;
 
  if(lenp && *lenp!= ~(size_t)0) {
    length= *lenp;
-   end= c+length;
-   for(q=c; q<end; q=q1) {
-     q1=q+1;
-     if(*q=='-' && q1<end && *q1=='-')
-       ++dlength;
-   }
+   end= str+length;
+   if(q<end)
+     while(c= *q++, q<end)
+       if(c=='-' && *q=='-')
+	 ++dlength;
  }
  else {
-   for(q=c; *q; q=q1) {
+   while((c= *q++)) {
      ++length;
-     q1=q+1;
-     if(*q=='-' && *q1=='-')
+     if(c=='-' && *q=='-')
        ++dlength;
    }
-   end= q;
+   end= q-1;
  }
 
  totlength= length+dlength;
  if(lenp) *lenp= totlength;
  if(!dlength)
-   return c;
+   return str;
 
  result=p=(char*)malloc(totlength+1);
 
- for(q=c; q<end; q=q1) {
-   *p++=*q;
-   q1=q+1;
-   if(*q=='-' && q1<end && *q1=='-')
-     *p++=' ';
- }
+ q=str;
+ if(q<end)
+   while(*p++= c= *q++, q<end)
+     if(c=='-' && *q=='-')
+       *p++=' ';
 
  *p=0;
 

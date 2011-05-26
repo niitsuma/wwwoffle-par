@@ -238,7 +238,7 @@ void URLReplaceAmp(char *string);
 
 char /*@only@*/ *HTMLString(const char* c, int nbsp, size_t *lenp);
 char /*@only@*/ *HTML_url(char *url);
-char *HTMLcommentstring(char *c, size_t *lenp);
+char *HTMLcommentstring(char *str, size_t *lenp);
 
 char *strunescapechr(const char *str, char c);
 #if 0
