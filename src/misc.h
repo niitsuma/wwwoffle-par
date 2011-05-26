@@ -236,7 +236,7 @@ unsigned char /*@only@*/ *Base64Encode(const unsigned char *str,size_t l, unsign
 
 void URLReplaceAmp(char *string);
 
-char /*@only@*/ *HTMLString(const char* c,int nbsp);
+char /*@only@*/ *HTMLString(const char* c, int nbsp, size_t *lenp);
 char /*@only@*/ *HTML_url(char *url);
 char *HTMLcommentstring(char *c, size_t *lenp);
 

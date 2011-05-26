@@ -965,7 +965,7 @@ cleanup_return:
 <TAG_START>(.|\n)           { BEGIN(INITIAL); }
 
 <TAG>{W}+                   { }
-<TAG>"/>"                   { BEGIN(after_tag);                   html_yylval=""; return(LEX_TAG_END_XHTML); }
+<TAG>"/>"                   { BEGIN(INITIAL);                     html_yylval=""; return(LEX_TAG_END_XHTML); }
 <TAG>">"                    { BEGIN(after_tag);                   html_yylval=""; return(LEX_TAG_END); }
 <TAG>"<"                    { BEGIN(after_tag); unput(yytext[0]); html_yylval=""; return(LEX_TAG_END); }
 <TAG>{key}                  { BEGIN(TAG_ATTR_KEY); html_yylval=yytext; return(LEX_ATTR_KEY); }

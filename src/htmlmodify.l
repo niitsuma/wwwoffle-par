@@ -71,6 +71,7 @@ val             ({alphanum}|{nonascii}|{safepunct})+
 #define LEX_PLAINTEXT      1
 #define LEX_COMMENT        2
 #define LEX_DOCTYPE        3
+#define LEX_SCRIPTTEXT     4
 
 #define LEX_TAG_BEGIN     11
 #define LEX_TAG_END       12
@@ -355,6 +356,7 @@ typedef struct _TagAttrPattNode {
   struct _TagAttrPattNode *next;
   char *tagname;
   AttrPattList attrpatts;
+  PattNode*  txtpatt;
   const char *stylerepl;
   short disable;
 }
@@ -392,12 +394,13 @@ static int fix_mixed_cyrillic;
 #define DISABLE_LINK         2
 #define DISABLE_OBJECT       4
 #define DISABLE_A            8
-#define DISABLE_IFRAME      16
-#define DISABLE_IMG         32
-#define DISABLE_SCRIPT      64
-#define DISABLE_STYLE      128
+#define DISABLE_IFRAME    0x10
+#define DISABLE_IMG       0x20
+#define DISABLE_SCRIPT    0x40
+#define DISABLE_STYLE     0x80
 
-#define DISABLE_TAG        256
+#define DISABLE_TAG      0x100
+#define DISABLE_TEXT     0x200
 
 /* Bit masks for the result of tag-attribute matching. */
 #define TAGMATCH         2
@@ -453,6 +456,8 @@ static /*@null@*/ URL *baseUrl=NULL;
 /*+ Set this to disable the output. +*/
 static int disable_output=DISABLE_NONE;
 static short int commentout=0, parsecomment=0;
+static short int scriptcommopen=0, scriptcommclose=0;
+static int scripttextstart=-1, scripttextend=-1;
 
 #if 0
 /* Prepend a string (pre) to an existing string (str).
@@ -746,6 +751,8 @@ inline static void free_tagnmstack(TagNmStack s)
 }
 
 
+static void free_pattlist(PattNode *p);
+
 #define keywordmatch(str,len,key) (len==strlitlen(key) && !strncasecmp(str,key,strlitlen(key)))
 
 struct tagattrpattvalues {
@@ -780,6 +787,7 @@ static struct tagattrpattvalues parse_tag_attr_pattern(const char **str)
       tap->next = NULL;
       tap->tagname = strunescapedup2(s,p);
       tap->attrpatts = NULL;
+      tap->txtpatt = NULL;
       tap->stylerepl = NULL;
       tap->disable=0;
       last = &tap->attrpatts;
@@ -796,13 +804,27 @@ static struct tagattrpattvalues parse_tag_attr_pattern(const char **str)
 	  cm=strunescapechr2(p,cbr,',');
 	  cl=strunescapechr2(p,cm,':');
 	  if(cl>p) {
-	    AttrPattNode *new = (AttrPattNode*)malloc(sizeof(AttrPattNode));
 	    PattNode **lpatt;
-	    new->next=NULL;
-	    new->attrname=strunescapedup2(p,cl);
-	    new->valpatt= NULL;
-	    new->disableattr= disableattr;
-	    lpatt = &new->valpatt;
+	    len= cl-p;
+	    if(!keywordmatch(p,len,"text")) {
+	      AttrPattNode *new = (AttrPattNode*)malloc(sizeof(AttrPattNode));
+	      new->next=NULL;
+	      new->attrname=strunescapedup2(p,cl);
+	      new->valpatt= NULL;
+	      new->disableattr= disableattr;
+	      *last = new;
+	      last = &new->next;
+	      lpatt = &new->valpatt;
+	    }
+	    else {
+	      /* text "pseudo" attribute */
+	      if(tap->txtpatt) {
+		/* A new text pattern clobbers any possible previous one. */
+		free_pattlist(tap->txtpatt);
+		tap->txtpatt= NULL;
+	      }
+	      lpatt = &tap->txtpatt;
+	    }
 	    p=cl+1;
 	    while(p<=cm) {
 	      PattNode *newpatt;
@@ -822,8 +844,6 @@ static struct tagattrpattvalues parse_tag_attr_pattern(const char **str)
 	      *lpatt = newpatt;
 	      lpatt = &newpatt->next;
 	    }
-	    *last = new;
-	    last = &new->next;
 	  }
 	  if(cm>=cbr) break;
 	  p=cm+1; /* Skip past ',' */
@@ -1099,6 +1119,15 @@ static int tag_match_tag_attr_patt_list(const char* tag,TagAttrPattList *l)
   return 0;
 }
 
+static void free_pattlist(PattNode *p)
+{
+  while(p) {
+    PattNode* next= p->next;
+    free(p);
+    p=next;
+  }
+}
+
 static void free_tag_attr_patt_list(TagAttrPattList *l)
 {
   TagAttrPattNode* p;
@@ -1115,17 +1144,12 @@ static void free_tag_attr_patt_list(TagAttrPattList *l)
     a= p->attrpatts;
     while(a) {
       AttrPattNode* nxt= a->next;
-      PattNode* q;
       free(a->attrname);
-      q= a->valpatt;
-      while(q) {
-	PattNode* n= q->next;
-	free(q);
-	q=n;
-      }
+      free_pattlist(a->valpatt);
       free(a);
       a=nxt;
     }
+    free_pattlist(p->txtpatt);
     /* p->stylerepl points to configuration data, do not free here. */
     free(p);
     p=next;
@@ -1134,12 +1158,7 @@ static void free_tag_attr_patt_list(TagAttrPattList *l)
   c = l->cmpl;
   while(c) {
     CommentPattNode* next= c->next;
-    PattNode* q= c->cmpatt;
-    while(q) {
-      PattNode* n= q->next;
-      free(q);
-      q=n;
-    }
+    free_pattlist(c->cmpatt);
     free(c);
     c=next;
   }
@@ -1147,30 +1166,31 @@ static void free_tag_attr_patt_list(TagAttrPattList *l)
 
 
 /* Match a string with a pattern consisting of string segments seperated by null bytes. */
-static int strsegmentscasematch(const char *string,const char *pattern,size_t pattlen)
+static int strsegmentscasematch(const char *string,size_t stringlen,const char *pattern,size_t pattlen)
 {
   size_t lensegment;
   const char *midstr, *endstr;
   const char *nullcharp=memchr(pattern,0,pattlen);
 
-  if(!nullcharp) return(!strncasecmp(string,pattern,pattlen) && !string[pattlen]);
+  if(!nullcharp) return(stringlen==pattlen && !strncasecmp(string,pattern,pattlen));
 
   lensegment=nullcharp-pattern;
-  if(strncasecmp(string,pattern,lensegment)) return 0;
+  if(stringlen<lensegment || strncasecmp(string,pattern,lensegment)) return 0;
+  endstr=string+stringlen;
   midstr=string+lensegment;
+  stringlen -= lensegment;
 
   while(pattern=nullcharp+1,pattlen -= lensegment+1, nullcharp=memchr(pattern,0,pattlen))
     {
       const char *match;
       lensegment = nullcharp-pattern;
-      /* pattern now points to a null terminated string of length lensegment, so we don't need strcasestrn. */
-      if(!(match = strcasestr(midstr,pattern))) return 0;
+      /* Note: pattern now points to a null terminated string of length lensegment. */
+      if(!(match = strncasestr(midstr,stringlen,pattern))) return 0;
       midstr=match+lensegment;
+      stringlen=endstr-midstr;
     }
 
-  endstr= strchrnul(midstr,0)-pattlen;
-  if(midstr>endstr) return 0;
-  return(!strncasecmp(endstr,pattern,pattlen));
+  return(stringlen>=pattlen && !strncasecmp(endstr-pattlen,pattern,pattlen));
 }
 
 
@@ -1297,9 +1317,22 @@ static void yy_comout(const char *text, int iscomment)
     char *copy;
     size_t len;
     if(iscomment)
-      copy= HTMLcommentstring((char*)text,&len);
+      {len= ~(size_t)0; copy= HTMLcommentstring((char*)text,&len);}
     else
       {copy= (char*)text; len=strlen(text);}
+    yy_write(copy,len);
+    if(copy!=text) free(copy);
+  }
+}
+
+static void yy_comwrite(const char *text, size_t len, int iscomment)
+{
+  if(len>0) {
+    char *copy;
+    if(iscomment)
+      copy= HTMLcommentstring((char*)text,&len);
+    else
+      copy= (char*)text;
     yy_write(copy,len);
     if(copy!=text) free(copy);
   }
@@ -2018,7 +2051,7 @@ static void handle_meta_tag(const Tag *tag,int disable_meta_refresh,int disable_
 }
 
 
-static int process_tag_style_attr_replacement(Tag *tag, TagAttrPattList *tapl)
+static int process_tag_style_attr_replacement(Tag *tag, const char *text, size_t textlen, TagAttrPattList *tapl, int *needtxt)
 {
   int retval=0;
   TagAttrPattNode *p;
@@ -2031,15 +2064,20 @@ static int process_tag_style_attr_replacement(Tag *tag, TagAttrPattList *tapl)
       for(a=p->attrpatts; a; a=a->next) {
 	for(i=0; i<tag->nattr; ++i) {
 	  if(!strcasecmp(tag->attr_key[i],a->attrname)) {
-	    char *attrval=tag->attr_val[i];
+	    const char *attrval=tag->attr_val[i], *endptr;
+	    size_t len;
 	    if(attrval) {
 	      if(a->valpatt) {
 		PattNode *q;
 		while(*attrval && isspace(*attrval)) ++attrval;  /* Skip blanks. */
+		endptr=strchrnul(attrval,0);
+		while(--endptr>=attrval && isspace(*endptr));  /* Trim trailing blanks. */
+		++endptr;
+		len= endptr-attrval;
 		/* Try each pattern in the list to see if one matches. */
 		q=a->valpatt;
 		do {
-		  if(strsegmentscasematch(attrval,q->patt,q->len))
+		  if(strsegmentscasematch(attrval,len,q->patt,q->len))
 		    goto nextattrpatt;
 		  q=q->next;
 		} while(q);
@@ -2052,6 +2090,24 @@ static int process_tag_style_attr_replacement(Tag *tag, TagAttrPattList *tapl)
 	goto nexttagattrpatt;
       nextattrpatt:;
       }
+      if(p->txtpatt) {
+	if(text) {
+	  PattNode *q= p->txtpatt;
+	  do {
+	    if(strsegmentscasematch(text,textlen,q->patt,q->len))
+	      goto textmatched;
+	    q=q->next;
+	  } while(q);
+	  continue /* nexttagattrpatt */;
+	textmatched:;
+	}
+	else if(needtxt) {
+	  *needtxt=1;
+	  break;
+	}
+	else
+	  continue;
+      }
       /* The tag matched and all the patterns in attribute pattern list matched,
 	 modify the tag. */
       for(i=0; i<tag->nattr; ++i) {
@@ -2060,14 +2116,19 @@ static int process_tag_style_attr_replacement(Tag *tag, TagAttrPattList *tapl)
 	else {
 	  for(a=p->attrpatts; a; a=a->next) {
 	    if(a->disableattr && !strcasecmp(tag->attr_key[i],a->attrname)) {
-	      char *attrval=tag->attr_val[i];
+	      char *attrval=tag->attr_val[i], *endptr;
+	      size_t len;
 	      if(attrval) {
 		if(a->valpatt) {
 		  PattNode *q;
 		  while(*attrval && isspace(*attrval)) ++attrval;  /* Skip blanks. */
+		  endptr=strchrnul(attrval,0);
+		  while(--endptr>=attrval && isspace(*endptr));  /* Trim trailing blanks. */
+		  ++endptr;
+		  len= endptr-attrval;
 		  q=a->valpatt;
 		  do {
-		    if(strsegmentscasematch(attrval,q->patt,q->len))
+		    if(strsegmentscasematch(attrval,len,q->patt,q->len))
 		      goto disableattr;
 		    q=q->next;
 		  } while(q);
@@ -2099,16 +2160,16 @@ static int process_tag_style_attr_replacement(Tag *tag, TagAttrPattList *tapl)
 }
 
 
-static int matchcomment(const char *cstr, TagAttrPattList *tapl)
+static int matchcomment(const char *cstr, size_t clen, TagAttrPattList *tapl)
 {
   CommentPattNode *p;
 
   for(p=tapl->cmpl; p; p=p->next) {
     PattNode *q;
     for(q=p->cmpatt; q; q=q->next) {
-      if(strsegmentscasematch(cstr,q->patt,q->len))
+      if(strsegmentscasematch(cstr,clen,q->patt,q->len))
 	return p->disable;
-    }  
+    }
   }
 
   return 0;
@@ -2279,12 +2340,13 @@ static void modify_html(URL *Url)
 
       case LEX_COMMENT:
 	if(parsecomment) {
-	  char *comstr= htmlmodify_yylval, *end;
+	  char *comstr= htmlmodify_yylval, *endptr;
 	  int disable;
 	  while(*comstr && isspace(*comstr)) ++comstr;  /* Strip initial blanks. */
-	  end= strchrnul(comstr,0);
-	  while(--end>=comstr && isspace(*end)) *end=0; /* Strip trailing blanks.*/
-	  disable= matchcomment(comstr,&tagattrpattlist);
+	  endptr= strchrnul(comstr,0);
+	  while(--endptr>=comstr && isspace(*endptr));  /* Strip trailing blanks.*/
+	  ++endptr;
+	  disable= matchcomment(comstr,endptr-comstr,&tagattrpattlist);
 	  if(disable&RESETFOLLOWINGSCRIPT)
 	    disable_following_script=0;
 	  if(disable&RESETALLFOLLOWINGSCRIPTS)
@@ -2473,53 +2535,62 @@ static void modify_html(URL *Url)
        }
 
        if(tagmatchtagattrpattlist & TAGMATCH) {
-	 int disable;
+	 int disable, needtxt=0;
 	 disable_output&=~DISABLE_TAG;
 
-	 disable=process_tag_style_attr_replacement(&tagdata,&tagattrpattlist);
-
-	 if(disable&RESETFOLLOWINGSCRIPT) {
-	   disable_following_script=0;
-	   if(tag==tag_script && is_disabled_script==disabled_following_script) {
-	     /* Re-evaluate disabled status. */
-	     is_disabled_script= 0;
-	     if(disable_dontget_script)
-	       disable_output|=DISABLE_SCRIPT;
-	   }
+	 disable=process_tag_style_attr_replacement(&tagdata,NULL,0,&tagattrpattlist,
+						    (tag==tag_script && !tagdata.xhtml)? &needtxt: NULL);
+	 if(needtxt) {
+	   disable_output&=~DISABLE_SCRIPT;
+	   disable_output|=DISABLE_TEXT;
+	   is_disabled_script=0; /* Evaluate disabled status later. */
+	   /* prefix=NULL; */
 	 }
-	 if(disable&RESETALLFOLLOWINGSCRIPTS) {
-	   disable_all_following_scripts=0;
-	   if(tag==tag_script && is_disabled_script==disabled_all_following_scripts) {
-	     /* Re-evaluate disabled status. */
-	     if(scriptdisablelevel>0)
-	       is_disabled_script= disabled_inner_script;
-	     else if(disable_following_script)
-	       is_disabled_script= disabled_following_script;
-	     else {
-	       is_disabled_script= 0;
+	 else {
+	   if(disable&RESETFOLLOWINGSCRIPT) {
+	     disable_following_script=0;
+	     if(tag==tag_script && is_disabled_script==disabled_following_script) {
+	       /* Re-evaluate disabled status. */
+	       is_disabled_script= 0; prefix=NULL;
 	       if(disable_dontget_script)
 		 disable_output|=DISABLE_SCRIPT;
 	     }
 	   }
-	 }
-	 if(tag==tag_script && !is_disabled_script && (disable&DISABLEINNERSCRIPT)) {
-	   prefix=tagprefix[is_disabled_script=disabled_matching_script];
-	 }
-
-	 output_tag(&tagdata,prefix);
-
-	 if(tagmatchtagattrpattlist & TAGDISABLESCRIPT) {
-	   if(!tagdata.xhtml) {
-	     pushtagnmstack(&tagnmstack,tagdata.tag,disable);
-	     if(disable&DISABLEINNERSCRIPT) ++scriptdisablelevel;
+	   if(disable&RESETALLFOLLOWINGSCRIPTS) {
+	     disable_all_following_scripts=0;
+	     if(tag==tag_script && is_disabled_script==disabled_all_following_scripts) {
+	       /* Re-evaluate disabled status. */
+	       if(scriptdisablelevel>0)
+		 is_disabled_script= disabled_inner_script;
+	       else if(disable_following_script)
+		 is_disabled_script= disabled_following_script;
+	       else {
+		 is_disabled_script= 0;
+		 if(disable_dontget_script)
+		   disable_output|=DISABLE_SCRIPT;
+	       }
+	       prefix=tagprefix[is_disabled_script];
+	     }
 	   }
-	   else {
-	     if(disable&DISABLEFOLLOWINGSCRIPT)
-	       disable_following_script=1;
-	     if(disable&DISABLEALLFOLLOWINGSCRIPTS)
-	       disable_all_following_scripts=1;
+	   if(tag==tag_script && !is_disabled_script && (disable&DISABLEINNERSCRIPT)) {
+	     prefix=tagprefix[is_disabled_script=disabled_matching_script];
 	   }
-	 }	 
+
+	   output_tag(&tagdata,prefix);
+
+	   if(tagmatchtagattrpattlist & TAGDISABLESCRIPT) {
+	     if(!tagdata.xhtml) {
+	       pushtagnmstack(&tagnmstack,tagdata.tag,disable);
+	       if(disable&DISABLEINNERSCRIPT) ++scriptdisablelevel;
+	     }
+	     else {
+	       if(disable&DISABLEFOLLOWINGSCRIPT)
+		 disable_following_script=1;
+	       if(disable&DISABLEALLFOLLOWINGSCRIPTS)
+		 disable_all_following_scripts=1;
+	     }
+	   }
+	 }
        }
 
        prefix=NULL;
@@ -2636,8 +2707,6 @@ static void modify_html(URL *Url)
 
        tag=-1;
        key=-1;
-       tagmatchtagattrpattlist=0;
-       tagcomplexmodify=0;
        break;
 
       case LEX_ATTR_KEY:
@@ -2731,6 +2800,80 @@ static void modify_html(URL *Url)
 
        key=-1;
        break;
+
+      case LEX_SCRIPTTEXT:
+	if(disable_output&DISABLE_TEXT) {
+	  char *scrtext, *scriptend;
+	  int disable;
+	  disable_output&=~DISABLE_TEXT;
+	  /* Delayed evaluation of script disabled status, based on script text. */
+	  scrtext=htmlmodify_yylval; if(scripttextstart>0) scrtext+=scripttextstart;
+	  /* Strip initial blanks. */
+	  while(*scrtext && isspace(*scrtext)) ++scrtext;
+
+	  if(scripttextend>=0) {
+	    scriptend=htmlmodify_yylval+scripttextend;
+	    if(scriptend<scrtext) scriptend=scrtext;
+	  }
+	  else
+	    scriptend=strchrnul(scrtext,0);
+	  /* Strip trailing blanks. */
+	  while(--scriptend>=scrtext && isspace(*scriptend));
+	  ++scriptend;
+
+	  disable=process_tag_style_attr_replacement(&tagdata,scrtext,scriptend-scrtext,&tagattrpattlist, NULL);
+
+	  if(disable&RESETFOLLOWINGSCRIPT)
+	    disable_following_script=0;
+	  if(disable&RESETALLFOLLOWINGSCRIPTS)
+	    disable_all_following_scripts=0;
+
+	  /* Now we can finally evaluate the definitive disabled status. */
+	  if(disable_script)
+	    is_disabled_script= disabled_script;
+	  else if(after_body && disable_script_after_body)
+	    is_disabled_script= disabled_script_after_body;
+	  else if(disable_all_following_scripts)
+	    is_disabled_script= disabled_all_following_scripts;
+	  else if(scriptdisablelevel>0)
+	    is_disabled_script= disabled_inner_script;
+	  else if(disable_following_script)
+	    is_disabled_script= disabled_following_script;
+	  else if(disable&DISABLEINNERSCRIPT)
+	    is_disabled_script=disabled_matching_script;
+
+	  is_disabled_script=handle_script_tag(&tagdata,is_disabled_script);
+
+	  if(tagmatchtagattrpattlist & TAGDISABLESCRIPT) {
+#if 0
+	    if(!tagdata.xhtml) {
+#endif
+	      pushtagnmstack(&tagnmstack,tagdata.tag,disable);
+	      if(disable&DISABLEINNERSCRIPT) ++scriptdisablelevel;
+#if 0
+	    }
+	    else {
+	      if(disable&DISABLEFOLLOWINGSCRIPT)
+		disable_following_script=1;
+	      if(disable&DISABLEALLFOLLOWINGSCRIPTS)
+		disable_all_following_scripts=1;
+	    }
+#endif
+	  }
+
+	  /* Now output the script text itself. */
+	  if(is_disabled_script && scripttextstart>=0) {
+	    if(scripttextstart>0) yy_write(htmlmodify_yylval,scripttextstart);
+	    if(!scriptcommopen) yy_rawout("<!--\n");
+	    if(scripttextend>scripttextstart)
+	      yy_comwrite(htmlmodify_yylval+scripttextstart,scripttextend-scripttextstart,1);
+	    if(!scriptcommclose) yy_rawout("//-->\n");
+	    if(scripttextend>=0 && htmlmodify_yylval[scripttextend]) yy_rawout(htmlmodify_yylval+scripttextend);
+	  }
+	  else if(*htmlmodify_yylval)
+	    yy_rawout(htmlmodify_yylval);
+	}
+	break;
 
       default:
        break;
@@ -2882,7 +3025,8 @@ static void handle_high_bit(unsigned char ch)
 
 /*+ Reset the current string. +*/
 #define RESET_STRING \
-{if(!string) string=malloc(stringallocsize=64); *string=0; stringlen=0;}
+{if(!string) string=malloc(stringallocsize=64); *string=0; stringlen=0; \
+ scriptcommopen=0; scriptcommclose=0; scripttextstart=-1; scripttextend=-1;}
 
 /*+ append information to the current string. +*/
 #define APPEND_STRING(xx,len)				 \
@@ -2898,6 +3042,8 @@ static void handle_high_bit(unsigned char ch)
 {if((result=wwwoffles_read_data(buf,max_size))==-1) result=0;}
 
 #define WRITE_RAW_YYTEXT yy_write(htmlmodify_yytext,htmlmodify_yyleng)
+#define WRITE_YYTEXT YY_WRITE(htmlmodify_yytext,htmlmodify_yyleng)
+#define WRITE_COMMENT_YYTEXT yy_comwrite(htmlmodify_yytext,htmlmodify_yyleng,commentout)
 %}
 
 %%
@@ -2942,14 +3088,15 @@ static void handle_high_bit(unsigned char ch)
 <TAG_START>"/"?{tag}/\n     { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
 <TAG_START>"/"?{tag}/\r     { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
 <TAG_START>"/"?{tag}/">"    { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>(.|\n)           { BEGIN(INITIAL); YY_WRITE(string,stringlen); YY_WRITE(htmlmodify_yytext,htmlmodify_yyleng); }
+<TAG_START>(.|\n)           { BEGIN(INITIAL); YY_WRITE(string,stringlen); WRITE_YYTEXT; }
 
-<TAG>{W}+                   { YY_WRITE(htmlmodify_yytext,htmlmodify_yyleng); }
-<TAG>"/>"                   { BEGIN(after_tag);                              htmlmodify_yylval=""; return(LEX_TAG_END_XHTML); }
-<TAG>">"                    { BEGIN(after_tag);                              htmlmodify_yylval=""; return(LEX_TAG_END); }
-<TAG>"<"                    { BEGIN(after_tag); unput(htmlmodify_yytext[0]); htmlmodify_yylval=""; return(LEX_TAG_END); }
+<TAG>{W}+                   { WRITE_YYTEXT; }
+<TAG>"/>"                   { BEGIN(INITIAL); htmlmodify_yylval=""; return(LEX_TAG_END_XHTML); }
+<TAG>">"                    { BEGIN(after_tag); if(after_tag!=INITIAL) {RESET_STRING;} htmlmodify_yylval=""; return(LEX_TAG_END); }
+<TAG>"<"                    { BEGIN(after_tag); unput(htmlmodify_yytext[0]); if(after_tag!=INITIAL) {RESET_STRING;}
+                              htmlmodify_yylval=""; return(LEX_TAG_END); }
 <TAG>{key}                  { BEGIN(TAG_ATTR_KEY); htmlmodify_yylval=htmlmodify_yytext; return(LEX_ATTR_KEY); }
-<TAG>(.|\n)                 { YY_WRITE(htmlmodify_yytext,htmlmodify_yyleng); }
+<TAG>(.|\n)                 { WRITE_YYTEXT; }
 
 <TAG_ATTR_KEY>{W}*=         { BEGIN(TAG_ATTR_VAL); }
 <TAG_ATTR_KEY>(.|\n)        { BEGIN(TAG); unput(htmlmodify_yytext[0]); htmlmodify_yylval=NULL; return(LEX_ATTR_VAL); }
@@ -2970,17 +3117,24 @@ static void handle_high_bit(unsigned char ch)
 
  /* Scripts */
 
-<SCRIPT_START>{W}+          { WRITE_RAW_YYTEXT; }
-<SCRIPT_START>"<"/"/script" { BEGIN(TAG_START); }
-<SCRIPT_START>"<!--"        { WRITE_RAW_YYTEXT; BEGIN(SCRIPT); }
-<SCRIPT_START>(.|\n)        { if(commentout) yy_rawout("<!--\n");
+<SCRIPT_START>{W}+          { if(disable_output) {APPEND_STRING_YYTEXT;} else {WRITE_RAW_YYTEXT;} }
+<SCRIPT_START>"<"/"/script" { BEGIN(TAG_START); htmlmodify_yylval=string; return(LEX_SCRIPTTEXT); }
+<SCRIPT_START>"<!--"        { if(disable_output) {APPEND_STRING_YYTEXT; scriptcommopen=1; scripttextstart=stringlen;}
+                              else {WRITE_RAW_YYTEXT;}
+                              BEGIN(SCRIPT); }
+<SCRIPT_START>(.|\n)        { if(disable_output) {scriptcommopen=0; scripttextstart=stringlen;}
+                              else {if(commentout) yy_rawout("<!--\n");}
                               unput(htmlmodify_yytext[0]); BEGIN(SCRIPT); }
 
-<SCRIPT>"-->"{W}*/"</script" { WRITE_RAW_YYTEXT; BEGIN(SCRIPT_START); }
-<SCRIPT>"-"+                { yy_comout(htmlmodify_yytext,commentout); }
-<SCRIPT>"<"/"/script"       { if(commentout) yy_rawout("//-->\n"); BEGIN(TAG_START); }
+<SCRIPT>"-->"{W}*/"</script" { if(disable_output) {scriptcommclose=1; scripttextend=stringlen; APPEND_STRING_YYTEXT;}
+                               else {WRITE_RAW_YYTEXT;}
+                               BEGIN(SCRIPT_START); }
+<SCRIPT>"-"+                { if(disable_output) {APPEND_STRING_YYTEXT;} else {WRITE_COMMENT_YYTEXT;} }
+<SCRIPT>"<"/"/script"       { if(disable_output) {scriptcommclose=0; scripttextend=stringlen;}
+                              else {if(commentout) yy_rawout("//-->\n");}
+                              BEGIN(TAG_START); htmlmodify_yylval=string; return(LEX_SCRIPTTEXT); }
 <SCRIPT>"<"                 |
-<SCRIPT>[^-<]+              { WRITE_RAW_YYTEXT; }
+<SCRIPT>[^-<]+              { if(disable_output) {APPEND_STRING_YYTEXT;} else {WRITE_RAW_YYTEXT;} }
 
  /* Styles */
 
@@ -2991,7 +3145,7 @@ static void handle_high_bit(unsigned char ch)
                               unput(htmlmodify_yytext[0]); BEGIN(STYLE); }
 
 <STYLE>"-->"{W}*/"</style"  { WRITE_RAW_YYTEXT; BEGIN(STYLE_START); }
-<STYLE>"-"+                 { yy_comout(htmlmodify_yytext,commentout); }
+<STYLE>"-"+                 { WRITE_COMMENT_YYTEXT; }
 <STYLE>"<"/"/style"         { if(commentout) yy_rawout("\n-->\n"); BEGIN(TAG_START); }
 <STYLE>"<"                  |
 <STYLE>[^-<]+               { WRITE_RAW_YYTEXT; }

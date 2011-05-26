@@ -307,9 +307,9 @@ messages.c : messages.l
 	@mv lex.msg_yy.c messages.c
 
 ifneq ($(PERL),)
-miscencdec.c : miscencdec.c.pre
+miscencdec.c : miscencdec.c.pre make_bitvector.pl
 	@rm -f miscencdec.c
-	$(PERL) make_bitvector.pl miscencdec.c.pre > miscencdec.c
+	$(PERL) make_bitvector.pl --linectrl miscencdec.c.pre > miscencdec.c
 endif
 
 ########

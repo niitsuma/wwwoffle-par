@@ -1107,7 +1107,7 @@ static char *webpagetitle(URL *Url)
    if(spooled_head) {
      if(status==200) {
        if((title= GetHeader(spooled_head,"Title")))
-	 title= HTMLString(title,0);
+	 title= HTMLString(title,0,NULL);
        else if(GetHeader2(spooled_head,"Content-Type","text/html"))
 	 title= HTML_title(fd);
      }

@@ -813,7 +813,7 @@ char *FTP_Request(Connection *connection,URL *Url,Header *request_head,Body *req
        if(msg_reply)
          {
           char *old_msg_reply=msg_reply;
-          msg_reply=HTMLString(msg_reply,0);
+          msg_reply=HTMLString(msg_reply,0,NULL);
           free(old_msg_reply);
          }
 
@@ -1187,7 +1187,7 @@ static char *htmlise_dir_entry(int server_data,char *line,hint_t *hint)
        char *hline,*fileurlenc,*linkurlenc=NULL;
        size_t linelen;
 
-       hline=HTMLString(line,0);
+       hline=HTMLString(line,0,NULL);
        i=split_line(hline,p);
 
        /* Get the filename and link URLs. */

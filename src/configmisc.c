@@ -1070,3 +1070,96 @@ foundneedle:
 ret0:
   return 0;
 }
+
+
+/* This version of strcasestr does not look beyond the first n chars of haystack. */
+char *strncasestr(const char *phaystack, size_t n, const char *pneedle)
+{
+  register const unsigned char *haystack, *needle;
+  register chartype b, c;
+  const unsigned char *haystack_end;
+
+  haystack = (const unsigned char *) phaystack;
+  needle = (const unsigned char *) pneedle;
+  haystack_end = haystack+n;
+
+  b = tolower(*needle);
+  if (b != '\0')
+    {
+      haystack--;				/* possible ANSI violation */
+      do
+	{
+	  if(++haystack == haystack_end) goto ret0;
+	  c = *haystack;
+	  if (c == '\0')
+	    goto ret0;
+	}
+      while (tolower(c) != (int) b);
+
+      c = tolower(*++needle);
+      if (c == '\0')
+	goto foundneedle;
+      ++needle;
+      goto jin;
+
+      for (;;)
+        {
+          register chartype a;
+	  register const unsigned char *rhaystack, *rneedle;
+
+	  do
+	    {
+	      if(++haystack == haystack_end) goto ret0;
+	      a = *haystack;
+	      if (a == '\0')
+		goto ret0;
+	      if (tolower(a) == (int) b)
+		break;
+	      if(++haystack == haystack_end) goto ret0;
+	      a = *haystack;
+	      if (a == '\0')
+		goto ret0;
+shloop:
+	      ;
+	    }
+          while (tolower(a) != (int) b);
+
+jin:	  if(++haystack == haystack_end) goto ret0;
+	  a = *haystack;
+	  if (a == '\0')
+	    goto ret0;
+
+	  if (tolower(a) != (int) c)
+	    goto shloop;
+
+	  rhaystack = haystack-- + 1;
+	  rneedle = needle;
+	  a = tolower(*rneedle);
+
+	  if ((rhaystack!=haystack_end? tolower(*rhaystack): 0) == (int) a)
+	    do
+	      {
+		if (a == '\0')
+		  goto foundneedle;
+		++rhaystack;
+		a = tolower(*++needle);
+		if ((rhaystack!=haystack_end? tolower(*rhaystack): 0) != (int) a)
+		  break;
+		if (a == '\0')
+		  goto foundneedle;
+		++rhaystack;
+		a = tolower(*++needle);
+	      }
+	    while ((rhaystack!=haystack_end? tolower(*rhaystack): 0) == (int) a);
+
+	  needle = rneedle;		/* took the register-poor approach */
+
+	  if (a == '\0')
+	    break;
+        }
+    }
+foundneedle:
+  return (char*) haystack;
+ret0:
+  return 0;
+}

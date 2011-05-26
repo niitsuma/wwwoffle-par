@@ -604,9 +604,9 @@ static char *call_function(const char *func)
    else if(!strcmp(funcname,"decode"))
      result=HTML_url(val);
    else if(!strcmp(funcname,"html"))
-     result=HTMLString(val,1);
+     result=HTMLString(val,1,NULL);
    else if(!strcmp(funcname,"htmlitems"))
-     result=HTMLString(val,2);
+     result=HTMLString(val,2,NULL);
    else if(!strcmp(funcname,"comment"))
      result=HTMLcommentstring(val,NULL);
  }

@@ -399,16 +399,16 @@ static void InfoSource(int fd,int spool,URL *Url)
  if(out_err!=-1 && text && spool!=-1)
    {
     ssize_t n;
-    char buffer[IO_BUFFER_SIZE+1];
+    char buffer[IO_BUFFER_SIZE];
 
     while((n=read_data(spool,buffer,IO_BUFFER_SIZE))>0)
       {
        char *html;
+       size_t len=n;
 
-       buffer[n]=0;
-       html=HTMLString(buffer,0);
+       html=HTMLString(buffer,0,&len);
 
-       out_err=write_string(fd,html);
+       out_err=write_data(fd,html,len);
        free(html);
        if(out_err==-1) break;       
       }

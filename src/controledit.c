@@ -175,9 +175,9 @@ static void ControlEditForms(int fd,ControlEditSection *sections)
     char *htmlcomment=NULL,*htmlcontent=NULL;
 
     if(sections[i]->comment)
-       htmlcomment=HTMLString(sections[i]->comment,0);
+      htmlcomment=HTMLString(sections[i]->comment,0,NULL);
     if(sections[i]->content)
-       htmlcontent=HTMLString(sections[i]->content,0);
+      htmlcontent=HTMLString(sections[i]->content,0,NULL);
 
     if(out_err!=-1 && !head_only)
       HTMLMessageBody(fd,"ControlEditPage-Body",

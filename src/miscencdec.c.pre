@@ -894,50 +894,87 @@ shift:
   int nbsp Use a non-breaking space in place of normal ones.
            In addition, if nbsp=2, an itemized list is produced
            (each line is preceded by <li>).
+
+  size_t *lenp  If lenp is not NULL, *lenp should initially contain the length of the input string
+                and will be assigned the length of the output string.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char* HTMLString(const char* c,int nbsp)
+char* HTMLString(const char* c, int nbsp, size_t *lenp)
 {
  size_t length= 0;
  char *result;
- char *p; const char *q;
+ char *p; const char *q, *end;
 
- if(nbsp==2 && *c) length+=strlitlen("<li>");
+ if(lenp) {
+   end = c + *lenp;
+   if(nbsp==2 && c<end) length+=strlitlen("<li>");
 
- for(q=c; *q; ++q)
-   switch(*q) {
-   case '<':
-   case '>':
-     length+=strlitlen("&lt;");
-     break;
-   case '&':
-     length+=strlitlen("&amp;");
-     break;
-   case '\n':
-     length+=1;
-     if(nbsp==2 && *(q+1)) length+=strlitlen("<li>");
-     break;
-   case ' ':
-     if(nbsp)
-       {
-	 length+=strlitlen("&nbsp;");
-	 break;
-       }
-     /*@ fallthrough @*/
-   default:
-     length+=1;
-   }
+   for(q=c; q<end; ++q)
+     switch(*q) {
+     case '<':
+     case '>':
+       length+=strlitlen("&lt;");
+       break;
+     case '&':
+       length+=strlitlen("&amp;");
+       break;
+     case '\n':
+       length+=1;
+       if(nbsp==2 && q+1<end) length+=strlitlen("<li>");
+       break;
+     case ' ':
+       if(nbsp)
+	 {
+	   length+=strlitlen("&nbsp;");
+	   break;
+	 }
+       /*@ fallthrough @*/
+     default:
+       length+=1;
+     }
+
+   *lenp= length;
+ }
+ else {
+   if(nbsp==2 && *c) length+=strlitlen("<li>");
+
+   for(q=c; *q; ++q)
+     switch(*q) {
+     case '<':
+     case '>':
+       length+=strlitlen("&lt;");
+       break;
+     case '&':
+       length+=strlitlen("&amp;");
+       break;
+     case '\n':
+       length+=1;
+       if(nbsp==2 && *(q+1)) length+=strlitlen("<li>");
+       break;
+     case ' ':
+       if(nbsp)
+	 {
+	   length+=strlitlen("&nbsp;");
+	   break;
+	 }
+       /*@ fallthrough @*/
+     default:
+       length+=1;
+     }
+
+   end= q;
+ }
 
  result=p=(char*)malloc(length+1);
 
- if(nbsp==2 && *c) {
+ if(nbsp==2 && c<end) {
    *p++='<';
    *p++='l';
    *p++='i';
    *p++='>';
  }
 
- for(q=c; *q; ++q)
+ for(q=c; q<end; ++q)
    switch(*q) {
    case '<':
      *p++='&';
@@ -960,7 +997,7 @@ char* HTMLString(const char* c,int nbsp)
      break;
    case '\n':
      *p++=*q;
-     if(nbsp==2 && *(q+1)) {
+     if(nbsp==2 && q+1<end) {
        *p++='<';
        *p++='l';
        *p++='i';
@@ -1014,7 +1051,7 @@ char *HTML_url(char *url)
   else
     dec=URLDecodeGeneric(url);
 
-  result=HTMLString(dec,1);
+  result=HTMLString(dec,1,NULL);
 
   free(dec);
 
@@ -1025,17 +1062,32 @@ char *HTML_url(char *url)
 /* Make a string safe to use inside an HTML comment (break up '--').
    char *HTMLcommentstring returns its original argument or a pointer
    to a newly allocated string.
+   If lenp is not NULL, *lenp should initially contain the length of the input string
+   or -1 and will be assigned the length of the output string.
  */
 char *HTMLcommentstring(char *c, size_t *lenp)
 {
  size_t length=0,dlength=0, totlength;
  char *result;
- char *p; const char *q;
+ char *p; const char *q, *q1, *end;
 
- for(q=c; *q; ++q) {
-   ++length;
-   if(*q=='-' && *(q+1)=='-')
-     ++dlength;
+ if(lenp && *lenp!= ~(size_t)0) {
+   length= *lenp;
+   end= c+length;
+   for(q=c; q<end; q=q1) {
+     q1=q+1;
+     if(*q=='-' && q1<end && *q1=='-')
+       ++dlength;
+   }
+ }
+ else {
+   for(q=c; *q; q=q1) {
+     ++length;
+     q1=q+1;
+     if(*q=='-' && *q1=='-')
+       ++dlength;
+   }
+   end= q;
  }
 
  totlength= length+dlength;
@@ -1045,9 +1097,10 @@ char *HTMLcommentstring(char *c, size_t *lenp)
 
  result=p=(char*)malloc(totlength+1);
 
- for(q=c; *q; ++q) {
+ for(q=c; q<end; q=q1) {
    *p++=*q;
-   if(*q=='-' && *(q+1)=='-')
+   q1=q+1;
+   if(*q=='-' && q1<end && *q1=='-')
      *p++=' ';
  }
 

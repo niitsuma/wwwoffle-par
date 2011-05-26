@@ -246,6 +246,7 @@ int MatchUrlSpecificationProtoHostPort(const UrlSpec *spec,const URL *Url);
 int WildcardMatch(const char *string,const char *pattern);
 int WildcardCaseMatch(const char *string,const char *pattern);
 int WildcardCaseMatchN(const char *string,const char *pattern,size_t pattlen);
+char *strncasestr(const char *phaystack, size_t n, const char *pneedle);
 
 char *ConfigEntryString(ConfigItem item,int which);
 void ConfigEntryStrings(ConfigItem item,int which,/*@out@*/ char **url,/*@out@*/ char **key,/*@out@*/ char **val);
