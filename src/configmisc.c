@@ -1102,72 +1102,72 @@ char *strncasestr(const char *phaystack, size_t n, const char *pneedle)
       ++needle;
       goto jin;
 
-      for (;;)
-        {
-          register chartype a;
-	  register const unsigned char *rhaystack, *rneedle;
+      {
+	register chartype a;
+	for (;;)
+	  {
+	    register const unsigned char *rhaystack, *rneedle;
 
-	  do
-	    {
-	      if(++haystack == haystack_end) goto ret0;
-	      a = *haystack;
-	      if (a == '\0')
-		goto ret0;
-	      if (tolower(a) == (int) b)
-		break;
-	      if(++haystack == haystack_end) goto ret0;
-	      a = *haystack;
-	      if (a == '\0')
-		goto ret0;
-shloop:
-	      ;
-	    }
-          while (tolower(a) != (int) b);
-
-jin:	  if(++haystack == haystack_end) goto ret0;
-	  a = *haystack;
-	  if (a == '\0')
-	    goto ret0;
-
-	  if (tolower(a) != (int) c)
-	    goto shloop;
-
-	  rhaystack = haystack-- + 1;
-	  rneedle = needle;
-	  a = tolower(*rneedle);
-
-	  if(rhaystack==haystack_end) {
-	    if(a == '\0') goto foundneedle;
-	  }
-	  else if (tolower(*rhaystack) == (int) a)
 	    do
 	      {
+		if(++haystack == haystack_end) goto ret0;
+		a = *haystack;
 		if (a == '\0')
-		  goto foundneedle;
-		++rhaystack;
-		a = tolower(*++needle);
-		if(rhaystack==haystack_end) {
-		  if(a == '\0') goto foundneedle;
+		  goto ret0;
+		if (tolower(a) == (int) b)
 		  break;
-		}
-		if (tolower(*rhaystack) != (int) a)
-		  break;
+		if(++haystack == haystack_end) goto ret0;
+		a = *haystack;
 		if (a == '\0')
-		  goto foundneedle;
-		++rhaystack;
-		a = tolower(*++needle);
-		if(rhaystack==haystack_end) {
-		  if(a == '\0') goto foundneedle;
-		  break;
-		}
+		  goto ret0;
+  shloop:
+		;
 	      }
-	    while (tolower(*rhaystack) == (int) a);
+	    while (tolower(a) != (int) b);
 
-	  needle = rneedle;		/* took the register-poor approach */
+  jin:	    if(++haystack == haystack_end) goto ret0;
+	    a = *haystack;
+	    if (a == '\0')
+	      goto ret0;
 
-	  if (a == '\0')
-	    break;
-        }
+	    if (tolower(a) != (int) c)
+	      goto shloop;
+
+	    rhaystack = haystack-- + 1;
+	    rneedle = needle;
+	    a = tolower(*rneedle);
+
+	    if(rhaystack==haystack_end)
+	      goto reached_haystack_end;
+	    if (tolower(*rhaystack) == (int) a)
+	      do
+		{
+		  if (a == '\0')
+		    goto foundneedle;
+		  ++rhaystack;
+		  a = tolower(*++needle);
+		  if(rhaystack==haystack_end)
+		    goto reached_haystack_end;
+		  if (tolower(*rhaystack) != (int) a)
+		    break;
+		  if (a == '\0')
+		    goto foundneedle;
+		  ++rhaystack;
+		  a = tolower(*++needle);
+		  if(rhaystack==haystack_end)
+		    goto reached_haystack_end;
+		}
+	      while (tolower(*rhaystack) == (int) a);
+
+	    needle = rneedle;		/* took the register-poor approach */
+
+	    if (a == '\0')
+	      goto foundneedle;
+	  }
+reached_haystack_end:
+	if (a != '\0')
+	  goto ret0;
+      }
     }
 foundneedle:
   return (char*) haystack;
