@@ -314,23 +314,12 @@ Tag;
 typedef struct _TagStackNode
 {
   struct _TagStackNode *next;
-  HTMLTags type;
-  disabled_t disabled;
+  int type;
+  int val;
 }
 TagStackNode;
 
 typedef struct _TagStackNode *TagStack;
-
-/*+ A stack similar to TagStack holding tagnames instead of types. +*/
-typedef struct _TagNmStackNode
-{
-  struct _TagNmStackNode *next;
-  short disable;
-  char tagname[];
-}
-TagNmStackNode;
-
-typedef struct _TagNmStackNode *TagNmStack;
 
 /* struct used for lists of string-segment sequences. */
 typedef struct _PattNode {
@@ -370,10 +359,9 @@ typedef struct _CommentPattNode {
 CommentPattNode;
 
 typedef struct _TagAttrPattList {
-  TagAttrPattNode *tapl;
+  TagAttrPattNode **taparr;  /* Points to array of length ntag */
   CommentPattNode *cmpl;
-  const char **tagarr;
-  char *disarr;
+  char *disarr;              /* Points to array of length ntag */
   int ntag;
 }
 TagAttrPattList;
@@ -635,46 +623,21 @@ inline static void free_tagdata(Tag *tagdata)
 
 /* Some functions for handling tag stacks. */
 
-inline static HTMLTags endtag2tag(HTMLTags endtag)
-{
-  return (endtag>=0 && endtag&1)? endtag-1 : -1;
-}
-
 /* Push a tag and its value on a stack. */
-static void pushtagstack(TagStack *s,HTMLTags t, disabled_t disabled)
+static void pushtagstack(TagStack *s, int t, int val)
 {
   TagStack new=malloc(sizeof(TagStackNode));
   new->next= *s;
   new->type= t;
-  new->disabled= disabled;
+  new->val= val;
 
   *s= new;
 }
 
-#if 0
-/* Get the value of the first stack node of the matching tag type. */
-static disabled_t toptagstack(TagStack s,HTMLTags endtag)
-{
-  HTMLTags tag=endtag2tag(endtag);
-
-  if(tag<0)
-    return 0;
-
-  while(s) {
-    if(s->type==tag)
-      return s->disabled;
-    s=s->next;
-  }
-
-  return 0;
-}
-#endif
-
 /* Remove the first stack node of the matching tag type and return its value. */
-static disabled_t poptagstack(TagStack *s,HTMLTags endtag)
+static int poptagstack(TagStack *s, int tag)
 {
   TagStack p, *q;
-  HTMLTags tag=endtag2tag(endtag);
 
   if(tag<0)
     return 0;
@@ -682,7 +645,7 @@ static disabled_t poptagstack(TagStack *s,HTMLTags endtag)
   q= s;
   while((p= *q)) {
     if(p->type==tag) {
-      int retval= p->disabled;
+      int retval= p->val;
       *q= p->next;
       free(p);
       return retval;
@@ -693,58 +656,16 @@ static disabled_t poptagstack(TagStack *s,HTMLTags endtag)
   return 0;
 }
 
+inline static int popendtagstack(TagStack *s, int endtag)
+{
+  return (endtag>=0 && endtag&1)? poptagstack(s,endtag-1): 0;
+}
+
 /* Free all the remaining nodes of a stack */
 inline static void free_tagstack(TagStack s)
 {
   while(s) {
     TagStack next= s->next;
-    free(s);
-    s=next;
-  }
-}
-
-/* Repeat function definitions for TagNmStack type. */
-
-/* Push a tag name and its value on a stack. */
-static void pushtagnmstack(TagNmStack *s,const char *tagname, short disable)
-{
-  size_t nmsz = strlen(tagname) + 1;
-  TagNmStack new=malloc(sizeof(TagNmStackNode)+nmsz);
-  new->next= *s;
-  new->disable= disable;
-  memcpy(new->tagname, tagname, nmsz);
-
-  *s= new;
-}
-
-/* Remove the first stack node of the matching tag name and return its value. */
-static int poptagnmstack(TagNmStack *s,const char *endtag)
-{
-  TagNmStack p, *q;
-
-  if(*endtag=='/') {
-    const char *tag=endtag+1;
-
-    q= s;
-    while((p= *q)) {
-      if(!strcasecmp(p->tagname,tag)) {
-	int retval= p->disable;
-	*q= p->next;
-	free(p);
-	return retval;
-      }
-      q= &p->next;
-    }
-  }
-
-  return 0;
-}
-
-/* Free all the remaining nodes of a stack */
-inline static void free_tagnmstack(TagNmStack s)
-{
-  while(s) {
-    TagNmStack next= s->next;
     free(s);
     s=next;
   }
@@ -1015,8 +936,9 @@ static void sort_tag_attr_patt_list(TagAttrPattNode **l)
 
 static TagAttrPattList make_tag_attr_patt_list(ConfigItem confitem,const URL *Url)
 {
-  TagAttrPattList res= {NULL,NULL,NULL,NULL,0};
-  TagAttrPattNode **lasttap = &res.tapl;
+  TagAttrPattList res= {NULL,NULL,NULL,0};
+  TagAttrPattNode *tapl= NULL;
+  TagAttrPattNode **lasttap = &tapl;
   CommentPattNode **lastcomp= &res.cmpl;
 
   if(confitem) {
@@ -1053,57 +975,63 @@ static TagAttrPattList make_tag_attr_patt_list(ConfigItem confitem,const URL *Ur
       }
   }
 
-  if(res.tapl) {
+  if(tapl) {
     TagAttrPattNode *p,*q;
     int i;
-    sort_tag_attr_patt_list(&res.tapl);
+    sort_tag_attr_patt_list(&tapl);
 
     /* Count number of unique tags. */
     res.ntag=1;
-    for(p=res.tapl,q=p->next; q; q=q->next) {
-      if(strcasecmp(p->tagname,q->tagname)) {
+    for(p=tapl,q=p->next; q; q=q->next) {
+      if(strcasecmp(p->tagname,q->tagname))
 	++res.ntag;
-	p=q;
-      }
+      p=q;
     }
 
-    /* Create tag lookup array, removing duplicates. */
-    res.tagarr = (const char**)malloc(sizeof(const char*)*res.ntag);
+    /* Create tag lookup array, splitting the tapl list into segments, one for
+       each unique tag name. */
+    res.taparr = (TagAttrPattNode **)malloc(sizeof(TagAttrPattNode *)*res.ntag);
     res.disarr = (char*)malloc(res.ntag);
-    res.tagarr[0]= res.tapl->tagname;
-    res.disarr[0]=0; if(res.tapl->disable&DISABLESCRIPTMASK) res.disarr[0]=1;
-    for(i=0,p=res.tapl,q=p->next; q; q=q->next) {
+    res.taparr[0]= tapl;
+    res.disarr[0]=0; if(tapl->disable&DISABLESCRIPTMASK) res.disarr[0]=1;
+    for(i=0,p=tapl,q=p->next; q; q=q->next) {
       if(strcasecmp(p->tagname,q->tagname)) {
+	p->next=NULL;  /* Close off the list segment for the previous tag. */
 	++i;
-	res.tagarr[i]=q->tagname;
+	res.taparr[i]=q;
 	res.disarr[i]=0;
-	p=q;
       }
       if(q->disable&DISABLESCRIPTMASK) res.disarr[i]=1;
+      p=q;
     }
   }
 
   return res;
 }
 
-static int tag_match_tag_attr_patt_list(const char* tag,TagAttrPattList *l)
+struct tagmatchval {
+  unsigned flags;
+  int idx;
+};
+
+static struct tagmatchval tag_match_tag_attr_patt_list(const char* tag,TagAttrPattList *l)
 {
-  int st=TAGMATCH;
-  const char **tagarr;
+  struct tagmatchval res= {0,-1};
+  TagAttrPattNode **taparr= l->taparr;
 
-  if(*tag == '/') {
-    st=0;
-    ++tag;
-  }
+  if(taparr) {
+    unsigned int st=TAGMATCH;
+    if(*tag == '/') {
+      st=0;
+      ++tag;
+    }
 
-  tagarr= l->tagarr;
-  if(tagarr) {
     /* Do a binary search. */
     int i=0, j=l->ntag;
 
     while(i<j) {
       int k=(i+j)/2;
-      int cmp=strcasecmp(tag,tagarr[k]);
+      int cmp=strcasecmp(tag,taparr[k]->tagname);
       if(cmp<0)
 	j=k;
       else if(cmp>0)
@@ -1111,12 +1039,14 @@ static int tag_match_tag_attr_patt_list(const char* tag,TagAttrPattList *l)
       else {
 	if(l->disarr)
 	  st |= l->disarr[k];
-	return st;
+	res.flags=st;
+	res.idx=k;
+	break;
       }
     }
   }
 
-  return 0;
+  return res;
 }
 
 static void free_pattlist(PattNode *p)
@@ -1133,26 +1063,29 @@ static void free_tag_attr_patt_list(TagAttrPattList *l)
   TagAttrPattNode* p;
   CommentPattNode* c;
 
-  if(l->tagarr) free(l->tagarr);
-  if(l->disarr) free(l->disarr);
-
-  p = l->tapl;
-  while(p) {
-    TagAttrPattNode* next= p->next;
-    AttrPattNode* a;
-    free(p->tagname);
-    a= p->attrpatts;
-    while(a) {
-      AttrPattNode* nxt= a->next;
-      free(a->attrname);
-      free_pattlist(a->valpatt);
-      free(a);
-      a=nxt;
+  if(l->taparr) {
+    int i, n=l->ntag;
+    for(i=0; i<n; ++i) {
+      p = l->taparr[i];
+      while(p) {
+	TagAttrPattNode* next= p->next;
+	AttrPattNode* a;
+	free(p->tagname);
+	a= p->attrpatts;
+	while(a) {
+	  AttrPattNode* nxt= a->next;
+	  free(a->attrname);
+	  free_pattlist(a->valpatt);
+	  free(a);
+	  a=nxt;
+	}
+	free_pattlist(p->txtpatt);
+	/* p->stylerepl points to configuration data, do not free here. */
+	free(p);
+	p=next;
+      }
     }
-    free_pattlist(p->txtpatt);
-    /* p->stylerepl points to configuration data, do not free here. */
-    free(p);
-    p=next;
+    free(l->taparr);
   }
 
   c = l->cmpl;
@@ -1162,6 +1095,8 @@ static void free_tag_attr_patt_list(TagAttrPattList *l)
     free(c);
     c=next;
   }
+
+  if(l->disarr) free(l->disarr);
 }
 
 
@@ -2051,14 +1986,14 @@ static void handle_meta_tag(const Tag *tag,int disable_meta_refresh,int disable_
 }
 
 
-static int process_tag_style_attr_replacement(Tag *tag, const char *text, size_t textlen, TagAttrPattList *tapl, int *needtxt)
+static int process_tag_style_attr_replacement(Tag *tag, const char *text, size_t textlen, struct tagmatchval *tagm, TagAttrPattList *tapl, int *needtxt)
 {
   int retval=0;
-  TagAttrPattNode *p;
 
-  for(p=tapl->tapl; p; p=p->next) {
-    int cmp=strcasecmp(tag->tag,p->tagname);
-    if(cmp==0) {
+  if(tagm->flags&TAGMATCH) {
+    TagAttrPattNode *p;
+    for(p=tapl->taparr[tagm->idx]; p; p=p->next) {
+      /* Note: tag->tag should now match p->tagname. */
       AttrPattNode *a;
       int i;
       for(a=p->attrpatts; a; a=a->next) {
@@ -2148,12 +2083,8 @@ static int process_tag_style_attr_replacement(Tag *tag, const char *text, size_t
 	add_attribute(tag, -1,"style",p->stylerepl,'"',0);
       retval=p->disable;
       break;
+    nexttagattrpatt:;
     }
-    else if(cmp<0) {
-       /* The list is in ascending order, so any further comparisons will fail. */
-      break;
-    }
-  nexttagattrpatt:;
   }
 
   return retval;
@@ -2250,8 +2181,7 @@ static void modify_html(URL *Url)
  short int disable_key;
  char quote;
  Tag tagdata;
- TagStack tagstack=NULL;
- TagNmStack tagnmstack=NULL;
+ TagStack tagstack=NULL, tagpstack=NULL;
 
  char *anchor_modify_begin[3];
  char *anchor_modify_end[3];
@@ -2279,7 +2209,8 @@ static void modify_html(URL *Url)
  char *insertfile=ConfigStringURL(InsertFile,Url);
  short int insertedfile=0,after_body=0;
  short int tagcomplexmodify=0, disable_following_script=0, disable_all_following_scripts=0;
- int tagmatchtagattrpattlist=0, scriptdisablelevel=0;
+ int scriptdisablelevel=0;
+ struct tagmatchval tagmatch = {0,-1};
  TagAttrPattList tagattrpattlist;
 
  anchor_modify_begin[0]=ConfigStringURL(AnchorModifyBegin[0],Url);
@@ -2363,8 +2294,8 @@ static void modify_html(URL *Url)
 
       case LEX_TAG_BEGIN:
        tag=lookuptag(htmlmodify_yylval);
-       tagmatchtagattrpattlist = tag_match_tag_attr_patt_list(htmlmodify_yylval,&tagattrpattlist);
-       tagcomplexmodify= is_complex_tag(tag) || (tagmatchtagattrpattlist & TAGMATCH);
+       tagmatch = tag_match_tag_attr_patt_list(htmlmodify_yylval,&tagattrpattlist);
+       tagcomplexmodify= is_complex_tag(tag) || (tagmatch.flags & TAGMATCH);
 
        reset_tagdata(&tagdata,tag,tagcomplexmodify?htmlmodify_yylval:NULL);
 
@@ -2377,7 +2308,7 @@ static void modify_html(URL *Url)
        switch (tag)
 	 {
 	 case tag__a:
-	   prefix=tagprefix[poptagstack(&tagstack,tag)];
+	   prefix=tagprefix[popendtagstack(&tagstack,tag)];
 	   if(!prefix && anchor_modify)
 	     {
 	       if(url_cached==1)
@@ -2391,7 +2322,7 @@ static void modify_html(URL *Url)
 	   break;
 	 case tag__iframe:
 	 case tag__object: case tag__embed:
-	   prefix=tagprefix[poptagstack(&tagstack,tag)];
+	   prefix=tagprefix[popendtagstack(&tagstack,tag)];
 	   break;
 	 case tag__head:
 	   if(insertheadfile)
@@ -2442,7 +2373,7 @@ static void modify_html(URL *Url)
 	     prefix="!-- WWWOFFLE (disable-script) - ";
 	   break;
 	 case tag__applet:
-	   poptagstack(&tagstack,tag);
+	   popendtagstack(&tagstack,tag);
 	   /* fall through */
 	 case tag_applet:
 	   if(disable_applet)
@@ -2450,7 +2381,7 @@ static void modify_html(URL *Url)
 	   break;
 	 case tag_param:
 	   if(tagstack)
-	     prefix=tagprefix[tagstack->disabled];
+	     prefix=tagprefix[tagstack->val];
 	   break;
 	 case tag_style:
 	   if(disable_style)
@@ -2497,11 +2428,11 @@ static void modify_html(URL *Url)
 	 default: ;
 	 }
 
-       if(tagmatchtagattrpattlist) {
-	 if(tagmatchtagattrpattlist & TAGMATCH)
+       if(tagmatch.flags) {
+	 if(tagmatch.flags & TAGMATCH)
 	   disable_output|=DISABLE_TAG;
-	 else if(tagmatchtagattrpattlist & TAGDISABLESCRIPT) {
-	   int disable=poptagnmstack(&tagnmstack,htmlmodify_yylval);
+	 else if(tagmatch.flags & TAGDISABLESCRIPT) {
+	   int disable=poptagstack(&tagpstack,tagmatch.idx);
 	   if((disable&DISABLEINNERSCRIPT) && scriptdisablelevel>0)
 	     --scriptdisablelevel;
 	   if(disable&DISABLEFOLLOWINGSCRIPT)
@@ -2534,11 +2465,11 @@ static void modify_html(URL *Url)
 	   yy_rawout(">");
        }
 
-       if(tagmatchtagattrpattlist & TAGMATCH) {
+       if(tagmatch.flags & TAGMATCH) {
 	 int disable, needtxt=0;
 	 disable_output&=~DISABLE_TAG;
 
-	 disable=process_tag_style_attr_replacement(&tagdata,NULL,0,&tagattrpattlist,
+	 disable=process_tag_style_attr_replacement(&tagdata,NULL,0,&tagmatch,&tagattrpattlist,
 						    (tag==tag_script && !tagdata.xhtml)? &needtxt: NULL);
 	 if(needtxt) {
 	   disable_output&=~DISABLE_SCRIPT;
@@ -2578,9 +2509,9 @@ static void modify_html(URL *Url)
 
 	   output_tag(&tagdata,prefix);
 
-	   if(tagmatchtagattrpattlist & TAGDISABLESCRIPT) {
+	   if(tagmatch.flags & TAGDISABLESCRIPT) {
 	     if(!tagdata.xhtml) {
-	       pushtagnmstack(&tagnmstack,tagdata.tag,disable);
+	       pushtagstack(&tagpstack,tagmatch.idx,disable);
 	       if(disable&DISABLEINNERSCRIPT) ++scriptdisablelevel;
 	     }
 	     else {
@@ -2821,7 +2752,7 @@ static void modify_html(URL *Url)
 	  while(--scriptend>=scrtext && isspace(*scriptend));
 	  ++scriptend;
 
-	  disable=process_tag_style_attr_replacement(&tagdata,scrtext,scriptend-scrtext,&tagattrpattlist, NULL);
+	  disable=process_tag_style_attr_replacement(&tagdata,scrtext,scriptend-scrtext,&tagmatch,&tagattrpattlist, NULL);
 
 	  if(disable&RESETFOLLOWINGSCRIPT)
 	    disable_following_script=0;
@@ -2844,11 +2775,11 @@ static void modify_html(URL *Url)
 
 	  is_disabled_script=handle_script_tag(&tagdata,is_disabled_script);
 
-	  if(tagmatchtagattrpattlist & TAGDISABLESCRIPT) {
+	  if(tagmatch.flags & TAGDISABLESCRIPT) {
 #if 0
 	    if(!tagdata.xhtml) {
 #endif
-	      pushtagnmstack(&tagnmstack,tagdata.tag,disable);
+	      pushtagstack(&tagpstack,tagmatch.idx,disable);
 	      if(disable&DISABLEINNERSCRIPT) ++scriptdisablelevel;
 #if 0
 	    }
@@ -2892,7 +2823,7 @@ static void modify_html(URL *Url)
 
  free_tagdata(&tagdata);
  free_tagstack(tagstack);
- free_tagnmstack(tagnmstack);
+ free_tagstack(tagpstack);
  free_tag_attr_patt_list(&tagattrpattlist);
 
  /* Free replacement URLs */
