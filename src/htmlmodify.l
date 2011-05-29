@@ -7,6 +7,7 @@ punct           [][!\"#$%&\'()*+,./:;<=>?@\\^_`{|}~-]
 safepunct       [][!#$%&()*+,./:;=?@\\^_`{|}~-]
 
 tag             ({alphanum}|:)+
+tagdel          [ \t\r\n\f/>]
 key             ({alphanum}|[-:])+
 val             ({alphanum}|{nonascii}|{safepunct})+
 
@@ -1237,17 +1238,20 @@ void OutputHTMLWithModifications(URL *Url,int spool,char *content_type)
 
 #define yy_write wwwoffles_write_data
 
+inline static void yy_rawout(const char *text) __attribute__((always_inline));
 inline static void yy_rawout(const char *text)
 {
   yy_write(text,strlen(text));
 }
 
 /*+ A function to output the data if valid to do so. +*/
+inline static void YY_WRITE(const char *text, size_t len) __attribute__((always_inline));
 inline static void YY_WRITE(const char *text, size_t len)
 {
   if(!disable_output && len>0) yy_write(text,len);
 }
 
+inline static void YY_OUTPUT(const char *text) __attribute__((always_inline));
 inline static void YY_OUTPUT(const char *text)
 {
   if(!disable_output && *(text)) yy_rawout(text);
@@ -3025,16 +3029,10 @@ static void handle_high_bit(unsigned char ch)
 
  /* Tags */
 
-<TAG_START>"script"/{W}     { BEGIN(TAG); after_tag=SCRIPT_START; htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"script"/">"     { BEGIN(TAG); after_tag=SCRIPT_START; htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"style"/{W}      { BEGIN(TAG); after_tag=STYLE_START;  htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"style"/">"      { BEGIN(TAG); after_tag=STYLE_START;  htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{tag}/" "    { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{tag}/\t     { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{tag}/\n     { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{tag}/\r     { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{tag}/">"    { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>(.|\n)           { BEGIN(INITIAL); YY_WRITE(string,stringlen); WRITE_YYTEXT; }
+<TAG_START>"script"/{tagdel}  { BEGIN(TAG); after_tag=SCRIPT_START; htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"style"/{tagdel}   { BEGIN(TAG); after_tag=STYLE_START;  htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"/"?{tag}/{tagdel} { BEGIN(TAG); after_tag=INITIAL;      htmlmodify_yylval=htmlmodify_yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>(.|\n)             { BEGIN(INITIAL); YY_WRITE(string,stringlen); WRITE_YYTEXT; }
 
 <TAG>{W}+                   { WRITE_YYTEXT; }
 <TAG>"/>"                   { BEGIN(INITIAL); htmlmodify_yylval=""; return(LEX_TAG_END_XHTML); }

@@ -7,6 +7,7 @@ punct           [][!\"#$%&\'()*+,./:;<=>?@\\^_`{|}~-]
 safepunct       [][!\#$%&\*+,./:;=?@\\^_`{|}~-]
 
 tag             ({alphanum}|:)+
+tagdel          [ \t\r\n\f/>]
 key             ({alphanum}|[-:])+
 val             ({alphanum}|{nonascii}|{safepunct})+
 
@@ -951,18 +952,11 @@ cleanup_return:
 
  /* Tags */
 
-<TAG_START>"script"/{W}     { BEGIN(TAG); after_tag=SCRIPT_START; html_yylval=yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"script"/">"     { BEGIN(TAG); after_tag=SCRIPT_START; html_yylval=yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"style"/{W}      { BEGIN(TAG); after_tag=STYLE_START;  html_yylval=yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"style"/">"      { BEGIN(TAG); after_tag=STYLE_START;  html_yylval=yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"title"/{W}      { BEGIN(TAG); after_tag=TITLE_START;  html_yylval=yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"title"/">"      { BEGIN(TAG); after_tag=TITLE_START;  html_yylval=yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{tag}/" "    { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{tag}/\t     { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{tag}/\n     { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{tag}/\r     { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"/"?{tag}/">"    { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>(.|\n)           { BEGIN(INITIAL); }
+<TAG_START>"script"/{tagdel}  { BEGIN(TAG); after_tag=SCRIPT_START; html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"style"/{tagdel}   { BEGIN(TAG); after_tag=STYLE_START;  html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"title"/{tagdel}   { BEGIN(TAG); after_tag=TITLE_START;  html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"/"?{tag}/{tagdel} { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>(.|\n)             { BEGIN(INITIAL); }
 
 <TAG>{W}+                   { }
 <TAG>"/>"                   { BEGIN(INITIAL);                     html_yylval=""; return(LEX_TAG_END_XHTML); }
