@@ -3,11 +3,11 @@ W               [ \t\r\n\f]
 nonascii        [\200-\377]
 ascii           [ -~]
 alphanum        [a-z0-9]
-punct           [][!\"#$%&\'()*+,-./:;<=>?@\\^_`{|}~]
-safepunct       [][!#$%&()*+,-./:;=?@\\^_`{|}~]
+punct           [][!\"#$%&\'()*+,./:;<=>?@\\^_`{|}~-]
+safepunct       [][!#$%&()*+,./:;=?@\\^_`{|}~-]
 
-tag             {alphanum}+
-key             ({alphanum}|-)+
+tag             ({alphanum}|:)+
+key             ({alphanum}|[-:])+
 val             ({alphanum}|{nonascii}|{safepunct})+
 
 %x DOCTYPE
@@ -265,7 +265,8 @@ typedef enum _disabled_t
   disabled_all_following_scripts,
   disabled_dontget_script,
   disabled_matching_script,
-  disabled_style
+  disabled_style,
+  disabled_matching_tag
 }
 disabled_t;
 
@@ -286,7 +287,8 @@ static const char* const tagprefix[]=
   "!-- WWWOFFLE (disable-all-following-scripts) - ",
   "!-- WWWOFFLE (disable-dontget-script) - ",
   "!-- WWWOFFLE (disable-matching-script) - ",
-  "!-- WWWOFFLE (disable-style) - "
+  "!-- WWWOFFLE (disable-style) - ",
+  "!-- WWWOFFLE (disable-matching-tag) - "
 };
 
 /*+ A structure to hold a tag and its attributes. +*/
@@ -297,7 +299,8 @@ typedef struct _Tag
 
  char *tag;                     /*+ The Tag itself. +*/
 
- int xhtml;                     /*+ A flag that is set for an XHTML closing tag '< ... />' +*/
+ unsigned short xhtml;          /*+ A flag that is set for an XHTML closing tag '< ... />' +*/
+ unsigned short disable;        /*+ A flag that is set when this tag should be disabled. +*/
 
  int nattr;                     /*+ The number of attributes. +*/
  int nattr_malloc;              /*+ The number of attributes that space is malloced for. +*/
@@ -306,7 +309,7 @@ typedef struct _Tag
  char **attr_key;               /*+ The list of attribute keys. +*/
  char **attr_val;               /*+ The list of attribute values. +*/
  char *attr_quote;              /*+ The list of attribute quotes. +*/
- char *attr_disable;            /*+ The list of attribute disable flags. +*/
+ unsigned char *attr_disable;   /*+ The list of attribute disable flags. +*/
 }
 Tag;
 
@@ -392,14 +395,15 @@ static int fix_mixed_cyrillic;
 
 /* Bit masks for the result of tag-attribute matching. */
 #define TAGMATCH         2
-#define TAGDISABLESCRIPT 1
+#define TAGMAYBEDISABLE  1
 
-#define DISABLEINNERSCRIPT         1
-#define DISABLEFOLLOWINGSCRIPT     2
-#define DISABLEALLFOLLOWINGSCRIPTS 4
-#define RESETFOLLOWINGSCRIPT       8
-#define RESETALLFOLLOWINGSCRIPTS  16
-#define DISABLESCRIPTMASK (DISABLEINNERSCRIPT|DISABLEFOLLOWINGSCRIPT|DISABLEALLFOLLOWINGSCRIPTS)
+#define DISABLEMATCHINGTAG          1
+#define DISABLEINNERSCRIPT          2
+#define DISABLEFOLLOWINGSCRIPT      4
+#define DISABLEALLFOLLOWINGSCRIPTS  8
+#define RESETFOLLOWINGSCRIPT     0x10
+#define RESETALLFOLLOWINGSCRIPTS 0x20
+#define DISABLEMASK (DISABLEMATCHINGTAG|DISABLEINNERSCRIPT|DISABLEFOLLOWINGSCRIPT|DISABLEALLFOLLOWINGSCRIPTS)
 
 /* Local functions */
 
@@ -556,13 +560,14 @@ inline static void init_tagdata(Tag *tagdata)
   tagdata->type=-1;
   tagdata->tag=NULL;
   tagdata->xhtml=0;
+  tagdata->disable=0;
   tagdata->nattr=0;
   tagdata->nattr_malloc=16;
   tagdata->attr_type=(int*)malloc(tagdata->nattr_malloc*sizeof(int));
   tagdata->attr_key=(char**)malloc(tagdata->nattr_malloc*sizeof(char*));
   tagdata->attr_val=(char**)malloc(tagdata->nattr_malloc*sizeof(char*));
   tagdata->attr_quote=(char*)malloc(tagdata->nattr_malloc);
-  tagdata->attr_disable=(char*)malloc(tagdata->nattr_malloc);
+  tagdata->attr_disable=(unsigned char*)malloc(tagdata->nattr_malloc);
 }
 
 inline static void reset_tagdata(Tag *tagdata, HTMLTags type,const char *tagstr)
@@ -573,6 +578,7 @@ inline static void reset_tagdata(Tag *tagdata, HTMLTags type,const char *tagstr)
   if(tagdata->tag) free(tagdata->tag);
   tagdata->tag= (tagstr?strdup(tagstr):NULL);
   tagdata->xhtml=0;
+  tagdata->disable=0;
   for(i=0; i<tagdata->nattr; ++i)
     {
       if(tagdata->attr_key[i]) free(tagdata->attr_key[i]);
@@ -581,7 +587,7 @@ inline static void reset_tagdata(Tag *tagdata, HTMLTags type,const char *tagstr)
   tagdata->nattr=0;
 }
 
-static void add_attribute(Tag *tag, int type, const char *key, const char *val, char quote, char disable)
+static void add_attribute(Tag *tag, int type, const char *key, const char *val, char quote, unsigned char disable)
 {
   if(tag->nattr==tag->nattr_malloc)
     {
@@ -590,7 +596,7 @@ static void add_attribute(Tag *tag, int type, const char *key, const char *val, 
       tag->attr_key=(char**)realloc((void*)tag->attr_key,(tag->nattr_malloc)*sizeof(char*));
       tag->attr_val=(char**)realloc((void*)tag->attr_val,(tag->nattr_malloc)*sizeof(char*));
       tag->attr_quote=(char*)realloc((void*)tag->attr_quote,(tag->nattr_malloc));
-      tag->attr_disable=(char*)realloc((void*)tag->attr_disable,(tag->nattr_malloc));
+      tag->attr_disable=(unsigned char*)realloc((void*)tag->attr_disable,(tag->nattr_malloc));
     }
 
   tag->attr_type [tag->nattr]=type;
@@ -846,6 +852,8 @@ static struct optionvalues parse_tag_modify_options(const char *str)
       res.stylerepl = "visibility:hidden !important";
     else if(keywordmatch(s,len,"no-style"))
       res.stylerepl = "";
+    else if(keywordmatch(s,len,"disable-tag"))
+      res.disable |= DISABLEMATCHINGTAG;
     else if(keywordmatch(s,len,"disable-script"))
       res.disable |= DISABLEINNERSCRIPT;
     else if(keywordmatch(s,len,"disable-following-script"))
@@ -993,7 +1001,7 @@ static TagAttrPattList make_tag_attr_patt_list(ConfigItem confitem,const URL *Ur
     res.taparr = (TagAttrPattNode **)malloc(sizeof(TagAttrPattNode *)*res.ntag);
     res.disarr = (char*)malloc(res.ntag);
     res.taparr[0]= tapl;
-    res.disarr[0]=0; if(tapl->disable&DISABLESCRIPTMASK) res.disarr[0]=1;
+    res.disarr[0]=0; if(tapl->disable&DISABLEMASK) res.disarr[0]=TAGMAYBEDISABLE;
     for(i=0,p=tapl,q=p->next; q; q=q->next) {
       if(strcasecmp(p->tagname,q->tagname)) {
 	p->next=NULL;  /* Close off the list segment for the previous tag. */
@@ -1001,7 +1009,7 @@ static TagAttrPattList make_tag_attr_patt_list(ConfigItem confitem,const URL *Ur
 	res.taparr[i]=q;
 	res.disarr[i]=0;
       }
-      if(q->disable&DISABLESCRIPTMASK) res.disarr[i]=1;
+      if(q->disable&DISABLEMASK) res.disarr[i]=TAGMAYBEDISABLE;
       p=q;
     }
   }
@@ -1060,13 +1068,13 @@ static void free_pattlist(PattNode *p)
 
 static void free_tag_attr_patt_list(TagAttrPattList *l)
 {
-  TagAttrPattNode* p;
+  TagAttrPattNode **taparr= l->taparr;
   CommentPattNode* c;
 
-  if(l->taparr) {
+  if(taparr) {
     int i, n=l->ntag;
     for(i=0; i<n; ++i) {
-      p = l->taparr[i];
+      TagAttrPattNode* p = taparr[i];
       while(p) {
 	TagAttrPattNode* next= p->next;
 	AttrPattNode* a;
@@ -1085,7 +1093,7 @@ static void free_tag_attr_patt_list(TagAttrPattList *l)
 	p=next;
       }
     }
-    free(l->taparr);
+    free(taparr);
   }
 
   c = l->cmpl;
@@ -2082,6 +2090,8 @@ static int process_tag_style_attr_replacement(Tag *tag, const char *text, size_t
       if(p->stylerepl && *(p->stylerepl))
 	add_attribute(tag, -1,"style",p->stylerepl,'"',0);
       retval=p->disable;
+      if(retval&DISABLEMATCHINGTAG)
+	tag->disable=1;
       break;
     nexttagattrpatt:;
     }
@@ -2139,6 +2149,9 @@ static void output_tag(const Tag *tag,const char *prefix)
 
  if(disable_output)
    return;
+
+ if(tag->disable && !prefix)
+   prefix=tagprefix[disabled_matching_tag];
 
  yy_rawout("<");
 
@@ -2431,8 +2444,10 @@ static void modify_html(URL *Url)
        if(tagmatch.flags) {
 	 if(tagmatch.flags & TAGMATCH)
 	   disable_output|=DISABLE_TAG;
-	 else if(tagmatch.flags & TAGDISABLESCRIPT) {
+	 else if(tagmatch.flags & TAGMAYBEDISABLE) {
 	   int disable=poptagstack(&tagpstack,tagmatch.idx);
+	   if((disable&DISABLEMATCHINGTAG) && !prefix)
+	     prefix=tagprefix[disabled_matching_tag];
 	   if((disable&DISABLEINNERSCRIPT) && scriptdisablelevel>0)
 	     --scriptdisablelevel;
 	   if(disable&DISABLEFOLLOWINGSCRIPT)
@@ -2509,7 +2524,7 @@ static void modify_html(URL *Url)
 
 	   output_tag(&tagdata,prefix);
 
-	   if(tagmatch.flags & TAGDISABLESCRIPT) {
+	   if(tagmatch.flags & TAGMAYBEDISABLE) {
 	     if(!tagdata.xhtml) {
 	       pushtagstack(&tagpstack,tagmatch.idx,disable);
 	       if(disable&DISABLEINNERSCRIPT) ++scriptdisablelevel;
@@ -2775,7 +2790,7 @@ static void modify_html(URL *Url)
 
 	  is_disabled_script=handle_script_tag(&tagdata,is_disabled_script);
 
-	  if(tagmatch.flags & TAGDISABLESCRIPT) {
+	  if(tagmatch.flags & TAGMAYBEDISABLE) {
 #if 0
 	    if(!tagdata.xhtml) {
 #endif

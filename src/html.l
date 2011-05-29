@@ -3,11 +3,11 @@ W               [ \t\r\n\f]
 nonascii        [\200-\377]
 ascii           [ -~]
 alphanum        [a-z0-9]
-punct           [][!\"#$%&\'()*+,-./:;<=>?@\\^_`{|}~]
-safepunct       [][!\#$%&\*+,-./:;=?@\\^_`{|}~]
+punct           [][!\"#$%&\'()*+,./:;<=>?@\\^_`{|}~-]
+safepunct       [][!\#$%&\*+,./:;=?@\\^_`{|}~-]
 
-tag             {alphanum}+
-key             ({alphanum}|-)+
+tag             ({alphanum}|:)+
+key             ({alphanum}|[-:])+
 val             ({alphanum}|{nonascii}|{safepunct})+
 
 ident           ({nonascii}|{alphanum}|-)+
