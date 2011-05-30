@@ -12,7 +12,8 @@ notindexed = The number of pages that are not indexed (='$notindexed').
 -->
 
 $notindexed?=0{$anynotindexed=0}{$anynotindexed=$total}
-$anynotindexed?=0{}{<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor;all$config$info$title"><i>$notindexed pages not indexed</i></a>}
+$title?=;titleonly{$titleall=;title}{$titleall=$title}
+$anynotindexed?=0{}{<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor;all$config$info$titleall"><i>$notindexed pages not indexed</i></a>}
 <p>
 
 $delete?{$indexeddelete=$indexed}{$indexeddelete=0}

@@ -313,6 +313,8 @@ void IndexPage(int fd,URL *Url)
           infoopt=1;
        else if(!strcmp(*a,"title"))
           titleopt=1;
+       else if(!strcmp(*a,"titleonly"))
+          titleopt=2;
        else
           PrintMessage(Warning,"Unexpected argument '%s' seen decoding form data for URL '%s'.",*a,Url->name);
       }
@@ -356,7 +358,7 @@ void IndexPage(int fd,URL *Url)
                     "all"    ,allopt?";all":"",
                     "config" ,confopt?";config":"",
                     "info"   ,infoopt?";info":"",
-                    "title"  ,titleopt?";title":"",
+                    "title"  ,titleopt?(titleopt==2?";titleonly":";title"):"",
                     NULL);
 
     if(out_err==-1) return;
@@ -670,14 +672,18 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
 
      if(out_err!=-1 && (allopt || is_indexed(p->url,indextype)))
       {
-       if(mode==Dated)
-          dated_separator(fd,p,&lastdays,&lasthours);
-
        {
 	 char *item=NULL;
 
-	 if(titleopt) item=webpagetitle(p->url);
+	 if(titleopt) {
+	   item=webpagetitle(p->url);
+	   if(titleopt==2 && !item)
+	     goto free_Url;  /* Skip items without a title if titleopt==2. */
+	 }
 	 if(!item)    item=HTML_url(indextype==indexhost?p->url->pathp:p->url->name);
+
+	 if(mode==Dated)
+	   dated_separator(fd,p,&lastdays,&lasthours);
 
 	 if(indextype==indexmonitor) {
 	   int last,next;
@@ -715,6 +721,7 @@ static void IndexDir(index_t indextype,int fd,char *proto,char *name,SortMode mo
        nindexed++;
       }
 
+   free_Url:
     FreeURL(p->url);
     next=p->next;
     free(p);

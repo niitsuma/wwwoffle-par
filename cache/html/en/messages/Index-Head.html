@@ -97,9 +97,11 @@ $config?
 $info?
 {<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$all$config$title" title="Don't display the buttons to show the page information">(No&nbsp;Info&nbsp;Options)</a>}
 {<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$all$config;info$title" title="Display the buttons to show the page information">(Info&nbsp;Options)</a>}
+$title?=;titleonly
+{<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$all$config$info;title" title="Display the titles if available, otherwise the URLs of the pages">(Title&nbsp;or&nbsp;URL)</a>}
 $title?
-{<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$all$config$info" title="Display the URLs instead of the titles of the pages">(No&nbsp;Title&nbsp;Options)</a>}
-{<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$all$config$info;title" title="Display the titles (if available) instead of the URLs of the pages">(Title&nbsp;Options)</a>}
+{<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$all$config$info" title="Display the URLs instead of the titles of the pages">(No&nbsp;Titles)</a>}
+{<a href="/index/$type$subtype?sort=$sort$delete$refresh$monitor$all$config$info;titleonly" title="Display only titles hiding the pages without them">(Titles&nbsp;only)</a>}
 </div>
 <hr class="wwwoffle-index-buttons-top" width="50%">
 
