@@ -253,7 +253,7 @@ ITEM add-cache-info
 At the bottom of all of the spooled pages the date that the page was cached and some navigation buttons are to be added (default=no).
 ITEM insert-file
 [<URL-SPEC>] insert-file = (path name)
-At the end of the page the content of a local file is to be inserted literally, without modifications (default=none). If add-cache-info is also enabled, the file is inserted after the cache info. The path name should start with a '/' and is interpreted as a relative local URL. The file should contain HTML code without &lt;html&gt;, &lt;head&gt; or &lt;body&gt; tags. The content will be inserted before the &lt;/body&gt; and &lt;/html&gt; end tags, if present in the page being modified. 	(option added by Paul Rombouts.)
+At the end of the page the content of a local file is to be inserted literally, without modifications (default=none). If add-cache-info is also enabled, the file is inserted after the cache info. The path name should start with a '/' and is interpreted as a relative local URL. The file should contain HTML code without &lt;html&gt;, &lt;head&gt; or &lt;body&gt; tags. The content will be inserted before the &lt;/body&gt; and &lt;/html&gt; end tags, if present in the page being modified. (option added by Paul Rombouts.)
 ITEM anchor-cached-begin
 [<URL-SPEC>] anchor-cached-begin = (HTML code) | 
 Anchors (links) in the spooled page that are in the cache are to have the specified HTML inserted at the beginning (default="").
@@ -338,6 +338,9 @@ Replaces punctuation characters in cp-1251 encoding that are combined with text 
 ITEM disable-animated-gif
 [<URL-SPEC>] disable-animated-gif = yes | no
 Disables the animation in animated GIF files (default=no).
+ITEM 
+[<URL-SPEC>] <tag-attribute patterns> = <modify options>
+This setting allows various modifications to be specified for HTML tags that match one of the tag-attribute patterns. The possible modifications include: disabling the tag completely, disabling only certain attributes of the tag, adding or replacing a style attribute, disabling scripts between the matching tag and the corresponding closing tag and disabling scripts following the closing tag. The supported modify options currently are: disable-tag, disable-script, disable-following-script, disable-all-following-scripts, reset-following-script, reset-all-following-scripts, pass, style= and no-style. Multiple tag-attribute patterns or modify options must be separated by commas. This option was added by Paul Rombouts.
 SECTION LocalHost
 A list of hostnames that the host running the WWWOFFLE server may be known by. This is so that the proxy does not need to contact itself if the request has a different name for the same server.
 ITEM 

@@ -86,7 +86,7 @@ while(<STDIN>)
 
    # Item
 
-   elsif (!$intro && !$appendix && (m/^(\[!\])?URL-SPECIFICATION/ || m/^\(/))
+   elsif (!$intro && !$appendix && (m/^(\[!\])?URL-SPECIFICATION/ || m/^\(/ || m/^(\[?<URL-SPEC>\]? *)?<[-a-z0-9 ]+>( *= *.+)?$/))
      {
       s/-/\\-/g;
       s/\./\\./g;

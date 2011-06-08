@@ -2,6 +2,7 @@
 *~
 *.[oa]
 Makefile
+/cache/html/default
 /config.log
 /config.status
 /conf/wwwoffle.conf.install

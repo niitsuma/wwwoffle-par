@@ -105,7 +105,7 @@ while(<STDIN>)
 
    # Item
 
-   elsif (!$intro && !$appendix && (m/^(\[!\])?URL-SPECIFICATION/ || m/^\(/))
+   elsif (!$intro && !$appendix && (m/^(\[!\])?URL-SPECIFICATION/ || m/^\(/ || m/^(\[?&lt;URL-SPEC&gt;\]? *)?&lt;[-a-z0-9 ]+&gt;( *= *.+)?$/))
      {
       $item = "";
 

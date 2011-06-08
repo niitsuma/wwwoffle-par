@@ -662,7 +662,7 @@ should start with a '/' and is interpreted as a relative local URL. The
 file should contain HTML code without &lt;html&gt;, &lt;head&gt; or &lt;body&gt; tags. The
 content will be inserted before the &lt;/body&gt; and &lt;/html&gt; end tags, if
 present in the page being modified.
-	(option added by Paul Rombouts.)
+(option added by Paul Rombouts.)
 
 <h3><a name="ModifyHTML_anchor-cached-begin"></a>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] anchor-cached-begin = (HTML code) | </h3>
 
@@ -840,6 +840,22 @@ with text in koi-8 encoding that appears in some cyrillic web pages.
 
 <p>
 Disables the animation in animated GIF files (default=no).
+
+<h3>[&lt;<a href="#URL-SPECIFICATION">URL-SPEC</a>&gt;] &lt;tag-attribute patterns&gt; = &lt;modify options&gt;</h3>
+
+<p>
+This setting allows various modifications to be specified for HTML tags
+that match one of the tag-attribute patterns. The possible modifications
+include: disabling the tag completely, disabling only certain attributes
+of the tag, adding or replacing a style attribute, disabling scripts
+between the matching tag and the corresponding closing tag and disabling
+scripts following the closing tag.
+The supported modify options currently are: disable-tag, disable-script,
+disable-following-script, disable-all-following-scripts,
+reset-following-script, reset-all-following-scripts, pass, style= and
+no-style. Multiple tag-attribute patterns or modify options must be
+separated by commas.
+This option was added by Paul Rombouts.
 
 <h2><a name="LocalHost"></a>LocalHost</h2>
 
