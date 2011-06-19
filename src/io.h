@@ -83,7 +83,7 @@ int finish_tell_io_full(int fd,int partialreset,/*@out@*/ /*@null@*/ unsigned lo
 ssize_t read_all_or_timeout(int fd,char *buf,size_t n,unsigned timeout);
 #define read_all(fd,buf,n) read_all_or_timeout(fd,buf,n,0)
 ssize_t write_all(int fd,const char *data,size_t n);
-int check_more_to_read(int fd, int fd2, unsigned timeout);
+int check_more_to_read(int fd, int fd2, unsigned timeout, const sigset_t *sigmask);
 int io_read_eof(int fd);
 
 #endif /* IO_H */

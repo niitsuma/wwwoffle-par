@@ -1521,25 +1521,28 @@ ssize_t write_all(int fd,const char *data,size_t n)
  return written;
 }
 
+#ifndef CLIENT_ONLY
 /* Check if there is more data to read from a file descriptor.
 
    check_more_to_read polls a file descriptor fd, and in case of a read event,
    tries to read some data. The second file descriptor fd2 is also polled
    (unless it is equal to -1), but no attempt is made to read actual data from it.
+   sigmask is a pointer to a signal mask which is passed on to the pselect call.
 
    check_more_to_read returns 2  if there was a read event on the second file descriptor fd2,
 			      1  if there is more data to read on fd,
 			      0  if an end-of-file condition was detected,
-			      -1 if there was an error,
-			      -2 if there was no read event within the timeout period.
+			     -1  if there was an error,
+			     -2  if there was no read event within the timeout period.
+			     -3  if a signal was received during the timeout period.
 */
 
-int check_more_to_read(int fd, int fd2, unsigned timeout)
+int check_more_to_read(int fd, int fd2, unsigned timeout, const sigset_t *sigmask)
 {
  io_context *context;
  int maxfd,n;
  fd_set readfds;
- struct timeval tv;
+ struct timespec tv;
  ssize_t nb;
 
  if(fd<0)
@@ -1570,7 +1573,7 @@ int check_more_to_read(int fd, int fd2, unsigned timeout)
    return 0;
 
  tv.tv_sec=timeout;
- tv.tv_usec=0;
+ tv.tv_nsec=0;
 
  do {
    FD_ZERO(&readfds);
@@ -1583,14 +1586,20 @@ int check_more_to_read(int fd, int fd2, unsigned timeout)
      if(fd2>maxfd) maxfd=fd2;
    }
 
-   n=select(maxfd+1,&readfds,NULL,NULL,&tv);
+   n=pselect(maxfd+1,&readfds,NULL,NULL,&tv,sigmask);
 
    if(n==0) {
      errno=ETIMEDOUT;
      return(-2);
    }
-   else if(n<0 && errno!=EINTR)
-     return(-1);
+   else if(n<0) {
+     if(errno==EINTR) {
+       if(timeout)
+	 return(-3);
+     }
+     else
+       return(-1);
+   }
  }
  while(n<=0);
 
@@ -1629,3 +1638,4 @@ int io_read_eof(int fd)
 
  return io_contexts[fd]->read_eof;
 }
+#endif /* CLIENT_ONLY */

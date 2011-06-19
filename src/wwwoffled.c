@@ -98,8 +98,8 @@ int fetch_fd=-1;
 /*+ The pids of the servers. +*/
 int server_pids[MAX_SERVERS];
 
-/*+ The pids of the servers that are fetching. +*/
-int fetch_pids[MAX_FETCH_SERVERS];
+/*+ The flags indicating which of the servers are fetching. +*/
+unsigned char server_fetching[MAX_SERVERS];
 
 /*+ The current purge status. +*/
 int purging=0;
@@ -108,22 +108,22 @@ int purging=0;
 int purge_pid=0;
 
 /*+ The current status, fetching or not. +*/
-int fetching=0;
+short int fetching=0;
 
 /*+ Flag indicating whether we are preparing to exit. +*/
-static int exiting=0;
-
-/*+ Set when the demon is to shutdown due to a sigexit. +*/
-static sig_atomic_t got_sigexit=0;
-
-/*+ Set when the demon is to re-read config file due to a sighup. +*/
-static sig_atomic_t got_sighup=0;
-
-/*+ Remember that we got a SIGCHLD +*/
-static sig_atomic_t got_sigchld=0;
+static short int exiting=0;
 
 /*+ True if the -f option was passed on the command line. +*/
-int nofork=0;
+short int nofork=0;
+
+/*+ Set when the process received a signal requesting termination. +*/
+volatile sig_atomic_t got_sigexit=0;
+
+/*+ Set when the demon is to re-read config file due to a sighup. +*/
+static volatile sig_atomic_t got_sighup=0;
+
+/*+ Remember that we got a SIGCHLD +*/
+static volatile sig_atomic_t got_sigchld=0;
 
 /* some code to save the hostname and ip address of the client in global variables */
 /* static char saved_hostname[max_hostname_len],saved_ip[ipaddr_strlen]; */
@@ -237,11 +237,8 @@ int main(int argc, char** argv)
 
  /* Initialise things. */
 
- for(i=0;i<MAX_FETCH_SERVERS;i++)
-    fetch_pids[i]=0;
-
- for(i=0;i<MAX_SERVERS;i++)
-    server_pids[i]=0;
+ for(i=0;i<MAX_SERVERS;++i)
+   {server_pids[i]=0; server_fetching[i]=0;}
 
  if(log_file)
     OpenErrorLog(log_file);
@@ -568,11 +565,11 @@ int main(int argc, char** argv)
  PrintMessage(Inform,"WWWOFFLE Ready to accept connections.");
 
  main_server_loop:
- while(!got_sigexit)
+ for(;;)
    {
     struct timeval tv;
     fd_set readfd;
-    int ipprot=0,stype,nfds=0;
+    int ipprot=0,stype,nfds=0,sigterm_all_children=0;
 
     FD_ZERO(&readfd);
 
@@ -591,8 +588,16 @@ int main(int argc, char** argv)
 	  }
 	}
 
-    tv.tv_sec=(got_sighup || got_sigchld)?1:10;
-    tv.tv_usec=0;
+    /* The following is a kludge because it leaves a race condition with the arrival of
+       a signal just before the select() call, but it seems to work OK in practice. */
+    if(!(got_sigexit || got_sighup || got_sigchld)) {
+      tv.tv_sec=10;       /* 10 seconds. */
+      tv.tv_usec=0;
+    }
+    else {
+      tv.tv_sec=0;
+      tv.tv_usec=500000;  /* half a second. */
+    }
 
     if(select(nfds,&readfd,NULL,NULL,&tv)!=-1) {
       for(stype=0;stype<numsocktype;++stype)
@@ -603,7 +608,7 @@ int main(int argc, char** argv)
 	    int fd=socks_fd[stype][ipprot],client;
 	    if(fd!=-1 && FD_ISSET(fd,&readfd) && (client=AcceptConnect(fd))>=0) {
 	      char *host,*ip;
-	      int accept_connection,keep_connection=0;
+	      short int accept_connection,keep_connection=0;
 	      static const int errlev[numsocktype][2]={
 		 {Warning,Important}	/* WWWOFFLE Connection */
 		,{Warning,Inform}	/* HTTP Proxy connection */
@@ -638,7 +643,8 @@ int main(int argc, char** argv)
 
 		if(accept_connection) {
 		  if(stype==wwwoffle_sock) {
-		    CommandConnect(client);
+		    if(CommandConnect(client))
+		      sigterm_all_children=1;
 		    if(fetch_fd==client)
 		      keep_connection=1;
 		  }
@@ -677,14 +683,16 @@ int main(int argc, char** argv)
        PrintMessage(Important,"WWWOFFLE Re-reading Configuration File.");
 
        if(ReadConfigurationFile(-1))
-          PrintMessage(Warning,"Error in configuration file; keeping old values.");
+	 PrintMessage(Warning,"Error in configuration file; keeping old values.");
+       else
+	 sigterm_all_children=1;
 
        PrintMessage(Important,"WWWOFFLE Finished Re-reading Configuration File.");
       }
 
     if(got_sigchld)
       {
-       int isserver=0;
+       short int isserver=0;
 
        /* To avoid race conditions, reset the flag before fetching the status */
 
@@ -707,28 +715,23 @@ int main(int argc, char** argv)
 	     else if(WIFSIGNALED(status))
 	       exitval=-WTERMSIG(status);
 
-	     for(i=0;i<max_servers;i++)
+	     for(i=0;i<max_servers;++i)
 	       if(server_pids[i]==pid)
 		 {
-		   n_servers--;
-		   server_pids[i]=0;
 		   isserver=1;
+		   --n_servers;
+		   server_pids[i]=0;
+		   /* Check if the child that terminated is one of the fetching wwwoffles. */
+		   if(server_fetching[i]) {
+		     --n_fetch_servers;
+		     server_fetching[i]=0;
+		   }
 
 		   if(exitval>=0)
 		     PrintMessage(Inform,"Child wwwoffles exited with status %d (pid=%d).",exitval,pid);
 		   else
 		     PrintMessage(Important,"Child wwwoffles terminated by signal %d (pid=%d).",-exitval,pid);
 
-		   break;
-		 }
-
-	     /* Check if the child that terminated is one of the fetching wwwoffles */
-
-	     for(i=0;i<max_fetch_servers;i++)
-	       if(fetch_pids[i]==pid)
-		 {
-		   n_fetch_servers--;
-		   fetch_pids[i]=0;
 		   break;
 		 }
 
@@ -774,8 +777,22 @@ int main(int argc, char** argv)
        ForkRunModeScript(ConfigString(RunFetch),"fetch","stop",-1);
       }
 
-    if(purging<0 && n_fetch_servers==0)
-      break;
+    if(got_sigexit || (purging<0 && n_fetch_servers==0))
+      sigterm_all_children=2;
+
+    if(sigterm_all_children) {
+      int i;
+      for(i=0;i<max_servers;++i) {
+	int pid=server_pids[i];
+	if(pid) {
+	  if(kill(pid,SIGTERM))
+	    PrintMessage(Warning,"Cannot send SIGTERM to child wwwoffles (pid=%d) [%!s].",pid);
+	}
+      }
+
+      if(sigterm_all_children>1)
+	break;
+    }
    }
 
  if(got_sigexit && !exiting) {
@@ -815,11 +832,15 @@ int main(int argc, char** argv)
        else if(WIFSIGNALED(status))
           exitval=-WTERMSIG(status);
 
-       for(i=0;i<max_servers;i++)
+       for(i=0;i<max_servers;++i)
           if(server_pids[i]==pid)
             {
-             n_servers--;
+             --n_servers;
              server_pids[i]=0;
+	     if(server_fetching[i]) {
+	       --n_fetch_servers;
+	       server_fetching[i]=0;
+	     }
 
              if(exitval>=0)
                 PrintMessage(Inform,"Child wwwoffles exited with status %d (pid=%d).",exitval,pid);
@@ -987,7 +1008,7 @@ static void install_sighandlers(void)
  sigemptyset(&action.sa_mask);
  action.sa_flags = 0;
  if(sigaction(SIGCHLD, &action, NULL) != 0)
-    PrintMessage(Warning, "Cannot install SIGCHLD handler.");
+    PrintMessage(Warning, "Cannot install SIGCHLD handler [%!s].");
 
  /* SIGINT, SIGQUIT, SIGTERM */
  action.sa_handler = sigexit;
@@ -997,25 +1018,25 @@ static void install_sighandlers(void)
  sigaddset(&action.sa_mask, SIGTERM);
  action.sa_flags = 0;
  if(sigaction(SIGINT, &action, NULL) != 0)
-    PrintMessage(Warning, "Cannot install SIGINT handler.");
+    PrintMessage(Warning, "Cannot install SIGINT handler [%!s].");
  if(sigaction(SIGQUIT, &action, NULL) != 0)
-    PrintMessage(Warning, "Cannot install SIGQUIT handler.");
+    PrintMessage(Warning, "Cannot install SIGQUIT handler [%!s].");
  if(sigaction(SIGTERM, &action, NULL) != 0)
-    PrintMessage(Warning, "Cannot install SIGTERM handler.");
+    PrintMessage(Warning, "Cannot install SIGTERM handler [%!s].");
 
  /* SIGHUP */
  action.sa_handler = sighup;
  sigemptyset(&action.sa_mask);
  action.sa_flags = 0;
  if(sigaction(SIGHUP, &action, NULL) != 0)
-    PrintMessage(Warning, "Cannot install SIGHUP handler.");
+    PrintMessage(Warning, "Cannot install SIGHUP handler [%!s].");
 
  /* SIGPIPE */
  action.sa_handler = SIG_IGN;
  sigemptyset(&action.sa_mask);
  action.sa_flags = 0;
  if(sigaction(SIGPIPE, &action, NULL) != 0)
-    PrintMessage(Warning, "Cannot ignore SIGPIPE.");
+    PrintMessage(Warning, "Cannot ignore SIGPIPE [%!s].");
 }
 
 

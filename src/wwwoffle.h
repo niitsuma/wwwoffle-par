@@ -31,6 +31,9 @@
 # endif
 #endif
 
+#ifndef CLIENT_ONLY
+#include <signal.h>
+#endif
 #include "misc.h"
 
 #if USE_IPV6
@@ -52,7 +55,7 @@ socktype;
 
 /* In connect.c */
 
-void CommandConnect(int client);
+int CommandConnect(int client);
 void ForkRunModeScript(/*@null@*/ char *filename,char *mode,/*@null@*/ char *arg,int client);
 void ForkServer(int fd);
 
@@ -136,6 +139,9 @@ int CleanupCurrentOnlineStatus();
 
 
 /* In parse.c */
+
+extern time_t OnlineTime;     /*+ The time that the program went online. +*/
+extern time_t OfflineTime;    /*+ The time that the program went offline. +*/
 
 URL /*@null@*/ *ParseRequest(int fd,/*@out@*/ Header **request_head,/*@out@*/ Body **request_body);
 
@@ -242,7 +248,28 @@ void RequestMonitoredPages(void);
 void MonitorTimes(URL *Url,/*@out@*/ int *last,/*@out@*/ int *next);
 
 
+/* In wwwoffled.c */
+#ifndef CLIENT_ONLY
+extern int socks_fd[numsocktype][NUMIPPROT]; /*+ The server sockets that we listen on +*/
+extern int online;            /*+ The online / offline / autodial status. +*/
+extern int n_servers,         /*+ The number of active servers in total. +*/
+           n_fetch_servers;   /*+ The number of active servers fetching a page. +*/
+extern int max_servers,       /*+ The maximum number of servers in total. +*/
+           max_fetch_servers; /*+ The maximum number of servers fetching a page. +*/
+extern int fetch_fd;          /*+ The wwwoffle client file descriptor when fetching. +*/
+extern int server_pids[MAX_SERVERS]; /*+ The pids of the servers. +*/
+extern unsigned char server_fetching[MAX_SERVERS]; /*+ The flags indicating which of the servers are fetching. +*/
+extern int purging;           /*+ The current purge status. +*/
+extern int purge_pid;         /*+ The pid of the purge process. +*/
+extern short int fetching;    /*+ The current status, fetching or not. +*/
+extern short int nofork;      /*+ True if the -f option was passed on the command line. +*/
+extern volatile sig_atomic_t got_sigexit; /*+ Set when the process received a signal requesting termination. +*/
+extern char *client_hostname, *client_ip;
+
 /* In wwwoffles.c */
+
+extern char* proxy_user;      /* pass on name of proxy user via global variable */
+#endif
 
 int wwwoffles(int online,int fetching,int client);
 

@@ -64,7 +64,7 @@ TEST_DOC_OBJ=test-doc.o \
 	     ../document.o ../html.o ../css.o ../xml.o ../vrml.o ../javaclass.o \
 	     ../parse.o ../spool.o \
 	     ../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
-	     ../io.o ../iopriv.o ../iozlib.o ../iognutls.o ../iochunk.o \
+	     ../io_client.o ../iopriv.o ../iozlib.o ../iognutls.o ../iochunk.o \
 	     ../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto_client.o ../sockets.o ../certificates.o ../md5.o
 
 test-doc : $(TEST_DOC_OBJ)
@@ -76,7 +76,7 @@ TEST_MSG_OBJ=test-msg.o \
 	     ../messages.o ../local_test.o \
 	     ../parse.o ../spool.o \
 	     ../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
-	     ../io.o ../iopriv.o ../iozlib.o ../iognutls.o ../iochunk.o \
+	     ../io_client.o ../iopriv.o ../iozlib.o ../iognutls.o ../iochunk.o \
 	     ../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto_client.o ../sockets.o ../certificates.o ../md5.o
 
 test-msg : $(TEST_MSG_OBJ)
@@ -89,7 +89,7 @@ TEST_MODIFY_OBJ=test-modify.o \
 	     	../messages.o ../local_test.o \
 	       	../parse.o ../spool.o \
 	       	../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
-	       	../io.o ../iopriv.o ../iozlib.o ../iognutls.o ../iochunk.o \
+	       	../io_client.o ../iopriv.o ../iozlib.o ../iognutls.o ../iochunk.o \
 	       	../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto_client.o ../sockets.o ../certificates.o ../md5.o
 
 test-modify : $(TEST_MODIFY_OBJ)
@@ -102,7 +102,7 @@ TEST_GIF_OBJ=test-gif.o \
 	     ../messages.o ../local_test.o \
 	     ../parse.o ../spool.o \
 	     ../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
-	     ../io.o ../iopriv.o ../iozlib.o ../iognutls.o ../iochunk.o \
+	     ../io_client.o ../iopriv.o ../iozlib.o ../iognutls.o ../iochunk.o \
 	     ../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto_client.o ../sockets.o ../certificates.o ../md5.o
 
 test-gif : $(TEST_GIF_OBJ)
@@ -114,7 +114,7 @@ TEST_IO_OBJ=test-io.o \
 	    ../messages.o ../local_test.o \
 	    ../parse.o ../spool.o \
 	    ../configrdwr.o ../configmisc.o ../configdata.o ../configfunc.o \
-	    ../io.o ../iopriv.o ../iozlib.o ../iognutls.o ../iochunk.o \
+	    ../io_client.o ../iopriv.o ../iozlib.o ../iognutls.o ../iochunk.o \
 	    ../errors.o ../miscurl.o ../miscencdec.o ../headbody.o ../proto_client.o ../sockets.o ../certificates.o ../md5.o
 
 test-io : $(TEST_IO_OBJ)

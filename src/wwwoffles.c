@@ -53,10 +53,13 @@
 
 #define MAX_REDIRECT 8
 
+/*+ Set when the process received a signal requesting termination. +*/
+extern volatile sig_atomic_t got_sigexit;
+
 /* pass on name of proxy user via global variable */
 char* proxy_user=NULL;
 
-static void uninstall_sighandlers(void);
+static void uninstall_sighandlers(sigset_t *oldsigmask);
 
 inline static int is_wwwoffle_error_message(Header *head)
 {
@@ -153,13 +156,15 @@ int wwwoffles(int online,int fetching,int client)
 #endif
  int client_chunked=0,request_chunked=0,server_chunked=0;
  int redirect_count=0;
+ sigset_t unblocked_sigset; /* signal mask used to (temporarily) unblock blocked signals. */
+
 
 
  /*----------------------------------------
    Initialise things, work out the mode from the options.
    ----------------------------------------*/
 
- uninstall_sighandlers();
+ uninstall_sighandlers(&unblocked_sigset);
 
  InitErrorHandler("wwwoffles",-1,-1); /* change name nothing else */
 
@@ -1976,7 +1981,7 @@ passwordagain:
 	 the existing connection to the server. */
       int server=ConnectionFd(connection);
       if(server!=-1) {
-	int more= check_more_to_read(server,-1,0);
+	int more= check_more_to_read(server,-1,0,&unblocked_sigset);
 	if(more==-2)
 	  errno=0; /* OK, this was expected. */
 	else {
@@ -3717,11 +3722,11 @@ clean_up:
 	 server_keep_connection=0;
        }
        else if((server=ConnectionFd(connection))!=-1) {
-	 int more= check_more_to_read(server,-1,0);
+	 int more= check_more_to_read(server,-1,0,&unblocked_sigset);
 	 if(more==-2)
 	   errno=0;  /* OK, this was expected. */
 	 else {
-	   /* We are not pipelining, so any remaining extra data should be 
+	   /* We are not pipelining, so any remaining extra data should be
 	      considered unrequested junk. */
 	   PrintMessage(Inform, more<0?"Error on socket connection to remote server [%!s].":
 			more==0?"Remote server unexpectedly closed the connection.":
@@ -3741,7 +3746,7 @@ clean_up:
      else if(is_server)
        server_keep_connection=0;  /* Shouldn't get here */
    }
-       
+
 
    if(!server_keep_connection) {
      ConnectionClose(connection);
@@ -3876,13 +3881,20 @@ close_client:
 	 if(finish_io_content(client)<0)
 	   PrintMessage(Inform,"Finishing writing content to client failed [%!s]; dropping persistent connection.");
 	 else {
-	   int more,server,timeout=ConfigInteger(KeepAliveTimeout),timerem=timeout;
+	   int more=0,server,timeout=ConfigInteger(KeepAliveTimeout),timerem=timeout;
 	   time_t timestart=time(NULL);
+	   sigset_t saveset;
 
-	   while((more=check_more_to_read(client,server=ConnectionFd(connection),timerem))>1) {
+	   /* Kludge to increase the chance of catching a signal if pselect() is not properly implemented. */
+	   sigprocmask(SIG_SETMASK,&unblocked_sigset,&saveset);
+	   sigprocmask(SIG_SETMASK,&saveset,NULL);
+
+	   while(!got_sigexit &&
+		 (more=check_more_to_read(client,server=ConnectionFd(connection),timerem,&unblocked_sigset))>1)
+	   {
 	     if(server!=-1) {
 	       if(StderrLevel>=0 && StderrLevel<=Debug) {
-		 more=check_more_to_read(server,-1,0);
+		 more=check_more_to_read(server,-1,0,&unblocked_sigset);
 		 PrintMessage(Debug,
 			      more<0?"Error on socket connection to remote server [%!s].":
 			      more==0?"Remote server closed the connection.":
@@ -3937,8 +3949,9 @@ close_client:
 	     goto parse_request;
 	   }
 	   else
-	     PrintMessage(Inform,more<0?
-			  "Could not read new request from client on persistent connection [%!s].":
+	     PrintMessage(Inform,
+			  got_sigexit? "Received termination signal, closing persistent connection.":
+			  more<0? "Could not read new request from client on persistent connection [%!s].":
 			  "Client closed persistent connection.");
 	 }
 
@@ -4031,7 +4044,7 @@ ssize_t wwwoffles_write_data(const char *data,size_t len)
   Uninstall the signal handlers.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void uninstall_sighandlers(void)
+static void uninstall_sighandlers(sigset_t *oldsigmask)
 {
  struct sigaction action;
 
@@ -4040,30 +4053,28 @@ static void uninstall_sighandlers(void)
  sigemptyset(&action.sa_mask);
  action.sa_flags = 0;
  if(sigaction(SIGCHLD, &action, NULL) != 0)
-    PrintMessage(Warning, "Cannot uninstall SIGCHLD handler.");
+    PrintMessage(Warning, "Cannot uninstall SIGCHLD handler [%!s].");
 
  /* SIGINT, SIGQUIT, SIGTERM */
- action.sa_handler = SIG_DFL;
+ /* Keep the signal handlers but block the signals for the time being. */
  sigemptyset(&action.sa_mask);
- action.sa_flags = 0;
- if(sigaction(SIGINT, &action, NULL) != 0)
-    PrintMessage(Warning, "Cannot uninstall SIGINT handler.");
- if(sigaction(SIGQUIT, &action, NULL) != 0)
-    PrintMessage(Warning, "Cannot uninstall SIGQUIT handler.");
- if(sigaction(SIGTERM, &action, NULL) != 0)
-    PrintMessage(Warning, "Cannot uninstall SIGTERM handler.");
+ sigaddset(&action.sa_mask, SIGINT);
+ sigaddset(&action.sa_mask, SIGQUIT);
+ sigaddset(&action.sa_mask, SIGTERM);
+ if(sigprocmask(SIG_BLOCK, &action.sa_mask, oldsigmask) !=0)
+    PrintMessage(Warning, "Cannot block terminating signals [%!s].");
 
  /* SIGHUP */
  action.sa_handler = SIG_DFL;
  sigemptyset(&action.sa_mask);
  action.sa_flags = 0;
  if(sigaction(SIGHUP, &action, NULL) != 0)
-    PrintMessage(Warning, "Cannot uninstall SIGHUP handler.");
+    PrintMessage(Warning, "Cannot uninstall SIGHUP handler [%!s].");
 
  /* SIGPIPE */
  action.sa_handler = SIG_IGN;
  sigemptyset(&action.sa_mask);
  action.sa_flags = 0;
  if(sigaction(SIGPIPE, &action, NULL) != 0)
-    PrintMessage(Warning, "Cannot ignore SIGPIPE.");
+    PrintMessage(Warning, "Cannot ignore SIGPIPE [%!s].");
 }

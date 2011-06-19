@@ -72,8 +72,8 @@ extern int fetch_fd;
 /*+ The pids of the servers. +*/
 extern int server_pids[MAX_SERVERS];
 
-/*+ The pids of the servers that are fetching. +*/
-extern int fetch_pids[MAX_FETCH_SERVERS];
+/*+ The flags indicating which of the servers are fetching. +*/
+extern unsigned char server_fetching[MAX_SERVERS];
 
 /*+ The purge status. +*/
 extern int purging;
@@ -82,24 +82,26 @@ extern int purging;
 extern int purge_pid;
 
 /*+ The current status, fetching or not. +*/
-extern int fetching;
+extern short int fetching;
 
 /*+ True if the -f option was passed on the command line. +*/
-extern int nofork;
+extern short int nofork;
 
 
 /*++++++++++++++++++++++++++++++++++++++
   Parse a request that comes from wwwoffle.
 
   int client The file descriptor that corresponds to the wwwoffle connection.
+  The return value is 1 if the configuration has changed, otherwise 0.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void CommandConnect(int client)
+int CommandConnect(int client)
 {
+ int retval=0;
  char *line=NULL;
 
  if(!(line=read_line(client,line)))
-   {PrintMessage(Warning,"Nothing to read from the wwwoffle control socket [%!s]."); return;}
+   {PrintMessage(Warning,"Nothing to read from the wwwoffle control socket [%!s]."); return 0;}
 
  if(strcmp_litbeg(line,"WWWOFFLE "))
    {
@@ -121,7 +123,7 @@ void CommandConnect(int client)
       }
 
     if(!(line=read_line(client,line)))
-      {PrintMessage(Warning,"Unexpected end of wwwoffle control command [%!s]."); return;}
+      {PrintMessage(Warning,"Unexpected end of wwwoffle control command [%!s]."); return 0;}
 
     if(strcmp_litbeg(line,"WWWOFFLE "))
       {
@@ -217,8 +219,10 @@ void CommandConnect(int client)
        PrintMessage(Warning,"Error in configuration file; keeping old values.");
        write_string(client,"WWWOFFLE Error Reading Configuration File.\n");
       }
-    else
+    else {
        write_string(client,"WWWOFFLE Read Configuration File.\n");
+       retval=1;
+    }
 
     PrintMessage(Important,"WWWOFFLE Finished Re-reading Configuration File.");
    }
@@ -336,17 +340,21 @@ void CommandConnect(int client)
     if(n_servers)
       {
        write_string(client,"Server-PIDs  : ");
-       for(i=0;i<max_servers;i++)
-          if(server_pids[i])
-             write_formatted(client," %d",server_pids[i]);
+       for(i=0;i<max_servers;++i) {
+	 int pid=server_pids[i];
+	 if(pid)
+	     write_formatted(client," %d",pid);
+       }
        write_string(client,"\n");
       }
     if(n_fetch_servers)
       {
        write_string(client,"Fetch-PIDs   : ");
-       for(i=0;i<max_fetch_servers;i++)
-          if(fetch_pids[i])
-             write_formatted(client," %d",fetch_pids[i]);
+       for(i=0;i<max_servers;++i) {
+	 int pid=server_pids[i];
+	 if(pid && server_fetching[i])
+             write_formatted(client," %d",pid);
+       }
        write_string(client,"\n");
       }
     if(purging)
@@ -370,6 +378,7 @@ void CommandConnect(int client)
 cleanup_return:
  if(line)
     free(line);
+ return retval;
 }
 
 
@@ -450,20 +459,21 @@ void ForkServer(int fd)
     PrintMessage(Warning,"Cannot fork a server [%!s].");
  else if(pid) /* The parent */
    {
-    for(i=0;i<max_servers;i++)
-       if(server_pids[i]==0)
-         {server_pids[i]=pid;break;}
+     for(i=0;;++i) {
+       if(i>=max_servers) {
+	 PrintMessage(Warning,"Forked new server while server_pids[] array is full!");
+	 break;
+       }
+       if(server_pids[i]==0) {
+	 server_pids[i]=pid;
+	 server_fetching[i]=(online!=0 && fetcher);
+	 break;
+       }
+     }
 
-    n_servers++;
-
+    ++n_servers;
     if(online!=0 && fetcher)
-      {
-       for(i=0;i<max_fetch_servers;i++)
-          if(fetch_pids[i]==0)
-            {fetch_pids[i]=pid;break;}
-
-       n_fetch_servers++;
-      }
+      ++n_fetch_servers;
 
     /* Used in audit-usage.pl */
     PrintMessage(Inform,"Forked wwwoffles -%s (pid=%d).",online==1?(fetcher?"fetch":"real"):(online==-1?"autodial":"spool"),pid);
