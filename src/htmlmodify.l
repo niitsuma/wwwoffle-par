@@ -2057,33 +2057,44 @@ static int process_tag_style_attr_replacement(Tag *tag, const char *text, size_t
       }
       /* The tag matched and all the patterns in attribute pattern list matched,
 	 modify the tag. */
+      retval=p->disable;
+      if(retval&DISABLEMATCHINGTAG)
+	tag->disable=1;
       for(i=0; i<tag->nattr; ++i) {
-	if(p->stylerepl && tag->attr_type[i]==att_style)
-	  goto disableattr;
-	else {
-	  for(a=p->attrpatts; a; a=a->next) {
-	    if(a->disableattr && !strcasecmp(tag->attr_key[i],a->attrname)) {
-	      char *attrval=tag->attr_val[i], *endptr;
-	      size_t len;
-	      if(attrval) {
-		if(a->valpatt) {
-		  PattNode *q;
-		  while(*attrval && isspace(*attrval)) ++attrval;  /* Skip blanks. */
-		  endptr=strchrnul(attrval,0);
-		  while(--endptr>=attrval && isspace(*endptr));  /* Trim trailing blanks. */
-		  ++endptr;
-		  len= endptr-attrval;
-		  q=a->valpatt;
-		  do {
-		    if(strsegmentscasematch(attrval,len,q->patt,q->len))
-		      goto disableattr;
-		    q=q->next;
-		  } while(q);
-		}
+	switch (tag->attr_type[i]) {
+	case att_onblur: case att_onchange: case att_onclick: case att_ondblclick: case att_onfocus:
+	case att_onerror: case att_onkeydown: case att_onkeypress: case att_onload: case att_onmousedown:
+	case att_onmousemove: case att_onmouseout: case att_onmouseover: case att_onmouseup:
+	case att_onreset: case att_onselect: case att_onsubmit: case att_onunload:
+	  if(retval&DISABLEINNERSCRIPT) goto disableattr; /* Script events */
+	  break;
+	case att_style:
+	  if(p->stylerepl) goto disableattr;
+	  break;
+	default:;
+	}
+	for(a=p->attrpatts; a; a=a->next) {
+	  if(a->disableattr && !strcasecmp(tag->attr_key[i],a->attrname)) {
+	    char *attrval=tag->attr_val[i], *endptr;
+	    size_t len;
+	    if(attrval) {
+	      if(a->valpatt) {
+		PattNode *q;
+		while(*attrval && isspace(*attrval)) ++attrval;  /* Skip blanks. */
+		endptr=strchrnul(attrval,0);
+		while(--endptr>=attrval && isspace(*endptr));  /* Trim trailing blanks. */
+		++endptr;
+		len= endptr-attrval;
+		q=a->valpatt;
+		do {
+		  if(strsegmentscasematch(attrval,len,q->patt,q->len))
+		    goto disableattr;
+		  q=q->next;
+		} while(q);
 	      }
-	      else if(!a->valpatt)
-		goto disableattr;
 	    }
+	    else if(!a->valpatt)
+	      goto disableattr;
 	  }
 	}
 	continue;
@@ -2093,9 +2104,6 @@ static int process_tag_style_attr_replacement(Tag *tag, const char *text, size_t
       /* Add the new style attribute. */
       if(p->stylerepl && *(p->stylerepl))
 	add_attribute(tag, -1,"style",p->stylerepl,'"',0);
-      retval=p->disable;
-      if(retval&DISABLEMATCHINGTAG)
-	tag->disable=1;
       break;
     nexttagattrpatt:;
     }
@@ -2203,7 +2211,7 @@ static void modify_html(URL *Url)
  char *anchor_modify_begin[3];
  char *anchor_modify_end[3];
  short int anchor_modify=0;
- int disable_script=ConfigBooleanURL(DisableHTMLScript,Url);
+ int disable_script=ConfigBooleanURL(DisableHTMLScript,Url),disable_script_=disable_script;
  int disable_script_after_body=ConfigBooleanURL(DisableHTMLScriptAfterBody,Url);
  int disable_dontget_script=ConfigBooleanURL(DisableHTMLDontGetScript,Url),is_disabled_script=0;
  int disable_applet=ConfigBooleanURL(DisableHTMLApplet,Url);
@@ -2321,6 +2329,7 @@ static void modify_html(URL *Url)
 
        commentout=0;
        prefix=NULL;
+       disable_script_ = (disable_script || scriptdisablelevel>0 || (after_body && disable_script_after_body));
 
        switch (tag)
 	 {
@@ -2405,7 +2414,7 @@ static void modify_html(URL *Url)
 	     is_disabled_style= disabled_style;
 	   else {
 	     is_disabled_style= 0;
-	     if(disable_script) /* could be script pretending to be style */
+	     if(disable_script_) /* could be script pretending to be style */
 	       disable_output|=DISABLE_STYLE;
 	   }
 	   prefix=tagprefix[is_disabled_style];
@@ -2419,27 +2428,27 @@ static void modify_html(URL *Url)
 	     disable_output|=DISABLE_META;
 	   break;
 	 case tag_link:
-	   if(disable_style || disable_script)
+	   if(disable_style || disable_script_)
 	     disable_output|=DISABLE_LINK;
 	   break;
 	 case tag_object: case tag_embed:
 	   if(replace_html_dontget_images || replace_html_webbug_images ||
 	      disable_applet || disable_flash ||
-	      disable_dontget_iframes || disable_script)
+	      disable_dontget_iframes || disable_script_)
 	     disable_output|=DISABLE_OBJECT;
 	   break;
 	 case tag_a:
-	   if(disable_dontget_anchors || disable_script)
+	   if(disable_dontget_anchors || disable_script_)
 	     disable_output|=DISABLE_A;
 	   break;
 	 case tag_iframe:
 	   if(disable_iframes)
 	     prefix=tagprefix[disabled_iframe];
-	   else if(disable_dontget_iframes || disable_script)
+	   else if(disable_dontget_iframes || disable_script_)
 	     disable_output|=DISABLE_IFRAME;
 	   break;
 	 case tag_img:
-	   if(replace_html_dontget_images || replace_html_webbug_images || disable_script)
+	   if(replace_html_dontget_images || replace_html_webbug_images || disable_script_)
 	     disable_output|=DISABLE_IMG;
 	   break;
 	 default: ;
@@ -2522,8 +2531,20 @@ static void modify_html(URL *Url)
 	       prefix=tagprefix[is_disabled_script];
 	     }
 	   }
-	   if(tag==tag_script && !is_disabled_script && (disable&DISABLEINNERSCRIPT)) {
-	     prefix=tagprefix[is_disabled_script=disabled_matching_script];
+	   if(disable&DISABLEINNERSCRIPT) {
+	     disable_script_ = 1;
+	     switch (tag) {
+	     case tag_link:   disable_output|=DISABLE_LINK; break;
+	     case tag_object: case tag_embed: disable_output|=DISABLE_OBJECT; break;
+	     case tag_a:      disable_output|=DISABLE_A; break;
+	     case tag_iframe: if(!disable_iframes) disable_output|=DISABLE_IFRAME; break;
+	     case tag_img:    disable_output|=DISABLE_IMG; break;
+	     case tag_script: if(!is_disabled_script)
+				prefix=tagprefix[is_disabled_script=disabled_matching_script];
+			      break;
+	     case tag_style:  if(!disable_style) disable_output|=DISABLE_STYLE; break;
+	     default:;
+	     }
 	   }
 
 	   output_tag(&tagdata,prefix);
@@ -2560,7 +2581,7 @@ static void modify_html(URL *Url)
 	   if(disable_output&DISABLE_LINK)
 	     {
 	       disable_output&=~DISABLE_LINK;
-	       handle_link_tag(&tagdata,disable_style,disable_script);
+	       handle_link_tag(&tagdata,disable_style,disable_script_);
 	     }
 	   break;
 	 case tag_applet:
@@ -2578,7 +2599,7 @@ static void modify_html(URL *Url)
 					     disable_applet,
 					     disable_flash,
 					     disable_dontget_iframes,
-					     disable_script);
+					     disable_script_);
 	       }
 
 	     if(!tagdata.xhtml)
@@ -2591,7 +2612,7 @@ static void modify_html(URL *Url)
 	     if(disable_output&DISABLE_A)
 	       {
 		 disable_output&=~DISABLE_A;
-		 disabled=handle_a_tag(&tagdata,disable_dontget_anchors,disable_script);
+		 disabled=handle_a_tag(&tagdata,disable_dontget_anchors,disable_script_);
 	       }
 
 	     if(!tagdata.xhtml)
@@ -2616,7 +2637,7 @@ static void modify_html(URL *Url)
 	     else if(disable_output&DISABLE_IFRAME)
 	       {
 		 disable_output&=~DISABLE_IFRAME;
-		 disabled=handle_iframe_tag(&tagdata,disable_dontget_iframes,disable_script);
+		 disabled=handle_iframe_tag(&tagdata,disable_dontget_iframes,disable_script_);
 	       }
 
 	     if(!tagdata.xhtml)
@@ -2629,7 +2650,7 @@ static void modify_html(URL *Url)
 	       disable_output&=~DISABLE_IMG;
 	       handle_img_tag(&tagdata,replace_html_dontget_images,replacement_html_dontget_image,
 			      replace_html_webbug_images,replacement_html_webbug_image,
-			      disable_script);
+			      disable_script_);
 	     }
 	   break;
 	 case tag_script:
@@ -2728,7 +2749,7 @@ static void modify_html(URL *Url)
 	 case att_onerror: case att_onkeydown: case att_onkeypress: case att_onload: case att_onmousedown:
 	 case att_onmousemove: case att_onmouseout: case att_onmouseover: case att_onmouseup:
 	 case att_onreset: case att_onselect: case att_onsubmit: case att_onunload:
-	   if(disable_script)       /* Script events */
+	   if(disable_script_)       /* Script events */
 	     disable_key=1;
 	   break;
 
