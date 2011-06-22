@@ -1998,7 +1998,8 @@ static void handle_meta_tag(const Tag *tag,int disable_meta_refresh,int disable_
 }
 
 
-static int process_tag_style_attr_replacement(Tag *tag, const char *text, size_t textlen, struct tagmatchval *tagm, TagAttrPattList *tapl, int *needtxt)
+static int process_tag_style_attr_replacement(Tag *tag, const char *text, size_t textlen, struct tagmatchval *tagm,
+					      TagAttrPattList *tapl, short int disable_script, int *needtxt)
 {
   int retval=0;
 
@@ -2060,13 +2061,17 @@ static int process_tag_style_attr_replacement(Tag *tag, const char *text, size_t
       retval=p->disable;
       if(retval&DISABLEMATCHINGTAG)
 	tag->disable=1;
+      if(retval&RESETALLFOLLOWINGSCRIPTS)
+	disable_script=0;
+      if(retval&DISABLEINNERSCRIPT)
+	disable_script=1;
       for(i=0; i<tag->nattr; ++i) {
 	switch (tag->attr_type[i]) {
 	case att_onblur: case att_onchange: case att_onclick: case att_ondblclick: case att_onfocus:
 	case att_onerror: case att_onkeydown: case att_onkeypress: case att_onload: case att_onmousedown:
 	case att_onmousemove: case att_onmouseout: case att_onmouseover: case att_onmouseup:
 	case att_onreset: case att_onselect: case att_onsubmit: case att_onunload:
-	  if(retval&DISABLEINNERSCRIPT) goto disableattr; /* Script events */
+	  if(disable_script) goto disableattr; /* Script events */
 	  break;
 	case att_style:
 	  if(p->stylerepl) goto disableattr;
@@ -2329,7 +2334,9 @@ static void modify_html(URL *Url)
 
        commentout=0;
        prefix=NULL;
-       disable_script_ = (disable_script || scriptdisablelevel>0 || (after_body && disable_script_after_body));
+       disable_script_ = (disable_script || scriptdisablelevel>0 ||
+			  (after_body && disable_script_after_body) ||
+			  (disable_all_following_scripts && !(tagmatch.flags & TAGMATCH)));
 
        switch (tag)
 	 {
@@ -2498,6 +2505,7 @@ static void modify_html(URL *Url)
 	 disable_output&=~DISABLE_TAG;
 
 	 disable=process_tag_style_attr_replacement(&tagdata,NULL,0,&tagmatch,&tagattrpattlist,
+						    disable_all_following_scripts,
 						    (tag==tag_script && !tagdata.xhtml)? &needtxt: NULL);
 	 if(needtxt) {
 	   disable_output&=~DISABLE_SCRIPT;
@@ -2531,7 +2539,7 @@ static void modify_html(URL *Url)
 	       prefix=tagprefix[is_disabled_script];
 	     }
 	   }
-	   if(disable&DISABLEINNERSCRIPT) {
+	   if((disable&DISABLEINNERSCRIPT) || disable_all_following_scripts) {
 	     disable_script_ = 1;
 	     switch (tag) {
 	     case tag_link:   disable_output|=DISABLE_LINK; break;
@@ -2792,7 +2800,8 @@ static void modify_html(URL *Url)
 	  while(--scriptend>=scrtext && isspace(*scriptend));
 	  ++scriptend;
 
-	  disable=process_tag_style_attr_replacement(&tagdata,scrtext,scriptend-scrtext,&tagmatch,&tagattrpattlist, NULL);
+	  disable=process_tag_style_attr_replacement(&tagdata,scrtext,scriptend-scrtext,&tagmatch,&tagattrpattlist,
+						     disable_all_following_scripts, NULL);
 
 	  if(disable&RESETFOLLOWINGSCRIPT)
 	    disable_following_script=0;
