@@ -296,23 +296,28 @@ static const char* const tagprefix[]=
 
 typedef struct _Tag
 {
- HTMLTags type;                 /*+ The type of the tag. +*/
+  char *tagname;              /*+ The Tag name. +*/
+  HTMLTags type;              /*+ The type of the tag. +*/
+  /* int idx; */              /*+ Tag index (for tag-attribute patterns) +*/
 
- char *tag;                     /*+ The Tag itself. +*/
+  unsigned short xhtml;       /*+ A flag that is set for an XHTML closing tag '< ... />' +*/
+  unsigned short disable;     /*+ tag disabled status. +*/
 
- unsigned short xhtml;          /*+ A flag that is set for an XHTML closing tag '< ... />' +*/
- unsigned short disable;        /*+ A flag that is set when this tag should be disabled. +*/
-
- int nattr;                     /*+ The number of attributes. +*/
- int nattr_malloc;              /*+ The number of attributes that space is malloced for. +*/
-
- int *attr_type;                /*+ The list of attribute types. +*/
- char **attr_key;               /*+ The list of attribute keys. +*/
- char **attr_val;               /*+ The list of attribute values. +*/
- char *attr_quote;              /*+ The list of attribute quotes. +*/
- unsigned char *attr_disable;   /*+ The list of attribute disable flags. +*/
+  struct _AttrNode *attrl;    /* points to first node in attribute list. */
+  struct _AttrNode **last;    /* points to the last 'next' field in attribute list. */
 }
 Tag;
+
+typedef struct _AttrNode
+{
+  struct _AttrNode *next;
+  char *key;                  /*+ attribute key name. +*/
+  char *val;                  /*+ attribute value (may be null). +*/
+  HTMLAttributes type;        /*+ attribute key type. +*/
+  unsigned short disable;     /*+ attribute disable flag +*/
+  char quote;                 /*+ attribute quote (may be null char). +*/
+}
+AttrNode;
 
 /*+ A stack for holding tags of possibly nested objects and their disabled status. +*/
 typedef struct _TagStackNode
@@ -558,74 +563,65 @@ inline static int is_complex_tag(HTMLTags t)
 
 inline static void init_tagdata(Tag *tagdata)
 {
+  tagdata->tagname=NULL;
   tagdata->type=-1;
-  tagdata->tag=NULL;
   tagdata->xhtml=0;
   tagdata->disable=0;
-  tagdata->nattr=0;
-  tagdata->nattr_malloc=16;
-  tagdata->attr_type=(int*)malloc(tagdata->nattr_malloc*sizeof(int));
-  tagdata->attr_key=(char**)malloc(tagdata->nattr_malloc*sizeof(char*));
-  tagdata->attr_val=(char**)malloc(tagdata->nattr_malloc*sizeof(char*));
-  tagdata->attr_quote=(char*)malloc(tagdata->nattr_malloc);
-  tagdata->attr_disable=(unsigned char*)malloc(tagdata->nattr_malloc);
+  tagdata->attrl=NULL;
+  tagdata->last= &tagdata->attrl;
 }
 
-inline static void reset_tagdata(Tag *tagdata, HTMLTags type,const char *tagstr)
+inline static void reset_tagdata(Tag *tagdata, HTMLTags type,const char *tagname)
 {
-  int i;
+  AttrNode *p;
 
+  if(tagdata->tagname) free(tagdata->tagname);
+  tagdata->tagname= (tagname?strdup(tagname):NULL);
   tagdata->type=type;
-  if(tagdata->tag) free(tagdata->tag);
-  tagdata->tag= (tagstr?strdup(tagstr):NULL);
   tagdata->xhtml=0;
   tagdata->disable=0;
-  for(i=0; i<tagdata->nattr; ++i)
-    {
-      if(tagdata->attr_key[i]) free(tagdata->attr_key[i]);
-      if(tagdata->attr_val[i]) free(tagdata->attr_val[i]);
-    }
-  tagdata->nattr=0;
+
+  p= tagdata->attrl;
+  while(p) {
+    AttrNode *next= p->next;
+    free(p->key);
+    if(p->val) free(p->val);
+    free(p);
+    p= next;
+  }
+
+  tagdata->attrl=NULL;
+  tagdata->last= &tagdata->attrl;
 }
 
-static void add_attribute(Tag *tag, int type, const char *key, const char *val, char quote, unsigned char disable)
+static void add_attribute(Tag *tag, HTMLAttributes type, const char *key, const char *val, char quote, unsigned short disable)
 {
-  if(tag->nattr==tag->nattr_malloc)
-    {
-      ++tag->nattr_malloc;
-      tag->attr_type=(int*)realloc((void*)tag->attr_type,(tag->nattr_malloc)*sizeof(int));
-      tag->attr_key=(char**)realloc((void*)tag->attr_key,(tag->nattr_malloc)*sizeof(char*));
-      tag->attr_val=(char**)realloc((void*)tag->attr_val,(tag->nattr_malloc)*sizeof(char*));
-      tag->attr_quote=(char*)realloc((void*)tag->attr_quote,(tag->nattr_malloc));
-      tag->attr_disable=(unsigned char*)realloc((void*)tag->attr_disable,(tag->nattr_malloc));
-    }
+  AttrNode *new= malloc(sizeof(AttrNode));
 
-  tag->attr_type [tag->nattr]=type;
-  tag->attr_key  [tag->nattr]=strdup(key);
-  tag->attr_val  [tag->nattr]=(val?strdup(val):NULL);
-  tag->attr_quote[tag->nattr]=quote;
-  tag->attr_disable[tag->nattr]=disable;
+  new->next=NULL;
+  new->key= strdup(key);
+  new->val= (val?strdup(val):NULL);
+  new->type=type;
+  new->disable=disable;
+  new->quote=quote;
 
-  ++tag->nattr;
+  *(tag->last) = new;
+  tag->last = &new->next;
 }
 
 inline static void free_tagdata(Tag *tagdata)
 {
-  int i;
+  AttrNode *p;
 
-  if(tagdata->tag) free(tagdata->tag);
-
-  for(i=0; i<tagdata->nattr; ++i)
-    {
-      if(tagdata->attr_key[i]) free(tagdata->attr_key[i]);
-      if(tagdata->attr_val[i]) free(tagdata->attr_val[i]);
-    }
-
-  free(tagdata->attr_type);
-  free(tagdata->attr_key);
-  free(tagdata->attr_val);
-  free(tagdata->attr_quote);
-  free(tagdata->attr_disable);
+  if(tagdata->tagname) free(tagdata->tagname);
+  p= tagdata->attrl;
+  while(p) {
+    AttrNode *next= p->next;
+    free(p->key);
+    if(p->val) free(p->val);
+    free(p);
+    p= next;
+  }
 }
 
 /* Some functions for handling tag stacks. */
@@ -1374,12 +1370,12 @@ static char *extract_charset(const char *content_type)
 
 static disabled_t handle_a_tag(const Tag *tag,int disable_dontget_anchors,int disable_script)
 {
- int i;
+ AttrNode *a;
  disabled_t retval=0;
  char *href;
 
- for(i=0; i<tag->nattr; ++i)
-   if(tag->attr_type[i]==att_href && (href=tag->attr_val[i])) {
+ for(a=tag->attrl; a; a=a->next)
+   if(a->type==att_href && (href=a->val)) {
      if(disable_dontget_anchors) {
        URL *linkUrl=LinkURL(baseUrl,href);
 
@@ -1419,12 +1415,12 @@ static disabled_t handle_a_tag(const Tag *tag,int disable_dontget_anchors,int di
 
 static disabled_t handle_iframe_tag(const Tag *tag,int disable_dontget_iframes,int disable_script)
 {
- int i;
+ AttrNode *a;
  disabled_t retval=0;
  char *src;
 
- for(i=0; i<tag->nattr; ++i)
-   if(tag->attr_type[i]==att_src && (src=tag->attr_val[i])) {
+ for(a=tag->attrl; a; a=a->next)
+   if(a->type==att_src && (src=a->val)) {
      if(disable_dontget_iframes) {
        URL *linkUrl=LinkURL(baseUrl,src);
 
@@ -1459,13 +1455,13 @@ static disabled_t handle_iframe_tag(const Tag *tag,int disable_dontget_iframes,i
 
 static disabled_t handle_script_tag(const Tag *tag, disabled_t is_disabled_script)
 {
- int i;
+ AttrNode *a;
  disabled_t retval=is_disabled_script;
  char *src;
 
  if(!retval)
-   for(i=0; i<tag->nattr; ++i)
-     if(tag->attr_type[i]==att_src && (src=tag->attr_val[i])) {
+   for(a=tag->attrl; a; a=a->next)
+     if(a->type==att_src && (src=a->val)) {
        URL *linkUrl=LinkURL(baseUrl,src);
 
        if(ConfigBooleanMatchURL(DontGet,linkUrl))
@@ -1533,15 +1529,15 @@ static disabled_t output_img_or_object_tag(Tag *tag,int attr_type,
 					   int replace_webbug,const char *webbug_replacement,
 					   int disable_script)
 {
- int i;
+ AttrNode *a;
  disabled_t retval=0;
 
  if(attr_type>=0)
    {
      if(replace_dontget || disable_script) {
        char *src;
-       for(i=0; i<tag->nattr; ++i) {
-	 if(tag->attr_type[i]==attr_type && (src=tag->attr_val[i])) {
+       for(a=tag->attrl; a; a=a->next) {
+	 if(a->type==attr_type && (src=a->val)) {
 	   if(replace_dontget ) {
 	     URL *linkUrl=LinkURL(baseUrl,src);
 
@@ -1559,18 +1555,20 @@ static disabled_t output_img_or_object_tag(Tag *tag,int attr_type,
      }
 
      if(!retval && replace_webbug) {
-       int seen_src=0,width=1000,height=1000;
+       int seen_src=0,width=1024,height=1024;
        char *attrval;
 
-       for(i=0; i<tag->nattr; ++i) {
-	 if(tag->attr_type[i]==attr_type && tag->attr_val[i])
+       for(a=tag->attrl; a; a=a->next) {
+	 if(a->type==attr_type && a->val)
 	   seen_src=1;
-	 if(tag->attr_type[i]==att_width && (attrval=tag->attr_val[i])
-	    && *attrval && isdigit(*attrval))
-	   width=atoi(attrval);
-	 else if(tag->attr_type[i]==att_height && (attrval=tag->attr_val[i])
-		 && *attrval && isdigit(*attrval))
-	   height=atoi(attrval);
+	 if(a->type==att_width) {
+	   if((attrval=a->val) && *attrval && isdigit(*attrval))
+	     width=atoi(attrval);
+	 }
+	 else if(a->type==att_height) {
+	   if((attrval=a->val) && *attrval && isdigit(*attrval))
+	     height=atoi(attrval);
+	 }
        }
 
        if(seen_src && width<=1 && height<=1)
@@ -1588,10 +1586,10 @@ static disabled_t output_img_or_object_tag(Tag *tag,int attr_type,
     if(!dontget_replacement)
       return retval;
 
-    for(i=0; i<tag->nattr; ++i)
-      if(tag->attr_type[i]==attr_type) {
-	if(tag->attr_val[i]) free(tag->attr_val[i]);
-	tag->attr_val[i]=strdup(dontget_replacement);
+    for(a=tag->attrl; a; a=a->next)
+      if(a->type==attr_type) {
+	if(a->val) free(a->val);
+	a->val=strdup(dontget_replacement);
       }
    }
  else if(retval==disabled_webbug_image)
@@ -1602,10 +1600,10 @@ static disabled_t output_img_or_object_tag(Tag *tag,int attr_type,
     if(!webbug_replacement)
       return retval;
 
-    for(i=0; i<tag->nattr; ++i)
-      if(tag->attr_type[i]==attr_type) {
-	if(tag->attr_val[i]) free(tag->attr_val[i]);
-	tag->attr_val[i]=strdup(webbug_replacement);
+    for(a=tag->attrl; a; a=a->next)
+      if(a->type==attr_type) {
+	if(a->val) free(a->val);
+	a->val=strdup(webbug_replacement);
       }
    }
  else if(retval==disabled_script) {
@@ -1619,14 +1617,14 @@ static disabled_t output_img_or_object_tag(Tag *tag,int attr_type,
    {
     int seen_alt=0;
 
-    for(i=0; i<tag->nattr; ++i)
-       if(!strcasecmp(tag->attr_key[i],"alt") || !strcasecmp(tag->attr_key[i],"title"))
+    for(a=tag->attrl; a; a=a->next)
+       if(!strcasecmp(a->key,"alt") || !strcasecmp(a->key,"title"))
          {
-          if(tag->attr_val[i])
-             free(tag->attr_val[i]);
+          if(a->val)
+             free(a->val);
 
-          tag->attr_val  [i]=strdup("");
-          tag->attr_quote[i]='"';
+          a->val=strdup("");
+          a->quote='"';
 
           seen_alt=1;
          }
@@ -1675,15 +1673,15 @@ static disabled_t handle_object_tag(Tag *tag,int replace_dontget,const char *don
 				    int disable_dontget_iframes,
 				    int disable_script)
 {
- int i;
+ AttrNode *a;
 
  /* Check for images. */
 
  if(replace_dontget || replace_webbug || disable_script)
    {
-    for(i=0; i<tag->nattr; ++i)
-      if((tag->attr_type[i]==att_codetype || tag->attr_type[i]==att_type) &&
-	 tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"image"))
+    for(a=tag->attrl; a; a=a->next)
+      if((a->type==att_codetype || a->type==att_type) &&
+	 a->val && !strcasecmp_litbeg(a->val,"image"))
 	 {
 	   /* found an image */
 	   return output_img_or_object_tag(tag,att_data,replace_dontget,dontget_replacement,replace_webbug,webbug_replacement,disable_script);
@@ -1694,9 +1692,9 @@ static disabled_t handle_object_tag(Tag *tag,int replace_dontget,const char *don
 
  if(disable_applet)
    {
-    for(i=0; i<tag->nattr; ++i)
-      if((tag->attr_type[i]==att_codetype && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"application/java")) ||
-	 (tag->attr_type[i]==att_classid && tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"java:")))
+    for(a=tag->attrl; a; a=a->next)
+      if((a->type==att_codetype && a->val && !strcasecmp_litbeg(a->val,"application/java")) ||
+	 (a->type==att_classid && a->val && !strcasecmp_litbeg(a->val,"java:")))
 	{
 	  /* found Java applet */
 	  output_tag(tag,tagprefix[disabled_applet]);
@@ -1709,13 +1707,13 @@ static disabled_t handle_object_tag(Tag *tag,int replace_dontget,const char *don
  if(disable_flash)
    {
     size_t val_len;
-    for(i=0; i<tag->nattr; ++i)
-      if(((tag->attr_type[i]==att_codetype || tag->attr_type[i]==att_type) &&
-          tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"application/x-shockwave-flash")) ||
-	 (tag->attr_type[i]==att_classid && tag->attr_val[i] &&
-	  !strcasecmp_litbeg(tag->attr_val[i],"clsid:D27CDB6E-AE6D-11cf-96B8-444553540000")) ||
-	 (tag->attr_type[i]==att_src && tag->attr_val[i] && (val_len=strlen(tag->attr_val[i]))>=4 &&
-	  !strcasecmp(tag->attr_val[i]+val_len-4,".swf")))
+    for(a=tag->attrl; a; a=a->next)
+      if(((a->type==att_codetype || a->type==att_type) &&
+          a->val && !strcasecmp_litbeg(a->val,"application/x-shockwave-flash")) ||
+	 (a->type==att_classid && a->val &&
+	  !strcasecmp_litbeg(a->val,"clsid:D27CDB6E-AE6D-11cf-96B8-444553540000")) ||
+	 (a->type==att_src && a->val && (val_len=strlen(a->val))>=4 &&
+	  !strcasecmp(a->val+val_len-4,".swf")))
 	{
 	  /* found Flash */
 	  output_tag(tag,tagprefix[disabled_flash]);
@@ -1728,17 +1726,17 @@ static disabled_t handle_object_tag(Tag *tag,int replace_dontget,const char *don
  if(disable_dontget_iframes || disable_script)
    {
     int is_inline=0;
-    for(i=0; i<tag->nattr; ++i)
-      if((tag->attr_type[i]==att_codetype || tag->attr_type[i]==att_type) &&
-	 tag->attr_val[i] && !strcasecmp_litbeg(tag->attr_val[i],"text"))
+    for(a=tag->attrl; a; a=a->next)
+      if((a->type==att_codetype || a->type==att_type) &&
+	 a->val && !strcasecmp_litbeg(a->val,"text"))
 	{is_inline=1;break;}
 
     if(is_inline) {
       disabled_t disabled=0;
       char *data;
 
-      for(i=0; i<tag->nattr; ++i)
-	if(tag->attr_type[i]==att_data && (data=tag->attr_val[i])) {
+      for(a=tag->attrl; a; a=a->next)
+	if(a->type==att_data && (data=a->val)) {
 	  if(disable_dontget_iframes) {
 	    URL *linkUrl=LinkURL(baseUrl,data);
 
@@ -1780,12 +1778,12 @@ static disabled_t handle_object_tag(Tag *tag,int replace_dontget,const char *don
 
 static void handle_link_tag(const Tag *tag,int disable_style,int disable_script)
 {
- int i;
+ AttrNode *a;
  disabled_t disabled=0;
  char *rel;
 
- for(i=0; i<tag->nattr; ++i)
-   if(tag->attr_type[i]==att_rel && (rel=tag->attr_val[i])) {
+ for(a=tag->attrl; a; a=a->next)
+   if(a->type==att_rel && (rel=a->val)) {
        if(disable_style && !strcasecmp_litbeg(rel,"Stylesheet"))
 	 {disabled=disabled_style;break;}
        if(disable_script && !strcasecmp_litbeg(rel,"javascript:"))
@@ -1815,12 +1813,12 @@ static void handle_link_tag(const Tag *tag,int disable_style,int disable_script)
 
 static disabled_t handle_style_script_tag(const Tag *tag)
 {
- int i;
+ AttrNode *a;
  disabled_t retval=0;
  char *type;
 
- for(i=0; i<tag->nattr; ++i)
-   if(tag->attr_type[i]==att_type && (type=tag->attr_val[i]) &&
+ for(a=tag->attrl; a; a=a->next)
+   if(a->type==att_type && (type=a->val) &&
       strcasestr(type,"javascript"))
      {
        retval=disabled_script;
@@ -1850,23 +1848,23 @@ static disabled_t handle_style_script_tag(const Tag *tag)
 static void handle_meta_tag(const Tag *tag,int disable_meta_refresh,int disable_meta_refresh_self,
 			    int replacement_meta_refresh_time,int disable_meta_set_cookie)
 {
- int i;
+ AttrNode *a;
  int is_meta_http_equiv_refresh=0;
- int meta_refresh_content=-1;
  int is_meta_refresh_self=0;
+ AttrNode *meta_refresh_content=NULL;
  char *meta_refresh=NULL;
  int is_meta_http_equiv_set_cookie=0;
  int is_meta_http_equiv_content_type=0;
 
  /* Check for interesting meta tags */
 
- for(i=0; i<tag->nattr; ++i)
-   if(tag->attr_type[i]==att_http_equiv && tag->attr_val[i]) {
-     if(!strcasecmp_litbeg(tag->attr_val[i],"Refresh"))
+ for(a=tag->attrl; a; a=a->next)
+   if(a->type==att_http_equiv && a->val) {
+     if(!strcasecmp_litbeg(a->val,"Refresh"))
        is_meta_http_equiv_refresh=1;
-     else if(!strcasecmp_litbeg(tag->attr_val[i],"Set-Cookie"))
+     else if(!strcasecmp_litbeg(a->val,"Set-Cookie"))
        is_meta_http_equiv_set_cookie=1;
-     else if(!strcasecmp_litbeg(tag->attr_val[i],"Content-Type"))
+     else if(!strcasecmp_litbeg(a->val,"Content-Type"))
        is_meta_http_equiv_content_type=1;
    }
 
@@ -1874,10 +1872,10 @@ static void handle_meta_tag(const Tag *tag,int disable_meta_refresh,int disable_
 
  if(is_meta_http_equiv_refresh && (disable_meta_refresh_self || disable_meta_refresh))
    {
-    for(i=0; i<tag->nattr; ++i)
-       if(tag->attr_type[i]==att_content && tag->attr_val[i] && tag->attr_val[i][0])
+    for(a=tag->attrl; a; a=a->next)
+       if(a->type==att_content && a->val && a->val[0])
          {
-	   char *p=tag->attr_val[i];
+	   char *p=a->val;
 
 	   /* ' *[0-9].?[0-9]* *[;,] *(URL *= *|)http://...' */
 
@@ -1913,7 +1911,7 @@ static void handle_meta_tag(const Tag *tag,int disable_meta_refresh,int disable_
                      }
 		 }
 	     }
-	   meta_refresh_content=i;
+	   meta_refresh_content=a;
 	   break;
          }
 
@@ -1933,10 +1931,10 @@ static void handle_meta_tag(const Tag *tag,int disable_meta_refresh,int disable_
  /* Handle if they are charset ones. */
 
  if(is_meta_http_equiv_content_type && (demoronise_ms_chars || fix_mixed_cyrillic))
-    for(i=0; i<tag->nattr; ++i)
-       if(tag->attr_type[i]==att_content && tag->attr_val[i] && tag->attr_val[i][0])
+    for(a=tag->attrl; a; a=a->next)
+       if(a->type==att_content && a->val && a->val[0])
          {
-          char* charset=extract_charset(tag->attr_val[i]);
+          char* charset=extract_charset(a->val);
 
           if(charset)
             {
@@ -1964,27 +1962,27 @@ static void handle_meta_tag(const Tag *tag,int disable_meta_refresh,int disable_
 
  if(is_meta_http_equiv_refresh && disable_meta_refresh)
    {
-     if(replacement_meta_refresh_time<0 || (replacement_meta_refresh_time==0 && (is_meta_refresh_self || !meta_refresh)) || meta_refresh_content<0)
+     if(replacement_meta_refresh_time<0 || (replacement_meta_refresh_time==0 && (is_meta_refresh_self || !meta_refresh)) || !meta_refresh_content)
        output_tag(tag,"!-- WWWOFFLE (disable-meta-refresh) - ");
      else
        {
-	 free(tag->attr_val[meta_refresh_content]);
-	 tag->attr_val[meta_refresh_content]=(meta_refresh?
-					      x_asprintf("%d;URL=%s",replacement_meta_refresh_time,meta_refresh):
-					      x_asprintf("%d",replacement_meta_refresh_time));
+	 free(meta_refresh_content->val);
+	 meta_refresh_content->val= (meta_refresh?
+				     x_asprintf("%d;URL=%s",replacement_meta_refresh_time,meta_refresh):
+				     x_asprintf("%d",replacement_meta_refresh_time));
 	 output_tag(tag,NULL);
        }
    }
  else if(is_meta_refresh_self && disable_meta_refresh_self)
    {
-     if(replacement_meta_refresh_time<=0 || meta_refresh_content<0)
+     if(replacement_meta_refresh_time<=0 || !meta_refresh_content)
        output_tag(tag,"!-- WWWOFFLE (disable-meta-refresh-self) - ");
      else
        {
-	 free(tag->attr_val[meta_refresh_content]);
-	 tag->attr_val[meta_refresh_content]=(meta_refresh?
-					      x_asprintf("%d;URL=%s",replacement_meta_refresh_time,meta_refresh):
-					      x_asprintf("%d",replacement_meta_refresh_time));
+	 free(meta_refresh_content->val);
+	 meta_refresh_content->val= (meta_refresh?
+				     x_asprintf("%d;URL=%s",replacement_meta_refresh_time,meta_refresh):
+				     x_asprintf("%d",replacement_meta_refresh_time));
 	 output_tag(tag,NULL);
        }
    }
@@ -2007,15 +2005,15 @@ static int process_tag_style_attr_replacement(Tag *tag, const char *text, size_t
     TagAttrPattNode *p;
     for(p=tapl->taparr[tagm->idx]; p; p=p->next) {
       /* Note: tag->tag should now match p->tagname. */
-      AttrPattNode *a;
-      int i;
-      for(a=p->attrpatts; a; a=a->next) {
-	for(i=0; i<tag->nattr; ++i) {
-	  if(!strcasecmp(tag->attr_key[i],a->attrname)) {
-	    const char *attrval=tag->attr_val[i], *endptr;
+      AttrNode *a;
+      AttrPattNode *ap;
+      for(ap=p->attrpatts; ap; ap=ap->next) {
+	for(a=tag->attrl; a; a=a->next) {
+	  if(!strcasecmp(a->key,ap->attrname)) {
+	    const char *attrval=a->val, *endptr;
 	    size_t len;
 	    if(attrval) {
-	      if(a->valpatt) {
+	      if(ap->valpatt) {
 		PattNode *q;
 		while(*attrval && isspace(*attrval)) ++attrval;  /* Skip blanks. */
 		endptr=strchrnul(attrval,0);
@@ -2023,7 +2021,7 @@ static int process_tag_style_attr_replacement(Tag *tag, const char *text, size_t
 		++endptr;
 		len= endptr-attrval;
 		/* Try each pattern in the list to see if one matches. */
-		q=a->valpatt;
+		q=ap->valpatt;
 		do {
 		  if(strsegmentscasematch(attrval,len,q->patt,q->len))
 		    goto nextattrpatt;
@@ -2031,7 +2029,7 @@ static int process_tag_style_attr_replacement(Tag *tag, const char *text, size_t
 		} while(q);
 	      }
 	    }
-	    else if(!a->valpatt)
+	    else if(!ap->valpatt)
 	      goto nextattrpatt;
 	  }
 	}
@@ -2065,8 +2063,8 @@ static int process_tag_style_attr_replacement(Tag *tag, const char *text, size_t
 	disable_script=0;
       if(retval&DISABLEINNERSCRIPT)
 	disable_script=1;
-      for(i=0; i<tag->nattr; ++i) {
-	switch (tag->attr_type[i]) {
+      for(a=tag->attrl; a; a=a->next) {
+	switch (a->type) {
 	case att_onblur: case att_onchange: case att_onclick: case att_ondblclick: case att_onfocus:
 	case att_onerror: case att_onkeydown: case att_onkeypress: case att_onload: case att_onmousedown:
 	case att_onmousemove: case att_onmouseout: case att_onmouseover: case att_onmouseup:
@@ -2078,19 +2076,19 @@ static int process_tag_style_attr_replacement(Tag *tag, const char *text, size_t
 	  break;
 	default:;
 	}
-	for(a=p->attrpatts; a; a=a->next) {
-	  if(a->disableattr && !strcasecmp(tag->attr_key[i],a->attrname)) {
-	    char *attrval=tag->attr_val[i], *endptr;
+	for(ap=p->attrpatts; ap; ap=ap->next) {
+	  if(ap->disableattr && !strcasecmp(a->key,ap->attrname)) {
+	    char *attrval=a->val, *endptr;
 	    size_t len;
 	    if(attrval) {
-	      if(a->valpatt) {
+	      if(ap->valpatt) {
 		PattNode *q;
 		while(*attrval && isspace(*attrval)) ++attrval;  /* Skip blanks. */
 		endptr=strchrnul(attrval,0);
 		while(--endptr>=attrval && isspace(*endptr));  /* Trim trailing blanks. */
 		++endptr;
 		len= endptr-attrval;
-		q=a->valpatt;
+		q=ap->valpatt;
 		do {
 		  if(strsegmentscasematch(attrval,len,q->patt,q->len))
 		    goto disableattr;
@@ -2098,13 +2096,13 @@ static int process_tag_style_attr_replacement(Tag *tag, const char *text, size_t
 		} while(q);
 	      }
 	    }
-	    else if(!a->valpatt)
+	    else if(!ap->valpatt)
 	      goto disableattr;
 	  }
 	}
 	continue;
       disableattr:
-	tag->attr_disable[i]=1;
+	a->disable=1;
       }
       /* Add the new style attribute. */
       if(p->stylerepl && *(p->stylerepl))
@@ -2161,7 +2159,7 @@ static void output_attr_key_val(const char *key,const char *val, char quote, int
 
 static void output_tag(const Tag *tag,const char *prefix)
 {
- int i;
+ AttrNode *a;
  int iscomment;
 
  if(disable_output)
@@ -2175,12 +2173,12 @@ static void output_tag(const Tag *tag,const char *prefix)
  if(prefix)
    yy_rawout(prefix);
 
- yy_comout(tag->tag, iscomment=(prefix!=NULL));
+ yy_comout(tag->tagname, iscomment=(prefix!=NULL));
 
- for(i=0; i<tag->nattr; ++i)
+ for(a=tag->attrl; a; a=a->next)
    {
     yy_rawout(" ");
-    output_attr_key_val(tag->attr_key[i],tag->attr_val[i],tag->attr_quote[i],tag->attr_disable[i],iscomment);
+    output_attr_key_val(a->key,a->val,a->quote,a->disable,iscomment);
    }
 
  if(prefix)
