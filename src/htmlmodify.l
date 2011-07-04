@@ -677,6 +677,43 @@ inline static void free_tagstack(TagStack s)
 
 static void free_pattlist(PattNode *p);
 
+
+/* Parse a sequence of wildcard patterns separated by vertical bars '|'.
+   The starting point in the string to parse is given by the pointer 'p', the position
+   following the last character in the string by the pointer 'end'.
+   If p>end this is interpreted as an empty sequence and the return value is NULL.
+   The information of each pattern is stored in a newly allocated PattNode struct, and
+   appended to a linked list.
+   The return value of parse_wildcardpatt_list() is the resulting list.
+*/
+static PattNode *parse_wildcardpatt_list(const char *p, const char *end)
+{
+  PattNode *retval= NULL;
+  PattNode **lpatt= &retval;
+
+  while(p<=end) {
+    PattNode *newpatt;
+    const char *bar; char *q;
+    size_t len;
+    bar= strunescapechr2(p,end,'|');
+    len= strunescapelen2(p,bar);
+    newpatt = (PattNode*)malloc(sizeof(PattNode)+len+1);
+    newpatt->next=NULL;
+    newpatt->len=len;
+    /* Copy the pattern, replacing '*'s by null bytes. */
+    q= newpatt->patt;
+    do {
+      const char *star=strunescapechr2(p,bar,'*');
+      q= strunescapecpy2(q,p,star)+1;  /* Move q past the null byte. */
+      p=star+1;
+    } while(p<=bar);
+    *lpatt = newpatt;
+    lpatt = &newpatt->next;
+  }
+
+  return retval;
+}
+
 #define keywordmatch(str,len,key) (len==strlitlen(key) && !strncasecmp(str,key,strlitlen(key)))
 
 struct tagattrpattvalues {
@@ -728,45 +765,23 @@ static struct tagattrpattvalues parse_tag_attr_pattern(const char **str)
 	  cm=strunescapechr2(p,cbr,',');
 	  cl=strunescapechr2(p,cm,':');
 	  if(cl>p) {
-	    PattNode **lpatt;
 	    len= cl-p;
 	    if(!keywordmatch(p,len,"text")) {
 	      AttrPattNode *new = (AttrPattNode*)malloc(sizeof(AttrPattNode));
 	      new->next=NULL;
 	      new->attrname=strunescapedup2(p,cl);
-	      new->valpatt= NULL;
+	      new->valpatt= parse_wildcardpatt_list(cl+1,cm);
 	      new->disableattr= disableattr;
 	      *last = new;
 	      last = &new->next;
-	      lpatt = &new->valpatt;
 	    }
 	    else {
 	      /* text "pseudo" attribute */
 	      if(tap->txtpatt) {
 		/* A new text pattern clobbers any possible previous one. */
 		free_pattlist(tap->txtpatt);
-		tap->txtpatt= NULL;
 	      }
-	      lpatt = &tap->txtpatt;
-	    }
-	    p=cl+1;
-	    while(p<=cm) {
-	      PattNode *newpatt;
-	      const char *bar; char *q;
-	      bar= strunescapechr2(p,cm,'|');
-	      len= strunescapelen2(p,bar);
-	      newpatt = (PattNode*)malloc(sizeof(PattNode)+len+1);
-	      newpatt->next=NULL;
-	      newpatt->len=len;
-	      /* Copy the pattern, replacing '*'s by null bytes. */
-	      q= newpatt->patt;
-	      do {
-		const char *star=strunescapechr2(p,bar,'*');
-		q= strunescapecpy2(q,p,star)+1;  /* Move q past the null byte. */
-		p=star+1;
-	      } while(p<=bar);
-	      *lpatt = newpatt;
-	      lpatt = &newpatt->next;
+	      tap->txtpatt= parse_wildcardpatt_list(cl+1,cm);
 	    }
 	  }
 	  if(cm>=cbr) break;
@@ -782,33 +797,13 @@ static struct tagattrpattvalues parse_tag_attr_pattern(const char **str)
     else {
       /* Parse a pattern for a comment. */
       CommentPattNode *comp =  (CommentPattNode*)malloc(sizeof(CommentPattNode));
-      PattNode **lpatt;
       comp->next = NULL;
       comp->cmpatt = NULL;
       comp->disable=0;
-      lpatt = &comp->cmpatt;
       if(*p=='[') {
 	++p; /* Skip '[' */
 	cbr=strunescapechr(p,']');
-	do {
-	  PattNode *newpatt;
-	  const char *bar; char *q;
-	  bar= strunescapechr2(p,cbr,'|');
-	  len= strunescapelen2(p,bar);
-	  newpatt = (PattNode*)malloc(sizeof(PattNode)+len+1);
-	  newpatt->next=NULL;
-	  newpatt->len=len;
-	  /* Copy the pattern, replacing '*'s by null bytes. */
-	  q= newpatt->patt;
-	  do {
-	    const char *star=strunescapechr2(p,bar,'*');
-	    q= strunescapecpy2(q,p,star)+1;  /* Move q past the null byte. */
-	    p=star+1;
-	  } while(p<=bar);
-	  *lpatt = newpatt;
-	  lpatt = &newpatt->next;
-	} while(p<=cbr);
-
+	comp->cmpatt= parse_wildcardpatt_list(p,cbr);
 	p=cbr;
 	if(*p) ++p; /* Skip ']' */
       }
