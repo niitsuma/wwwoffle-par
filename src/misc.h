@@ -241,6 +241,7 @@ char /*@only@*/ *HTML_url(char *url);
 char *HTMLcommentstring(char *str, size_t *lenp);
 
 char *strunescapechr(const char *str, char c);
+char *strunescapepbrk(const char *str, const char *stopset);
 #if 0
 size_t strunescapelen(const char *str);
 char *strunescapecpy(char *dst, const char *src);

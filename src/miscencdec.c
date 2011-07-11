@@ -1158,6 +1158,27 @@ char *strunescapechr(const char *str, char c)
   return (char *)p;
 }
 
+/* This is like strpbrk(), but only returns a match if the char
+   is not escaped by a back-slash. */
+char *strunescapepbrk(const char *str, const char *stopset)
+{
+  const char *p, *q;
+  char c,d;
+
+  for(p=str; (c= *p); ++p) {
+    if(c=='\\') {
+      if(!*++p) break;
+    }
+    else {
+      q=stopset;
+      while((d= *q++)) if(c==d) goto ret_p;
+    }
+  }
+
+ ret_p:
+  return (char *)p;
+}
+
 #if 0
 size_t strunescapelen(const char *str)
 {

@@ -140,6 +140,9 @@ static void parse_css(URL *Url)
 #define css_yywrap() 1
 #endif
 
+/*+ Don't include the yyinput() or input() function in the lexer. +*/
+#define YY_NO_INPUT
+
 /*+ A macro to read data that can be used by the lexer. +*/
 #define YY_INPUT(buf,result,max_size) \
         if((result=read_data(css_yyfd,buf,max_size))==-1) \

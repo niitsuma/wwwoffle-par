@@ -6,9 +6,9 @@ alphanum        [a-z0-9]
 punct           [][!\"#$%&\'()*+,./:;<=>?@\\^_`{|}~-]
 safepunct       [][!\#$%&\*+,./:;=?@\\^_`{|}~-]
 
-tag             ({alphanum}|:)+
+tag             {alphanum}({alphanum}|[_:])*
 tagdel          [ \t\r\n\f/>]
-key             ({alphanum}|[-:])+
+key             ({alphanum}|[-_:])+
 val             ({alphanum}|{nonascii}|{safepunct})+
 
 ident           ({nonascii}|{alphanum}|-)+
@@ -919,6 +919,9 @@ cleanup_return:
  if(_new_len>=stringallocsize) string=(char*)realloc((void*)string,stringallocsize=_new_len+1); \
  memcpy(string+stringlen,xx,_str_len+1); \
  stringlen=_new_len;}
+
+/*+ Don't include the yyinput() or input() function in the lexer. +*/
+#define YY_NO_INPUT
 
 /*+ A macro to read data that can be used by the lexer. +*/
 #define YY_INPUT(buf,result,max_size) \
