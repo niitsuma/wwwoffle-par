@@ -49,13 +49,13 @@ static int add_all=0;
 static DocType GetDocumentType(const char *mimetype);
 static /*@only@*/ char *GetMIMEType(int fd);
 
-inline static void SetBaseURL(URL *Url)
+inline static void SetBaseURL(const URL *Url)
 {
   if(baseUrl) FreeURL(baseUrl);
   baseUrl=(Url?CopyURL(Url):NULL);
 }
 
-inline static void SetBase_url(char *url)
+inline static void SetBase_url(const char *url)
 {
   if(baseUrl) FreeURL(baseUrl);
   baseUrl=(url?SplitURL(url):NULL);
