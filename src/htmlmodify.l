@@ -478,7 +478,7 @@ static int fix_mixed_cyrillic;
 
 /* Definitions of why the output is disabled. */
 
-#define DISABLE_NONE         0
+#define DISABLE_NONE          0
 
 #define DISABLE_A             1
 #define DISABLE_IFRAME        2
@@ -956,7 +956,7 @@ static PattNode *parse_wildcardpatt_list(const char *p, const char *end)
 static HTokenPattNode *parse_htoken_pattern(const char **str, unsigned short *seenstag, unsigned short *seendisableattr)
 {
   HTokenPattNode *res=NULL;
-  const char *s= *str, *p, *cbr, *cl, *cm;
+  const char *s= *str, *p, *cbr, *eq, *cm;
 
   p = strunescapepbrk(s," \t[/,");
 
@@ -994,12 +994,12 @@ static HTokenPattNode *parse_htoken_pattern(const char **str, unsigned short *se
 	    ++p;
 	  }
 	  cm=strunescapechr2(p,cbr,',');
-	  cl=strunescapechr2(p,cm,':');
-	  if(cl>p) {
+	  eq=strunescapechr2(p,cm,'=');
+	  if(eq>p) {
 	    AttrPattNode *new = (AttrPattNode*)malloc(sizeof(AttrPattNode));
 	    new->next=NULL;
-	    new->attrname=strunescapedup2(p,cl);
-	    new->valpatt= parse_wildcardpatt_list(cl+1,cm);
+	    new->attrname=strunescapedup2(p,eq);
+	    new->valpatt= parse_wildcardpatt_list(eq+1,cm);
 	    new->disableattr= disableattr;
 	    *last = new;
 	    last = &new->next;
@@ -3107,7 +3107,6 @@ static void modify_html(URL *Url)
 	   if(stackflags(&tagpatterninfo,tagidx)&TAGDSTACK)  {
 	     if(!tagdata->xhtml) {
 	       pushtagstack(&tagdstack, tagidx, disableflags);
-	       if(disableflags&DISABLEINNERSCRIPT) ++scriptdisablelevel;
 	     }
 	   }
 	   disable_script_= (disable_script || (after_body && disable_script_after_body) ||
@@ -3243,10 +3242,10 @@ static void modify_html(URL *Url)
 	     is_disabled_script= disabled_all_following_scripts;
 	   else if(disable_following_script)
 	     is_disabled_script= disabled_following_script;
-	   else if(disableflags&DISABLEINNERSCRIPT)
-	     is_disabled_script=disabled_matching_script;
 	   else if(scriptdisablelevel>0)
 	     is_disabled_script= disabled_inner_script;
+	   else if(disableflags&DISABLEINNERSCRIPT)
+	     is_disabled_script=disabled_matching_script;
 	   else
 	     is_disabled_script=0;
 
@@ -3292,7 +3291,11 @@ static void modify_html(URL *Url)
 	   if(disableflags&DISABLEALLFOLLOWINGSCRIPTS)
 	     disable_all_following_scripts=1;
 	 }
-	 else if(tagdata->xhtml) {
+	 else if(!tagdata->xhtml) {
+	   if(disableflags&DISABLEINNERSCRIPT)
+	     ++scriptdisablelevel;
+	 }
+	 else {
 	   if(disableflags&DISABLEFOLLOWINGSCRIPT)
 	     disable_following_script=1;
 	   if(disableflags&DISABLEALLFOLLOWINGSCRIPTS)
@@ -3383,7 +3386,6 @@ static void modify_html(URL *Url)
 	       if(stackflags(&tagpatterninfo,tag->idx)&TAGDSTACK) {
 		 if(!tag->xhtml) {
 		   pushtagstack(&tagdstack, tag->idx, disableflags);
-		   if(disableflags&DISABLEINNERSCRIPT) ++scriptdisablelevel;
 		 }
 	       }
 	     }
@@ -3537,10 +3539,10 @@ static void modify_html(URL *Url)
 	       is_disabled_script= disabled_all_following_scripts;
 	     else if(disable_following_script)
 	       is_disabled_script= disabled_following_script;
-	     else if(disableflags&DISABLEINNERSCRIPT)
-	       is_disabled_script=disabled_matching_script;
 	     else if(scriptdisablelevel>0)
 	       is_disabled_script= disabled_inner_script;
+	     else if(disableflags&DISABLEINNERSCRIPT)
+	       is_disabled_script=disabled_matching_script;
 	     else
 	       is_disabled_script=0;
 
@@ -3587,7 +3589,11 @@ static void modify_html(URL *Url)
 	       if(disableflags&DISABLEALLFOLLOWINGSCRIPTS)
 		 disable_all_following_scripts=1;
 	     }
-	     else if(tag->xhtml) {
+	     else if(!tag->xhtml) {
+	       if(disableflags&DISABLEINNERSCRIPT)
+		 ++scriptdisablelevel;
+	     }
+	     else {
 	       if(disableflags&DISABLEFOLLOWINGSCRIPT)
 		 disable_following_script=1;
 	       if(disableflags&DISABLEALLFOLLOWINGSCRIPTS)
