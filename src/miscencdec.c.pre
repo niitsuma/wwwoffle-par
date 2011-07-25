@@ -1232,9 +1232,11 @@ char *strunescapecpy2(char *dst, const char *src, const char *end)
   return p;
 }
 
+#if 0
 char *strunescapedup2(const char *str, const char *end)
 {
   char *copy = malloc(strunescapelen2(str,end)+1);
   strunescapecpy2(copy,str,end);
   return copy;
 }
+#endif

@@ -306,7 +306,7 @@ static const char* const tagprefix[]=
   "!-- WWWOFFLE (disable-matching-tag) - "
 };
 
-typedef enum {htokenTag, htokenText, htokenSText, htokenComment, htokenDoctype, htokenMisc }
+typedef enum {htokenTag, htokenText, htokenScriptText, htokenStyleText, htokenComment, htokenDoctype, htokenMisc }
  HTokenType;
 
 /*+ A structure to hold a tag and its attributes. +*/
@@ -326,31 +326,30 @@ Tag;
 
 typedef struct _AttrNode {
   struct _AttrNode *next;
-  char *key;                  /*+ attribute key name. +*/
   char *val;                  /*+ attribute value (may be null). +*/
-  short type;                 /*+ attribute key type. +*/
-  unsigned short disable;     /*+ attribute disable flag +*/
+  short type;                 /*+ attribute key type (enum HTMLAttributes, may be -1). +*/
+  unsigned char disable;      /*+ attribute disable flag +*/
   char quote;                 /*+ attribute quote (may be null char). +*/
+  char key[0];                /*+ attribute key name. +*/
 }
 AttrNode;
 
 typedef struct _TextStr {
-  char *str;    /* String is not necessarily terminated by a null byte! */
-  unsigned len;
+  unsigned len;   /* Length of string data (character array). */
+  char str[0];    /* String data follows here. It is not necessarily terminated by a null byte! */
 }
 TextStr;
 
-#define STEXTISSCRIPT    8
 #define STEXTCOMMOPEN    4
 #define STEXTCOMMCLOSE   2
 #define STEXTISEMPTY     1
 
 typedef struct _STextStr {
-  char *str;    /* String is not necessarily terminated by a null byte! */
-  unsigned len;
+  unsigned len;   /* Length of string data (character array). */
   unsigned short beginlen;
   unsigned short closelen;
   unsigned short flags;
+  char str[0];    /* String data follows here. It is not necessarily terminated by a null byte! */
 }
 STextStr;
 
@@ -362,7 +361,7 @@ typedef struct _HToken {
   union {
     Tag        tag;    /* htokenTag */
     TextStr    text;   /* htokenText, htokenComment, htokenDoctype, htokenMisc */
-    STextStr   stext;  /* htokenSText */
+    STextStr   stext;  /* htokenScriptText, htokenStyleText */
   };
 }
 HToken;
@@ -403,21 +402,21 @@ PattNode;
 
 typedef struct _AttrPattNode {
   struct _AttrPattNode* next;
-  char* attrname;
   PattNode* valpatt;
   unsigned short disableattr;
+  char attrname[0];
 }
 AttrPattNode;
 
 typedef struct _TagAttrPattNode {
-  char *tagname;
   struct _AttrPattNode *attrpatts;
   int idx;
+  char tagname[0];
 }
 TagAttrPattNode;
 
 typedef struct _HTokenPattNode {
-  HTokenType tokentype;                /* Either htokenTag, htokenText, htokenSText or htokenComment */
+  HTokenType tokentype;                /* Either htokenTag, htokenText, htokenScriptText, htokenStyleText or htokenComment */
   unsigned short active;
   unsigned short last;
   union {
@@ -444,7 +443,8 @@ PattOptions;
 typedef struct _PattInfo {
   HTokenPattNode **taparr;   /* Points to array of length ntag containing pointers to lists of tag-attribute patterns. */
   HTokenPattNode *txtpl;     /* Points to list of text patterns. */
-  HTokenPattNode *stxtpl;    /* Points to list of script-text patterns. */
+  HTokenPattNode *scrtxtpl;  /* Points to list of script-text patterns. */
+  HTokenPattNode *styltxtpl; /* Points to list of style-text patterns. */
   HTokenPattNode *compl;     /* Points to list of comment patterns. */
   unsigned char *stacktag;   /* Points to array of length ntag specifying which tags need to be stacked. */
   int ntag;
@@ -659,7 +659,7 @@ inline static void free_tagdata(Tag *tagdata)
   p= tagdata->attrl;
   while(p) {
     AttrNode *next= p->next;
-    free(p->key);
+    /* free(p->key); */
     if(p->val) free(p->val);
     free(p);
     p= next;
@@ -694,14 +694,15 @@ static void reset_tagtoken(HToken **tokp, const char *tagname, HTMLTags type, in
 
 static void add_attribute(Tag *tag, HTMLAttributes type, const char *key, const char *val, char quote, unsigned short disable)
 {
-  AttrNode *new= malloc(sizeof(AttrNode));
+  size_t keysz= strlen(key)+1;
+  AttrNode *new= malloc(sizeof(AttrNode)+keysz);
 
   new->next=NULL;
-  new->key= strdup(key);
   new->val= (val?strdup(val):NULL);
   new->type=type;
   new->disable=disable;
   new->quote=quote;
+  memcpy(new->key,key,keysz);
 
   *(tag->last) = new;
   tag->last = &new->next;
@@ -710,20 +711,8 @@ static void add_attribute(Tag *tag, HTMLAttributes type, const char *key, const 
 static void free_htoken(HToken *htokp)
 {
   /* Ignore p->next and p->matchingpatt, these should be freed elsewhere. */
-  switch(htokp->tokentype) {
-  case htokenTag:
+  if(htokp->tokentype==htokenTag)
     free_tagdata(&htokp->tag);
-    break;
-  case htokenText:
-  case htokenComment:
-  case htokenDoctype:
-  case htokenMisc:
-    free(htokp->text.str);
-    break;
-  case htokenSText:
-    free(htokp->stext.str);
-    break;
-  }
 
   free(htokp);
 }
@@ -770,29 +759,29 @@ inline static void htokenqueue_serialincr(HTokenQueue *q)
 static void htokenqueue_push_texttoken(HTokenQueue *q, HTokenType tp, const char *str, unsigned len,
 				       HTokenPattNode *matchingpatt)
 {
-  HToken *tok= malloc(offsetof(HToken,text)+sizeof(TextStr));
+  HToken *tok= malloc(offsetof(HToken,text)+sizeof(TextStr)+len);
   tok->tokentype= tp;
   tok->next= NULL;
   tok->matchingpatt= matchingpatt;
-  tok->text.str= (char *)memcpy(malloc(len),str,len);
   tok->text.len= len;
+  memcpy(tok->text.str,str,len);
   htokenqueue_push(q,tok);
 }
 
-/* tp should be htokenSText */
+/* tp should be htokenScriptText or htokenStyleText */
 static void htokenqueue_push_stexttoken(HTokenQueue *q, HTokenType tp, const char *str, unsigned len,
 					unsigned short beginlen, unsigned short closelen, unsigned short flags,
 					HTokenPattNode *matchingpatt)
 {
-  HToken *tok= malloc(offsetof(HToken,stext)+sizeof(STextStr));
+  HToken *tok= malloc(offsetof(HToken,stext)+sizeof(STextStr)+len);
   tok->tokentype= tp;
   tok->next= NULL;
   tok->matchingpatt= matchingpatt;
-  tok->stext.str= (char *)memcpy(malloc(len),str,len);
   tok->stext.len= len;
   tok->stext.beginlen= beginlen;
   tok->stext.closelen= closelen;
   tok->stext.flags= flags;
+  memcpy(tok->stext.str,str,len);
   htokenqueue_push(q,tok);
 }
 
@@ -964,24 +953,30 @@ static HTokenPattNode *parse_htoken_pattern(const char **str, unsigned short *se
     size_t len=p-s;
     unsigned short tokentype = keywordmatch(s,len,"text")?
                                  (*seenstag==0?               htokenText:
-				                              htokenSText):
+				  *seenstag==1?               htokenScriptText:
+				                              htokenStyleText):
                                keywordmatch(s,len,"comment")? htokenComment:
                                                               htokenTag;
 
     if(tokentype==htokenTag) {
       /* Try to parse patterns for ordinary HTML element. */
       AttrPattNode **last;
-      if(keywordmatch(s,len,"script") || keywordmatch(s,len,"style")) *seenstag=1;
-      res =  (HTokenPattNode*)malloc(offsetof(HTokenPattNode,tagpattn)+sizeof(TagAttrPattNode));
+      size_t tagnamesz;
+      if(keywordmatch(s,len,"script"))
+	*seenstag=1;
+      else if(keywordmatch(s,len,"style")) 
+	*seenstag=2;
+      tagnamesz=strunescapelen2(s,p)+1;
+      res =  (HTokenPattNode*)malloc(offsetof(HTokenPattNode,tagpattn)+sizeof(TagAttrPattNode)+tagnamesz);
       res->tokentype=tokentype;
       res->active=0;
       res->last=0;
       res->desc=NULL;
       res->pattopts=NULL;
       res->next = NULL;
-      res->tagpattn.tagname = strunescapedup2(s,p);
       res->tagpattn.attrpatts = NULL;
       res->tagpattn.idx = 0;
+      strunescapecpy2(res->tagpattn.tagname,s,p);
       last = &res->tagpattn.attrpatts;
       if(*p=='[') {
 	++p; /* Skip '[' */
@@ -996,11 +991,12 @@ static HTokenPattNode *parse_htoken_pattern(const char **str, unsigned short *se
 	  cm=strunescapechr2(p,cbr,',');
 	  eq=strunescapechr2(p,cm,'=');
 	  if(eq>p) {
-	    AttrPattNode *new = (AttrPattNode*)malloc(sizeof(AttrPattNode));
+	    size_t attrnamesz=strunescapelen2(p,eq)+1;
+	    AttrPattNode *new = (AttrPattNode*)malloc(sizeof(AttrPattNode)+attrnamesz);
 	    new->next=NULL;
-	    new->attrname=strunescapedup2(p,eq);
 	    new->valpatt= parse_wildcardpatt_list(eq+1,cm);
 	    new->disableattr= disableattr;
+	    strunescapecpy2(new->attrname,p,eq);
 	    *last = new;
 	    last = &new->next;
 	  }
@@ -1169,10 +1165,11 @@ static PattOptions *make_pattoptions(struct modifyoptions *opts, unsigned short 
 
 static PattInfo make_tag_pattern_info(ConfigItem confitem,const URL *Url)
 {
-  PattInfo res= {NULL,NULL,NULL,NULL,NULL,0};
+  PattInfo res= {NULL,NULL,NULL,NULL,NULL,NULL,0};
   HTokenPattNode *tapl= NULL;
   HTokenPattNode **lasttap = &tapl;
-  HTokenPattNode **lasttxtp= &res.txtpl, **laststxtp= &res.stxtpl, **lastcomp= &res.compl;
+  HTokenPattNode **lasttxtp= &res.txtpl, **lastscrtxtp= &res.scrtxtpl, **laststyltxtp= &res.styltxtpl,
+		 **lastcomp= &res.compl;
 
   if(confitem) {
     int i;
@@ -1209,9 +1206,13 @@ static PattInfo make_tag_pattern_info(ConfigItem confitem,const URL *Url)
 	    *lasttxtp= pattval;
 	    lasttxtp= &pattval->next;
 	    break;
-	  case htokenSText:
-	    *laststxtp= pattval;
-	    laststxtp= &pattval->next;
+	  case htokenScriptText:
+	    *lastscrtxtp= pattval;
+	    lastscrtxtp= &pattval->next;
+	    break;
+	  case htokenStyleText:
+	    *laststyltxtp= pattval;
+	    laststyltxtp= &pattval->next;
 	    break;
 	  case htokenComment:
 	    *lastcomp= pattval;
@@ -1241,7 +1242,7 @@ static PattInfo make_tag_pattern_info(ConfigItem confitem,const URL *Url)
 	    }
 	    prevpatt=NULL;
 	    target=NULL;
-	    seenstag=0;
+	    seenstag=0; disablematchingattrs=0;
 	    ++s;  /* Skip ',' */
 	  }
 	}
@@ -1360,11 +1361,11 @@ static void free_htokenpatt_list(HTokenPattNode *p)
     if(p->tokentype==htokenTag) {
       /* Tag-attribute pattern */
       AttrPattNode* a;
-      free(p->tagpattn.tagname);
+      /* free(p->tagpattn.tagname); */
       a= p->tagpattn.attrpatts;
       while(a) {
 	AttrPattNode* nxt= a->next;
-	free(a->attrname);
+	/* free(a->attrname); */
 	free_pattlist(a->valpatt);
 	free(a);
 	a=nxt;
@@ -1392,7 +1393,8 @@ static void free_pattern_info(PattInfo *l)
   }
 
   free_htokenpatt_list(l->txtpl);
-  free_htokenpatt_list(l->stxtpl);
+  free_htokenpatt_list(l->scrtxtpl);
+  free_htokenpatt_list(l->styltxtpl);
   free_htokenpatt_list(l->compl);
 
   if(l->stacktag) free(l->stacktag);
@@ -2592,14 +2594,15 @@ static HTokenPattNode *match_text_pattern_info(HTokenType type, const char *txts
   HTokenPattNode *res=NULL, *p, *target;
 
   switch(type) {
-  case htokenText:    p= pattinf->txtpl;  break;
-  case htokenSText:   p= pattinf->stxtpl; break;
-  case htokenComment: p= pattinf->compl;  break;
-  default:            p= NULL;
+  case htokenText:         p= pattinf->txtpl;     break;
+  case htokenScriptText:   p= pattinf->scrtxtpl;  break;
+  case htokenStyleText:    p= pattinf->styltxtpl; break;
+  case htokenComment:      p= pattinf->compl;     break;
+  default:                 p= NULL;
   }
 
   for(; p; p=p->next) {
-    /* p->tokentype should equal htokenText, htokenSText or htokenComment. */
+    /* p->tokentype should equal htokenText, htokenScriptText, htokenStyleText or htokenComment. */
     if(p->active && p->last && !(res && p->target==p)) {
       PattNode *q;
       for(q=p->txtpatt; q; q=q->next) {
@@ -2720,7 +2723,7 @@ static void modify_html(URL *Url)
  char *anchor_modify_begin[3];
  char *anchor_modify_end[3];
  unsigned short anchor_modify=0;
- unsigned short disable_script=ConfigBooleanURL(DisableHTMLScript,Url),disable_script_=disable_script;
+ unsigned short disable_all_scripts=ConfigBooleanURL(DisableHTMLScript,Url),disable_script=disable_all_scripts;
  unsigned short disable_script_after_body=ConfigBooleanURL(DisableHTMLScriptAfterBody,Url);
  unsigned short disable_dontget_script=ConfigBooleanURL(DisableHTMLDontGetScript,Url),is_disabled_script=0;
  unsigned short disable_applet=ConfigBooleanURL(DisableHTMLApplet,Url);
@@ -2818,35 +2821,27 @@ static void modify_html(URL *Url)
        goto queue_push_text_token;
 
       case LEX_SCRIPTTEXT:
-      case LEX_STYLETEXT:
-       htoktype=htokenSText;
+       htoktype=htokenScriptText;
        if(disable_output) {
-	 if(tagpatterninfo.stxtpl) {
-	   txtstr=htmlmodify_yylval; if(stextstart>0) txtstr+=stextstart;
-	   endptr=htmlmodify_yylval + (stextend>=0? stextend: htmlmodify_yylval_len);
-	   goto match_text;
-	 }
-         queue_push_stext_token:
-	 {
-	   unsigned beginlen=0, closelen=0, flags=0;
-	   if(stextstart>0) beginlen=stextstart;
-	   if(stextend>=0 && htmlmodify_yylval_len>stextend) closelen=htmlmodify_yylval_len-stextend;
-	   if(stextstart<0)           flags|= STEXTISEMPTY;
-	   if(stextcommopen)          flags|= STEXTCOMMOPEN;
-	   if(stextcommclose)         flags|= STEXTCOMMCLOSE;
-	   if(yychar==LEX_SCRIPTTEXT) flags|= STEXTISSCRIPT;
-	   htokenqueue_push_stexttoken(&tokenqueue,htoktype,htmlmodify_yylval,htmlmodify_yylval_len,beginlen,closelen,flags,matchingpatt);
-	 }
+	 if(tagpatterninfo.scrtxtpl)
+	   goto match_stext;
+         goto queue_push_stext_token;
+       }
+       break;
+
+      case LEX_STYLETEXT:
+       htoktype=htokenStyleText;
+       if(disable_output) {
+	 if(tagpatterninfo.styltxtpl)
+	   goto match_stext;
+         goto queue_push_stext_token;
        }
        break;
 
       case LEX_COMMENT:
        htoktype=htokenComment;
-       if(tagpatterninfo.compl) {
-	 txtstr=htmlmodify_yylval; if(stextstart>0) txtstr+=stextstart;
-	 endptr=htmlmodify_yylval + (stextend>=0? stextend: htmlmodify_yylval_len);
-	 goto match_text;
-       }
+       if(tagpatterninfo.compl)
+	 goto match_stext;
        goto queue_push_text_token;
 
       case LEX_DOCTYPE:
@@ -2855,11 +2850,26 @@ static void modify_html(URL *Url)
 
       case LEX_MISC:
        htoktype=htokenMisc;
-     queue_push_text_token:
+      queue_push_text_token:
        if(disable_output)
 	 htokenqueue_push_texttoken(&tokenqueue,htoktype,htmlmodify_yylval,htmlmodify_yylval_len,NULL);
        break;
 
+      queue_push_stext_token:
+       {
+	 unsigned beginlen=0, closelen=0, flags=0;
+	 if(stextstart>0) beginlen=stextstart;
+	 if(stextend>=0 && htmlmodify_yylval_len>stextend) closelen=htmlmodify_yylval_len-stextend;
+	 if(stextstart<0)           flags|= STEXTISEMPTY;
+	 if(stextcommopen)          flags|= STEXTCOMMOPEN;
+	 if(stextcommclose)         flags|= STEXTCOMMCLOSE;
+	 htokenqueue_push_stexttoken(&tokenqueue,htoktype,htmlmodify_yylval,htmlmodify_yylval_len,beginlen,closelen,flags,matchingpatt);
+       }
+       break;
+
+      match_stext:
+       txtstr=htmlmodify_yylval; if(stextstart>0) txtstr+=stextstart;
+       endptr=htmlmodify_yylval + (stextend>=0? stextend: htmlmodify_yylval_len);
       match_text:
        while(txtstr<endptr && isspace(*txtstr)) ++txtstr;  /* Strip initial blanks. */
        while(--endptr>=txtstr && isspace(*endptr));  /* Strip trailing blanks. */
@@ -2899,9 +2909,9 @@ static void modify_html(URL *Url)
        }
 
        if(htokenqueue_isempty(&tokenqueue)) {
-	 disable_script_ = (disable_script || (after_body && disable_script_after_body) ||
+	 disable_script = (disable_all_scripts || (after_body && disable_script_after_body) ||
 			    (!tag_maybe_matchpatt && (scriptdisablelevel>0 || disable_all_following_scripts)));
-	 maybe_disable_script = (disable_script || (after_body && disable_script_after_body) ||
+	 maybe_disable_script = (disable_all_scripts || (after_body && disable_script_after_body) ||
 				 tag_maybe_matchpatt || scriptdisablelevel>0 || disable_all_following_scripts);
 	 switch (tagtype) {
 	 case tag__a:
@@ -2947,7 +2957,7 @@ static void modify_html(URL *Url)
 	 case tag_script:
 	   if(!tag_maybe_matchpatt) {
 	     /* This tag cannot match a pattern */
-	     if(disable_script)
+	     if(disable_all_scripts)
 	       is_disabled_script= disabled_script;
 	     else if(after_body && disable_script_after_body)
 	       is_disabled_script= disabled_script_after_body;
@@ -2988,8 +2998,8 @@ static void modify_html(URL *Url)
 	 }
        }
        else {
-	 disable_script_ = disable_script;
-	 maybe_disable_script = disable_script;  /* This value is actually irrelevant. */
+	 disable_script = disable_all_scripts;
+	 maybe_disable_script = (disable_all_scripts || tag_maybe_matchpatt);
 	 switch(tagtype) {
 	 case tag_param:
 	   disable_output|=DISABLE_PARAM;
@@ -3049,7 +3059,7 @@ static void modify_html(URL *Url)
 	   disable_output|=DISABLE_META;
 	 break;
        case tag_noscript: case tag__noscript:
-	 if(disable_script)
+	 if(disable_all_scripts)
 	   tagdata->disable= disabled_script;
 	 break;
        default:;
@@ -3109,11 +3119,11 @@ static void modify_html(URL *Url)
 	       pushtagstack(&tagdstack, tagidx, disableflags);
 	     }
 	   }
-	   disable_script_= (disable_script || (after_body && disable_script_after_body) ||
+	   disable_script= (disable_all_scripts || (after_body && disable_script_after_body) ||
 			     scriptdisablelevel>0 || (disableflags&DISABLEINNERSCRIPT) ||
 			     disable_all_following_scripts);
-	   if(matchingpatt || disable_script_)
-	     process_tag_style_replacement(tagdata,matchingpatt,disable_script_);
+	   if(matchingpatt || disable_script)
+	     process_tag_style_replacement(tagdata,matchingpatt,disable_script);
 	 }
        }
        else
@@ -3144,7 +3154,7 @@ static void modify_html(URL *Url)
 	   disabled_t disabled=0;
 	   if(disable_output&DISABLE_A) {
 	     disable_output&=~DISABLE_A;
-	     disabled=handle_a_tag(tagdata,disable_dontget_anchors,disable_script_);
+	     disabled=handle_a_tag(tagdata,disable_dontget_anchors,disable_script);
 	   }
 
 	   if(!tagdata->xhtml) {
@@ -3177,7 +3187,7 @@ static void modify_html(URL *Url)
 					   disable_applet,
 					   disable_flash,
 					   disable_dontget_iframes,
-					   disable_script_);
+					   disable_script);
 	     }
 
 	   if(!tagdata->xhtml)
@@ -3192,7 +3202,7 @@ static void modify_html(URL *Url)
 	   else if(disable_output&DISABLE_IFRAME)
 	     {
 	       disable_output&=~DISABLE_IFRAME;
-	       disabled=handle_iframe_tag(tagdata,disable_dontget_iframes,disable_script_);
+	       disabled=handle_iframe_tag(tagdata,disable_dontget_iframes,disable_script);
 	     }
 
 	   if(!tagdata->xhtml)
@@ -3204,13 +3214,13 @@ static void modify_html(URL *Url)
 	   disable_output&=~DISABLE_IMG;
 	   handle_img_tag(tagdata,replace_html_dontget_images,replacement_html_dontget_image,
 			  replace_html_webbug_images,replacement_html_webbug_image,
-			  disable_script_);
+			  disable_script);
 	 }
 	 break;
        case tag_link:
 	 if(disable_output&DISABLE_LINK) {
 	   disable_output&=~DISABLE_LINK;
-	   handle_link_tag(tagdata,disable_style,disable_script_);
+	   handle_link_tag(tagdata,disable_style,disable_script);
 	 }
 	 break;
        case tag_meta:
@@ -3234,7 +3244,7 @@ static void modify_html(URL *Url)
 	 if(disable_output&DISABLE_SCRIPT) {
 	   disable_output&=~DISABLE_SCRIPT;
 
-	   if(disable_script)
+	   if(disable_all_scripts)
 	     is_disabled_script= disabled_script;
 	   else if(after_body && disable_script_after_body)
 	     is_disabled_script= disabled_script_after_body;
@@ -3267,7 +3277,7 @@ static void modify_html(URL *Url)
 	     tagdata->disable= is_disabled_style= disabled_style;
 	     output_tag(tagdata,NULL);
 	   }
-	   else if(disable_script_) {
+	   else if(disable_script) {
 	     /* could be script pretending to be style */
 	     is_disabled_style=handle_style_script_tag(tagdata);
 	   }
@@ -3339,7 +3349,7 @@ static void modify_html(URL *Url)
 	 case att_onerror: case att_onkeydown: case att_onkeypress: case att_onload: case att_onmousedown:
 	 case att_onmousemove: case att_onmouseout: case att_onmouseover: case att_onmouseup:
 	 case att_onreset: case att_onselect: case att_onsubmit: case att_onunload:
-	   if(disable_script_)       /* Script events */
+	   if(disable_script)       /* Script events */
 	     disable_key=1;
 	   break;
 
@@ -3371,7 +3381,7 @@ static void modify_html(URL *Url)
 	   Tag *tag= &htok->tag;
 	   HTokenPattNode *matchingpatt=NULL;
 	   int disableflags=0;
-	   unsigned short disable_script_;
+	   unsigned short disable_script;
 
 	   if(tag->idx>=0) {
 	     if(!tag_is_endtag(tag)) {
@@ -3399,19 +3409,19 @@ static void modify_html(URL *Url)
 	   if(tag->type!=tag_script && tag->type!=tag__script)
 	     disable_following_script=0;
 
-	   disable_script_ =  (disable_script || (after_body && disable_script_after_body) ||
+	   disable_script =  (disable_all_scripts || (after_body && disable_script_after_body) ||
 			       scriptdisablelevel>0 || (!tag_is_endtag(tag) && (disableflags&DISABLEINNERSCRIPT)) ||
 			       disable_all_following_scripts);
 
-	   if(matchingpatt || disable_script_)
-	     process_tag_style_replacement(tag, matchingpatt, disable_script_);
+	   if(matchingpatt || disable_script)
+	     process_tag_style_replacement(tag, matchingpatt, disable_script);
 
 	   switch (tag->type) {
 	   case tag_a:
 	     if(anchor_modify)
 	       url_cached= tag_get_url_cached_type(tag);
 	     {
-	       disabled_t disabled= handle_a_tag(tag,disable_dontget_anchors,disable_script_);
+	       disabled_t disabled= handle_a_tag(tag,disable_dontget_anchors,disable_script);
 
 	       if(!tag->xhtml) {
 		 pushtagstack(&tagstack,tag->type,disabled);
@@ -3475,7 +3485,7 @@ static void modify_html(URL *Url)
 						      disable_applet,
 						      disable_flash,
 						      disable_dontget_iframes,
-						      disable_script_);
+						      disable_script);
 	       if(!tag->xhtml)
 		 pushtagstack(&tagstack,tag->type,disabled);
 	     }
@@ -3495,7 +3505,7 @@ static void modify_html(URL *Url)
 	       if(disable_iframes)
 		 tag->disable= disabled=disabled_iframe;
 	       else
-		 disabled=handle_iframe_tag(tag,disable_dontget_iframes,disable_script_);
+		 disabled=handle_iframe_tag(tag,disable_dontget_iframes,disable_script);
 
 	       if(!tag->xhtml)
 		 pushtagstack(&tagstack,tag->type,disabled);
@@ -3506,10 +3516,10 @@ static void modify_html(URL *Url)
 	   case tag_img:
 	     handle_img_tag(tag,replace_html_dontget_images,replacement_html_dontget_image,
 			    replace_html_webbug_images,replacement_html_webbug_image,
-			    disable_script_);
+			    disable_script);
 	     break;
 	   case tag_link:
-	     handle_link_tag(tag,disable_style,disable_script_);
+	     handle_link_tag(tag,disable_style,disable_script);
 	     break;
 #if 0
 	   case tag_marquee: case tag__marquee:
@@ -3522,7 +3532,7 @@ static void modify_html(URL *Url)
 	     break;
 #if 0
 	   case tag_noscript: case tag__noscript:
-	     if(disable_script)
+	     if(disable_all_scripts)
 	       tag->disable= disabled_script;
 	     goto call_output_tag;
 #endif
@@ -3531,7 +3541,7 @@ static void modify_html(URL *Url)
 	       tag->disable= tagstack->val;
 	     goto call_output_tag;
 	   case tag_script:
-	     if(disable_script)
+	     if(disable_all_scripts)
 	       is_disabled_script= disabled_script;
 	     else if(after_body && disable_script_after_body)
 	       is_disabled_script= disabled_script_after_body;
@@ -3562,7 +3572,7 @@ static void modify_html(URL *Url)
 	       tag->disable= is_disabled_style= disabled_style;
 	       goto call_output_tag;
 	     }
-	     else if(disable_script_) {
+	     else if(disable_script) {
 	       /* could be script pretending to be style */
 	       is_disabled_style=handle_style_script_tag(tag);
 	     }
@@ -3607,7 +3617,8 @@ static void modify_html(URL *Url)
 	   handle_text(htok->text.str,htok->text.len);
 	   goto handle_disableflags;
 
-	 case htokenSText: {
+	 case htokenScriptText:
+	 case htokenStyleText: {
 	   const char *str= htok->stext.str;
 	   unsigned len= htok->stext.len;
 	   unsigned flags= htok->stext.flags;
@@ -3619,7 +3630,7 @@ static void modify_html(URL *Url)
 	     if(end>begin)
 	       yy_comwrite(str+begin,end-begin,1);
 	     if(!(flags&STEXTCOMMCLOSE)) {
-	       if(flags&STEXTISSCRIPT) yy_rawout("//-->\n");
+	       if(htok->tokentype==htokenScriptText) yy_rawout("//-->\n");
 	       else yy_rawout("\n-->\n");
 	     }
 	     if(closelen>0) yy_write(str+end,closelen);

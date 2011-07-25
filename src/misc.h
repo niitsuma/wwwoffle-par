@@ -250,8 +250,9 @@ char *strunescapedup(const char *str);
 char *strunescapechr2(const char *str, const char *end, char c);
 size_t strunescapelen2(const char *str, const char *end);
 char *strunescapecpy2(char *dst, const char *src, const char *end);
+#if 0
 char *strunescapedup2(const char *str, const char *end);
-
+#endif
 
 
 /* following inline functions and macros were added by Paul Rombouts */
