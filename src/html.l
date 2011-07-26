@@ -18,8 +18,7 @@ url             ({alphanum}|{nonascii}|{safepunct})+
 %x COMMENT COMMENT_BAD
 %x TAG_START TAG TAG_ATTR_KEY TAG_ATTR_VAL
 %x DQUOTED SQUOTED
-%x SCRIPT_START SCRIPT
-%x STYLE_START
+%x SCRIPT
 %x CSS
 %x CSS_COMMENT
 %x CSS_IMPORT CSS_IMPORT_URL
@@ -955,8 +954,8 @@ cleanup_return:
 
  /* Tags */
 
-<TAG_START>"script"/{tagdel}  { BEGIN(TAG); after_tag=SCRIPT_START; html_yylval=yytext; return(LEX_TAG_BEGIN); }
-<TAG_START>"style"/{tagdel}   { BEGIN(TAG); after_tag=STYLE_START;  html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"script"/{tagdel}  { BEGIN(TAG); after_tag=SCRIPT; html_yylval=yytext; return(LEX_TAG_BEGIN); }
+<TAG_START>"style"/{tagdel}   { BEGIN(TAG); after_tag=CSS;    html_yylval=yytext; return(LEX_TAG_BEGIN); }
 <TAG_START>"title"/{tagdel}   { BEGIN(TAG); after_tag=TITLE_START;  html_yylval=yytext; return(LEX_TAG_BEGIN); }
 <TAG_START>"/"?{tag}/{tagdel} { BEGIN(TAG); after_tag=INITIAL;      html_yylval=yytext; return(LEX_TAG_BEGIN); }
 <TAG_START>(.|\n)             { BEGIN(INITIAL); }
@@ -989,17 +988,13 @@ cleanup_return:
 
  /* Scripts */
 
-<SCRIPT_START>(.|\n)        { unput(yytext[0]); BEGIN(SCRIPT); }
-
-<SCRIPT>"<"/"/script"       { BEGIN(TAG_START); }
-<SCRIPT>"<"                 { }
-<SCRIPT>[^<]+               { }
+<SCRIPT>"<"/"/script"{tagdel} { BEGIN(TAG_START); }
+<SCRIPT>"<"                   |
+<SCRIPT>[^<]+                 { }
 
  /* Styles */
 
-<STYLE_START>(.|\n)         { unput(yytext[0]); BEGIN(CSS); }
-
-<CSS>"<"/"/style"           { BEGIN(TAG_START); }
+<CSS>"<"/"/style"{tagdel}       { BEGIN(TAG_START); }
 
  /* CSS (Cascading Style Sheets */
 

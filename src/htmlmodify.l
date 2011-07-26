@@ -11,7 +11,6 @@ tagdel          [ \t\r\n\f/>]
 key             ({alphanum}|[-_:])+
 val             ({alphanum}|{nonascii}|{safepunct})+
 
-%x LESSEXCL
 %x DOCTYPE
 %x COMMENT COMMENT_BAD
 %x MISC
@@ -1593,7 +1592,7 @@ static void add_insertfile(char *pathname)
     char buffer[IO_BUFFER_SIZE];
 
     while((n=read(fd,buffer,IO_BUFFER_SIZE))>0)
-      wwwoffles_write_data(buffer,n);
+      yy_write(buffer,n);
 
     if(n<0)
       PrintMessage(Warning,"Could not read from insert-file '%s' [%!s].",pathname);
@@ -3918,7 +3917,7 @@ static void handle_text(const char *str, size_t len)
 #define APPEND_STRING(xx,len) \
 {size_t _new_len=stringlen+(len); \
  if(_new_len>=stringallocsize) string=(char*)realloc((void*)string,stringallocsize=_new_len+1); \
- memcpy(string+stringlen,xx,(len)+1);					\
+ *((char *)mempcpy(string+stringlen,xx,(len)))=0; \
  stringlen=_new_len;}
 
 #define APPEND_STRING_YYTEXT APPEND_STRING(htmlmodify_yytext,htmlmodify_yyleng)
@@ -3948,16 +3947,13 @@ static void handle_text(const char *str, size_t len)
 [^<]+                       { if(!disable_output) handle_text(htmlmodify_yytext,htmlmodify_yyleng);
                               YY_RETURN(LEX_PLAINTEXT,htmlmodify_yytext,htmlmodify_yyleng); }
 
-"<!"                        { RESET_STRING; if(disable_output) {APPEND_STRING_YYTEXT;} else {WRITE_YYTEXT;}
-                              BEGIN(LESSEXCL); }
-"<"{W}*                     { RESET_STRING; APPEND_STRING_YYTEXT; BEGIN(TAG_START); }
-
-<LESSEXCL>"DOCTYPE"         { if(disable_output) {APPEND_STRING_YYTEXT;} else {WRITE_YYTEXT;} BEGIN(DOCTYPE); }
-<LESSEXCL>"--"              { if(disable_output) {APPEND_STRING_YYTEXT;} else {WRITE_YYTEXT;}
+"<!DOCTYPE"                 { RESET_STRING; if(disable_output) {APPEND_STRING_YYTEXT;} else {WRITE_YYTEXT;}
+                              BEGIN(DOCTYPE); }
+"<!--"                      { RESET_STRING; if(disable_output) {APPEND_STRING_YYTEXT;} else {WRITE_YYTEXT;}
                               stextstart=stringlen; BEGIN(COMMENT); }
-<LESSEXCL>{W}*"-"*          { if(disable_output) {APPEND_STRING_YYTEXT;} else {WRITE_YYTEXT;}
+"<!"{W}*"-"*                { RESET_STRING; if(disable_output) {APPEND_STRING_YYTEXT;} else {WRITE_YYTEXT;}
 	                      stextstart=stringlen; BEGIN(COMMENT_BAD); }
-<LESSEXCL>(.|\n)            { unput(htmlmodify_yytext[0]); stextstart=stringlen; BEGIN(COMMENT_BAD); }
+"<"{W}*                     { RESET_STRING; APPEND_STRING_YYTEXT; BEGIN(TAG_START); }
 
  /* Doctype (DTD) */
 
@@ -3968,13 +3964,11 @@ static void handle_text(const char *str, size_t len)
  /* Comments - COMMENT_BAD is not a legal comment format (except <!>) but people use it as one.
                COMMENT is not strictly correct, but works better than the real thing. */
 
-<COMMENT>"--"{W}*">"        { stextend=stringlen; if(disable_output) {APPEND_STRING_YYTEXT;} else {WRITE_YYTEXT;}
-		              BEGIN(INITIAL); YY_RETURN(LEX_COMMENT,string,stringlen); }
-<COMMENT>"-"                |
-<COMMENT>[^-]+              { if(!disable_output) WRITE_YYTEXT; if(disable_output || parsecomment) APPEND_STRING_YYTEXT; }
-
+<COMMENT>"--"{W}*">"        |
 <COMMENT_BAD>">"            { stextend=stringlen; if(disable_output) {APPEND_STRING_YYTEXT;} else {WRITE_YYTEXT;}
                               BEGIN(INITIAL); YY_RETURN(LEX_COMMENT,string,stringlen); }
+<COMMENT>"-"                |
+<COMMENT>[^-]+              |
 <COMMENT_BAD>[^>]+          { if(!disable_output) WRITE_YYTEXT; if(disable_output || parsecomment) APPEND_STRING_YYTEXT; }
 
  /* Miscellaneous stuff delimited by < and > that doesn't fit elsewhere. */
@@ -4027,10 +4021,11 @@ static void handle_text(const char *str, size_t len)
                               stextcommopen=0; stextstart=stringlen; if(!disable_output && commentout) yy_rawout("<!--\n");
                               BEGIN(SCRIPT); }
 
-<SCRIPT>"-->"{W}*/"</script"{tagdel} {
+<SCRIPT>"-->"{W}*"<"/"/script"{tagdel} {
                               stextcommclose=1; stextend=stringlen;
-		              if(disable_output) {APPEND_STRING_YYTEXT;} else {WRITE_YYTEXT;}
-                              BEGIN(SCRIPT_START); }
+		              if(disable_output) {APPEND_STRING(htmlmodify_yytext,htmlmodify_yyleng-1);}
+			      else {yy_write(htmlmodify_yytext,htmlmodify_yyleng-1);}
+                              BEGIN(TAG_START); YY_RETURN(LEX_SCRIPTTEXT,string,stringlen); }
 <SCRIPT>"-"+                { if(disable_output) {APPEND_STRING_YYTEXT;} else {WRITE_COMMENT_YYTEXT;} }
 <SCRIPT>"<"/"/script"{tagdel} {
                               stextcommclose=0; stextend=stringlen;
@@ -4050,10 +4045,11 @@ static void handle_text(const char *str, size_t len)
                               stextcommopen=0; stextstart=stringlen; if(!disable_output && commentout) yy_rawout("<!--\n");
                               BEGIN(STYLE); }
 
-<STYLE>"-->"{W}*/"</style"{tagdel} {
+<STYLE>"-->"{W}*"<"/"/style"{tagdel} {
                               stextcommclose=1; stextend=stringlen;
-		              if(disable_output) {APPEND_STRING_YYTEXT;} else {WRITE_YYTEXT;}
-                              BEGIN(STYLE_START); }
+		              if(disable_output) {APPEND_STRING(htmlmodify_yytext,htmlmodify_yyleng-1);}
+			      else {yy_write(htmlmodify_yytext,htmlmodify_yyleng-1);}
+                              BEGIN(TAG_START); YY_RETURN(LEX_STYLETEXT,string,stringlen); }
 <STYLE>"-"+                 { if(disable_output) {APPEND_STRING_YYTEXT;} else {WRITE_COMMENT_YYTEXT;} }
 <STYLE>"<"/"/style"{tagdel} { stextcommclose=0; stextend=stringlen; if(!disable_output && commentout) yy_rawout("\n-->\n");
                               BEGIN(TAG_START); YY_RETURN(LEX_STYLETEXT,string,stringlen); }
