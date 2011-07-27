@@ -2,14 +2,15 @@ W               [ \t\r\n\f]
 
 nonascii        [\200-\377]
 ascii           [ -~]
-alphanum        [a-z0-9]
+alpha           [[:alpha:]]
+alphanum        [[:alnum:]]
 punct           [][!\"#$%&\'()*+,./:;<=>?@\\^_`{|}~-]
 safepunct       [][!#$%&()*+,./:;=?@\\^_`{|}~-]
 
-tag             {alphanum}({alphanum}|[_:])*
+tag             {alpha}({alphanum}|[-_:.])*
 tagdel          [ \t\r\n\f/>]
-key             ({alphanum}|[-_:])+
-val             ({alphanum}|{nonascii}|{safepunct})+
+key             ({alphanum}|[][!#$%&()*+,.:;?@\\^_`{|}~-])+
+val             ({alphanum}|{nonascii}|{safepunct}|<)+
 
 %x DOCTYPE
 %x COMMENT COMMENT_BAD
@@ -80,6 +81,7 @@ val             ({alphanum}|{nonascii}|{safepunct})+
 #define LEX_TAG_BEGIN     11
 #define LEX_TAG_END       12
 #define LEX_TAG_END_XHTML 13
+#define LEX_TAG_END_TRUNC 14
 
 #define LEX_ATTR_KEY      21
 #define LEX_ATTR_VAL      22
@@ -314,7 +316,7 @@ typedef struct _Tag {
   char *tagname;              /*+ The Tag name. +*/
   short type;                 /*+ The type of the tag (enum HTMLTags, may be -1). +*/
   unsigned short resolved;    /*+ Flag which is false if there are unmatched descendent patterns. +*/
-  unsigned short xhtml;       /*+ A flag that is set for an XHTML closing tag '< ... />' +*/
+  unsigned short ending;      /*+ Indicates whether tag ends with '>' (1), '/>' (2) or has no ending (0). +*/
   unsigned short disable;     /*+ tag disabled status (enum disabled_t). +*/
   int idx;                    /*+ Tag index (for tag-attribute patterns) +*/
 
@@ -684,7 +686,7 @@ static void reset_tagtoken(HToken **tokp, const char *tagname, HTMLTags type, in
   tok->tag.tagname= (tagname?strdup(tagname):NULL);
   tok->tag.type= type;
   tok->tag.resolved=0;
-  tok->tag.xhtml=0;
+  tok->tag.ending=0;
   tok->tag.disable=0;
   tok->tag.idx= idx;
   tok->tag.attrl=NULL;
@@ -2427,7 +2429,7 @@ static HTokenPattListNode *match_tag_pattern_info(HToken *htok, PattInfo *pattin
       /* The tag matched and all the patterns in attribute pattern list matched,
 	 process the tag. */
       if(!p->last) {
-	if(!tag->xhtml) {
+	if(tag->ending==1) {
 	  /* Make descendant pattern active. */
 	  HTokenPattNode *desc= p->desc;
 	  PattOptions *pattopts;
@@ -2691,10 +2693,10 @@ static void output_tag(const Tag *tag,const char *prefix)
  if(prefix)
    yy_rawout(" --");
 
- if(tag->xhtml && !prefix)
-   yy_rawout(" />");
- else
+ if(tag->ending==1 || prefix)
    yy_rawout(">");
+ else if(tag->ending==2)
+   yy_rawout(" />");
 }
 
 
@@ -3072,31 +3074,36 @@ static void modify_html(URL *Url)
        }
        break;
 
-      case LEX_TAG_END_XHTML:
-       tagdata->xhtml=1;
+      case LEX_TAG_END_TRUNC:
+       tagdata->ending=0;
+       goto case_tag_end;
 
-       /*@fallthrough@*/
+      case LEX_TAG_END_XHTML:
+       tagdata->ending=2;
+       goto case_tag_end;
 
       case LEX_TAG_END:
+       tagdata->ending=1;
+      case_tag_end:
        if(!disable_output) {
 	 if(tagdata->disable)
 	   yy_rawout(" --");
-	 if(yychar==LEX_TAG_END_XHTML && !tagdata->disable)
-	   yy_rawout("/>");
-	 else
+	 if(yychar==LEX_TAG_END || tagdata->disable)
 	   yy_rawout(">");
+	 else if(yychar==LEX_TAG_END_XHTML)
+	   yy_rawout("/>");
        }
 
        /* matchingpatt=NULL; */
 
-       if(tag_maybe_matchpatt) {
+       if(tag_maybe_matchpatt && tagdata->ending) {
 	 HTokenPattListNode *pattlist=match_tag_pattern_info(tagtoken,&tagpatterninfo,&tokenqueue);
 	 if(stackflags(&tagpatterninfo,tagidx)&TAGPSTACK) {
-	   if(!tagdata->xhtml)
+	   if(tagdata->ending==1)
 	     pushtagpstack(&tagpstack, tagidx, pattlist,
 			   tagdata->resolved?NULL:tagtoken, tokenqueue.nextserialnum);
 	/* else
-	     unwind_patternlist(pattlist); */ /* pattlist should be NULL if tagdata->xhtml is true. */
+	     unwind_patternlist(pattlist); */ /* pattlist should be NULL if tagdata->ending!=1. */
 	 }
 	 /* else; */ /* pattlist should be NULL if the TAGPSTACK flag is false. */
 
@@ -3114,7 +3121,7 @@ static void modify_html(URL *Url)
 	       disable_all_following_scripts=0;
 	   }
 	   if(stackflags(&tagpatterninfo,tagidx)&TAGDSTACK)  {
-	     if(!tagdata->xhtml) {
+	     if(tagdata->ending==1) {
 	       pushtagstack(&tagdstack, tagidx, disableflags);
 	     }
 	   }
@@ -3156,7 +3163,7 @@ static void modify_html(URL *Url)
 	     disabled=handle_a_tag(tagdata,disable_dontget_anchors,disable_script);
 	   }
 
-	   if(!tagdata->xhtml) {
+	   if(tagdata->ending==1) {
 	     pushtagstack(&tagstack,tagtype,disabled);
 
 	     if(!disabled && anchor_modify) {
@@ -3171,7 +3178,7 @@ static void modify_html(URL *Url)
 	 }
 	 break;
        case tag_applet:
-	 if(!tagdata->xhtml)
+	 if(tagdata->ending==1)
 	   pushtagstack(&tagstack,tagtype,disable_applet?disabled_applet:0);
 	 break;
        case tag_embed:
@@ -3189,7 +3196,7 @@ static void modify_html(URL *Url)
 					   disable_script);
 	     }
 
-	   if(!tagdata->xhtml)
+	   if(tagdata->ending==1)
 	     pushtagstack(&tagstack,tagtype,disabled);
 	 }
 	 break;
@@ -3204,7 +3211,7 @@ static void modify_html(URL *Url)
 	       disabled=handle_iframe_tag(tagdata,disable_dontget_iframes,disable_script);
 	     }
 
-	   if(!tagdata->xhtml)
+	   if(tagdata->ending==1)
 	     pushtagstack(&tagstack,tagtype,disabled);
 	 }
 	 break;
@@ -3265,7 +3272,7 @@ static void modify_html(URL *Url)
 	     output_tag(tagdata,NULL);
 	   }
 	 }
-	 if(is_disabled_script && !tagdata->xhtml)
+	 if(is_disabled_script && tagdata->ending==1)
 	   commentout=1;
 	 break;
        case tag_style:
@@ -3285,7 +3292,7 @@ static void modify_html(URL *Url)
 	     output_tag(tagdata,NULL);
 	   }
 	 }
-	 if(is_disabled_style && !tagdata->xhtml)
+	 if(is_disabled_style && tagdata->ending==1)
 	   commentout=1;
 	 break;
        default: ;
@@ -3300,11 +3307,11 @@ static void modify_html(URL *Url)
 	   if(disableflags&DISABLEALLFOLLOWINGSCRIPTS)
 	     disable_all_following_scripts=1;
 	 }
-	 else if(!tagdata->xhtml) {
+	 else if(tagdata->ending==1) {
 	   if(disableflags&DISABLEINNERSCRIPT)
 	     ++scriptdisablelevel;
 	 }
-	 else {
+	 else if(tagdata->ending==2) {
 	   if(disableflags&DISABLEFOLLOWINGSCRIPT)
 	     disable_following_script=1;
 	   if(disableflags&DISABLEALLFOLLOWINGSCRIPTS)
@@ -3393,7 +3400,7 @@ static void modify_html(URL *Url)
 		   disable_all_following_scripts=0;
 	       }
 	       if(stackflags(&tagpatterninfo,tag->idx)&TAGDSTACK) {
-		 if(!tag->xhtml) {
+		 if(tag->ending==1) {
 		   pushtagstack(&tagdstack, tag->idx, disableflags);
 		 }
 	       }
@@ -3422,7 +3429,7 @@ static void modify_html(URL *Url)
 	     {
 	       disabled_t disabled= handle_a_tag(tag,disable_dontget_anchors,disable_script);
 
-	       if(!tag->xhtml) {
+	       if(tag->ending==1) {
 		 pushtagstack(&tagstack,tag->type,disabled);
 
 		 if(!disabled && anchor_modify) {
@@ -3451,7 +3458,7 @@ static void modify_html(URL *Url)
 	     }
 	     goto call_output_tag;
 	   case tag_applet:
-	     if(!tag->xhtml)
+	     if(tag->ending==1)
 	       pushtagstack(&tagstack,tag->type,disable_applet?disabled_applet:0);
 	     goto call_output_tag;
 	   case tag__applet:
@@ -3485,7 +3492,7 @@ static void modify_html(URL *Url)
 						      disable_flash,
 						      disable_dontget_iframes,
 						      disable_script);
-	       if(!tag->xhtml)
+	       if(tag->ending==1)
 		 pushtagstack(&tagstack,tag->type,disabled);
 	     }
 	     break;
@@ -3506,7 +3513,7 @@ static void modify_html(URL *Url)
 	       else
 		 disabled=handle_iframe_tag(tag,disable_dontget_iframes,disable_script);
 
-	       if(!tag->xhtml)
+	       if(tag->ending==1)
 		 pushtagstack(&tagstack,tag->type,disabled);
 	       if(disable_iframes)
 		 goto call_output_tag;
@@ -3598,11 +3605,11 @@ static void modify_html(URL *Url)
 	       if(disableflags&DISABLEALLFOLLOWINGSCRIPTS)
 		 disable_all_following_scripts=1;
 	     }
-	     else if(!tag->xhtml) {
+	     else if(tag->ending==1) {
 	       if(disableflags&DISABLEINNERSCRIPT)
 		 ++scriptdisablelevel;
 	     }
-	     else {
+	     else if(tag->ending==2) {
 	       if(disableflags&DISABLEFOLLOWINGSCRIPT)
 		 disable_following_script=1;
 	       if(disableflags&DISABLEALLFOLLOWINGSCRIPTS)
@@ -3719,6 +3726,7 @@ static void modify_html(URL *Url)
 	   goto continue_end_tag;
 	 case LEX_TAG_END:
 	 case LEX_TAG_END_XHTML:
+	 case LEX_TAG_END_TRUNC:
 	   goto continue_start_tag;
 	 }
        }
@@ -3735,6 +3743,7 @@ static void modify_html(URL *Url)
 	   goto continue_end_tag;
 	 case LEX_TAG_END:
 	 case LEX_TAG_END_XHTML:
+	 case LEX_TAG_END_TRUNC:
 	   goto continue_start_tag;
 	 }
 
@@ -3989,7 +3998,7 @@ static void handle_text(const char *str, size_t len)
 <TAG>"/>"                   { BEGIN(INITIAL); YY_RETURN(LEX_TAG_END_XHTML,"",0); }
 <TAG>">"                    { BEGIN(after_tag); if(after_tag!=INITIAL) {RESET_STRING;} YY_RETURN(LEX_TAG_END,"",0); }
 <TAG>"<"                    { unput(htmlmodify_yytext[0]); BEGIN(after_tag); if(after_tag!=INITIAL) {RESET_STRING;}
-                              YY_RETURN(LEX_TAG_END,"",0); }
+                              YY_RETURN(LEX_TAG_END_TRUNC,"",0); }
 <TAG>{key}                  { BEGIN(TAG_ATTR_KEY); YY_RETURN(LEX_ATTR_KEY,htmlmodify_yytext,htmlmodify_yyleng); }
 <TAG>(.|\n)                 { if(!disable_output) WRITE_YYTEXT; }
 

@@ -2,13 +2,14 @@ W               [ \t\r\n\f]
 
 nonascii        [\200-\377]
 ascii           [ -~]
-alphanum        [a-z0-9]
+alpha           [[:alpha:]]
+alphanum        [[:alnum:]]
 punct           [][!\"#$%&\'()*+,./:;<=>?@\\^_`{|}~-]
 safepunct       [][!\#$%&\*+,./:;=?@\\^_`{|}~-]
 
-tag             {alphanum}({alphanum}|[_:])*
+tag             {alpha}({alphanum}|[-_:.])*
 tagdel          [ \t\r\n\f/>]
-key             ({alphanum}|[-_:])+
+key             ({alphanum}|[-_:.])+
 val             ({alphanum}|{nonascii}|{safepunct})+
 
 ident           ({nonascii}|{alphanum}|-)+
