@@ -651,8 +651,8 @@ inline static int tag_is_endtag(const Tag *tag)
   return *(tag->tagname)=='/';
 }
 
-inline static void free_tagdata(Tag *tagdata) __attribute__((always_inline));
-inline static void free_tagdata(Tag *tagdata)
+inline __attribute__((always_inline))
+static void free_tagdata(Tag *tagdata)
 {
   AttrNode *p;
 
@@ -819,7 +819,8 @@ static int poptagstack(TagStack *s, int tag)
   return 0;
 }
 
-inline static int popendtagstack(TagStack *s, int endtag)
+inline  __attribute__((always_inline))
+static int popendtagstack(TagStack *s, int endtag)
 {
   return (endtag>=0 && endtag&1)? poptagstack(s,endtag-1): 0;
 }
@@ -1531,22 +1532,22 @@ void OutputHTMLWithModifications(URL *Url,int spool,char *content_type)
 
 #define yy_write wwwoffles_write_data
 
-inline static void yy_rawout(const char *text) __attribute__((always_inline));
-inline static void yy_rawout(const char *text)
+inline __attribute__((always_inline))
+static void yy_rawout(const char *text)
 {
   yy_write(text,strlen(text));
 }
 
 #if 0
 /*+ A function to output the data if valid to do so. +*/
-inline static void YY_WRITE(const char *text, size_t len) __attribute__((always_inline));
-inline static void YY_WRITE(const char *text, size_t len)
+inline __attribute__((always_inline))
+static void YY_WRITE(const char *text, size_t len)
 {
   if(!disable_output && len>0) yy_write(text,len);
 }
 
-inline static void YY_OUTPUT(const char *text) __attribute__((always_inline));
-inline static void YY_OUTPUT(const char *text)
+inline __attribute__((always_inline))
+static void YY_OUTPUT(const char *text)
 {
   if(!disable_output && *(text)) yy_rawout(text);
 }
