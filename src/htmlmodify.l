@@ -2916,8 +2916,10 @@ static void modify_html(URL *Url)
 	 maybe_disable_script = (disable_all_scripts || (after_body && disable_script_after_body) ||
 				 tag_maybe_matchpatt || scriptdisablelevel>0 || disable_all_following_scripts);
 	 switch (tagtype) {
+	   disabled_t disable;
 	 case tag__a:
-	   tagdata->disable= popendtagstack(&tagstack,tagtype);
+	   if((disable= popendtagstack(&tagstack,tagtype)))
+	     tagdata->disable= disable;
 	   if(anchor_modify) {
 	     if(!tagdata->disable) {
 	       if(url_cached==1)
@@ -2946,14 +2948,15 @@ static void modify_html(URL *Url)
 	 case tag__embed:
 	 case tag__iframe:
 	 case tag__object:
-	   tagdata->disable= popendtagstack(&tagstack,tagtype);
+	   if((disable= popendtagstack(&tagstack,tagtype)))
+	     tagdata->disable= disable;
 	   break;
 	 case tag__head:
 	   if(insertheadfile)
 	     add_insertfile(insertheadfile);
 	   break;
 	 case tag_param:
-	   if(tagstack)
+	   if(tagstack && tagstack->val)
 	     tagdata->disable= tagstack->val;
 	   break;
 	 case tag_script:
@@ -2974,13 +2977,13 @@ static void modify_html(URL *Url)
 	       if(disable_dontget_script)
 		 disable_output|=DISABLE_SCRIPT;
 	     }
-	     tagdata->disable= is_disabled_script;
+	     if(is_disabled_script) tagdata->disable= is_disabled_script;
 	   }
 	   else
 	     disable_output|=DISABLE_SCRIPT;
 	   break;
 	 case tag__script:
-	   tagdata->disable= is_disabled_script;
+	   if(is_disabled_script) tagdata->disable= is_disabled_script;
 	   is_disabled_script=0;
 	   break;
 	 case tag_style:
@@ -2993,7 +2996,7 @@ static void modify_html(URL *Url)
 	   }
 	   break;
 	 case tag__style:
-	   tagdata->disable= is_disabled_style;
+	   if(is_disabled_style) tagdata->disable= is_disabled_style;
 	   is_disabled_style=0;
 	   break;
 	 default: ;
@@ -3156,25 +3159,24 @@ static void modify_html(URL *Url)
        }
 
        switch (tagtype) {
+	 disabled_t disable;
        case tag_a:
-	 {
-	   disabled_t disabled=0;
-	   if(disable_output&DISABLE_A) {
-	     disable_output&=~DISABLE_A;
-	     disabled=handle_a_tag(tagdata,disable_dontget_anchors,disable_script);
-	   }
+	 disable=0;
+	 if(disable_output&DISABLE_A) {
+	   disable_output&=~DISABLE_A;
+	   disable=handle_a_tag(tagdata,disable_dontget_anchors,disable_script);
+	 }
 
-	   if(tagdata->ending==1) {
-	     pushtagstack(&tagstack,tagtype,disabled);
+	 if(tagdata->ending==1) {
+	   pushtagstack(&tagstack,tagtype,disable);
 
-	     if(!disabled && anchor_modify) {
-	       if(url_cached==1)
-		 {if(anchor_modify_begin[0]) {yy_rawout(anchor_modify_begin[0]);}}
-	       else if(url_cached==2)
-		 {if(anchor_modify_begin[1]) {yy_rawout(anchor_modify_begin[1]);}}
-	       else if(url_cached==-1)
-		 {if(anchor_modify_begin[2]) {yy_rawout(anchor_modify_begin[2]);}}
-	     }
+	   if(!disable && anchor_modify) {
+	     if(url_cached==1)
+	       {if(anchor_modify_begin[0]) {yy_rawout(anchor_modify_begin[0]);}}
+	     else if(url_cached==2)
+	       {if(anchor_modify_begin[1]) {yy_rawout(anchor_modify_begin[1]);}}
+	     else if(url_cached==-1)
+	       {if(anchor_modify_begin[2]) {yy_rawout(anchor_modify_begin[2]);}}
 	   }
 	 }
 	 break;
@@ -3184,37 +3186,33 @@ static void modify_html(URL *Url)
 	 break;
        case tag_embed:
        case tag_object:
-	 {
-	   disabled_t disabled=0;
-	   if(disable_output&DISABLE_OBJECT)
-	     {
-	       disable_output&=~DISABLE_OBJECT;
-	       disabled= handle_object_tag(tagdata,replace_html_dontget_images,replacement_html_dontget_image,
-					   replace_html_webbug_images,replacement_html_webbug_image,
-					   disable_applet,
-					   disable_flash,
-					   disable_dontget_iframes,
-					   disable_script);
-	     }
+	 disable=0;
+	 if(disable_output&DISABLE_OBJECT)
+	   {
+	     disable_output&=~DISABLE_OBJECT;
+	     disable= handle_object_tag(tagdata,replace_html_dontget_images,replacement_html_dontget_image,
+					replace_html_webbug_images,replacement_html_webbug_image,
+					disable_applet,
+					disable_flash,
+					disable_dontget_iframes,
+					disable_script);
+	   }
 
-	   if(tagdata->ending==1)
-	     pushtagstack(&tagstack,tagtype,disabled);
-	 }
+	 if(tagdata->ending==1)
+	   pushtagstack(&tagstack,tagtype,disable);
 	 break;
        case tag_iframe:
-	 {
-	   disabled_t disabled=0;
-	   if(disable_iframes)
-	     disabled=disabled_iframe;
-	   else if(disable_output&DISABLE_IFRAME)
-	     {
-	       disable_output&=~DISABLE_IFRAME;
-	       disabled=handle_iframe_tag(tagdata,disable_dontget_iframes,disable_script);
-	     }
+	 disable=0;
+	 if(disable_iframes)
+	   disable=disabled_iframe;
+	 else if(disable_output&DISABLE_IFRAME)
+	   {
+	     disable_output&=~DISABLE_IFRAME;
+	     disable=handle_iframe_tag(tagdata,disable_dontget_iframes,disable_script);
+	   }
 
-	   if(tagdata->ending==1)
-	     pushtagstack(&tagstack,tagtype,disabled);
-	 }
+	 if(tagdata->ending==1)
+	   pushtagstack(&tagstack,tagtype,disable);
 	 break;
        case tag_img:
 	 if(disable_output&DISABLE_IMG) {
@@ -3242,7 +3240,7 @@ static void modify_html(URL *Url)
        case tag_param:
 	 if(disable_output&DISABLE_PARAM) {
 	   disable_output&=~DISABLE_PARAM;
-	   if(tagstack)
+	   if(tagstack && tagstack->val)
 	     tagdata->disable= tagstack->val;
 	   output_tag(tagdata,NULL);
 	 }
@@ -3269,7 +3267,7 @@ static void modify_html(URL *Url)
 	   if(disable_dontget_script)
 	     is_disabled_script=handle_script_tag(tagdata,is_disabled_script);
 	   else {
-	     tagdata->disable= is_disabled_script;
+	     if(is_disabled_script) tagdata->disable= is_disabled_script;
 	     output_tag(tagdata,NULL);
 	   }
 	 }
@@ -3424,28 +3422,28 @@ static void modify_html(URL *Url)
 	     process_tag_style_replacement(tag, matchingpatt, disable_script);
 
 	   switch (tag->type) {
+	     disabled_t disable;
 	   case tag_a:
 	     if(anchor_modify)
 	       url_cached= tag_get_url_cached_type(tag);
-	     {
-	       disabled_t disabled= handle_a_tag(tag,disable_dontget_anchors,disable_script);
+	     disable= handle_a_tag(tag,disable_dontget_anchors,disable_script);
 
-	       if(tag->ending==1) {
-		 pushtagstack(&tagstack,tag->type,disabled);
+	     if(tag->ending==1) {
+	       pushtagstack(&tagstack,tag->type,disable);
 
-		 if(!disabled && anchor_modify) {
-		   if(url_cached==1)
-		     {if(anchor_modify_begin[0]) {yy_rawout(anchor_modify_begin[0]);}}
-		   else if(url_cached==2)
-		     {if(anchor_modify_begin[1]) {yy_rawout(anchor_modify_begin[1]);}}
-		   else if(url_cached==-1)
-		     {if(anchor_modify_begin[2]) {yy_rawout(anchor_modify_begin[2]);}}
-		 }
+	       if(!tag->disable && anchor_modify) {
+		 if(url_cached==1)
+		   {if(anchor_modify_begin[0]) {yy_rawout(anchor_modify_begin[0]);}}
+		 else if(url_cached==2)
+		   {if(anchor_modify_begin[1]) {yy_rawout(anchor_modify_begin[1]);}}
+		 else if(url_cached==-1)
+		   {if(anchor_modify_begin[2]) {yy_rawout(anchor_modify_begin[2]);}}
 	       }
 	     }
 	     break;
 	   case tag__a:
-	     tag->disable= popendtagstack(&tagstack,tag->type);
+	     if((disable= popendtagstack(&tagstack,tag->type)))
+	       tag->disable= disable;
 	     if(anchor_modify) {
 	       if(!tag->disable) {
 		 if(url_cached==1)
@@ -3486,39 +3484,36 @@ static void modify_html(URL *Url)
 	     goto call_output_tag;
 	   case tag_embed:
 	   case tag_object:
-	     {
-	       disabled_t disabled= handle_object_tag(tag,replace_html_dontget_images,replacement_html_dontget_image,
-						      replace_html_webbug_images,replacement_html_webbug_image,
-						      disable_applet,
-						      disable_flash,
-						      disable_dontget_iframes,
-						      disable_script);
-	       if(tag->ending==1)
-		 pushtagstack(&tagstack,tag->type,disabled);
-	     }
+	     disable= handle_object_tag(tag,replace_html_dontget_images,replacement_html_dontget_image,
+					replace_html_webbug_images,replacement_html_webbug_image,
+					disable_applet,
+					disable_flash,
+					disable_dontget_iframes,
+					disable_script);
+	     if(tag->ending==1)
+	       pushtagstack(&tagstack,tag->type,disable);
 	     break;
 	   case tag__embed:
 	   case tag__iframe:
 	   case tag__object:
-	     tag->disable= popendtagstack(&tagstack,tag->type);
+	     if((disable= popendtagstack(&tagstack,tag->type)))
+	       tag->disable= disable;
 	     goto call_output_tag;
 	   case tag__head:
 	     if(insertheadfile)
 	       add_insertfile(insertheadfile);
 	     goto call_output_tag;
 	   case tag_iframe:
-	     {
-	       disabled_t  disabled=0;
-	       if(disable_iframes)
-		 tag->disable= disabled=disabled_iframe;
-	       else
-		 disabled=handle_iframe_tag(tag,disable_dontget_iframes,disable_script);
+	     disable=0;
+	     if(disable_iframes)
+	       tag->disable= disable=disabled_iframe;
+	     else
+	       disable=handle_iframe_tag(tag,disable_dontget_iframes,disable_script);
 
-	       if(tag->ending==1)
-		 pushtagstack(&tagstack,tag->type,disabled);
-	       if(disable_iframes)
-		 goto call_output_tag;
-	     }
+	     if(tag->ending==1)
+	       pushtagstack(&tagstack,tag->type,disable);
+	     if(disable_iframes)
+	       goto call_output_tag;
 	     break;
 	   case tag_img:
 	     handle_img_tag(tag,replace_html_dontget_images,replacement_html_dontget_image,
@@ -3544,7 +3539,7 @@ static void modify_html(URL *Url)
 	     goto call_output_tag;
 #endif
 	   case tag_param:
-	     if(tagstack)
+	     if(tagstack && tagstack->val)
 	       tag->disable= tagstack->val;
 	     goto call_output_tag;
 	   case tag_script:
@@ -3566,12 +3561,12 @@ static void modify_html(URL *Url)
 	     if(disable_dontget_script)
 	       is_disabled_script=handle_script_tag(tag,is_disabled_script);
 	     else {
-	       tag->disable= is_disabled_script;
+	       if(is_disabled_script) tag->disable= is_disabled_script;
 	       goto call_output_tag;
 	     }
 	     break;
 	   case tag__script:
-	     tag->disable= is_disabled_script;
+	     if(is_disabled_script) tag->disable= is_disabled_script;
 	     is_disabled_script=0;
 	     goto call_output_tag;
 	   case tag_style:
@@ -3589,7 +3584,7 @@ static void modify_html(URL *Url)
 	     }
 	     break;
 	   case tag__style:
-	     tag->disable= is_disabled_style;
+	     if(is_disabled_style) tag->disable= is_disabled_style;
 	     is_disabled_style=0;
 	     goto call_output_tag;
 	   default:
