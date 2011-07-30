@@ -1010,8 +1010,48 @@ static int sort_random(FileIndex *a,FileIndex *b)
 
 /* Added by Paul Rombouts */
 
+/* Merge two sorted lists to make a larger sorted list.
+  int (*cmp)(FileIndex *a,FileIndex *b)  is the comparison function to use.
+*/
+inline __attribute__((always_inline))
+static FileIndex *listmerge(FileIndex *p, FileIndex *q, int (*cmp)(FileIndex *,FileIndex *))
+{
+
+  if(!p)
+    return q;
+  else if(!q)
+    return p;
+  else {
+    FileIndex *l=NULL, **s= &l;
+
+    for(;;) {
+      if(cmp(p,q) <= 0) {
+	*s= p;
+	s= &p->next;
+	p= *s;
+	if(!p) {
+	  *s= q;
+	  break;
+	}
+      }
+      else { /* cmp(p,q) > 0 */
+	*s= q;
+	s= &q->next;
+	q= *s;
+	if(!q) {
+	  *s= p;
+	  break;
+	}
+      }
+    }
+
+    return l;
+  }      
+}
+
 /*++++++++++++++++++++++++++++++++++++++
   Sort a list using a merge sort algorithm.
+  This algorithm is adapted from the GNU C++ STL implementation for list containers.
 
   FileIndex **l The list to sort.
 
@@ -1020,54 +1060,41 @@ static int sort_random(FileIndex *a,FileIndex *b)
 
 static void listsort(FileIndex **l, int (*cmp)(FileIndex *,FileIndex *))
 {
-  if(*l) {
-    unsigned int m;
+  FileIndex *rem= *l, *carry;
 
-    for(m=1;; m *= 2) {
-      unsigned int nmerge=0,i,j;
-      FileIndex *p,*q=*l,**s= l, **t;
+  /* Do nothing unless the list has length >= 2. */
+   if(rem && rem->next) {
+#    define Ntmp 32
+     /* Because we use an array of fixed length, the length of the list we can sort
+	is bounded by pow(2,Ntmp)-1. */
+     FileIndex *tmp[Ntmp];  /* tmp[i] will either be NULL or point to a list of length pow(2,i). */
+     FileIndex **fill= tmp, **end=tmp+Ntmp, **counter;
 
-      do {
-	++nmerge;
-	p=q;
-	i=m;
-	do {
-	  t= &q->next;
-	  q= *t;
-	} while(--i && q);
+     do {
+       carry=rem; rem=rem->next;
+       carry->next=NULL;
+       for(counter = tmp; counter!=fill && *counter!=NULL; ++counter) {
+	 carry=listmerge(*counter,carry, cmp);
+	 *counter=NULL;
+       }
 
-	if(!q) break;
-      
-	i=j=m;
-	for(;;) {
-	  if(cmp(p,q) <= 0) {
-	    *s= p;
-	    s= &p->next;
-	    p= *s;
-	    --i;
-	    if(!i) {
-	      *s= q;
-	      do {s= &q->next; q= *s;} while(--j && q);
-	      break;
-	    }
-	  }
-	  else { /* cmp(p,q) > 0 */
-	    *s= q;
-	    s= &q->next;
-	    q= *s;
-	    --j;
-	    if(!j || !q) {
-	      *s= p;
-	      *t= q;
-	      s= t;
-	      break;
-	    }
-	  }
-	}
-      } while(q);
+       if(counter==end)
+	 PrintMessage(Fatal,"Array overflowed during merge sort in %s line %d",__FILE__,__LINE__);
 
-      if(nmerge<=1) break;
-    }
+       *counter=carry;
+
+       if(counter==fill) ++fill;
+     }
+     while(rem);
+
+     /* Merge together all the remaining list fragments contained in array tmp. */
+     carry= tmp[0];
+     counter= tmp;
+     while(++counter!=fill)
+       carry=listmerge(*counter,carry, cmp);
+
+     /* Return result */
+     *l= carry;
   }
 }
 
