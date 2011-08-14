@@ -1,14 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/index.c 2.107 2005/11/09 19:48:24 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Generate an index of the web pages that are cached in the system.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Originally Written by Andrew M. Bishop.
+  Extensively Modified by Paul A. Rombouts.
 
   This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2007,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.

@@ -1,17 +1,17 @@
-.\" $Header: /home/amb/wwwoffle/doc/RCS/wwwoffle.conf.man.template 2.83 2007/09/29 18:54:08 amb Exp $
+.\" $Header: /home/amb/CVS/wwwoffle/doc/wwwoffle.conf.man.template,v 2.84 2008-08-26 18:00:31 amb Exp $
 .\"
-.\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
+.\"  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9e.
 .\"
 .\"  Manual page for wwwoffle.conf
 .\"
 .\"  Written by Andrew M. Bishop
 .\"
-.\"  This file Copyright 1997-2007 Andrew M. Bishop
+.\"  This file Copyright 1997-2008 Andrew M. Bishop
 .\"  It may be distributed under the GNU Public License, version 2, or
 .\"  any higher version.  See section COPYING of the GNU Public license
 .\"  for conditions under which this file may be redistributed.
 .\"
-.TH wwwoffle.conf 5 "September 29, 2007"
+.TH wwwoffle.conf 5 "August 26, 2008"
 
 .SH NAME
 
@@ -88,9 +88,9 @@ match\.
 .TP
 .B http\-port = (port)
 An integer specifying the port number for connections to access the
-internal WWWOFFLE pages and for HTTP/HTTPS/FTP proxying (default=8080)\.
-This is the port number that must be specified in the client to connect
-to the WWWOFFLE proxy for HTTP/HTTPS/FTP proxying\.
+internal WWWOFFLE pages and for HTTP/HTTPS/FTP proxying
+(default=8080)\.  This is the port number that must be specified in the
+client to connect to the WWWOFFLE proxy for HTTP/HTTPS/FTP proxying\.
 .TP
 .B https\-port = (port)
 An integer specifying the port number for encrypted connections to
@@ -285,12 +285,14 @@ over the request\-changed and request\-changed\-once options\.
 .TP
 .B [<URL\-SPEC>] request\-conditional = yes | no
 While online pages that are requested from the server will be
-conditional requests so that server only sends data if the page has
-changed (default=yes)\.
+conditional requests so that the server only sends data if the page
+has changed (default=yes)\.
 .TP
 .B [<URL\-SPEC>] validate\-with\-etag = yes | no
-If WWWOFFLE should always use ETag headers (if present) when a page
-is requested, and a copy exists in the cache (default=yes)\.
+When making a conditional request to a server enable the use of the
+HTTP/1\.1 cache validator \'Etag\' as well as modification time
+\'If\-Modified\-Since\' (default=yes)\.  The request\-conditional option
+must also be selected for this option to take effect\.
 This could cause pages/images to be re\-fetched almost each time
 WWWOFFLE verifies their validity with the origin server\. If they are
 hosted on a pool of servers that use different ETags for the same
@@ -387,57 +389,72 @@ Do not request any URLs that match this when offline (default=no)\.
 
 .SH SSLOptions
 
-Options that control how WWWOFFLE behaves when a connection is made to it for a
-Secure Sockets Layer (SSL) server\.  Normally only tunnelling (with no decryption
-or caching of the data) is possible\.  When WWWOFFLE is compiled with the gnutls
-library it is possible configure WWWOFFLE to decrypt, cache and re\-encrypt the
-connections\.
+Options that control how WWWOFFLE behaves when a connection is made to it for an
+https or Secure Sockets Layer (SSL) server\.  Normally only tunnelling (with no
+decryption or caching of the data) is possible\.  When WWWOFFLE is compiled with
+the gnutls library it is possible configure WWWOFFLE to decrypt, cache and
+re\-encrypt the connections\.
+.TP
+.B quick\-key\-gen = yes | no
+Normally generation of secret keys for the SSL/https functions uses the
+default GnuTLS option for random number source\.  This can be slow on
+some machines so this option selects a quicker but less secure random
+number source (default = no)\.  Requires GnuTLS compilation option\.
+.TP
+.B expiration\-time = (age)
+The length of time after creation that each certificate will expire
+(default = 1y)\.  Requires GnuTLS compilation option\.
 .TP
 .B enable\-caching = yes | no
-If caching (involving decryption and re\-encryption) of Secure Sockets
-Layer (SSL) server connections is allowed (default = no)\.
+If caching (involving decryption and re\-encryption) of SSL/https
+server connections is allowed (default = no)\.  Requires GnuTLS
+compilation option\.
 .TP
 .B allow\-tunnel = (host[:port])
 A hostname and port number (a 
 .I WILDCARD
-match) for an SSL server that can
-be connected to using WWWOFFLE as a tunnelling proxy (no caching or
-decryption of the data) (default is no hosts or ports allowed)\.  This
-option should be set to *:443 to allow https to the default port number\.
-There can be more than one option for other ports or hosts as required\.
-This option takes precedence over the allow\-cache option\.  The host
-value is matched against the URL as presented, no hostname to IP or IP
-to hostname lookups are performed to find alternative equivalent names\.
+match) for an https/SSL server
+that can be connected to using WWWOFFLE as a tunnelling proxy (no
+caching or decryption of the data) (default is no hosts or ports
+allowed)\.  This option should be set to *:443 to allow https to the
+default port number\.  There can be more than one option for other
+ports or hosts as required\.  This option takes precedence over the
+allow\-cache option\.  The host value is matched against the URL as
+presented, no hostname to IP or IP to hostname lookups are performed
+to find alternative equivalent names\.
 .TP
 .B disallow\-tunnel = (host[:port])
 A hostname and port number (a 
 .I WILDCARD
-match) for an SSL server that can
-not be connected to using WWWOFFLE as a tunnelling proxy\.  There can be
-more than one option for other ports or hosts as required\.  This option
-takes precedence over the allow\-tunnel option\.  The host value is
-matched against the URL as presented, no hostname to IP or IP to
-hostname lookups are performed to find alternative equivalent names\.
+match) for an https/SSL server
+that can not be connected to using WWWOFFLE as a tunnelling proxy\.
+There can be more than one option for other ports or hosts as
+required\.  This option takes precedence over the allow\-tunnel option\.
+The host value is matched against the URL as presented, no hostname to
+IP or IP to hostname lookups are performed to find alternative
+equivalent names\.
 .TP
 .B allow\-cache = (host[:port])
 A hostname and port number (a 
 .I WILDCARD
-match) for an SSL server that can
-be connected to using WWWOFFLE as a caching proxy (decryption of the
-data) (default is no hosts or ports allowed)\.  This option should be set
-to *:443 to allow https to the default port number\.  There can be more
-than one option for other ports or hosts as required\.  The host value is
-matched against the URL as presented, no hostname to IP or IP to
-hostname lookups are performed to find alternative equivalent names\.
+match) for an https/SSL server
+that can be connected to using WWWOFFLE as a caching proxy (decryption
+of the data) (default is no hosts or ports allowed)\.  This option
+should be set to *:443 to allow https to the default port number\.
+There can be more than one option for other ports or hosts as
+required\.  The host value is matched against the URL as presented, no
+hostname to IP or IP to hostname lookups are performed to find
+alternative equivalent names\.  Requires GnuTLS compilation option\.
 .TP
 .B disallow\-cache = (host[:port])
 A hostname and port number (a 
 .I WILDCARD
-match) for an SSL server that can
-not be connected to using WWWOFFLE as a caching proxy\.  This option
-takes precedence over the allow\-cache option\.  The host value is matched
-against the URL as presented, no hostname to IP or IP to hostname
-lookups are performed to find alternative equivalent names\.
+match) for an https/SSL server
+that can not be connected to using WWWOFFLE as a caching proxy\.  This
+option takes precedence over the allow\-cache option\.  The host value
+is matched against the URL as presented, no hostname to IP or IP to
+hostname lookups are performed to find alternative equivalent names\.
+Requires GnuTLS compilation option\.
 
 .SH FetchOptions
 
@@ -451,10 +468,11 @@ If style sheets are to be fetched (default=no)\.
 If images are to be fetched (default=no)\.
 .TP
 .B [<URL\-SPEC>] webbug\-images = yes | no
-If images that are 1 pixel square are also to be fetched, requires the
-images option to also be selected\. (default=yes)\.  If these images are
-not fetched then the replace\-webbug\-images option in the ModifyHTML
-section can be used to stop browsers requesting them\.
+If images that are declared in the HTML to be 1 pixel square are also to
+be fetched, requires the images option to also be selected
+(default=yes)\.  If these images are not fetched then the
+replace\-webbug\-images option in the ModifyHTML section can be used to
+stop browsers requesting them\.
 .TP
 .B [<URL\-SPEC>] icon\-images = yes | no
 If icons (also called favourite icons or shortcut icons) as used by
@@ -527,6 +545,12 @@ should start with a \'/\' and is interpreted as a relative local URL\. The
 file should contain HTML code without <html>, <head> or <body> tags\. The
 content will be inserted before the </body> and </html> end tags, if
 present in the page being modified\.
+(option added by Paul Rombouts\.)
+.TP
+.B [<URL\-SPEC>] insert\-head\-file = (path name)
+Similar to the \'insert\-file\' option, but inserts the file contents at
+the end of the head section of the HTML document (i\.e\. right before the
+</head> tag), instead of the body\.
 (option added by Paul Rombouts\.)
 .TP
 .B [<URL\-SPEC>] anchor\-cached\-begin = (HTML code) | 
@@ -660,7 +684,9 @@ scripts following the closing tag\.
 The supported modify options currently are: disable\-tag, disable\-script,
 disable\-following\-script, disable\-all\-following\-scripts,
 reset\-following\-script, reset\-all\-following\-scripts, pass, style= and
-no\-style\. Multiple tag\-attribute patterns or modify options must be
+no\-style\. Additionally there is the option display\-none which is short
+for \'style=display:none !important\'\.
+Multiple tag\-attribute patterns or modify options must be
 separated by commas\.
 This option was added by Paul Rombouts\.
 
@@ -677,10 +703,10 @@ hostnames must match exactly, it is not a
 .I WILDCARD
 match\.  The first
 named host is used as the server name for several features so must be
-a name that will work from any client host on the network\.  The entries
-can be hostnames, IPv4 addresses or IPv6 addresses enclosed within
-\'[\.\.\.]\'\.  None of the hosts named here are cached or fetched via a
-proxy\.
+a name that will work from any client host on the network\.  The
+entries can be hostnames, IPv4 addresses or IPv6 addresses enclosed
+within \'[\.\.\.]\'\.  None of the hosts named here are cached or fetched
+via a proxy\.
 
 .SH LocalNet
 
@@ -694,10 +720,11 @@ cached by WWWOFFLE\.  The host name matching uses
 s\.  A host
 can be excluded by appending a \'!\' to the start of the name\.  The host
 value is matched against the URL as presented, no hostname to IP or IP
-to hostname lookups are performed to find alternative equivalent names\.
-The entries can be hostnames, IPv4 addresses or IPv6 addresses enclosed
-within \'[\.\.\.]\'\.  All entries here are assumed to be reachable even when
-offline\.  None of the hosts named here are cached or fetched via a proxy\.
+to hostname lookups are performed to find alternative equivalent
+names\.  The entries can be hostnames, IPv4 addresses or IPv6 addresses
+enclosed within \'[\.\.\.]\'\.  All entries here are assumed to be reachable
+even when offline\.  None of the hosts named here are cached or fetched
+via a proxy\.
 
 .SH AllowedConnectHosts
 
@@ -708,11 +735,11 @@ A hostname or IP address that is allowed to connect to the server\.
 The host name matching uses 
 .I WILDCARD
 s\.  A host can be excluded by
-appending a \'!\' to the start of the name\.  If the IP address or hostname
-(if available) of the machine connecting matches then it is allowed\.
-The entries can be hostnames, IPv4 addresses or IPv6 addresses enclosed
-within \'[\.\.\.]\'\.  All of the hosts named in LocalHost are also allowed to
-connect\.
+appending a \'!\' to the start of the name\.  If the IP address or
+hostname (if available) of the machine connecting matches then it is
+allowed\.  The entries can be hostnames, IPv4 addresses or IPv6
+addresses enclosed within \'[\.\.\.]\'\.  All of the hosts named in
+LocalHost are also allowed to connect\.
 
 .SH AllowedConnectUsers
 
@@ -735,7 +762,7 @@ Do not cache any URLs that match this\.  The
 .I URL\-SPECIFICATION
 can be
 negated to allow matches to be cached\.  The URLs that are not cached
-will not be requested if offline\.
+will not have requests recorded if offline or fetched automatically\.
 
 .SH DontGet
 
@@ -771,12 +798,12 @@ in this section\.
 .SH DontCompress
 
 A list of MIME types and file extensions that are not to be compressed by
-WWWOFFLE (because they are already compressed or not not worth compressing)\.
+WWWOFFLE (because they are already compressed or not worth compressing)\.
 Requires zlib compilation option\.
 .TP
 .B mime\-type = (mime\-type)/(subtype)
-The MIME type of a URL that is not to be compressed in the cache or
-when providing compressed pages to clients\.
+The MIME type of a URL that is not to be compressed in the cache (when
+purging) or when providing pages to clients\.
 .TP
 .B file\-ext = \.(file\-ext)
 The file extension of a URL that is not to be requested compressed
@@ -839,6 +866,11 @@ made by WWWOFFLE (default=no)\.  This User\-Agent is added only if there
 is not an existing User\-Agent header and is set to the value
 WWWOFFLE/<version\-number>\.  This header is inserted before censoring
 and may be changed by the normal header censoring method\.
+.TP
+.B [<URL\-SPEC>] pass\-url\-unchanged = yes | no
+Forces WWWOFFLE to ignore the requirements on the correct formatting of
+URLs and to pass through to the server the URL that was passed to it by
+the browser (default=no)\.
 
 .SH FTPOptions
 
@@ -923,11 +955,11 @@ the SOCKS server supports the SOCKS 4A protocol\.
 (Option added by Paul Rombouts\.)
 .TP
 .B [<URL\-SPEC>] ssl = (host[:port])
-A proxy server that should be used for Secure Socket Layer (SSL)
-connections e\.g\. https\.  Note that for the 
+A proxy server that should be used for https or Secure Socket Layer
+(SSL) connections\.  Note that for the 
 .I <URL\-SPEC>
-that only the
-host is checked and that the other parts must be \'*\' 
+that only the host is
+checked and that the other parts must be \'*\' 
 .I WILDCARD
 s\.
 
@@ -1125,22 +1157,31 @@ insensitive)\.
 
  StartUp
  {
-  http-port     = 8080
-  wwwoffle-port = 8081
+  bind-ipv4         = 0.0.0.0
+  bind-ipv6         = ::
+
+  http-port         = 8080
+  https-port        = 8443
+  wwwoffle-port     = 8081
+
   spool-dir     = /var/spool/wwwoffle
+
   use-syslog    = yes
+
   password      =
  }
 
  Options
  {
   add-info-refresh  = no
+
   request-changed   = 3600
  }
 
  SSLOptions
  {
   enable-caching = no
+
   allow-tunnel   = *:443
  }
 
@@ -1154,8 +1195,14 @@ insensitive)\.
  LocalHost
  {
   wwwoffle.foo.com
+
   localhost
   127.0.0.1
+
+  ::ffff:127.0.0.1
+
+  ip6-localhost
+  ::1
  }
 
  DontGet

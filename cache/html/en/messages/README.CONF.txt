@@ -11,7 +11,7 @@ bind-ipv6 = (hostname) | (ip-address) | none
 Specify the hostname or IP address to bind the HTTP proxy and WWWOFFLE control port sockets to using IPv6 (default='::').  If 'none' is specified then no IPv6 socket is bound.  This requires the IPv6 compilation option.  If this is changed from the default value then the first entry in the LocalHost section may need to be changed to match.
 ITEM http-port
 http-port = (port)
-An integer specifying the port number for connections to access the internal WWWOFFLE pages and for HTTP/HTTPS/FTP proxying (default=8080). This is the port number that must be specified in the client to connect to the WWWOFFLE proxy for HTTP/HTTPS/FTP proxying.
+An integer specifying the port number for connections to access the internal WWWOFFLE pages and for HTTP/HTTPS/FTP proxying (default=8080).  This is the port number that must be specified in the client to connect to the WWWOFFLE proxy for HTTP/HTTPS/FTP proxying.
 ITEM https-port
 https-port = (port)
 An integer specifying the port number for encrypted connections to access the internal WWWOFFLE pages and for HTTP/FTP proxying (default=8443).  Requires gnutls compilation option.
@@ -126,10 +126,10 @@ ITEM request-redirection
 While online pages that redirect the client to another URL temporarily will be requested again. (default=no).  This option takes precedence over the request-changed and request-changed-once options.
 ITEM request-conditional
 [<URL-SPEC>] request-conditional = yes | no
-While online pages that are requested from the server will be conditional requests so that server only sends data if the page has changed (default=yes).
+While online pages that are requested from the server will be conditional requests so that the server only sends data if the page has changed (default=yes).
 ITEM validate-with-etag
 [<URL-SPEC>] validate-with-etag = yes | no
-If WWWOFFLE should always use ETag headers (if present) when a page is requested, and a copy exists in the cache (default=yes). This could cause pages/images to be re-fetched almost each time WWWOFFLE verifies their validity with the origin server. If they are hosted on a pool of servers that use different ETags for the same entity (which, unfortunately is often) it is highly possible. If set to no, WWWOFFLE will determine if the "Last-Modified" header is strong enough to be used alone. (This option was originally designed by Marc Boucher who called it "always-use-etag".)
+When making a conditional request to a server enable the use of the HTTP/1.1 cache validator 'Etag' as well as modification time 'If-Modified-Since' (default=yes).  The request-conditional option must also be selected for this option to take effect. This could cause pages/images to be re-fetched almost each time WWWOFFLE verifies their validity with the origin server. If they are hosted on a pool of servers that use different ETags for the same entity (which, unfortunately is often) it is highly possible. If set to no, WWWOFFLE will determine if the "Last-Modified" header is strong enough to be used alone. (This option was originally designed by Marc Boucher who called it "always-use-etag".)
 ITEM try-without-password
 [<URL-SPEC>] try-without-password = yes | no
 If a request is made for a URL that contains a username and password then a request is made for the same URL without a username and password specified (default=yes).  This allows for requests for the URL without a password to re-direct the client to the passworded version.
@@ -175,22 +175,28 @@ ITEM dont-request
 [<URL-SPEC>] dont-request = yes | no
 Do not request any URLs that match this when offline (default=no).
 SECTION SSLOptions
-Options that control how WWWOFFLE behaves when a connection is made to it for a Secure Sockets Layer (SSL) server.  Normally only tunnelling (with no decryption or caching of the data) is possible.  When WWWOFFLE is compiled with the gnutls library it is possible configure WWWOFFLE to decrypt, cache and re-encrypt the connections.
+Options that control how WWWOFFLE behaves when a connection is made to it for an https or Secure Sockets Layer (SSL) server.  Normally only tunnelling (with no decryption or caching of the data) is possible.  When WWWOFFLE is compiled with the gnutls library it is possible configure WWWOFFLE to decrypt, cache and re-encrypt the connections.
+ITEM quick-key-gen
+quick-key-gen = yes | no
+Normally generation of secret keys for the SSL/https functions uses the default GnuTLS option for random number source.  This can be slow on some machines so this option selects a quicker but less secure random number source (default = no).  Requires GnuTLS compilation option.
+ITEM expiration-time
+expiration-time = (age)
+The length of time after creation that each certificate will expire (default = 1y).  Requires GnuTLS compilation option.
 ITEM enable-caching
 enable-caching = yes | no
-If caching (involving decryption and re-encryption) of Secure Sockets Layer (SSL) server connections is allowed (default = no).
+If caching (involving decryption and re-encryption) of SSL/https server connections is allowed (default = no).  Requires GnuTLS compilation option.
 ITEM allow-tunnel
 allow-tunnel = (host[:port])
-A hostname and port number (a <a href="/configuration/#WILDCARD">WILDCARD</a> match) for an SSL server that can be connected to using WWWOFFLE as a tunnelling proxy (no caching or decryption of the data) (default is no hosts or ports allowed).  This option should be set to *:443 to allow https to the default port number. There can be more than one option for other ports or hosts as required. This option takes precedence over the allow-cache option.  The host value is matched against the URL as presented, no hostname to IP or IP to hostname lookups are performed to find alternative equivalent names.
+A hostname and port number (a <a href="/configuration/#WILDCARD">WILDCARD</a> match) for an https/SSL server that can be connected to using WWWOFFLE as a tunnelling proxy (no caching or decryption of the data) (default is no hosts or ports allowed).  This option should be set to *:443 to allow https to the default port number.  There can be more than one option for other ports or hosts as required.  This option takes precedence over the allow-cache option.  The host value is matched against the URL as presented, no hostname to IP or IP to hostname lookups are performed to find alternative equivalent names.
 ITEM disallow-tunnel
 disallow-tunnel = (host[:port])
-A hostname and port number (a <a href="/configuration/#WILDCARD">WILDCARD</a> match) for an SSL server that can not be connected to using WWWOFFLE as a tunnelling proxy.  There can be more than one option for other ports or hosts as required.  This option takes precedence over the allow-tunnel option.  The host value is matched against the URL as presented, no hostname to IP or IP to hostname lookups are performed to find alternative equivalent names.
+A hostname and port number (a <a href="/configuration/#WILDCARD">WILDCARD</a> match) for an https/SSL server that can not be connected to using WWWOFFLE as a tunnelling proxy. There can be more than one option for other ports or hosts as required.  This option takes precedence over the allow-tunnel option. The host value is matched against the URL as presented, no hostname to IP or IP to hostname lookups are performed to find alternative equivalent names.
 ITEM allow-cache
 allow-cache = (host[:port])
-A hostname and port number (a <a href="/configuration/#WILDCARD">WILDCARD</a> match) for an SSL server that can be connected to using WWWOFFLE as a caching proxy (decryption of the data) (default is no hosts or ports allowed).  This option should be set to *:443 to allow https to the default port number.  There can be more than one option for other ports or hosts as required.  The host value is matched against the URL as presented, no hostname to IP or IP to hostname lookups are performed to find alternative equivalent names.
+A hostname and port number (a <a href="/configuration/#WILDCARD">WILDCARD</a> match) for an https/SSL server that can be connected to using WWWOFFLE as a caching proxy (decryption of the data) (default is no hosts or ports allowed).  This option should be set to *:443 to allow https to the default port number. There can be more than one option for other ports or hosts as required.  The host value is matched against the URL as presented, no hostname to IP or IP to hostname lookups are performed to find alternative equivalent names.  Requires GnuTLS compilation option.
 ITEM disallow-cache
 disallow-cache = (host[:port])
-A hostname and port number (a <a href="/configuration/#WILDCARD">WILDCARD</a> match) for an SSL server that can not be connected to using WWWOFFLE as a caching proxy.  This option takes precedence over the allow-cache option.  The host value is matched against the URL as presented, no hostname to IP or IP to hostname lookups are performed to find alternative equivalent names.
+A hostname and port number (a <a href="/configuration/#WILDCARD">WILDCARD</a> match) for an https/SSL server that can not be connected to using WWWOFFLE as a caching proxy.  This option takes precedence over the allow-cache option.  The host value is matched against the URL as presented, no hostname to IP or IP to hostname lookups are performed to find alternative equivalent names. Requires GnuTLS compilation option.
 SECTION FetchOptions
 Options that control what linked elements are downloaded when fetching pages that were requested while offline.
 ITEM stylesheets
@@ -201,7 +207,7 @@ ITEM images
 If images are to be fetched (default=no).
 ITEM webbug-images
 [<URL-SPEC>] webbug-images = yes | no
-If images that are 1 pixel square are also to be fetched, requires the images option to also be selected. (default=yes).  If these images are not fetched then the replace-webbug-images option in the ModifyHTML section can be used to stop browsers requesting them.
+If images that are declared in the HTML to be 1 pixel square are also to be fetched, requires the images option to also be selected (default=yes).  If these images are not fetched then the replace-webbug-images option in the ModifyHTML section can be used to stop browsers requesting them.
 ITEM icon-images
 [<URL-SPEC>] icon-images = yes | no
 If icons (also called favourite icons or shortcut icons) as used by browsers for bookmarks are to be fetched (default=no).
@@ -254,6 +260,9 @@ At the bottom of all of the spooled pages the date that the page was cached and 
 ITEM insert-file
 [<URL-SPEC>] insert-file = (path name)
 At the end of the page the content of a local file is to be inserted literally, without modifications (default=none). If add-cache-info is also enabled, the file is inserted after the cache info. The path name should start with a '/' and is interpreted as a relative local URL. The file should contain HTML code without &lt;html&gt;, &lt;head&gt; or &lt;body&gt; tags. The content will be inserted before the &lt;/body&gt; and &lt;/html&gt; end tags, if present in the page being modified. (option added by Paul Rombouts.)
+ITEM insert-head-file
+[<URL-SPEC>] insert-head-file = (path name)
+Similar to the 'insert-file' option, but inserts the file contents at the end of the head section of the HTML document (i.e. right before the &lt;/head&gt; tag), instead of the body. (option added by Paul Rombouts.)
 ITEM anchor-cached-begin
 [<URL-SPEC>] anchor-cached-begin = (HTML code) | 
 Anchors (links) in the spooled page that are in the cache are to have the specified HTML inserted at the beginning (default="").
@@ -340,7 +349,7 @@ ITEM disable-animated-gif
 Disables the animation in animated GIF files (default=no).
 ITEM 
 [<URL-SPEC>] <tag-attribute patterns> = <modify options>
-This setting allows various modifications to be specified for HTML tags that match one of the tag-attribute patterns. The possible modifications include: disabling the tag completely, disabling only certain attributes of the tag, adding or replacing a style attribute, disabling scripts between the matching tag and the corresponding closing tag and disabling scripts following the closing tag. The supported modify options currently are: disable-tag, disable-script, disable-following-script, disable-all-following-scripts, reset-following-script, reset-all-following-scripts, pass, style= and no-style. Multiple tag-attribute patterns or modify options must be separated by commas. This option was added by Paul Rombouts.
+This setting allows various modifications to be specified for HTML tags that match one of the tag-attribute patterns. The possible modifications include: disabling the tag completely, disabling only certain attributes of the tag, adding or replacing a style attribute, disabling scripts between the matching tag and the corresponding closing tag and disabling scripts following the closing tag. The supported modify options currently are: disable-tag, disable-script, disable-following-script, disable-all-following-scripts, reset-following-script, reset-all-following-scripts, pass, style= and no-style. Additionally there is the option display-none which is short for 'style=display:none !important'. Multiple tag-attribute patterns or modify options must be separated by commas. This option was added by Paul Rombouts.
 SECTION LocalHost
 A list of hostnames that the host running the WWWOFFLE server may be known by. This is so that the proxy does not need to contact itself if the request has a different name for the same server.
 ITEM 
@@ -350,12 +359,12 @@ SECTION LocalNet
 A list of hostnames whose web servers are always accessible even when offline and are not to be cached by WWWOFFLE because they are on a local network.
 ITEM 
 (host)
-A hostname or IP address that is always available and is not to be cached by WWWOFFLE.  The host name matching uses <a href="/configuration/#WILDCARD">WILDCARD</a>s.  A host can be excluded by appending a '!' to the start of the name.  The host value is matched against the URL as presented, no hostname to IP or IP to hostname lookups are performed to find alternative equivalent names. The entries can be hostnames, IPv4 addresses or IPv6 addresses enclosed within '[...]'.  All entries here are assumed to be reachable even when offline.  None of the hosts named here are cached or fetched via a proxy.
+A hostname or IP address that is always available and is not to be cached by WWWOFFLE.  The host name matching uses <a href="/configuration/#WILDCARD">WILDCARD</a>s.  A host can be excluded by appending a '!' to the start of the name.  The host value is matched against the URL as presented, no hostname to IP or IP to hostname lookups are performed to find alternative equivalent names.  The entries can be hostnames, IPv4 addresses or IPv6 addresses enclosed within '[...]'.  All entries here are assumed to be reachable even when offline.  None of the hosts named here are cached or fetched via a proxy.
 SECTION AllowedConnectHosts
 A list of client hostnames that are allowed to connect to the server.
 ITEM 
 (host)
-A hostname or IP address that is allowed to connect to the server. The host name matching uses <a href="/configuration/#WILDCARD">WILDCARD</a>s.  A host can be excluded by appending a '!' to the start of the name.  If the IP address or hostname (if available) of the machine connecting matches then it is allowed. The entries can be hostnames, IPv4 addresses or IPv6 addresses enclosed within '[...]'.  All of the hosts named in LocalHost are also allowed to connect.
+A hostname or IP address that is allowed to connect to the server. The host name matching uses <a href="/configuration/#WILDCARD">WILDCARD</a>s.  A host can be excluded by appending a '!' to the start of the name.  If the IP address or hostname (if available) of the machine connecting matches then it is allowed.  The entries can be hostnames, IPv4 addresses or IPv6 addresses enclosed within '[...]'.  All of the hosts named in LocalHost are also allowed to connect.
 SECTION AllowedConnectUsers
 A list of the users that are allowed to connect to the server and their passwords.
 ITEM 
@@ -365,7 +374,7 @@ SECTION DontCache
 A list of URLs that are not to be cached by WWWOFFLE.
 ITEM 
 [!]URL-SPECIFICATION
-Do not cache any URLs that match this.  The <a href="/configuration/#URL-SPECIFICATION">URL-SPECIFICATION</a> can be negated to allow matches to be cached.  The URLs that are not cached will not be requested if offline.
+Do not cache any URLs that match this.  The <a href="/configuration/#URL-SPECIFICATION">URL-SPECIFICATION</a> can be negated to allow matches to be cached.  The URLs that are not cached will not have requests recorded if offline or fetched automatically.
 SECTION DontGet
 A list of URLs that are not to be got by WWWOFFLE when it is fetching and not to be served from the WWWOFFLE cache even if they exist.
 ITEM 
@@ -381,10 +390,10 @@ ITEM location-error
 <URL-SPEC> location-error = yes | no
 When a URL reply contains a 'Location' header that redirects to a URL that is not got (specified in this section) then the reply is modified to be an error message instead (default=no).  This will stop ISP proxies from redirecting users to adverts if the advert URLs are in this section.
 SECTION DontCompress
-A list of MIME types and file extensions that are not to be compressed by WWWOFFLE (because they are already compressed or not not worth compressing). Requires zlib compilation option.
+A list of MIME types and file extensions that are not to be compressed by WWWOFFLE (because they are already compressed or not worth compressing). Requires zlib compilation option.
 ITEM mime-type
 mime-type = (mime-type)/(subtype)
-The MIME type of a URL that is not to be compressed in the cache or when providing compressed pages to clients.
+The MIME type of a URL that is not to be compressed in the cache (when purging) or when providing pages to clients.
 ITEM file-ext
 file-ext = .(file-ext)
 The file extension of a URL that is not to be requested compressed from a server.
@@ -413,6 +422,9 @@ Removes the Referer header based on a match of the referring URL (default=no).
 ITEM force-user-agent
 [<URL-SPEC>] force-user-agent = yes | no
 Forces a User-Agent header to be inserted into all requests that are made by WWWOFFLE (default=no).  This User-Agent is added only if there is not an existing User-Agent header and is set to the value WWWOFFLE/&lt;version-number&gt;.  This header is inserted before censoring and may be changed by the normal header censoring method.
+ITEM pass-url-unchanged
+[<URL-SPEC>] pass-url-unchanged = yes | no
+Forces WWWOFFLE to ignore the requirements on the correct formatting of URLs and to pass through to the server the URL that was passed to it by the browser (default=no).
 SECTION FTPOptions
 Options to use when fetching files using the ftp protocol.
 ITEM anon-username
@@ -460,7 +472,7 @@ ITEM socks-remote-dns
 By default, when connecting through a SOCKS proxy server the destination host name is resolved locally and the IP address is given to the SOCKS server. Sometimes this is not what you want. When this option is enabled, WWWOFFLE will not attempt to resolve the name and will supply the host name directly to the SOCKS server. This option only works if the SOCKS server supports the SOCKS 4A protocol. (Option added by Paul Rombouts.)
 ITEM ssl
 [<URL-SPEC>] ssl = (host[:port])
-A proxy server that should be used for Secure Socket Layer (SSL) connections e.g. https.  Note that for the &lt;<a href="/configuration/#URL-SPECIFICATION">URL-SPEC</a>&gt; that only the host is checked and that the other parts must be '*' <a href="/configuration/#WILDCARD">WILDCARD</a>s.
+A proxy server that should be used for https or Secure Socket Layer (SSL) connections.  Note that for the &lt;<a href="/configuration/#URL-SPECIFICATION">URL-SPEC</a>&gt; that only the host is checked and that the other parts must be '*' <a href="/configuration/#WILDCARD">WILDCARD</a>s.
 SECTION Alias
 A list of aliases that are used to replace the server name and path with another server name and path.
 ITEM 

@@ -29,17 +29,16 @@ url             ({alphanum}|{nonascii}|{safepunct})+
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/html.l 2.94 2007/12/05 19:29:59 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9f.
   Parse the HTML and look for the images, links and other things.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Object and Parameter handling by Walter Pfannenmller
-  Modified by Paul A. Rombouts
+  Written by Andrew M. Bishop.
+  Object and Parameter handling by Walter Pfannenmller.
+  Modified by Paul A. Rombouts.
 
-  This file Copyright 1997-2007 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2006,2007 Paul A. Rombouts
+  This file Copyright 1997-2009 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2006,2007,2008,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -228,7 +227,7 @@ Tag;
 
 /* Local functions */
 
-static void parse_html(URL *Url);
+static void parse_html(const URL *Url);
 
 static /*@null@*/ char *html_yylval=NULL;
 extern int html_yylex(void);
@@ -267,7 +266,7 @@ static void reset_parser();
   URL *Url The reference URL to use.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void ParseHTML(int fd,URL *Url)
+void ParseHTML(int fd,const URL *Url)
 {
  PrintMessage(Debug,"Parsing document using HTML parser.");
 
@@ -684,7 +683,7 @@ static void handle_style_attribute(char *value)
   URL *Url The URL being parsed.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void parse_html(URL *Url)
+static void parse_html(const URL *Url)
 {
  HTMLTags tag=tag_ntags;
  HTMLAttributes key=att_natts;

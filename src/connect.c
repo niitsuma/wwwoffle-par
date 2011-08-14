@@ -1,14 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/connect.c 2.52 2007/04/20 16:04:29 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9f.
   Handle WWWOFFLE connections received by the demon.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Originally written by Andrew M. Bishop.
+  Extensively modified by Paul A. Rombouts.
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,05,07 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2004,2005,2006,2007,2008 Paul A. Rombouts
+  This file Copyright 1996-2010 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2004,2005,2006,2007,2008,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -95,7 +94,7 @@ extern short int nofork;
   The return value is 1 if the configuration has changed, otherwise 0.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int CommandConnect(int client)
+int CommandConnect(int client, char *log_file)
 {
  int retval=0;
  char *line=NULL;
@@ -234,6 +233,18 @@ int CommandConnect(int client)
 
     PrintMessage(Important,"WWWOFFLE Finished Dumping Configuration File.");
    }
+ else if(!strcmp_litbeg(&line[9],"CYCLELOG"))
+   {
+    if(log_file)
+      {
+       write_string(client,"WWWOFFLE Cycling Log File.\n");
+       PrintMessage(Important,"Closing and opening log file.");
+
+       OpenErrorLog(log_file);
+      }
+    else
+       write_string(client,"WWWOFFLE Has No Log File.\n"); /* Used in wwwoffle.c */
+   }
  else if(!strcmp_litbeg(&line[9],"PURGE"))
    {
     pid_t pid;
@@ -330,9 +341,9 @@ int CommandConnect(int client)
 
     write_string(client,purging?"Purge        : active\n":"Purge        : inactive\n");
 
-    write_formatted(client,"Last-Online  : %s\n",OnlineTime?RFC822Date(OnlineTime,0):"unknown");
+    write_formatted(client,"Last-Online  : %s\n",OnlineTime?RFC822Date(OnlineTime,0):"not since started");
 
-    write_formatted(client,"Last-Offline : %s\n",OfflineTime?RFC822Date(OfflineTime,0):"unknown");
+    write_formatted(client,"Last-Offline : %s\n",OfflineTime?RFC822Date(OfflineTime,0):"not since started");
 
     write_formatted(client,"Total-Servers: %d\n",n_servers);
     write_formatted(client,"Fetch-Servers: %d\n",n_fetch_servers);

@@ -1,5 +1,4 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/javaclass.c 1.11 2005/03/13 13:55:35 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Inspect a .class Object and look for other Objects.
@@ -69,7 +68,7 @@ static const char *standardClasses[] = {"java/", "javax/",
                                0 if not.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int InspectJavaClass(int fd,URL *Url)
+int InspectJavaClass(int fd,const URL *Url)
 {
  PrintMessage(Debug,"Parsing document using JavaClass parser.");
 

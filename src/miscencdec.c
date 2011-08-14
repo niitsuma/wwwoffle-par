@@ -5,16 +5,15 @@
 */
 #line 1 "miscencdec.c.pre"
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/miscencdec.c 1.15 2006/01/15 10:13:18 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9e.
   Miscellaneous HTTP / HTML Encoding & Decoding functions.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Originally written by Andrew M. Bishop.
+  Extensively modified by Paul A. Rombouts.
 
-  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007 Paul A. Rombouts
+  This file Copyright 1997-2008 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -50,7 +49,7 @@ static const char hexstring[16]={'0','1','2','3','4','5','6','7','8','9','A','B'
 
 /*+ For conversion from hex string to integer. +*/
 static const unsigned char unhexstring[256]={
-#line 48 "miscencdec.c.pre"
+#line 47 "miscencdec.c.pre"
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -67,7 +66,7 @@ static const unsigned char unhexstring[256]={
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0
-#line 50 "miscencdec.c.pre"
+#line 49 "miscencdec.c.pre"
 };
 
 /* Added by Paul Rombouts */
@@ -168,7 +167,7 @@ char *URLRecodeFormArgs(const char *str)
  */
 
  static const unsigned char allowed[256/8]= {
-#line 151 "miscencdec.c.pre"
+#line 150 "miscencdec.c.pre"
    0x00,0x00,0x00,0x00  /*                                */
   ,0x12,0xf7,0xff,0x07  /* !  $   ()* ,-./0123456789:     */
   ,0xfe,0xff,0xff,0x87  /* ABCDEFGHIJKLMNOPQRSTUVWXYZ    _*/
@@ -177,7 +176,7 @@ char *URLRecodeFormArgs(const char *str)
   ,0x00,0x00,0x00,0x00  /*                                */
   ,0x00,0x00,0x00,0x00  /*                                */
   ,0x00,0x00,0x00,0x00  /*                                */
-#line 160 "miscencdec.c.pre"
+#line 159 "miscencdec.c.pre"
  };
 
  for(q=str; *q; ++q)
@@ -258,7 +257,7 @@ char *URLEncodePath(const char *str)
  */
 
  static const unsigned char allowed[256/8]= {
-#line 241 "miscencdec.c.pre"
+#line 240 "miscencdec.c.pre"
    0x00,0x00,0x00,0x00  /*                                */
   ,0x12,0xff,0xff,0x2f  /* !  $   ()*+,-./0123456789:; =  */
   ,0xfe,0xff,0xff,0x87  /* ABCDEFGHIJKLMNOPQRSTUVWXYZ    _*/
@@ -267,7 +266,7 @@ char *URLEncodePath(const char *str)
   ,0x00,0x00,0x00,0x00  /*                                */
   ,0x00,0x00,0x00,0x00  /*                                */
   ,0x00,0x00,0x00,0x00  /*                                */
-#line 250 "miscencdec.c.pre"
+#line 249 "miscencdec.c.pre"
  };
 
  for(q=str; *q; ++q)
@@ -319,7 +318,7 @@ char *URLEncodeFormArgs(const char *str)
  */
 
  static const unsigned char allowed[256/8]= {
-#line 302 "miscencdec.c.pre"
+#line 301 "miscencdec.c.pre"
    0x00,0x00,0x00,0x00  /*                                */
   ,0x12,0xf7,0xff,0x07  /* !  $   ()* ,-./0123456789:     */
   ,0xfe,0xff,0xff,0x87  /* ABCDEFGHIJKLMNOPQRSTUVWXYZ    _*/
@@ -328,7 +327,7 @@ char *URLEncodeFormArgs(const char *str)
   ,0x00,0x00,0x00,0x00  /*                                */
   ,0x00,0x00,0x00,0x00  /*                                */
   ,0x00,0x00,0x00,0x00  /*                                */
-#line 311 "miscencdec.c.pre"
+#line 310 "miscencdec.c.pre"
  };
 
  for(q=str; *q; ++q)
@@ -382,7 +381,7 @@ char *URLEncodePassword(const char *str)
  */
 
  static const unsigned char allowed[256/8]= {
-#line 365 "miscencdec.c.pre"
+#line 364 "miscencdec.c.pre"
    0x00,0x00,0x00,0x00  /*                                */
   ,0x12,0x7c,0xff,0x23  /* !  $     *+,-. 0123456789   =  */
   ,0xfe,0xff,0xff,0x87  /* ABCDEFGHIJKLMNOPQRSTUVWXYZ    _*/
@@ -391,7 +390,7 @@ char *URLEncodePassword(const char *str)
   ,0x00,0x00,0x00,0x00  /*                                */
   ,0x00,0x00,0x00,0x00  /*                                */
   ,0x00,0x00,0x00,0x00  /*                                */
-#line 374 "miscencdec.c.pre"
+#line 373 "miscencdec.c.pre"
  };
 
  for(q=str; *q; ++q)
@@ -731,7 +730,7 @@ static const unsigned char base64[64]={
 
 /*+ The conversion from an ASCII character to a 6 bit value. +*/
 static const unsigned char invbase64[256]={
-#line 714 "miscencdec.c.pre"
+#line 713 "miscencdec.c.pre"
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 62,  0, 63,  0, 63,
@@ -748,7 +747,7 @@ static const unsigned char invbase64[256]={
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0
-#line 719 "miscencdec.c.pre"
+#line 718 "miscencdec.c.pre"
 };
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -868,52 +867,195 @@ unsigned char *Base64Encode(const unsigned char *str,size_t l, unsigned char *bu
 
 
 /*++++++++++++++++++++++++++++++++++++++
-  Replace all occurences of '&amp;' with '&' by modifying the string in place.
+  Replace all occurences of '&amp;' with '&', replace non-ASCII with unicode and convert character references.
 
-  char *string The string to be modified.
+  char *FixHTMLLinkURL Return a malloced string containing the fixed version.
+
+  const char *str The string to be fixed.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void URLReplaceAmp(char *string)
+char *FixHTMLLinkURL(const char *str)
 {
- char *q,*p=string;
+ char *retstr;
+ size_t len=0;
+ const char *p=str;
+ char *q;
+ unsigned char c;
 
- while(*p)
+ while((c= *p))
    {
-    if(*p=='&' &&
-       (*(p+1)=='a' || *(p+1)=='A') &&
-       (*(p+2)=='m' || *(p+2)=='M') &&
-       (*(p+3)=='p' || *(p+3)=='P') &&
-       *(p+4)==';')
-      {
-       q=++p;
-       p+=4;
-       goto shift;
-      }
+     if(c=='&')
+       {
+	 if((*(p+1)=='a' || *(p+1)=='A') &&
+	    (*(p+2)=='m' || *(p+2)=='M') &&
+	    (*(p+3)=='p' || *(p+3)=='P') &&
+	    *(p+4)==';')
+	   {
+	     ++len; /* copy the '&' */
+	     p += 5;
+	     continue;
+	   }
+	 else if(*(p+1)=='#')
+	   {
+	     char *s;
+	     unsigned long unicode;
 
-    ++p;
+	     if(*(p+2)=='x')
+	       unicode=strtol(p+3,&s,16);
+	     else
+	       unicode=strtol(p+2,&s,10);
+
+	     if(*s==';' && unicode<0x80000000)
+	       {
+		 if(unicode<0x00000020) /* 1 byte */
+		   {
+		     /*   0000 0000-0000 007F   0xxxxxxx */
+		     len += 3;;
+		   }
+		 else if(unicode<0x00000080) /* 1 byte */
+		   {
+		     /*   0000 0000-0000 007F   0xxxxxxx */
+		     len += 1;
+		   }
+		 else if(unicode<0x00000800) /* 2 bytes */
+		   {
+		     /*   0000 0080-0000 07FF   110xxxxx 10xxxxxx */
+		     len += 6;
+		   }
+		 else if(unicode<0x00010000) /* 3 bytes */
+		   {
+		     /*   0000 0800-0000 FFFF   1110xxxx 10xxxxxx 10xxxxxx */
+		     len += 9;
+		   }
+		 else if(unicode<0x00200000) /* 4 bytes */
+		   {
+		     /*   0001 0000-001F FFFF   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx */
+		     len += 12;
+		   }
+		 else if(unicode<0x04000000) /* 5 bytes */
+		   {
+		     /*   0020 0000-03FF FFFF   111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx */
+		     len += 15;
+		   }
+		 else /* if(unicode<0x80000000) */ /* 6 bytes */
+		   {
+		     /*   0400 0000-7FFF FFFF   1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx */
+		     len += 18;
+		   }
+
+		 p=s+1;
+		 continue;
+	       }
+	   }
+       }
+     else if(c>128)
+       {
+	 len += 3;
+	 ++p;
+	 continue;
+       }
+
+     ++len;
+     ++p;
    }
 
- return;
+ retstr= q= (char *)malloc(len+1);
 
-shift:
- while(*p)
+ p=str;
+ while((c= *p))
    {
-    if(*p=='&' &&
-       (*(p+1)=='a' || *(p+1)=='A') &&
-       (*(p+2)=='m' || *(p+2)=='M') &&
-       (*(p+3)=='p' || *(p+3)=='P') &&
-       *(p+4)==';')
-      {
-       *q++=*p++;
-       p+=4;
-      }
-    else
-      {
-       *q++=*p++;
-      }
+     if(c=='&')
+       {
+	 if((*(p+1)=='a' || *(p+1)=='A') &&
+	    (*(p+2)=='m' || *(p+2)=='M') &&
+	    (*(p+3)=='p' || *(p+3)=='P') &&
+	    *(p+4)==';')
+	   {
+	     *q++ = c; /* copy the '&' */
+	     p += 5;
+	     continue;
+	   }
+	 else if(*(p+1)=='#')
+	   {
+	     char *s;
+	     unsigned long unicode;
+
+	     if(*(p+2)=='x')
+	       unicode=strtol(p+3,&s,16);
+	     else
+	       unicode=strtol(p+2,&s,10);
+
+	     if(*s==';' && unicode<0x80000000)
+	       {
+		 if(unicode<0x00000020) /* 1 byte */
+		   {
+		     /*   0000 0000-0000 007F   0xxxxxxx */
+		     *q++='%'; *q++=hexstring[0x0F&(unicode>>4)]; *q++=hexstring[0x0F&unicode];
+		   }
+		 else if(unicode<0x00000080) /* 1 byte */
+		   {
+		     /*   0000 0000-0000 007F   0xxxxxxx */
+		     *q++=(char)unicode;
+		   }
+		 else if(unicode<0x00000800) /* 2 bytes */
+		   {
+		     /*   0000 0080-0000 07FF   110xxxxx 10xxxxxx */
+		     *q++='%'; *q++=hexstring[0x0C+(0x01&(unicode>>10))]; *q++=hexstring[0x0F&(unicode>>6)];
+		     *q++='%'; *q++=hexstring[0x08+(0x03&(unicode>> 4))]; *q++=hexstring[0x0F& unicode    ];
+		   }
+		 else if(unicode<0x00010000) /* 3 bytes */
+		   {
+		     /*   0000 0800-0000 FFFF   1110xxxx 10xxxxxx 10xxxxxx */
+		     *q++='%'; *q++=hexstring[0x0E                     ]; *q++=hexstring[0x0F&(unicode>>12)];
+		     *q++='%'; *q++=hexstring[0x08+(0x03&(unicode>>10))]; *q++=hexstring[0x0F&(unicode>> 6)];
+		     *q++='%'; *q++=hexstring[0x08+(0x03&(unicode>> 4))]; *q++=hexstring[0x0F& unicode     ];
+		   }
+		 else if(unicode<0x00200000) /* 4 bytes */
+		   {
+		     /*   0001 0000-001F FFFF   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx */
+		     *q++='%'; *q++=hexstring[0x0F                     ]; *q++=hexstring[0x07&(unicode>>18)];
+		     *q++='%'; *q++=hexstring[0x08+(0x03&(unicode>>16))]; *q++=hexstring[0x0F&(unicode>>12)];
+		     *q++='%'; *q++=hexstring[0x08+(0x03&(unicode>>10))]; *q++=hexstring[0x0F&(unicode>> 6)];
+		     *q++='%'; *q++=hexstring[0x08+(0x03&(unicode>> 4))]; *q++=hexstring[0x0F& unicode     ];
+		   }
+		 else if(unicode<0x04000000) /* 5 bytes */
+		   {
+		     /*   0020 0000-03FF FFFF   111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx */
+		     *q++='%'; *q++=hexstring[0x0F                     ]; *q++=hexstring[0x08+(0x03&(unicode>>24))];
+		     *q++='%'; *q++=hexstring[0x08+(0x03&(unicode>>22))]; *q++=hexstring[0x0F&(unicode>>18)];
+		     *q++='%'; *q++=hexstring[0x08+(0x03&(unicode>>16))]; *q++=hexstring[0x0F&(unicode>>12)];
+		     *q++='%'; *q++=hexstring[0x08+(0x03&(unicode>>10))]; *q++=hexstring[0x0F&(unicode>> 6)];
+		     *q++='%'; *q++=hexstring[0x08+(0x03&(unicode>> 4))]; *q++=hexstring[0x0F& unicode     ];
+		   }
+		 else /* if(unicode<0x80000000) */ /* 6 bytes */
+		   {
+		     /*   0400 0000-7FFF FFFF   1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx */
+		     *q++='%'; *q++=hexstring[0x0F                     ]; *q++=hexstring[0x0C+(0x01&(unicode>>30))];
+		     *q++='%'; *q++=hexstring[0x08+(0x03&(unicode>>28))]; *q++=hexstring[0x0F&(unicode>>24)];
+		     *q++='%'; *q++=hexstring[0x08+(0x03&(unicode>>22))]; *q++=hexstring[0x0F&(unicode>>18)];
+		     *q++='%'; *q++=hexstring[0x08+(0x03&(unicode>>16))]; *q++=hexstring[0x0F&(unicode>>12)];
+		     *q++='%'; *q++=hexstring[0x08+(0x03&(unicode>>10))]; *q++=hexstring[0x0F&(unicode>> 6)];
+		     *q++='%'; *q++=hexstring[0x08+(0x03&(unicode>> 4))]; *q++=hexstring[0x0F& unicode     ];
+		   }
+
+		 p=s+1;
+		 continue;
+	       }
+	   }
+       }
+     else if(c>128)
+       {
+	 *q++='%'; *q++=hexstring[0x0F&(c>>4)]; *q++=hexstring[0x0F&c];
+	 ++p;
+	 continue;
+       }
+
+     *q++=*p++;
    }
 
  *q=0;
+
+ return(retstr);
 }
 
 
@@ -922,7 +1064,7 @@ shift:
 
   char* HTMLString Returns a safe HTML string.
 
-  const char* c A non-safe HTML string.
+  const char* str A non-safe HTML string.
 
   int nbsp Use a non-breaking space in place of normal ones.
            In addition, if nbsp=2, an itemized list is produced
@@ -932,17 +1074,17 @@ shift:
                 and will be assigned the length of the output string.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char* HTMLString(const char* c, int nbsp, size_t *lenp)
+char* HTMLString(const char* str, int nbsp, size_t *lenp)
 {
  size_t length= 0;
  char *result;
  char *p; const char *q, *end;
 
  if(lenp) {
-   end = c + *lenp;
-   if(nbsp==2 && c<end) length+=strlitlen("<li>");
+   end = str + *lenp;
+   if(nbsp==2 && str<end) length+=strlitlen("<li>");
 
-   for(q=c; q<end; ++q)
+   for(q=str; q<end; ++q)
      switch(*q) {
      case '<':
      case '>':
@@ -969,9 +1111,9 @@ char* HTMLString(const char* c, int nbsp, size_t *lenp)
    *lenp= length;
  }
  else {
-   if(nbsp==2 && *c) length+=strlitlen("<li>");
+   if(nbsp==2 && *str) length+=strlitlen("<li>");
 
-   for(q=c; *q; ++q)
+   for(q=str; *q; ++q)
      switch(*q) {
      case '<':
      case '>':
@@ -1000,14 +1142,14 @@ char* HTMLString(const char* c, int nbsp, size_t *lenp)
 
  result=p=(char*)malloc(length+1);
 
- if(nbsp==2 && c<end) {
+ if(nbsp==2 && str<end) {
    *p++='<';
    *p++='l';
    *p++='i';
    *p++='>';
  }
 
- for(q=c; q<end; ++q)
+ for(q=str; q<end; ++q)
    switch(*q) {
    case '<':
      *p++='&';

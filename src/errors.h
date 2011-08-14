@@ -1,5 +1,4 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/errors.h 2.14 2005/02/20 16:53:50 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.8f.
   Error logging header file.

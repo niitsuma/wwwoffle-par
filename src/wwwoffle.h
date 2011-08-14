@@ -1,5 +1,4 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle.h 2.117 2007/09/29 18:54:08 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
   A header file for all of the programs wwwoffle, wwwoffled.
@@ -8,7 +7,7 @@
   Modified by Paul A. Rombouts
 
   This file Copyright 1996-2007 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -55,7 +54,7 @@ socktype;
 
 /* In connect.c */
 
-int CommandConnect(int client);
+int CommandConnect(int client, char *log_file);
 void ForkRunModeScript(/*@null@*/ char *filename,char *mode,/*@null@*/ char *arg,int client);
 void ForkServer(int fd);
 
@@ -146,8 +145,8 @@ extern time_t OfflineTime;    /*+ The time that the program went offline. +*/
 URL /*@null@*/ *ParseRequest(int fd,/*@out@*/ Header **request_head,/*@out@*/ Body **request_body);
 
 int RequireForced(const Header *request_head,const URL *Url,int online);
-int RequireChanges(int fd,const URL *Url,char **ims,char **inm);
-int IsModified(int fd,const Header *request_head);
+int RequireChanges(int fd,const Header *spooled_head,const URL *Url,char **ims,char **inm);
+int IsModified(int fd,const Header *spooled_head,const Header *request_head);
 URL /*@null@*/ *MovedLocation(const URL *Url,const Header *reply_head);
 Header *RequestURL(const URL *Url,/*@null@*/ const URL *refererUrl);
 
@@ -233,9 +232,9 @@ void ConfigurationPage(int fd,URL *Url,/*@null@*/ Body *request_body);
 
 URL /*@null@*/ *RefreshPage(int fd,URL *Url,/*@null@*/ Body *request_body,int *recurse);
 void DefaultRecurseOptions(URL *Url,Header *head);
-int RecurseFetch(URL *Url);
-int RecurseFetchRelocation(URL *Url,URL *locationUrl);
-char /*@only@*/ *CreateRefreshPath(URL *Url,char *limit,int depth,
+int RecurseFetch(const URL *Url);
+int RecurseFetchRelocation(const URL *Url,URL *locationUrl);
+char /*@only@*/ *CreateRefreshPath(const URL *Url,char *limit,int depth,
                                    int force,
                                    int stylesheets,int images,int frames,int iframes,int scripts,int objects);
 int RefreshForced(void);

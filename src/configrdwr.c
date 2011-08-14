@@ -1,14 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configrdwr.c 1.74 2006/07/16 08:38:52 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9a.
   Configuration file reading and writing functions.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Originally written by Andrew M. Bishop.
+  Extensively modified by Paul A. Rombouts.
 
   This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.

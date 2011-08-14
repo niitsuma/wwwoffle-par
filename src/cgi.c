@@ -1,5 +1,4 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/cgi.c 1.27 2007/04/18 18:59:20 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9c.
   CGI Execution functions.

@@ -23,14 +23,14 @@ val             ({alphanum}|{nonascii}|{safepunct}|<)+
 %{
 /***************************************
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9f.
   Parse the HTML and modify the source.
   ******************/ /******************
-  Originally written by Andrew M. Bishop
-  Extensively modified by Paul A. Rombouts
+  Originally written by Andrew M. Bishop.
+  Extensively modified by Paul A. Rombouts.
 
-  This file Copyright 1997,98,99,2000,01,02,03,04,05,06,07 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2006,2007,2011 Paul A. Rombouts
+  This file Copyright 1997-2009 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2006,2007,2008,2009,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -307,6 +307,9 @@ static const char* const tagprefix[]=
   "!-- WWWOFFLE (disable-matching-tag) - "
 };
 
+
+typedef unsigned short Bool_t;  /* Type used to store boolean values (only 0 or 1). */
+
 typedef enum {htokenTag, htokenText, htokenScriptText, htokenStyleText, htokenComment, htokenDoctype, htokenMisc }
  HTokenType;
 
@@ -552,9 +555,9 @@ static /*@null@*/ URL *baseUrl=NULL;
 /*+ Set this to disable the output. +*/
 static int disable_output=DISABLE_NONE;
 
-static unsigned short parsecomment=0;
-static unsigned short commentout=0;
-static unsigned short stextcommopen=0, stextcommclose=0;
+static Bool_t parsecomment=0;
+static Bool_t commentout=0;
+static Bool_t stextcommopen=0, stextcommclose=0;
 static int stextstart=-1, stextend=-1;
 
 inline static void str_grow_cpy(char **dst, unsigned *allocsize, const char *src)
@@ -1444,7 +1447,7 @@ static int strsegmentscasematch(const char *string,size_t stringlen,const char *
 
 void OutputHTMLWithModifications(URL *Url,int spool,char *content_type)
 {
- static int first=1;
+ static Bool_t first=1;
 
  if(ConfigBooleanURL(AddCacheInfo,Url))
    {
@@ -2525,7 +2528,7 @@ static void process_tag_style_replacement(Tag *tag, HTokenPattNode *matchingpatt
 {
   const char *stylerepl= NULL;
   AttrNode *a;
-  unsigned short disablematchingattrs=0;
+  Bool_t disablematchingattrs=0;
 
   if(matchingpatt) {
     PattOptions *pattopts= matchingpatt->pattopts;
@@ -2724,31 +2727,33 @@ static void modify_html(URL *Url)
 
  char *anchor_modify_begin[3];
  char *anchor_modify_end[3];
- unsigned short anchor_modify=0;
- unsigned short disable_all_scripts=ConfigBooleanURL(DisableHTMLScript,Url),disable_script=disable_all_scripts;
- unsigned short disable_script_after_body=ConfigBooleanURL(DisableHTMLScriptAfterBody,Url);
- unsigned short disable_dontget_script=ConfigBooleanURL(DisableHTMLDontGetScript,Url),is_disabled_script=0;
- unsigned short disable_applet=ConfigBooleanURL(DisableHTMLApplet,Url);
- unsigned short disable_style=ConfigBooleanURL(DisableHTMLStyle,Url),is_disabled_style=0;
- unsigned short disable_blink=ConfigBooleanURL(DisableHTMLBlink,Url);
- unsigned short disable_marquee=ConfigBooleanURL(DisableHTMLMarquee,Url);
- unsigned short disable_flash=ConfigBooleanURL(DisableHTMLFlash,Url);
- unsigned short disable_iframes=ConfigBooleanURL(DisableHTMLIFrame,Url);
- unsigned short disable_meta_refresh=ConfigBooleanURL(DisableHTMLMetaRefresh,Url);
- unsigned short disable_meta_refresh_self=ConfigBooleanURL(DisableHTMLMetaRefreshSelf,Url);
+ Bool_t anchor_modify=0;
+ Bool_t disable_all_scripts=ConfigBooleanURL(DisableHTMLScript,Url),disable_script=disable_all_scripts;
+ Bool_t disable_script_after_body=ConfigBooleanURL(DisableHTMLScriptAfterBody,Url);
+ Bool_t disable_dontget_script=ConfigBooleanURL(DisableHTMLDontGetScript,Url);
+ unsigned short is_disabled_script=0;
+ Bool_t disable_applet=ConfigBooleanURL(DisableHTMLApplet,Url);
+ Bool_t disable_style=ConfigBooleanURL(DisableHTMLStyle,Url);
+ unsigned short is_disabled_style=0;
+ Bool_t disable_blink=ConfigBooleanURL(DisableHTMLBlink,Url);
+ Bool_t disable_marquee=ConfigBooleanURL(DisableHTMLMarquee,Url);
+ Bool_t disable_flash=ConfigBooleanURL(DisableHTMLFlash,Url);
+ Bool_t disable_iframes=ConfigBooleanURL(DisableHTMLIFrame,Url);
+ Bool_t disable_meta_refresh=ConfigBooleanURL(DisableHTMLMetaRefresh,Url);
+ Bool_t disable_meta_refresh_self=ConfigBooleanURL(DisableHTMLMetaRefreshSelf,Url);
  int replacement_meta_refresh_time=ConfigIntegerURL(ReplacementHTMLMetaRefreshTime,Url);
- unsigned short disable_meta_set_cookie=ConfigBooleanURL(DisableHTMLMetaSetCookie,Url);
- unsigned short disable_dontget_anchors=ConfigBooleanURL(DisableHTMLDontGetAnchors,Url);
- unsigned short disable_dontget_iframes=ConfigBooleanURL(DisableHTMLDontGetIFrames,Url);
- unsigned short replace_html_dontget_images=ConfigBooleanURL(ReplaceHTMLDontGetImages,Url);
+ Bool_t disable_meta_set_cookie=ConfigBooleanURL(DisableHTMLMetaSetCookie,Url);
+ Bool_t disable_dontget_anchors=ConfigBooleanURL(DisableHTMLDontGetAnchors,Url);
+ Bool_t disable_dontget_iframes=ConfigBooleanURL(DisableHTMLDontGetIFrames,Url);
+ Bool_t replace_html_dontget_images=ConfigBooleanURL(ReplaceHTMLDontGetImages,Url);
  char *replacement_html_dontget_image=NULL,*replacement_html_dontget_image_copy=NULL;
- unsigned short replace_html_webbug_images=ConfigBooleanURL(ReplaceHTMLWebbugImages,Url);
+ Bool_t replace_html_webbug_images=ConfigBooleanURL(ReplaceHTMLWebbugImages,Url);
  char *replacement_html_webbug_image=NULL,*replacement_html_webbug_image_copy=NULL;
  char *insertheadfile=ConfigStringURL(InsertHeadFile,Url);
  char *insertfile=ConfigStringURL(InsertFile,Url);
- unsigned short insertedfile=0,after_body=0;
- unsigned short is_endtag=0, tag_maybe_matchpatt=0, tagcomplexmodify=0;
- unsigned short disable_following_script=0, disable_all_following_scripts=0;
+ Bool_t insertedfile=0,after_body=0;
+ Bool_t is_endtag=0, tag_maybe_matchpatt=0, tagcomplexmodify=0;
+ Bool_t disable_following_script=0, disable_all_following_scripts=0;
  int scriptdisablelevel=0, disableflags=0;
  PattInfo tagpatterninfo;
 
@@ -2808,7 +2813,7 @@ static void modify_html(URL *Url)
    const char *txtstr, *endptr;
    HTokenType htoktype=0;
    HTokenPattNode *matchingpatt=NULL;
-   unsigned short maybe_disable_script, disable_key;
+   Bool_t maybe_disable_script, disable_key;
    char quote;
 
    yychar=htmlmodify_yylex();
@@ -3386,7 +3391,7 @@ static void modify_html(URL *Url)
 	   Tag *tag= &htok->tag;
 	   HTokenPattNode *matchingpatt=NULL;
 	   int disableflags=0;
-	   unsigned short disable_script;
+	   Bool_t disable_script;
 
 	   if(tag->idx>=0) {
 	     if(!tag_is_endtag(tag)) {

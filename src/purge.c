@@ -1,14 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/purge.c 2.82 2006/11/14 17:10:18 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9a.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9g.
   Purge old files from the cache.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Originally written by Andrew M. Bishop.
+  Extensively modified by Paul A. Rombouts.
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2004,2005,2006,2007 Paul A. Rombouts
+  This file Copyright 1996-2010 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2004,2005,2006,2007,2008,2009 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -118,9 +117,6 @@ static void MarkDir(const char *dirname);
 
 /* Local variables */
 
-/*+ The current time. +*/
-static time_t now;
-
 /*+ The number of blocks left of each age. +*/
 static unsigned long blocks_by_age[102];
 
@@ -150,6 +146,14 @@ static int purge_max_size,      /*+ maximum cache size. +*/
 
  Note: The variable called blocksize can be only 512, 1024 or 2048, it is used
        for rounding up file sizes only.
+
+ Note: To minimise the 'future timestamp' warnings we check if file times are
+       more than one hour after the current time at the start of processing each
+       directory.
+
+ Note: To avoid deleting temporary files still in use we check if file times are
+       more than one hour before the current time at the start of processing the
+       outgoing directory.
 */
 
  /*+ Convert blocks to kilobytes. +*/
@@ -196,8 +200,6 @@ int PurgeCache(int fd)
  what_purge_compress_age("*","*",NULL,&purge_default_age,&compress_default_age);
 
  /* Set up the age scaling parameters */
-
- now=time(NULL)+600;
 
  age_scale=-1;
 
@@ -815,6 +817,7 @@ static void PurgeFiles(const char *proto,const char *hostport,int def_purge_age,
 {
  DIR *dir;
  struct dirent* ent;
+ time_t now=time(NULL)+3600; /* Allow one hour margin on times */
 
  *remain=0;
  *deleted=0;
@@ -947,6 +950,8 @@ closedir_return:
 
 static void PurgeTemp(int fd, const char *dirname)
 {
+ time_t now=time(NULL)-3600; /* Allow one hour margin on times */
+
  if(chdir(dirname))
    PrintMessage(Warning,"Cannot change to directory '%s' [%!s]; not purged.",dirname);
  else
@@ -974,7 +979,7 @@ static void PurgeTemp(int fd, const char *dirname)
                {
 		struct stat buf;
 
-                if(!stat(ent->d_name,&buf) && buf.st_mtime<(now-60))
+                if(!stat(ent->d_name,&buf) && buf.st_mtime<now)
                   {
 #if DO_DELETE
                    if(unlink(ent->d_name))

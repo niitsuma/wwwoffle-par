@@ -1,13 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/iozlib.c 1.25 2007/11/26 14:52:11 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9e.
   Functions for file input and output with compression.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Originally written by Andrew M. Bishop.
+  Extensively modified by Paul A. Rombouts.
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06,07 Andrew M. Bishop
+  This file Copyright 1996-2008 Andrew M. Bishop
   Parts of this file Copyright (C) 2004,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -35,7 +34,7 @@
 
 #if USE_ZLIB
 
-typedef enum _iozlib_state_t {
+typedef enum {
   iozlib_null,
   deflate_start,
   doing_deflate,

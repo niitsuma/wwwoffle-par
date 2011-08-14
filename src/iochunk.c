@@ -1,11 +1,10 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/iochunk.c 1.18 2006/10/02 18:43:17 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9b.
   Functions for file input and output with compression.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Originally written by Andrew M. Bishop.
+  Extensively modified by Paul A. Rombouts.
 
   This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
   Parts of this file Copyright (C) 2004,2007 Paul A. Rombouts

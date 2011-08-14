@@ -1,5 +1,4 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/gifmodify.c 1.12 2005/03/13 13:55:34 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   A function to modify GIFs by deleting all except the first image.

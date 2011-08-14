@@ -1,14 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/config.h 2.117 2007/09/29 18:54:08 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9g.
   Configuration file management functions.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Written by Andrew M. Bishop.
+  Modified by Paul A. Rombouts.
 
-  This file Copyright 1997-2007 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2008 Paul A. Rombouts
+  This file Copyright 1997-2010 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2008,2009,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -216,6 +215,12 @@ extern /*@null@*/ ConfigItem DontRequestOffline;
 
 
 /* SSLOptions section */
+
+/*+ The option to use weaker but faster key generation. +*/
+extern /*@null@*/ ConfigItem SSLQuickKeyGen;
+
+/*+ The expiration time of generated certificates. +*/
+extern /*@null@*/ ConfigItem SSLCertExpiry;
 
 /*+ The option to allow caching of SSL connections. +*/
 extern /*@null@*/ ConfigItem SSLEnableCaching;
@@ -450,6 +455,9 @@ extern /*@null@*/ ConfigItem RefererFrom;
 
 /*+ A flag to cause a 'User-Agent' header always to be added. +*/
 extern /*@null@*/ ConfigItem ForceUserAgent;
+
+/*+ A flag to cause the requested URL to be passed through unmodified. +*/
+extern /*@null@*/ ConfigItem PassUrlUnchanged;
 
 
 /* FTPOptions section */

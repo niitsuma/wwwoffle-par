@@ -1,5 +1,4 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/info.c 1.28 2007/09/29 18:54:08 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
   Generate information about the contents of the web pages that are cached in the system.

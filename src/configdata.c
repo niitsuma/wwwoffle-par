@@ -1,14 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configdata.c 2.162 2007/09/29 18:54:08 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9g.
   Configuration data functions.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Written by Andrew M. Bishop.
+  Modified by Paul A. Rombouts.
 
-  This file Copyright 1997-2007 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Paul A. Rombouts
+  This file Copyright 1997-2010 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008,2009,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -302,6 +301,12 @@ static ConfigSection offlineoptions_section={"OfflineOptions",
 
 /* SSLOptions section */
 
+/*+ The option to use weaker but faster key generation. +*/
+ConfigItem SSLQuickKeyGen;
+
+/*+ The expiration time of generated certificates. +*/
+ConfigItem SSLCertExpiry;
+
 /*+ The option to allow caching of SSL connections. +*/
 ConfigItem SSLEnableCaching;
 
@@ -319,6 +324,8 @@ ConfigItem SSLDisallowCache;
 
 /*+ The item definitions in the SSLOptions section. +*/
 static ConfigItemDef ssloptions_itemdefs[]={
+ {"quick-key-gen"  ,&SSLQuickKeyGen   ,0,0,Fixed,Boolean        ,"no"},
+ {"expiration-time",&SSLCertExpiry    ,0,0,Fixed,AgeDays        ,"1y"},
  {"enable-caching" ,&SSLEnableCaching ,0,0,Fixed,Boolean        ,"no"},
  {"allow-tunnel"   ,&SSLAllowTunnel   ,0,1,Fixed,HostAndPortWild,NULL},
  {"disallow-tunnel",&SSLDisallowTunnel,0,1,Fixed,HostAndPortWild,NULL},
@@ -712,13 +719,17 @@ ConfigItem RefererFrom;
 /*+ A flag to cause a 'User-Agent' header always to be added. +*/
 ConfigItem ForceUserAgent;
 
+/*+ A flag to cause the requested URL to be passed through unmodified. +*/
+ConfigItem PassUrlUnchanged;
+
 /*+ The item definitions in the censor outgoing headers section. +*/
 static ConfigItemDef censoroutgoingheader_itemdefs[]={
- {"referer-self"    ,&RefererSelf         ,1,0,Fixed ,Boolean,"no"},
- {"referer-self-dir",&RefererSelfDir      ,1,0,Fixed ,Boolean,"no"},
- {"referer-from"    ,&RefererFrom         ,1,0,Fixed ,Boolean,"no"},
- {"force-user-agent",&ForceUserAgent,      1,0,Fixed ,Boolean,"no"},
- {""                ,&CensorOutgoingHeader,1,1,StringNotNull,String,NULL}
+ {"referer-self"      ,&RefererSelf         ,1,0,Fixed ,Boolean,"no"},
+ {"referer-self-dir"  ,&RefererSelfDir      ,1,0,Fixed ,Boolean,"no"},
+ {"referer-from"      ,&RefererFrom         ,1,0,Fixed ,Boolean,"no"},
+ {"force-user-agent"  ,&ForceUserAgent      ,1,0,Fixed ,Boolean,"no"},
+ {"pass-url-unchanged",&PassUrlUnchanged    ,1,0,Fixed ,Boolean,"no"},
+ {""                  ,&CensorOutgoingHeader,1,1,StringNotNull,String,NULL}
 };
 
 /*+ The CensorOutgoingHeader section. +*/

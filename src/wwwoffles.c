@@ -1,14 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffles.c 2.320 2007/04/12 18:43:54 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9c.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9g.
   A server to fetch the required pages.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Originally written by Andrew M. Bishop.
+  Extensively modified by Paul A. Rombouts.
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06,07 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Paul A. Rombouts
+  This file Copyright 1996-2010 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008,2009,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -52,6 +51,7 @@
 #include "version.h"
 
 #define MAX_REDIRECT 8
+typedef unsigned short Bool_t;  /* Type used to store boolean values (only 0 or 1). */
 
 /*+ Set when the process received a signal requesting termination. +*/
 extern volatile sig_atomic_t got_sigexit;
@@ -134,27 +134,29 @@ static ssize_t modify_err,      /*+ the error when writing. +*/
 
 int wwwoffles(int online,int fetching,int client)
 {
- int outgoing_read=-1,outgoing_write=-1,spool=-1,tmpclient=-1,is_server=0;
+ int outgoing_write=-1,spool=-1,tmpclient=-1;
+ unsigned short is_server=0;
  int exitval=-1,fetch_again=0;
- URL *outgoingUrl=NULL;
  Header *request_head=NULL,*reply_head=NULL;
  Body   *request_body=NULL;
  int reply_status=-1;
  URL *Url=NULL,*Urlpw=NULL;
  Connection *connection=NULL;
  Mode mode=None;
- int outgoing_exists=0,outgoing_exists_pw=0,createlasttimespoolfile=0;
  time_t spool_exists=0,spool_exists_pw=0;
- int conditional_request_ims=0,conditional_request_inm=0,not_modified_spool=0;
- int offline_request=1;
- int caching_ssl_connection=0;
- int is_client_wwwoffle=0;
- int is_client_searcher=0;
- int new_server_connection=0,server_keep_connection=0;
+ Bool_t outgoing_exists=0,outgoing_exists_pw=0;
+ Bool_t createlasttimespoolfile=0;
+ Bool_t conditional_request_ims=0,conditional_request_inm=0,checked_spool=0,not_modified_spool=0;
+ Bool_t offline_request=1;
+ Bool_t caching_ssl_connection=0;
+ Bool_t is_client_wwwoffle=0;
+ Bool_t is_client_searcher=0;
+ Bool_t new_server_connection=0,server_keep_connection=0;
 #if USE_ZLIB
- int client_compression=0,request_compression=0,server_compression=0;
+ unsigned short client_compression=0,server_compression=0;
+ Bool_t request_compression=0;
 #endif
- int client_chunked=0,request_chunked=0,server_chunked=0;
+ Bool_t client_chunked=0,request_chunked=0,server_chunked=0;
  int redirect_count=0;
  sigset_t unblocked_sigset; /* signal mask used to (temporarily) unblock blocked signals. */
 
@@ -209,7 +211,7 @@ int wwwoffles(int online,int fetching,int client)
 
        if(port==ConfigInteger(HTTPS_Port))
 	 if(configure_io_gnutls(client,host?host:ip,1))
-             PrintMessage(Fatal,"Cannot start SSL/TLS connection");
+             PrintMessage(Fatal,"Cannot start SSL/TLS connection for https port.");
       }
    }
 #endif
@@ -224,9 +226,11 @@ int wwwoffles(int online,int fetching,int client)
  else /* if(mode==Fetch) */
    {
     /* Set up the input file to read the request from, stored in outgoing. */
-    outgoing_read=OpenExistingOutgoingSpoolFile(&outgoingUrl);
 
-    if(outgoing_read==-1 || !outgoingUrl)
+    /* URL *outgoingUrl=NULL; */
+    int outgoing_read=OpenExistingOutgoingSpoolFile(/* &outgoingUrl */ NULL);
+
+    if(outgoing_read==-1 /* || !outgoingUrl */)
       {
        PrintMessage(Inform,"No more outgoing requests.");
        exitval=3; goto close_client;
@@ -234,8 +238,12 @@ int wwwoffles(int online,int fetching,int client)
 
     init_io(outgoing_read);
     Url=ParseRequest(outgoing_read,&request_head,&request_body);
-    if(Url) FreeURL(Url);
-    Url=outgoingUrl;
+    finish_io(outgoing_read);
+    close(outgoing_read);
+ /* outgoing_read=-1; */
+
+ /* if(Url) FreeURL(Url);
+     Url=outgoingUrl; */
    }
 
  if(StderrLevel==ExtraDebug)
@@ -381,7 +389,7 @@ int wwwoffles(int online,int fetching,int client)
        PrintMessage(Warning,"A 'CONNECT' method request for '%s' cannot be handled in Spool mode.",Url->hostport);
 
        HTMLMessage(client,500,"WWWOFFLE Server Error",NULL,"ServerError",
-                   "error","SSL proxy connection while offline is not allowed.",
+                   "error","An https (SSL) connection while offline is not allowed.",
                    NULL);
        mode=InternalPage; goto internalpage;
       }
@@ -457,7 +465,7 @@ int wwwoffles(int online,int fetching,int client)
        }
 
        if(configure_io_gnutls(client,Url->host,IsLocalHost(Url)?1:2))
-          PrintMessage(Fatal,"Could not initialise SSL connection to client.");
+          PrintMessage(Fatal,"Could not initialise https (SSL) connection to client.");
 
        SetLocalPort(ConfigInteger(HTTPS_Port));
 
@@ -470,16 +478,26 @@ int wwwoffles(int online,int fetching,int client)
        caching_ssl_connection=1;
        goto parse_request;
       }
-#endif
     else
       {
-       PrintMessage(Warning,"A SSL proxy connection for %s was received but is not allowed.",Url->hostport);
+       PrintMessage(Warning,"An https (SSL) cached proxy connection for %s was received but is not allowed.",Url->hostport);
 
        HTMLMessage(client,500,"WWWOFFLE Server Error",NULL,"ServerError",
-                   "error","SSL proxy connection to specified host and port is not allowed.",
+                   "error","An https (SSL) cached proxy connection to specified host (and port) is not allowed.",
                    NULL);
        mode=InternalPage; goto internalpage;
       }
+#else
+    else
+      {
+       PrintMessage(Warning,"An https (SSL) non-tunneled proxy connection for %s was received but is not supported.",Url->hostport);
+
+       HTMLMessage(client,500,"WWWOFFLE Server Error",NULL,"ServerError",
+                   "error","An https (SSL) non-tunneled proxy connection is not supported.",
+                   NULL);
+       mode=InternalPage; goto internalpage;
+      }
+#endif
    }
  else if(!strcmp(request_head->method,"HEAD"))
    {
@@ -516,26 +534,36 @@ int wwwoffles(int online,int fetching,int client)
    {
     if(IsSSLAllowed(Url,0)) /* tunnel SSL connection */
       {
-       PrintMessage(Warning,"A SSL request for %s was received but tunnelling only is allowed.",Url->hostport);
+       PrintMessage(Warning,"An https (SSL) tunneled request for %s was received but is not allowed when fetching.",Url->hostport);
 
        if(client!=-1)
-          write_formatted(client,"Cannot fetch %s [HTTPS tunnelling not supported in this mode]\n",Url->name);
+          write_formatted(client,"Cannot fetch %s [https (SSL) tunnelling not allowed]\n",Url->name);
 
        exitval=1; goto clean_up;
       }
 #if USE_GNUTLS
     else if(ConfigBoolean(SSLEnableCaching) && IsSSLAllowed(Url,1)) /* cache SSL connection */
        ;
-#endif
     else
       {
-       PrintMessage(Warning,"A SSL request for %s was received but not allowed.",Url->hostport);
+       PrintMessage(Warning,"An https (SSL) request for %s was received but is not allowed.",Url->hostport);
 
        if(client!=-1)
-          write_formatted(client,"Cannot fetch %s [HTTPS not allowed for this host]\n",Url->name);
+          write_formatted(client,"Cannot fetch %s [https (SSL) not allowed for this host]\n",Url->name);
 
        exitval=1; goto clean_up;
       }
+#else
+    else
+      {
+       PrintMessage(Warning,"An https (SSL) request for %s was received but is not supported when fetching.",Url->hostport);
+
+       if(client!=-1)
+          write_formatted(client,"Cannot fetch %s [https (SSL) not supported]\n",Url->name);
+
+       exitval=1; goto clean_up;
+      }
+#endif
    }
 
 
@@ -1248,7 +1276,7 @@ passwordagain:
    {
     /* Don't cache if possibly online */
 
-    if(mode==Real || mode==SpoolOrReal)
+    if(mode==Real || mode==SpoolOrReal || mode==RealRefresh)
        mode=RealNoCache;
 
     /* Give an error if in fetch mode. */
@@ -1263,7 +1291,7 @@ passwordagain:
 
     /* Give an error if in a spooling mode */
 
-    else if(mode==Spool || mode==SpoolGet)
+    else if(mode==Spool || mode==SpoolGet || mode==SpoolRefresh)
       {
        PrintMessage(Inform,"It is not possible to request a URL that is not cached when offline.");
        HTMLMessage(client,404,"WWWOFFLE Cant Spool Not Cached",NULL,"HostNotCached",
@@ -1271,18 +1299,6 @@ passwordagain:
                    NULL);
        mode=InternalPage; goto internalpage;
       }
-
-    /* Do nothing for the refresh modes, they will come through again. */
-
-    /* else if(mode==RealRefresh || mode==SpoolRefresh)
-       ; */
-   }
-
- /* If a HEAD request when online then don't cache */
-
- if(mode==RealRefresh && head_only)
-   {
-    mode=RealNoCache;
    }
 
  /* If not caching then only use the password version. */
@@ -1419,7 +1435,7 @@ passwordagain:
 
  else if(mode==Fetch && (lockcreated=CreateLockWebpageSpoolFile(Url))<=0)
    {
-     if(lockcreated==0)
+    if(lockcreated==0)
        PrintMessage(Debug,"Already fetching URL.");
     if(client!=-1)
        write_formatted(client,
@@ -1486,7 +1502,7 @@ passwordagain:
 
 	    /* If changes are needed then get them and add the conditional headers. */
 
-	    if(RequireChanges(spool,Url,&ims,&inm))
+	    if(RequireChanges(spool,NULL,Url,&ims,&inm))
 	      {
 		if(inm) {
 		  AddToHeader(request_head,"If-None-Match",inm);
@@ -1499,37 +1515,34 @@ passwordagain:
 		  free(ims);
 		}
 	      }
-
-	    /* If no change is needed but is a recursive request, parse the document and fetch the images / links. */
-
-	    else if(fetch_again)
-	      {
-		lseek(spool,0,SEEK_SET);
-		reinit_io(spool);
-
-		if(ParseDocument(spool,Url,0))
-		  RecurseFetch(Url);
-
-		finish_io(spool);
-		close(spool);
-		spool=-1;
-
-		DeleteLockWebpageSpoolFile(Url);
-
-		exitval=4; goto clean_up;
-	      }
-
-	    /* Otherwise just exit. */
-
 	    else
 	      {
+		/* If no change is needed but is a recursive request, parse the document and fetch the images / links. */
+
+		if(fetch_again)
+		  {
+		    lseek(spool,0,SEEK_SET);
+		    reinit_io(spool);
+
+		    if(ParseDocument(spool,Url,0))
+		      RecurseFetch(Url);
+
+		    exitval=4;
+		  }
+
+		/* Otherwise just exit. */
+
+		else
+		  {
+		    exitval=0;
+		  }
+
 		finish_io(spool);
 		close(spool);
 		spool=-1;
 
 		DeleteLockWebpageSpoolFile(Url);
-
-		exitval=0; goto clean_up;
+		goto clean_up;
 	      }
 
 	    finish_io(spool);
@@ -1543,112 +1556,70 @@ passwordagain:
 
  else if(mode==Real)
    {
+     char *ims=NULL,*inm=NULL;
+     Bool_t requirechanges=0;
+
      /* If there is already a cached version then open it. */
 
-     if(!spool_exists || (spool=OpenWebpageSpoolFile(1,Url))==-1)
-       {
-	 if(head_only)
-	   mode=RealNoCache;
-
-	 if(conditional_request_ims)
-	   RemoveFromHeader(request_head,"If-Modified-Since");
-	 if(conditional_request_inm)
-	   RemoveFromHeader(request_head,"If-None-Match");
+     if(spool_exists && (spool=OpenWebpageSpoolFile(1,Url))!=-1) {
+       Header *spooled_head;
+       init_io(spool);
+       ParseReply(spool,&spooled_head);
+       if(!spooled_head) {
+	 PrintMessage(Debug,"Requesting URL (Spooled reply head is empty).");
        }
-     else
-       {
-	 char *ims=NULL,*inm=NULL;
-	 init_io(spool);
+       else {
+	 requirechanges=RequireChanges(spool,spooled_head,Url,&ims,&inm);
+	 checked_spool=1;
+	 if(conditional_request_ims || conditional_request_inm) {
+	/* lseek(spool,(off_t)0,SEEK_SET);
+	   reinit_io(spool); */
+	   not_modified_spool= !IsModified(spool,spooled_head,request_head);
+	 }
+	 FreeHeader(spooled_head);
+       }
+       finish_io(spool);
+       close(spool);
+       spool=-1;
+     }
+       
+     /* Remove the conditional headers only after calling IsModified(). */
 
-	 /* If changes are needed then get them and add the conditional headers. */
+     if(conditional_request_ims)
+       RemoveFromHeader(request_head,"If-Modified-Since");
+     if(conditional_request_inm)
+       RemoveFromHeader(request_head,"If-None-Match");
 
-	 if(RequireChanges(spool,Url,&ims,&inm))
-	   {
-	     if(head_only) {
-	       mode=RealNoCache;
+     if(checked_spool) {
+       if(requirechanges) {
+	 /* If changes are needed then add the conditional headers. */
+	 if(inm) {
+	   AddToHeader(request_head,"If-None-Match",inm);
+	   PrintMessage(Debug,"Requesting URL (Conditional request with If-None-Match: %s).",inm);
+	   free(inm);
+	 }
+	 if(ims) {
+	   AddToHeader(request_head,"If-Modified-Since",ims);
+	   PrintMessage(Debug,"Requesting URL (Conditional request with If-Modified-Since: %s).",ims);
+	   free(ims);
+	 }
+       }
+       else {
+	 if(!head_only) DeleteLockWebpageSpoolFile(Url);
 
-	       if(conditional_request_ims)
-		 RemoveFromHeader(request_head,"If-Modified-Since");
-	       if(conditional_request_inm)
-		 RemoveFromHeader(request_head,"If-None-Match");
-	       if(inm) free(inm);
-	       if(ims) free(ims);
-	     }
-	     else {
-	       if(conditional_request_ims || conditional_request_inm) {
-		 lseek(spool,0,SEEK_SET);
-		 reinit_io(spool);
-
-		 /* We may want to send a not-modified header to the client when the
-		    server also replies "Not Modified".
-		    Check this with the present request_head, because the
-		    original conditional request headers from the client
-		    are going to be replaced.
-		 */
-
-		 not_modified_spool= !IsModified(spool,request_head);
-	       }
-	     
-	       /* Remove the conditional headers only after calling IsModified(). */
-
-	       if(conditional_request_ims)
-		 RemoveFromHeader(request_head,"If-Modified-Since");
-	       if(conditional_request_inm)
-		 RemoveFromHeader(request_head,"If-None-Match");
-	       if(inm) {
-		 AddToHeader(request_head,"If-None-Match",inm);
-		 PrintMessage(Debug,"Requesting URL (Conditional request with If-None-Match: %s).",inm);
-		 free(inm);
-	       }
-	       if(ims) {
-		 AddToHeader(request_head,"If-Modified-Since",ims);
-		 PrintMessage(Debug,"Requesting URL (Conditional request with If-Modified-Since: %s).",ims);
-		 free(ims);
-	       }
-	     }
-	   }
-
-	 /* Otherwise just use the spooled version. */
-
+	 if(not_modified_spool) {
+	   HTMLMessageHead(client,304,"WWWOFFLE Not Modified",
+			   "Content-Length","0",
+			   NULL);
+	   mode=InternalPage; goto internalpage;
+	 }
 	 else
-	   {
-	     mode=Spool;
-	     if(!head_only) DeleteLockWebpageSpoolFile(Url);
-
-	     if((conditional_request_ims || conditional_request_inm) && !head_only)
-	       {
-		 lseek(spool,0,SEEK_SET);
-		 reinit_io(spool);
-
-		 /* Return a not-modified header if it isn't modified. */
-
-		 if(!IsModified(spool,request_head))
-		   {
-		     HTMLMessageHead(client,304,"WWWOFFLE Not Modified",
-				     "Content-Length","0",
-				     NULL);
-		     finish_io(spool);
-		     close(spool);
-		     spool=-1;
-		     mode=InternalPage; goto internalpage;
-		   }
-	       }
-
-	     /* Remove the headers only after calling IsModified(). */
-
-	     if(conditional_request_ims)
-	       RemoveFromHeader(request_head,"If-Modified-Since");
-	     if(conditional_request_inm)
-	       RemoveFromHeader(request_head,"If-None-Match");
-	   }
-
-	 finish_io(spool);
-	 close(spool);
-	 spool=-1;
+	   mode=Spool;
        }
+     }
    }
 
- else if(mode==SpoolOrReal || mode==Spool || mode==RealRefresh || mode==SpoolRefresh || mode==SpoolGet)
+ else if(mode==RealRefresh || mode==SpoolOrReal || mode==Spool || mode==SpoolGet || mode==SpoolRefresh)
    {
      /* If in autodial mode when not a forced refresh. */
 
@@ -1690,24 +1661,22 @@ passwordagain:
 
 	     if(spool!=-1)
 	       {
+		 Bool_t ismodified;
+
 		 init_io(spool);
+		 ismodified= IsModified(spool,NULL,request_head);
+		 finish_io(spool);
+		 close(spool);
+		 spool=-1;
 
 		 /* Return a not-modified header if it isn't modified. */
-
-		 if(!IsModified(spool,request_head))
+		 if(!ismodified)
 		   {
 		     HTMLMessageHead(client,304,"WWWOFFLE Not Modified",
 				     "Content-Length","0",
 				     NULL);
-		     finish_io(spool);
-		     close(spool);
-		     spool=-1;
 		     mode=InternalPage; goto internalpage;
 		   }
-
-		 finish_io(spool);
-		 close(spool);
-		 spool=-1;
 	       }
 	   }
        }
@@ -1732,6 +1701,14 @@ passwordagain:
  if(mode==SpoolGet && head_only)
    {
     strcpy(request_head->method,"GET");
+   }
+
+ /* If a HEAD request when online then don't cache */
+
+ if((mode==Real || mode==RealRefresh) && head_only)
+   {
+    /* DeleteLockWebpageSpoolFile(Url); */
+    mode=RealNoCache;
    }
 
  /*----------------------------------------
@@ -2090,6 +2067,8 @@ passwordagain:
            (!ConfigBooleanURL(ConfirmRequests,Url) || is_client_wwwoffle || IsLocalHost(Url)))))
    {
      ssize_t err;
+
+     /* Write the request header. */
      {
        size_t request_head_size;
        char *head=HeaderString(request_head,&request_head_size);
@@ -2098,9 +2077,14 @@ passwordagain:
        free(head);
      }
 
-    /* Write the error to the client. */
+     /* Write the request body, if any. */
 
-    if(err<0)
+     if(err>=0 && request_body)
+       err=write_data(outgoing_write,request_body->content,request_body->length);
+
+     /* In case of error, write the error message to the client. */
+
+     if(err<0)
       {
        char *errmsg=GetPrintMessage(Warning,"Cannot write the outgoing request [%!s].");
        HTMLMessage(client,500,"WWWOFFLE Server Error",NULL,"ServerError",
@@ -2110,9 +2094,11 @@ passwordagain:
        mode=InternalPage; goto internalpage;
       }
 
-    if(request_body)
-       if(write_data(outgoing_write,request_body->content,request_body->length)<0)
-          PrintMessage(Warning,"Cannot write to outgoing file [%!s]; disk full?");
+     /* Close the outgoing file. */
+
+     finish_io(outgoing_write);
+     CloseNewOutgoingSpoolFile(outgoing_write,Url);
+     outgoing_write=-1;
    }
 
 
@@ -2344,9 +2330,9 @@ passwordagain:
           exitval=(fetch_again?4:0); goto clean_up;
          }
 
-       /* If in Real mode then tell the client or spool the page to the client. */
+       /* If in Real or RealNoCache mode then tell the client or spool the page to the client. */
 
-       else if(mode==Real)
+       else if(checked_spool)
          {
           if(not_modified_spool)
             {
@@ -2452,22 +2438,6 @@ passwordagain:
 	  FreeURL(newUrl);
        }
       }
-   }
-
- /* Close the outgoing file if any. */
-
- if(outgoing_read>=0)
-   {
-    finish_io(outgoing_read);
-    close(outgoing_read);
-    outgoing_read=-1;
-   }
-
- if(outgoing_write>=0)
-   {
-    finish_io(outgoing_write);
-    CloseNewOutgoingSpoolFile(outgoing_write,Url);
-    outgoing_write=-1;
    }
 
 
@@ -3432,6 +3402,9 @@ passwordagain:
 		  NULL);
       free(errmsg);
 
+      CloseTempSpoolFile(tmpclient);
+      tmpclient=-1;
+
       mode=InternalPage; goto internalpage;
     }
     init_io(tmpclient);
@@ -3491,6 +3464,7 @@ passwordagain:
 
 			   FreeHeader(reply_head); reply_head=NULL;
 			   createlasttimespoolfile=0;
+			   checked_spool=0; not_modified_spool=0;
 
 			   /* restore original mode */
 			   if(online==1 && !fetching)       mode=Real;
@@ -3773,13 +3747,6 @@ clean_up:
 
  /* Close the outgoing file if any. */
 
- if(outgoing_read>=0)
-   {
-    finish_io(outgoing_read);
-    close(outgoing_read);
-    outgoing_read=-1;
-   }
-
  if(outgoing_write>=0)
    {
     finish_io(outgoing_write);
@@ -3828,6 +3795,7 @@ clean_up:
     outgoing_exists=outgoing_exists_pw;
     outgoing_exists_pw=0;
     createlasttimespoolfile=0;
+    checked_spool=0; not_modified_spool=0;
 
     if(mode==RealNoPassword)
        mode=Real;
@@ -3927,15 +3895,15 @@ close_client:
 	     /* reset various variables and read the new request from the client. */
 	     GetCurrentOnlineStatus(&online);
 
-	     outgoing_read=-1; outgoing_write=-1; spool=-1; tmpclient=-1; is_server=0;
-	     outgoingUrl=NULL;
+	     outgoing_write=-1; spool=-1; tmpclient=-1; is_server=0;
 	     request_head=NULL; reply_head=NULL;
 	     request_body=NULL;
 	     reply_status=-1;
 	     Url=NULL; Urlpw=NULL;
 	     outgoing_exists=0; outgoing_exists_pw=0; createlasttimespoolfile=0;
 	     spool_exists=0; spool_exists_pw=0;
-	     conditional_request_ims=0; conditional_request_inm=0; not_modified_spool=0;
+	     conditional_request_ims=0; conditional_request_inm=0;
+	     checked_spool=0; not_modified_spool=0;
 	     offline_request=1;
 	     new_server_connection=0;
 #if USE_ZLIB

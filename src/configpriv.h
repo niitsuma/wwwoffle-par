@@ -1,14 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configpriv.h 1.27 2006/01/07 16:10:38 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Configuration file management functions.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Written by Andrew M. Bishop.
+  Modified by Paul A. Rombouts.
 
   This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2004,2006 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2004,2006,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.

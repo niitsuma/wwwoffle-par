@@ -1,11 +1,10 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/configedit.c 1.41 2005/10/11 18:34:15 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   The HTML interactive configuration editing pages.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Originally written by Andrew M. Bishop.
+  Extensively modified by Paul A. Rombouts.
 
   This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
   Parts of this file Copyright (C) 2002,2003,2004,2006,2007 Paul A. Rombouts

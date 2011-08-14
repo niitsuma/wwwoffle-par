@@ -1,14 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/document.c 1.28 2007/03/25 11:06:03 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9f.
   Document parsing functions.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Written by Andrew M. Bishop.
+  Modified by Paul A. Rombouts.
 
-  This file Copyright 1998,99,2000,01,02,03,04,05 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2004,2007 Paul A. Rombouts
+  This file Copyright 1998-2010 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2004,2007,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -48,6 +47,7 @@ static int add_all=0;
 
 static DocType GetDocumentType(const char *mimetype);
 static /*@only@*/ char *GetMIMEType(int fd);
+static void FinishReferences(void);
 
 inline static void SetBaseURL(const URL *Url)
 {
@@ -59,6 +59,14 @@ inline static void SetBase_url(const char *url)
 {
   if(baseUrl) FreeURL(baseUrl);
   baseUrl=(url?SplitURL(url):NULL);
+}
+
+inline static void cleanup_baseUrl()
+{
+  if(baseUrl) {
+    FreeURL(baseUrl);
+    baseUrl=NULL;
+  }
 }
 
 
@@ -74,7 +82,7 @@ inline static void SetBase_url(const char *url)
   int all Set to 1 to match all references, not just the protocols that WWWOFFLE knows.
   ++++++++++++++++++++++++++++++++++++++*/
 
-DocType ParseDocument(int fd,URL *Url,int all)
+DocType ParseDocument(int fd,const URL *Url,int all)
 {
  char *mimetype,*getmimetype;
  DocType doctype=DocUnknown;
@@ -162,7 +170,7 @@ static DocType GetDocumentType(const char *mimetype)
  unsigned i;
 
  for(i = 0; i < sizeof(docTypeList)/sizeof(docTypeList[0]); i++)
-    if(!strcmp(mimetype,docTypeList[i].mimetype))
+    if(!strcasecmp(mimetype,docTypeList[i].mimetype))
        return(docTypeList[i].doctype);
 
  return(DocUnknown);
@@ -214,14 +222,6 @@ static char *GetMIMEType(int fd)
 
 void AddReference(char* name,RefType type)
 {
- /* Special case for baseUrl. */
-
- if(type==RefBaseUrl && name)
-   {
-    SetBase_url(name);
-    return;
-   }
-
  /* Check for badly formatted URLs */
 
  if(name)
@@ -254,9 +254,18 @@ void AddReference(char* name,RefType type)
           onlychars=0;
    }
 
- /* Add it to the list. */
+ /* Special case for baseUrl. */
 
- if(name || reference_links[type])
+ if(type==RefBaseUrl && name)
+   {
+    char *url=FixHTMLLinkURL(name);
+    SetBase_url(url);
+    free(url);
+   }
+
+ /* Else add it to the list. */
+
+ else if(name || reference_links[type])
    {
     if(reference_num[type]==0)
        reference_links[type]=(char**)malloc(16*sizeof(char*));
@@ -264,10 +273,7 @@ void AddReference(char* name,RefType type)
        reference_links[type]=(char**)realloc(reference_links[type],(reference_num[type]+16)*sizeof(char*));
 
     if(name)
-      {
-       reference_links[type][reference_num[type]]=strdup(name);
-       URLReplaceAmp(reference_links[type][reference_num[type]]);
-      }
+       reference_links[type][reference_num[type]]=FixHTMLLinkURL(name);
     else
        reference_links[type][reference_num[type]]=NULL;
 
@@ -280,7 +286,7 @@ void AddReference(char* name,RefType type)
   Finish the list of references and set the base URL if changed.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void FinishReferences(void)
+static void FinishReferences(void)
 {
  RefType i;
 
@@ -292,7 +298,7 @@ void FinishReferences(void)
 /*++++++++++++++++++++++++++++++++++++++
   Get the reference of the specified type.
 
-  URL *GetReferences Returns the URL.
+  URL *GetReference Returns the URL.
 
   RefType type The type of URL that is required.
   ++++++++++++++++++++++++++++++++++++++*/
@@ -341,8 +347,11 @@ URL **GetReferences(RefType type)
 
     reference_Urls[type]=(URL**)malloc(reference_num[type]*sizeof(URL*));
 
-    for(i=0;reference_links[type][i];i++)
-       reference_Urls[type][i]=LinkURL(baseUrl,reference_links[type][i]);
+    for(i=0;i<reference_num[type] && reference_links[type][i];i++)
+       if(baseUrl)
+          reference_Urls[type][i]=LinkURL(baseUrl,reference_links[type][i]);
+       else
+          reference_Urls[type][i]=SplitURL(reference_links[type][i]);
 
     reference_Urls[type][i]=NULL;
 
@@ -407,5 +416,6 @@ void ResetReferences(void)
     reference_num[i]=0;
    }
 
+ cleanup_baseUrl();
  first=0;
 }

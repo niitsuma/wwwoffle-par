@@ -1,13 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/ssl.c 1.32 2006/01/10 19:25:38 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9f.
   SSL (Secure Socket Layer) Tunneling functions.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Written by Andrew M. Bishop.
+  Modified by Paul A. Rombouts.
 
-  This file Copyright 1998,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  This file Copyright 1998-2010 Andrew M. Bishop
   Parts of this file Copyright (C) 2002,2004,2006,2007 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -93,7 +92,7 @@ char *SSL_Open(URL *Url)
     if((sproxy && !(socksdata= MakeSocksData(sproxy,socksremotedns,&socksbuf))) ||
        (server=OpenUrlSocket(Url,socksdata))==-1)
       {
-       msg=GetPrintMessage(Warning,"Cannot open the SSL connection to %s port %d; [%!s].",Url->host,Url->portnum);
+       msg=GetPrintMessage(Warning,"Cannot open the https (SSL) connection to %s port %d; [%!s].",Url->host,Url->portnum);
       }
     else
       {
@@ -102,7 +101,7 @@ char *SSL_Open(URL *Url)
       }
    }
  else
-    msg=GetPrintMessage(Warning,"No port given for the SSL connection to %s.",Url->host);
+    msg=GetPrintMessage(Warning,"No port given for the https (SSL) connection to %s.",Url->host);
 
  return(msg);
 }
@@ -136,10 +135,10 @@ char *SSL_Request(int client,URL *Url,Header *request_head)
 
     head=HeaderString(request_head,&headlen);
 
-    PrintMessage(ExtraDebug,"Outgoing Request Head (to SSL proxy)\n%s",head);
+    PrintMessage(ExtraDebug,"Outgoing Request Head (to https (SSL) proxy)\n%s",head);
 
     if(write_data(server,head,headlen)<0)
-       msg=GetPrintMessage(Warning,"Failed to write to remote SSL proxy; [%!s].");
+       msg=GetPrintMessage(Warning,"Failed to write to remote https (SSL) proxy; [%!s].");
 
     free(head);
    }

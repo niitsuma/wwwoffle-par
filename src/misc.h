@@ -1,13 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/misc.h 2.61 2006/01/08 10:27:22 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9g.
   Miscellaneous HTTP / HTML functions.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Written by Andrew M. Bishop.
+  Modified by Paul A. Rombouts.
 
-  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
+  This file Copyright 1997-2010 Andrew M. Bishop
   Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -60,13 +59,19 @@ md5hash_t;
 /*+ A URL data type. +*/
 typedef struct _URL
 {
+ char *original_name;           /*+ The original URL that was split to create this structure. +*/
+
+ char *original_hostp;          /*+ A pointer to the host in the original URL. +*/
+ char *original_pathp;          /*+ A pointer to the path in the original URL. +*/
+ char *original_pathendp;       /*+ A pointer to end of the path in the original URL. +*/
+
  char *name;                    /*+ The canonical URL for the object without the username/password. +*/
 
  char *file;                    /*+ The URL that is used for generating the filename with the username/password (may point to name). +*/
 
- char *hostp;                   /*+ A pointer to the host in the url. +*/
- char *pathp;                   /*+ A pointer to the path in the url. +*/
- char *pathendp;                /*+ A pointer to the end of the path in url +*/
+ char *hostp;                   /*+ A pointer to the host in the URL. +*/
+ char *pathp;                   /*+ A pointer to the path in the URL. +*/
+ char *pathendp;                /*+ A pointer to the end of the path in the URL. +*/
 
  char *proto;                   /*+ The protocol. +*/
  char *hostport;                /*+ The host name and port number. +*/
@@ -92,6 +97,9 @@ typedef struct _URL
  char addrvalid;                /*+ Set to true if the addr field contains the correct IP address. +*/
 }
 URL;
+
+inline static char *URL_get_original_args(URL *Url)
+{ return *(Url->original_pathendp)=='?'? Url->original_pathendp+1: NULL; }
 
 
 typedef struct {
@@ -234,9 +242,9 @@ unsigned char /*@only@*/ *Base64Encode(const unsigned char *str,size_t l, unsign
 /*+ The length of the hash created for a cached name +*/
 #define CACHE_HASHED_NAME_LEN ((4*sizeof(md5hash_t)+2)/3)
 
-void URLReplaceAmp(char *string);
+char /*@only@*/ *FixHTMLLinkURL(const char *str);
 
-char /*@only@*/ *HTMLString(const char* c, int nbsp, size_t *lenp);
+char /*@only@*/ *HTMLString(const char* str,int nbsp, size_t *lenp);
 char /*@only@*/ *HTML_url(char *url);
 char *HTMLcommentstring(char *str, size_t *lenp);
 

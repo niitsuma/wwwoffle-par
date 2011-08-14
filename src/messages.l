@@ -1,5 +1,6 @@
 %option noyywrap
 %option stack
+%option noyy_top_state
 
 VAR    \$[a-z_0-9]+
 FUNC   \%[a-z_0-9]+\[[a-z_0-9]+\]
@@ -12,16 +13,15 @@ FUNC   \%[a-z_0-9]+\[[a-z_0-9]+\]
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/messages.l 1.62 2006/01/29 19:59:19 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Parse the HTML to create the messages.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Originally written by Andrew M. Bishop.
+  Extensively modified by Paul A. Rombouts.
 
   This file Copyright 1998,99,2000,01,02,03,04,05 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -667,8 +667,8 @@ inline static char *skip_trailing_blanks(char *string, char *end)
 [ \t]+                                                              { write_or_append_string(yytext); any++; }
 [ \t]*\\\r*\n                                                       { }
 <INITIAL,ALTERNATE_USE_FIRST,ALTERNATE_USE_SECOND>{VAR}             { write_or_append_string(get_variable(yytext+1));any++; }
-<INITIAL,ALTERNATE_USE_FIRST,ALTERNATE_USE_SECOND>{VAR}[ \t]*=      { char *p=yytext+1,*r=yytext+yyleng;
-								      var=STRDUP2(p,skip_trailing_blanks(p,r-1));
+<INITIAL,ALTERNATE_USE_FIRST,ALTERNATE_USE_SECOND>{VAR}[ \t]*=      { char *p=yytext+1,*r=yytext+yyleng-1;
+								      var=STRDUP2(p,skip_trailing_blanks(p,r));
 								      val=NULL; yy_push_state(ASSIGNMENT_START); }
 <INITIAL,ALTERNATE_USE_FIRST,ALTERNATE_USE_SECOND>{VAR}[ \t]*\?[ \t\r\n]*\{  {
                                                                       char *p=yytext+1,*q=strchrnul(p,'?');

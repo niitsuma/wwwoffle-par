@@ -1,14 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffled.c 2.82 2007/03/25 11:06:21 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9f.
   A demon program to maintain the database and spawn the servers.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Originally written by Andrew M. Bishop.
+  Extensively Modified by Paul A. Rombouts.
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04,05 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2007,2008 Paul A. Rombouts
+  This file Copyright 1996-2009 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2007,2008,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -110,9 +109,6 @@ int purge_pid=0;
 /*+ The current status, fetching or not. +*/
 short int fetching=0;
 
-/*+ Flag indicating whether we are preparing to exit. +*/
-static short int exiting=0;
-
 /*+ True if the -f option was passed on the command line. +*/
 short int nofork=0;
 
@@ -139,6 +135,8 @@ int main(int argc, char** argv)
 {
  int i;
  short detached=1, print_pid=0, quiet=0;
+ short exiting=0; /*+ Flag indicating whether we are preparing to exit. +*/
+
  int pfd=-1;
  char *config_file=NULL,*log_file=NULL,*pid_file=NULL;
 
@@ -643,7 +641,7 @@ int main(int argc, char** argv)
 
 		if(accept_connection) {
 		  if(stype==wwwoffle_sock) {
-		    if(CommandConnect(client))
+		    if(CommandConnect(client,log_file))
 		      sigterm_all_children=1;
 		    if(fetch_fd==client)
 		      keep_connection=1;

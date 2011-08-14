@@ -1,13 +1,12 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/wwwoffle.c 2.82 2007/09/29 18:54:08 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9f.
   A user level program to interact with the server.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Written by Andrew M. Bishop.
+  Modified by Paul A. Rombouts.
 
-  This file Copyright 1996-2007 Andrew M. Bishop
+  This file Copyright 1996-2009 Andrew M. Bishop
   Parts of this file Copyright (C) 2002,2004,2005,2006,2007,2008 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
@@ -56,6 +55,8 @@ typedef enum _Action
  Config,                        /*+ Tell the server to re-read the configuration file. +*/
 
  Dump,                          /*+ Tell the server to dump the configuration file. +*/
+
+ CycleLog,                      /*+ Tell the server to close and re-open the log file. +*/
 
  Purge,                         /*+ Tell the server to purge pages. +*/
 
@@ -214,6 +215,15 @@ int main(int argc, char** argv)
        continue;
       }
 
+    if(!strcmp(argv[i],"-cyclelog"))
+      {
+       if(action!=None)
+         {fprintf(stderr,"wwwoffle: Only one command at a time.\n\n");usage(0);}
+       action=CycleLog;
+       argv[i]=NULL;
+       continue;
+      }
+
     if(!strcmp(argv[i],"-purge"))
       {
        if(action!=None)
@@ -359,6 +369,7 @@ int main(int argc, char** argv)
             {fprintf(stderr,"wwwoffle: The port number %d in -p option '%s' is invalid.\n",port,argv[i]); exit(1);}
          }
 
+       if(host) free(host);
        host=strndup(hoststr,hostlen);
        argv[i-1]=NULL;
        argv[i]=NULL;
@@ -403,16 +414,20 @@ int main(int argc, char** argv)
     fprintf(stderr,"wwwoffle: The -post and -put options require exactly one URL.\n\n");
     usage(0);
    }
-
- if((action==Output || action==OutputWithHeader) && n_url_file_list!=1)
+ else if((action==Output || action==OutputWithHeader) && n_url_file_list!=1)
    {
     fprintf(stderr,"wwwoffle: The -o and -O options require exactly one URL.\n\n");
     usage(0);
    }
-
- if(action==Get && n_url_file_list==0)
+ else if(action==Get && n_url_file_list==0)
    {
     fprintf(stderr,"wwwoffle: No URLs were specified to request.\n\n");
+    usage(0);
+   }
+ else if(action!=Get && action!=Output && action!=OutputWithHeader && n_url_file_list!=0)
+   {
+    fprintf(stderr,"wwwoffle: The -online, -autodial, -offline, -fetch, -config, -dump, -cyclelog,\n"
+                   "          -purge, -status and -kill options must have no other arguments.\n\n");
     usage(0);
    }
 
@@ -427,6 +442,7 @@ int main(int argc, char** argv)
        char *hoststr,*portstr; size_t hostlen;
 
        SplitHostPort(env,&hoststr,&hostlen,&portstr);
+       if(host) free(host);
        host=strndup(hoststr,hostlen);
 
        if(portstr)
@@ -498,6 +514,7 @@ int main(int argc, char** argv)
 			(action==Fetch)?   "WWWOFFLE FETCH\r\n":
 			(action==Config)?  "WWWOFFLE CONFIG\r\n":
 			(action==Dump)?    "WWWOFFLE DUMP\r\n":
+			(action==CycleLog)?"WWWOFFLE CYCLELOG\r\n":
 			(action==Purge)?   "WWWOFFLE PURGE\r\n":
 			(action==Status)?  "WWWOFFLE STATUS\r\n":
 			(action==Kill)?    "WWWOFFLE KILL\r\n":
@@ -518,12 +535,14 @@ int main(int argc, char** argv)
        else if(action==Offline && !strcmp_litbeg(line,"WWWOFFLE Already Offline"))
           exitval=1;
        else if(action==Fetch && (!strcmp_litbeg(line,"WWWOFFLE Already Fetching") ||
-                            !strcmp_litbeg(line,"WWWOFFLE Must be online or autodial to fetch")))
+				 !strcmp_litbeg(line,"WWWOFFLE Must be online or autodial to fetch")))
           exitval=1;
        else if(action==Config && !strcmp_litbeg(line,"Configuration file syntax error"))
           exitval=1;
        else if(action==Purge && (!strcmp_litbeg(line,"WWWOFFLE Already Purging") ||
 				 !strcmp_litbeg(line,"WWWOFFLE Purge prematurely aborted")))
+          exitval=1;
+       else if(action==CycleLog && !strcmp_litbeg(line,"WWWOFFLE Has No Log File"))
           exitval=1;
       }
 
@@ -954,7 +973,7 @@ static void usage(int verbose)
  fprintf(stderr,
          "Usage: wwwoffle -h | --help | --version\n"
          "       wwwoffle -online | -autodial | -offline | -fetch\n"
-         "       wwwoffle -config | -dump | -purge | -status | -kill\n"
+         "       wwwoffle -config | -dump | -cyclelog | -purge | -status | -kill\n"
          "       wwwoffle [-o|-O] <url>\n"
          "       wwwoffle [-post|-put] <url>\n"
          "       wwwoffle [-g[Sisfo]] [-F] [-(d|r|R)[<depth>]] <url> ...\n"
@@ -985,6 +1004,8 @@ static void usage(int verbose)
             "wwwoffle -config     : Force the server to re-read the configuration file.\n"
             "\n"
             "wwwoffle -dump       : Force the server to dump the current configuration.\n"
+            "\n"
+            "wwwoffle -cyclelog   : Force the server to close and re-open the log file.\n"
             "\n"
             "wwwoffle -status     : Query the server about its current status.\n"
             "\n"

@@ -1,43 +1,43 @@
-	  Alternative WWWOFFLE implementation - version 2.9d
-                             by Paul Rombouts
+	  Alternative WWWOFFLE implementation - version 2.9g
+                             by Paul A. Rombouts
 	  =========================================================
 
 This file describes the customized version of WWWOFFLE that I use personally and
 am making available so other people can run it and/or study the source code.
-Present version is 2.9d (I've simply appended my initials to the version
-number). This version continues the experimental support for persistent
-connections, which has the potential to greatly reduce the number of WWWOFFLE
-child processes spawned and TCP connections opened.
+Present version is 2.9g (I've simply appended my initials to the version
+number). This version contains a new feature for modifying HTML web pages, that
+makes a number of modifications possible at very specific locations in an HTML
+document that match "tag-attribute" patterns. These patterns can target tags
+with a specified name and attributes that match wild-card patterns, but can also
+include context dependant conditions that must also match for the entire pattern
+sequence to match.
 
-The first part of this file describes how to patch, compile, install and run
+The first part of this file describes how to configure, compile, install and run
 wwwoffled. Please note that if you wish to use an existing WWWOFFLE spool
 directory the files in the cache (those beginning with 'U') must be converted
 into a database file before you can start wwwoffled. The second part lists in
 more detail the changes I've made to AMB's code.
 
-Before compiling and installing WWWOFFLE according to AMB's installation
-instructions described in the INSTALL file you must first apply my patch file
-wwwoffled-2.9d-par.diff.gz. Use a freshly untarred copy of Andrew Bishop's
-original version 2.9d source, cd into the source directory wwwoffle-2.9d and
-apply the command:
+I used to make my version of the WWWOFFLE code available in the form of patch
+files, but my latest code is currently only available from a git repo at
+gitorious.org.  To get the source code you need git installed on your
+system. Fetching the code is very straightforward:
 
-gzip -cd <path_to_patch>/wwwoffle-2.9d-par.diff.gz | patch -p2 -N -E
+   git clone git://gitorious.org/wwwoffle/wwwoffle-par.git wwwoffle-par
+   cd wwwoffle-par
+
+You can then configure, compile and install WWWOFFLE according to AMB's installation
+instructions described in the INSTALL file.
 
 Notes:
-1) The current patch breaks IPv6 functionality. Because in version 2.9 IPv6 is
+1) The current code breaks IPv6 functionality. Because in version 2.9 IPv6 is
    enabled by default, you will need to configure using the --without-ipv6
    option.
 
 2) Because I have used GNU extensions you will need to compile with gcc and link
    with glibc. This will not be a problem with most Linux distributions.
 
-3) If you get some weird error messages about "Malformed UTF-8 characters" from
-   the perl interpreter (this happened to me with some Red Hat distribitions)
-   try again after running the command (assuming you use a bash shell):
-
-	export LANG=C
-
-4) If you want to use an existing WWWOFFLE configuration file then you must make
+3) If you want to use an existing WWWOFFLE configuration file then you must make
    the following change to the configuration file before you can run wwwoffled:
    split section CensorHeader into two sections called CensorIncomingHeader and
    CensorOutgoingHeader. These sections should contain only options that apply
@@ -46,15 +46,21 @@ Notes:
    the CensorOutgoingHeader section. Alternatively, if you're not using the
    CensorHeader section at all it is easier to simply delete it entirely.
 
-5) Important: If you want to use an existing WWWOFFLE spool directory you must
+4) Important: If you want to use an existing WWWOFFLE spool directory you must
    convert the information in the U* files in the cache to a new database file
    called "urlhashtable". You need to execute the following steps as root:
    - First it is recommended that you make a backup copy of your spool directory
      (don't worry, the conversion is reversible, this is just a precaution).
-   - Change to the wwwoffle-2.9d/src directory and run "./make_urlhash_file" .
+   - Change to the wwwoffle-par/src directory and run "./make_urlhash_file" .
    - The U* files are no longer needed and just waste disk space. You can run
      the script "rm_Ufiles.sh" to remove them immediately; otherwise they will
      removed the next time you run "wwwoffle -purge".
+
+5) If you get some weird error messages about "Malformed UTF-8 characters" from
+   the perl interpreter (this happened to me with some Red Hat distribitions)
+   try again after running the command (assuming you use a bash shell):
+
+	export LANG=C
 
 That's it! You should now be able to run wwwoffled and enjoy the improved
 performance. You should be able to notice that WWWOFFLE accesses the hard disk
@@ -77,17 +83,17 @@ Additional notes:
 	  network.http.proxy.keep-alive = true
 	  network.http.proxy.pipelining = false
 
-   - There may be some delay before a "wwwoffle -config" command has effect.
-   - When you shutdown the WWWOFFLE daemon there may be some delay before
-     it definitely exits, because wwwoffled waits for all the child processes
-     to exit before the main process does and the child processes with persistent
-     connections are longer lived. This may be fixed in the future, but for
-     now make sure you close the browser before (or soon after) shutting down
-     WWWOFFLE, or use a short keep-alive-timeout.
+   - When you shutdown the WWWOFFLE daemon there may be some delay before it
+     definitely exits, because wwwoffled waits for all the child processes to
+     exit before the main process does and the child processes with persistent
+     connections are longer lived. This probem has mostly been fixed in version
+     2.9g-par. However, due to improper implementation of the pselect function
+     in older versions of Linux, there can be a remaining race condition that
+     can cause these delays to occur anyway, but only very rarely.
 
 2) Should you want to go back to using AMB's original version, you will have to
    restore the U* files first by running the "restore_Ufiles" utility in the
-   wwwoffle-2.9d/src directory.
+   wwwoffle-par/src directory.
 
 3) My patch unfortunately breaks the functionality of the wwwoffle-tools
    (wwwoffle-fsck wwwoffle-gunzip wwwoffle-gzip wwwoffle-hash wwwoffle-ls
@@ -106,6 +112,12 @@ Additional notes:
 
 
 I've introduced a few extensions to the way WWWOFFLE can be configured:
+
+- New in version 2.9g: HTML modification using tag-attributes patterns.
+  This new feature is like a Swiss army knife compared to the previous options
+  in the ModifyHTML section of the configuration file and is difficult to
+  describe in just a few words. This feature will be described in a separate
+  documentation file in the future.
 
 - New in version 2.9d: there is a new configuration option "try-epsv" which
   effects FTP connections. When establishing an FTP data connection, the default

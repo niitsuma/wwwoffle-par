@@ -16,16 +16,16 @@ url             ({alphanum}|{nonascii}|{safepunct})+
 
 %{
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/css.l 1.12 2005/02/27 10:16:25 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.8f.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9f.
   Parse the CSS and look for the images and stylesheets.
   ******************/ /******************
-  Written by Andrew M. Bishop
+  Written by Andrew M. Bishop.
+  Modified by Paul A. Rombouts.
 
   Some parts of the lex scanner based on the CSS2 specification from W3C.
 
-  This file Copyright 1997,98,99,2000,01,02,03,04,05 Andrew M. Bishop
+  This file Copyright 1997-2009 Andrew M. Bishop
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -58,7 +58,7 @@ url             ({alphanum}|{nonascii}|{safepunct})+
 
 /* Local functions */
 
-static void parse_css(URL *Url);
+static void parse_css(const URL *Url);
 
 static /*@null@*/ char *css_yylval=NULL;
 extern int css_yylex(void);
@@ -76,7 +76,7 @@ static int css_yyfd=-1;
   URL *Url The reference URL to use.
   ++++++++++++++++++++++++++++++++++++++*/
 
-void ParseCSS(int fd,URL *Url)
+void ParseCSS(int fd,const URL *Url)
 {
  static int first=1;
 
@@ -99,7 +99,7 @@ void ParseCSS(int fd,URL *Url)
   URL *Url The URL being parsed.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static void parse_css(URL *Url)
+static void parse_css(const URL *Url)
 {
  int yychar;
  int property_is_image=0;

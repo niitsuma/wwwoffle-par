@@ -2,8 +2,7 @@
 
 #
 # Copyright Andrew M. Bishop 1996.97,98,2001.
-#
-# $Header: /home/amb/wwwoffle/doc/scripts/RCS/README.CONF-conf.pl 1.3 2003/06/15 11:08:22 amb Exp $
+# Modified by Paul A. Rombouts.
 #
 # Usage: README.CONF-man.pl wwwoffle.conf.template < README.CONF > wwwoffle.conf
 #

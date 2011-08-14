@@ -1,4 +1,14 @@
-/* This file contains mostly parts of misc.h that have been moved here by Paul Rombouts. */
+/***************************************
+
+  WWWOFFLE - World Wide Web Offline Explorer.
+  This file contains mostly parts of misc.h that have been moved here by Paul Rombouts.
+  Some of these parts were originally written by Andrew M. Bishop.
+
+  This file Copyright 2007,2008,2009 Paul A. Rombouts
+  It may be distributed under the GNU Public License, version 2, or
+  any higher version.  See section COPYING of the GNU Public license
+  for conditions under which this file may be redistributed.
+  ***************************************/
 
 #ifndef HEADBODY_H
 #define HEADBODY_H    /* To prevent multiple inclusions. */

@@ -1,11 +1,10 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/certificates.h 1.8 2007/04/23 09:27:42 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9c.
   Certificate handling functions.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Written by Andrew M. Bishop.
+  Modified by Paul A. Rombouts.
 
   This file Copyright 2005,06 Andrew M. Bishop
   Parts of this file Copyright (C) 2007 Paul A. Rombouts

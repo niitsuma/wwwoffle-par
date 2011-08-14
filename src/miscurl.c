@@ -1,14 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/miscurl.c 2.108 2006/02/10 18:35:10 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9g.
   Miscellaneous HTTP / HTML Url Handling functions.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Originally written by Andrew M. Bishop.
+  Extensively modified by Paul A. Rombouts.
 
-  This file Copyright 1997,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2004,2005,2007,2008 Paul A. Rombouts
+  This file Copyright 1997-2010 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2004,2005,2007,2008,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -186,7 +185,9 @@ URL *SplitURL(const char *url)
   const char *pass The alternative password (may be NULL);
   ++++++++++++++++++++++++++++++++++++++*/
 
-URL *MakeModifiedURL(const URL *Url,int modflags,const char *proto,const char *hostport,const char *path,const char *args,const char *user,const char *pass)
+URL *MakeModifiedURL(const URL *Url,int modflags,
+		     const char *proto,const char *hostport,const char *path,
+		     const char *args,const char *user,const char *pass)
 {
  URL *newUrl=(URL*)malloc(sizeof(URL));
 
@@ -243,15 +244,8 @@ URL *MakeModifiedURL(const URL *Url,int modflags,const char *proto,const char *h
 
  /* args = Url->args */
 
- if(modflags&REPLACEURLARGS) { 
-   if(args && *args)
-     {
-       newUrl->args=URLRecodeFormArgs(args);
-       URLReplaceAmp(newUrl->args);
-     }
-   else
-     newUrl->args=NULL;
- }
+ if(modflags&REPLACEURLARGS)
+   newUrl->args=(args && *args)? URLRecodeFormArgs(args): NULL;
  else
    newUrl->args= (Url->args)?strdup(Url->args):NULL;
 
@@ -268,6 +262,82 @@ URL *MakeModifiedURL(const URL *Url,int modflags,const char *proto,const char *h
    newUrl->pass=(Url->pass)?strdup(Url->pass):NULL;
 
  if(modflags) {
+
+   /* Original URL */
+   {
+     const char *newproto, *newhostport, *newpath;
+     char *p, *localhostport=NULL;
+     size_t newlen, protolen, hostportlen, pathlen;
+
+     if(modflags&REPLACEURLPROTO) {
+       newproto= proto?proto:"http";
+       protolen= strlen(newproto);
+       newlen= protolen+strlitlen("://");
+     }
+     else {
+       newproto= Url->original_name;
+       protolen= Url->original_hostp-Url->original_name;
+       newlen= protolen;
+     }
+
+     if(modflags&REPLACEURLHOSTPORT) {
+       newhostport= hostport?hostport:(localhostport=GetLocalHostPort());
+       hostportlen= strlen(newhostport);
+     }
+     else {
+       newhostport= Url->original_hostp;
+       hostportlen= Url->original_pathp-Url->original_hostp;
+     }
+
+     newlen += hostportlen;
+
+     if(modflags&REPLACEURLPATH) {
+       newpath= path?path:"/";
+       pathlen= strlen(newpath);
+     }
+     else {
+       newpath= Url->original_pathp;
+       pathlen= Url->original_pathendp-Url->original_pathp;
+     }
+
+     newlen += pathlen;
+
+     if(modflags&REPLACEURLARGS) {
+       if(args) newlen+= 1+strlen(args);
+     }
+     else
+       newlen += strlen(Url->original_pathendp);
+
+     newUrl->original_name= p= (char *)malloc(newlen+1);
+
+     p= mempcpy(p,newproto,protolen);
+
+     if(modflags&REPLACEURLPROTO)
+       p= mempcpy(p,"://",3);
+
+     newUrl->original_hostp=p;
+
+     p= mempcpy(p,newhostport,hostportlen);
+
+     newUrl->original_pathp=p;
+
+     p= mempcpy(p,newpath,pathlen);
+
+     newUrl->original_pathendp=p;
+
+     if(modflags&REPLACEURLARGS) {
+       if(args) {
+	 *p++ = '?';
+	 p= stpcpy(p,args);
+       }
+     }
+     else if(*(Url->original_pathendp))
+       p=stpcpy(p,Url->original_pathendp);
+
+     *p=0;
+
+     if(localhostport) free(localhostport);
+   }
 
    /* Hostname, port = Url->host, Url->port */
 
@@ -306,11 +376,11 @@ URL *MakeModifiedURL(const URL *Url,int modflags,const char *proto,const char *h
    /* Canonical URL = Url->name (and pointers Url->hostp, Url->pathp, Url->pathendp). */
 
    {
-     char *p=(char*)malloc(strlen(newUrl->proto)+strlitlen("://")+
+     char *p=(char*)malloc(strlen(newUrl->proto)+
 			   strlen(newUrl->hostport)+
 			   strlen(newUrl->path)+
 			   (newUrl->args?strlen(newUrl->args)+1:0)+
-			   1);
+			   sizeof("://"));
 
      newUrl->name=p;
 
@@ -382,6 +452,11 @@ URL *MakeModifiedURL(const URL *Url,int modflags,const char *proto,const char *h
  }
  else {
    /* Clone Url without modifications */
+
+   newUrl->original_name=strdup(Url->original_name);
+   newUrl->original_hostp= newUrl->original_name+(Url->original_hostp-Url->original_name);
+   newUrl->original_pathp= newUrl->original_name+(Url->original_pathp-Url->original_name);
+   newUrl->original_pathendp= newUrl->original_name+(Url->original_pathendp-Url->original_name);
 
    newUrl->host=(Url->host!=Url->hostport)?strdup(Url->host):newUrl->hostport;
    newUrl->port=(Url->port)?newUrl->hostport+(Url->port-Url->hostport):NULL;
@@ -471,7 +546,7 @@ void ChangePasswordURL(URL *Url,const char *user,const char *pass)
  else
    Url->file=Url->name;
 
- /* Since we have changed the "file" field, a possible cached hash value must 
+ /* Since we have changed the "file" field, a possible cached hash value must
     be invalidated */
 
  Url->hashvalid=0;
@@ -486,6 +561,9 @@ void ChangePasswordURL(URL *Url,const char *user,const char *pass)
 
 void FreeURL(URL *Url)
 {
+ if(Url->original_name)
+    free(Url->original_name);
+
 #ifdef __CYGWIN__
  if(Url->private_dir && Url->private_dir!=Url->hostport)
     free(Url->private_dir);

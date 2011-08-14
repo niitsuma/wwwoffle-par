@@ -1,11 +1,10 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/errors.c 2.52 2007/03/20 18:34:40 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Generate error messages in a standard format optionally to syslog and stderr.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Originally written by Andrew M. Bishop.
+  Extensively modified by Paul A. Rombouts.
 
   This file Copyright 1996,97,98,99,2000,01,02,03,04,05 Andrew M. Bishop
   Parts of this file Copyright (C) 2002,2004,2005,2007 Paul A. Rombouts

@@ -1,14 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/parse.c 2.135 2007/09/08 18:56:08 amb Exp $
 
-  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
+  WWWOFFLE - World Wide Web Offline Explorer - Version 2.9g.
   Functions to parse the HTTP requests.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Originally written by Andrew M. Bishop.
+  Extensively modified by Paul A. Rombouts.
 
-  This file Copyright 1996,97,98,99,2000,01,02,03,04,05,06 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Paul A. Rombouts
+  This file Copyright 1996-2010 Andrew M. Bishop
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -141,14 +140,14 @@ URL *ParseRequest(int fd,Header **request_head,Body **request_body)
 
  /* Check for firewall operation. */
 
- if((val=GetHeader(*request_head,"Host")) && strcasecmp((*request_head)->method,"CONNECT"))
+ if(strcasecmp((*request_head)->method,"CONNECT") && (val=GetHeader(*request_head,"Host")))
    {
     URL *oldUrl=Url;
     Url=MakeModifiedURL(oldUrl,REPLACEURLHOSTPORT,NULL,val,NULL,NULL,NULL,NULL);
     FreeURL(oldUrl);
    }
 
- /* Check for passwords */
+ /* Check for authentication using the 'Basic' scheme */
 
  if((val=GetHeader(*request_head,"Authorization")))
    {
@@ -256,16 +255,17 @@ URL *ParseRequest(int fd,Header **request_head,Body **request_body)
       md5hash_t h;
       char buf[base64enclen(sizeof(md5hash_t))+1];
       size_t argssize;
+      const char *Url_original_args= URL_get_original_args(Url);
 
       MakeHash((*request_body)->content,(*request_body)->length,&h);
       hashbase64encode(&h,(unsigned char *)buf,sizeof(buf));
       argssize=strlen((*request_head)->method)+base64enclen(sizeof(md5hash_t))+MAX_HEX_STR+sizeof("!:.");
-      if(Url->args) argssize += strlen(Url->args)+1;
+      if(Url_original_args) argssize += strlen(Url_original_args)+1;
       {
 	char args[argssize];
 	URL *oldUrl;
       
-	sprintf(Url->args?stpcpy(stpcpy(args,"!"),Url->args):args,
+	sprintf(Url_original_args?stpcpy(stpcpy(args,"!"),Url_original_args):args,
 		"!%s:%s.%08lx",(*request_head)->method,buf,(long)time(NULL));
 	oldUrl=Url;
 	Url=MakeModifiedURL(oldUrl,REPLACEURLARGS,NULL,NULL,NULL,args,NULL,NULL);
@@ -362,6 +362,8 @@ int RequireForced(const Header *request_head,const URL *Url,int online)
 
   int fd The file descriptor of the spooled file.
 
+  const Header *spooled_head The parsed head of the spooled file (optional, may be NULL).
+
   const URL *Url The URL that is being requested.
 
   char **ims,char **inm If not NULL, these will contain the value fields
@@ -370,13 +372,19 @@ int RequireForced(const Header *request_head,const URL *Url,int online)
 
   ++++++++++++++++++++++++++++++++++++++*/
 
-int RequireChanges(int fd,const URL *Url,char **ims,char **inm)
+int RequireChanges(int fd,const Header *spooled_head,const URL *Url,char **ims,char **inm)
 {
  struct stat buf;
  int status,retval=0;
- Header *spooled_head=NULL;
+ Header *parsed_head=NULL;
 
- status=ParseReply(fd,&spooled_head);
+ if(spooled_head)
+   status=spooled_head->status;
+ else {
+   status=ParseReply(fd,&parsed_head);
+   spooled_head=parsed_head;
+ }
+   
 
  if(status==0 || fstat(fd,&buf))
    {
@@ -502,8 +510,8 @@ int RequireChanges(int fd,const URL *Url,char **ims,char **inm)
    }
 
 cleanup_return:
- if(spooled_head)
-    FreeHeader(spooled_head);
+ if(parsed_head)
+    FreeHeader(parsed_head);
 
  return(retval);
 }
@@ -516,15 +524,20 @@ cleanup_return:
 
   int fd The file descriptor of the spooled file.
 
+  const Header *spooled_head The parsed head of the spooled file (optional, may be NULL).
+
   const Header *request_head The head of the HTTP request to check.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int IsModified(int fd,const Header *request_head)
+int IsModified(int fd,const Header *spooled_head,const Header *request_head)
 {
  int is_modified=1;
- Header *spooled_head=NULL;
+ Header *parsed_head=NULL;
 
- ParseReply(fd,&spooled_head);
+ if(!spooled_head) {
+   ParseReply(fd,&parsed_head);
+   spooled_head=parsed_head;
+ }
 
  if(spooled_head)
    {
@@ -592,7 +605,7 @@ int IsModified(int fd,const Header *request_head)
          }
       }
 
-    FreeHeader(spooled_head);
+    if(parsed_head) FreeHeader(parsed_head);
    }
 
  return(is_modified);
@@ -700,7 +713,8 @@ void ModifyRequest(const URL *Url,Header *request_head)
 
  /* Modify the top line of the header. */
 
- ChangeURLInHeader(request_head,Url->name);
+ ChangeURLInHeader(request_head,
+		   ConfigBooleanURL(PassUrlUnchanged,Url)? Url->original_name: Url->name);
 
  /* Remove the false arguments from POST/PUT URLs. */
 
@@ -865,7 +879,8 @@ void MakeRequestNonProxy(const URL *Url,Header *request_head)
 {
  /* Remove the full URL and replace it with just the path and args. */
 
- ChangeURLInHeader(request_head,Url->pathp);
+  ChangeURLInHeader(request_head,
+		    ConfigBooleanURL(PassUrlUnchanged,Url)? Url->original_pathp: Url->pathp);
 
  /* Remove the false arguments from POST/PUT URLs. */
 

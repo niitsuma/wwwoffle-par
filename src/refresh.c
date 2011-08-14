@@ -1,5 +1,4 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/refresh.c 2.90 2007/09/29 18:54:08 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
   The HTML interactive page to refresh a URL.
@@ -64,7 +63,7 @@ static void ParseRecurseOptions(URL *Url);
 
 static /*@null@*/ char *RefreshFormParse(int fd,URL *Url,/*@null@*/ char *request_args,/*@null@*/ Body *request_body);
 
-static int request_url(URL *Url,/*@null@*/ char *refresh,URL *refUrl);
+static int request_url(URL *Url,/*@null@*/ const char *refresh,const URL *refUrl);
 
 
 /*++++++++++++++++++++++++++++++++++++++
@@ -389,7 +388,7 @@ int RefreshForced(void)
   URL *Url The URL that was fetched.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int RecurseFetch(URL *Url)
+int RecurseFetch(const URL *Url)
 {
  URL **list,*metarefresh;
  int more=0,old_recurse_location;
@@ -627,7 +626,7 @@ int RecurseFetch(URL *Url)
   URL *locationUrl The new location of the URL.
   ++++++++++++++++++++++++++++++++++++++*/
 
-int RecurseFetchRelocation(URL *Url,URL *locationUrl)
+int RecurseFetchRelocation(const URL *Url,URL *locationUrl)
 {
  int more=0;
 
@@ -667,7 +666,7 @@ int RecurseFetchRelocation(URL *Url,URL *locationUrl)
   URL *refUrl The refering URL.
   ++++++++++++++++++++++++++++++++++++++*/
 
-static int request_url(URL *Url,char *refresh,URL *refUrl)
+static int request_url(URL *Url,const char *refresh,const URL *refUrl)
 {
  int retval=0;
 
@@ -774,7 +773,7 @@ static int request_url(URL *Url,char *refresh,URL *refUrl)
   int objects The option to fetch any objects in the page.
   ++++++++++++++++++++++++++++++++++++++*/
 
-char *CreateRefreshPath(URL *Url,char *limit,int depth,
+char *CreateRefreshPath(const URL *Url,char *limit,int depth,
                         int force,
                         int stylesheets,int images,int frames,int iframes,int scripts,int objects)
 {

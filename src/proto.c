@@ -1,14 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/proto.c 1.18 2005/12/14 19:27:22 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9.
   Information about the protocols that wwwoffle supports.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Originally written by Andrew M. Bishop.
+  Extensively modified by Paul A. Rombouts.
 
   This file Copyright 1997,98,2001,03,05 Andrew M. Bishop
-  Parts of this file Copyright (C) 2003,2004,2006,2008 Paul A. Rombouts
+  Parts of this file Copyright (C) 2003,2004,2006,2008,2009 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -311,7 +310,7 @@ Connection *ConnectionOpen(URL *Url, char **errmsg)
 #if 0
 char *ConnectionRequest(Connection *connection,URL *Url,Header *request_head,Body *request_body)
 {
-  return (connection->protocol->request)(connection,request_head,request_body);
+  return (connection->protocol->request)(connection,Url,request_head,request_body);
 }
 
 Header *ConnectionReadHead(Connection *connection)

@@ -1,14 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/spool.c 2.99 2007/10/05 16:45:40 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
   Handle all of the spooling of files in the spool directory.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Originally written by Andrew M. Bishop.
+  Extensively modified by Paul A. Rombouts.
 
   This file Copyright 1996-2007 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2003,2004,2005,2006,2007,2008,2009,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -207,7 +206,7 @@ void CloseNewOutgoingSpoolFile(int fd,URL *Url)
 
   int OpenExistingOutgoingSpoolFile Returns a file descriptor, or -1 on failure.
 
-  URL **Url Returns the URL of the file.
+  URL **Url Returns the URL of the file (if Url!=NULL).
   ++++++++++++++++++++++++++++++++++++++*/
 
 int OpenExistingOutgoingSpoolFile(URL **Url)
@@ -217,7 +216,7 @@ int OpenExistingOutgoingSpoolFile(URL **Url)
  struct dirent* ent;
  DIR *dir;
 
- *Url=NULL;
+ /* *Url=NULL; */
 
  sprintf(name,"tmp.%lu",(unsigned long)getpid());
 
@@ -256,7 +255,7 @@ int OpenExistingOutgoingSpoolFile(URL **Url)
           else
             {
              /* *ent->d_name='U'; */
-             *Url=FileNameToURL(ent->d_name);
+	      if(Url) *Url=FileNameToURL(ent->d_name);
 
              /* unlink(ent->d_name); */
              unlink(name);

@@ -1,14 +1,13 @@
 /***************************************
-  $Header: /home/amb/wwwoffle/src/RCS/document.h 1.13 2007/09/29 18:54:08 amb Exp $
 
   WWWOFFLE - World Wide Web Offline Explorer - Version 2.9d.
   Header file for document parsing functions.
   ******************/ /******************
-  Written by Andrew M. Bishop
-  Modified by Paul A. Rombouts
+  Written by Andrew M. Bishop.
+  Modified by Paul A. Rombouts.
 
   This file Copyright 1998-2007 Andrew M. Bishop
-  Parts of this file Copyright (C) 2002,2004,2006 Paul A. Rombouts
+  Parts of this file Copyright (C) 2002,2004,2006,2011 Paul A. Rombouts
   It may be distributed under the GNU Public License, version 2, or
   any higher version.  See section COPYING of the GNU Public license
   for conditions under which this file may be redistributed.
@@ -54,10 +53,9 @@ RefType;
 
 /* In document.c */
 
-DocType ParseDocument(int fd,URL *Url,int all);
+DocType ParseDocument(int fd,const URL *Url,int all);
 
 void AddReference(/*@null@*/ char* name,RefType type);
-void FinishReferences(void);
 
 URL /*@null@*/ /*@observer@*/ *GetReference(RefType type);
 URL /*@null@*/ /*@observer@*/ **GetReferences(RefType type);
@@ -66,24 +64,24 @@ void ResetReferences(void);
 
 /* In html.c (html.l) */
 
-void ParseHTML(int fd,URL *Url);
+void ParseHTML(int fd,const URL *Url);
 char *HTML_title(int fd);  /* added by Paul Rombouts */
 
 /* In css.c (css.l) */
 
-void ParseCSS(int fd,URL *Url);
+void ParseCSS(int fd,const URL *Url);
 
 /* In javaclass.c */
 
-int InspectJavaClass(int fd,URL *Url);
+int InspectJavaClass(int fd,const URL *Url);
 
 /* In vrml.c (vrml.l) */
 
-void ParseVRML(int fd,URL *Url);
+void ParseVRML(int fd,const URL *Url);
 
 /* In xml.c (xml.l) */
 
-void ParseXML(int fd,URL *Url);
+void ParseXML(int fd,const URL *Url);
 
 /* In gifmodify.c */
 
