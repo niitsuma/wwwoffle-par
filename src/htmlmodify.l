@@ -370,19 +370,17 @@ typedef struct _HToken {
 }
 HToken;
 
+struct numberedhtoken {
+  HToken *htoken;
+  unsigned serialnum;
+};
+
 typedef struct _HTokenQueue {
   HToken *front;
   HToken **rear;
   unsigned frontserialnum,nextserialnum;
 }
 HTokenQueue;
-
-typedef struct _HTokenListNode {
-  struct _HTokenListNode *next;
-  HToken *htoken;
-  unsigned serialnum;
-}
-HTokenListNode;
 
 /*+ A stack for holding tags of possibly nested objects and their disabled status. +*/
 typedef struct _TagStackNode {
@@ -420,12 +418,15 @@ typedef struct _TagAttrPattNode {
 TagAttrPattNode;
 
 typedef struct _HTokenPattNode {
-  HTokenType tokentype;                /* Either htokenTag, htokenText, htokenScriptText, htokenStyleText or htokenComment */
-  unsigned short active;
-  unsigned short last;
+  unsigned short tokentype;            /* Either htokenTag, htokenText, htokenScriptText, htokenStyleText or htokenComment */
+  unsigned char active;
+  unsigned char firstlinedesc;         /* Flag indicating first-line descendancy from target pattern. */
+  unsigned short targdesc;             /* Degree of descendancy from target pattern. */
+  unsigned short hasdesc;              /* 0 means no descendant pattern, 1 means this pattern node has a child pattern,
+					  2 means means this pattern node has a descendant pattern (child or child of child etc.) */
   union {
-    struct _HTokenPattNode *desc;      /* Points to possible pattern for descendant html token if last=0. */
-    struct _HTokenPattNode *target;    /* Points to pattern for target token if last=1. */
+    struct _HTokenPattNode *desc;      /* Points to possible pattern for descendant html token if hasdesc!=0. */
+    struct _HTokenPattNode *target;    /* Points to pattern for target token if hasdesc==0. */
   };
   struct _PattOptions *pattopts;       /* Points to option values. */
   struct _HTokenPattNode* next;        /* Next pattern to try. */
@@ -436,6 +437,12 @@ typedef struct _HTokenPattNode {
   };
 }
 HTokenPattNode;
+
+typedef struct _HTokenPattListNode {
+  struct _HTokenPattListNode *next;
+  HTokenPattNode *pattn;
+}
+HTokenPattListNode;
 
 typedef struct _PattOptionsListNode {
   struct _PattOptionsListNode *next;
@@ -450,25 +457,41 @@ typedef struct {
 }
 PattOptionsList;
 
-typedef struct _PattOptionsRefListNode {
-  struct _PattOptionsRefListNode *next;
-  struct _PattOptionsListNode *pattoptslistnode;
+typedef struct _StateListNode {
+  struct _StateListNode  *next;
+  unsigned serialnum;
+  unsigned lastm;  /* Target descendancy of last matched HTokenPattNode. */
+  union {
+    struct numberedhtoken numtok;          /* Used when HASSIBLINGPATTERN bit in optionflags is not set. */
+    PattOptionsListNode *pattoptslistnode; /* Used when HASSIBLINGPATTERN bit in optionflags is set. */
+  };
 }
-PattOptionsRefListNode;
+StateListNode;
+
+typedef struct _StateRefListNode {
+  struct _StateRefListNode *next;
+  unsigned serialnum;
+  unsigned lastm;  /* Saved lastm value of StateListNode with the same serial number. */
+}
+StateRefListNode;
+
+typedef struct _PattStateListNode {
+  struct _PattStateListNode *next;
+  HTokenPattNode *pattn;
+  struct _PattOptions *pattopts;
+  StateRefListNode *streflist;
+  unsigned short active;       /* Saved active value of HTokenPattNode. */
+}
+PattStateListNode;
 
 typedef struct _PattOptions {
-  unsigned short disableflags;
+  unsigned short optionflags;
   union {
-    struct {  /* Used when HASSIBLINGPATTERN bit in disableflags is not set. */
-      const char *stylerepl;
-      HTokenListNode *toklist;  /* List of target tokens that have matched but are not yet resolved because of descendant patterns. */
-    };
-    struct {  /* Used when HASSIBLINGPATTERN bit in disableflags is set. */
-      HTokenPattNode *sibling;                 /* Points to possible sibling pattern. */
-      PattOptionsRefListNode *pattoptsreflist; /* List of references to PattOptionsListNodes of patterns that have
-						  partially but not yet definitively matched because of descendant patterns. */
-    };
+      const char *stylerepl;    /* Used when HASSIBLINGPATTERN bit in optionflags is not set. */
+      HTokenPattNode *sibling;  /* Points to possible sibling pattern.
+				   Used when HASSIBLINGPATTERN bit in optionflags is set .*/
   };
+  StateListNode *stlist;        /* List of state nodes representing (partial) matches that are not yet fully resolved because of descendant patterns. */
 }
 PattOptions;
 
@@ -478,6 +501,10 @@ typedef struct _PattInfo {
   HTokenPattNode *scrtxtpl;  /* Points to list of script-text patterns. */
   HTokenPattNode *styltxtpl; /* Points to list of style-text patterns. */
   HTokenPattNode *compl;     /* Points to list of comment patterns. */
+  HTokenPattListNode *activechildren;  /* Points to list of activated first child patterns. */
+  HToken *parenthtoken;      /* If not null, points to unresolved token with child pattern. */
+  unsigned parentserialnum;  /* Serial number of parent token in queue. */
+  unsigned stateserialnum;   /* Counter used to generate serial numbers for StateListNodes. */
   PattOptionsListNode *activesiblings; /* Points to list of activated sibling patterns. */
   PattOptionsListNode **lastactivesibs;
   unsigned char *stacktag;   /* Points to array of length ntag with flags specifying which tags need to be stacked. */
@@ -485,21 +512,17 @@ typedef struct _PattInfo {
 }
 PattInfo;
 
-typedef struct _HTokenPattListNode {
-  struct _HTokenPattListNode *next;
-  HTokenPattNode *pattn;
-}
-HTokenPattListNode;
-
 typedef struct _TagPStackNode {
   struct _TagPStackNode *next;
   int idx;                           /* Tag index */
-  HTokenPattListNode *pattlist;      /* List of activated descendant patterns that need to be de-activated
+  PattStateListNode *pattstatelist;  /* List of old pattern state info that needs to be restored
 					when this node is popped off the stack. */
   PattOptionsListNode *pattoptslist; /* List of sibling patterns that need to be activated
 					when this node is popped off the stack. */
   HToken *htoken;                    /* Reference to the HToken that is resolved when this node is popped off the stack. */
   unsigned serialnum;                /* The serial number used to determine whether the HToken is still present in the queue. */
+  HToken *parenthtoken;              /* Reference to a possible parent HToken that is resolved when this node is popped off the stack. */
+  unsigned parentserialnum;          /* The serial number of the parent HToken. */
 }
 TagPStackNode;
 
@@ -876,24 +899,73 @@ inline static void free_tagstack(TagStack s)
 
 /* Push a tag index and corresponding pattern info on a stack. */
 static void pushtagpstack(TagPStack *s, int idx,
-			  HTokenPattListNode *pattlist, PattOptionsListNode *pattoptslist,
-			  HToken *htoken, unsigned serialnum)
+			  PattStateListNode *pattstatelist, PattOptionsListNode *pattoptslist,
+			  HToken *htoken, unsigned serialnum,
+			  HToken *parenthtoken, unsigned parentserialnum)
 {
   TagPStack new=malloc(sizeof(TagPStackNode));
   new->next= *s;
   new->idx= idx;
-  new->pattlist= pattlist;
+  new->pattstatelist= pattstatelist;
   new->pattoptslist= pattoptslist;
   new->htoken= htoken;
   new->serialnum= serialnum;
+  new->parenthtoken= parenthtoken;
+  new->parentserialnum= parentserialnum;
   *s= new;
 }
 
-/* De-activate the patterns on a pattern list and free the list nodes. */
-inline static void unwind_pattern_list(HTokenPattListNode *pl) {
+/* Activate the patterns on a pattern list. */
+inline __attribute__((always_inline))
+static void activate_pattern_list(HTokenPattListNode *pl) {
   while(pl) {
-    HTokenPattListNode *next= pl->next;
-    pl->pattn->active=0;
+    pl->pattn->active=1;
+    pl=pl->next;
+  }
+}
+
+/* Activate the patterns on a pattern state list. */
+inline __attribute__((always_inline))
+static void activate_pattstate_list(PattStateListNode *pl) {
+  while(pl) {
+    pl->pattn->active=1;
+    pl=pl->next;
+  }
+}
+
+/* Restore the old pattern state using the info on a pattern state list and free the list nodes. */
+inline static void unwind_pattstate_list(PattStateListNode *pl) {
+  while(pl) {
+    PattStateListNode *next;
+    PattOptions *pattopts;
+    pl->pattn->active=pl->active;
+    if((pattopts= pl->pattopts)) {
+      StateRefListNode *p= pl->streflist;
+      StateListNode    *q= pattopts->stlist, **last= &pattopts->stlist;
+      while(p) {
+	StateRefListNode *next;
+	if(q && p->serialnum==q->serialnum) {
+	  q->lastm= p->lastm;
+	  last= &q->next;
+	  q=q->next;
+	}
+	next=p->next;
+	free(p);
+	p=next;
+      }
+      /* Free any remaining state nodes that where not on the old list. */
+      if(q) {
+	*last=NULL;
+	do {
+	  StateListNode *next= q->next;
+	  free(q);
+	  q=next;
+	}
+	while(q);
+      }
+    }
+
+    next= pl->next;
     free(pl);
     pl=next;
   }
@@ -915,11 +987,11 @@ static PattOptionsListNode **unwind_pattoptions_list(PattOptionsListNode **pl)
       pl= &p->next;
     }
     else {
-      PattOptionsRefListNode *pattoptsreflist= pattopts->pattoptsreflist;
-      if(!(pattoptsreflist && pattoptsreflist->pattoptslistnode==p))
-	PrintMessage(Fatal,"Error in %s line %d: corrupted PattOptionsRefListNode.",__FILE__,__LINE__);
-      pattopts->pattoptsreflist= pattoptsreflist->next;
-      free(pattoptsreflist);
+      StateListNode *stlist= pattopts->stlist;
+      if(stlist && stlist->pattoptslistnode==p) {
+	pattopts->stlist= stlist->next;
+	free(stlist);
+      }
       *pl= next;
       free(p);
     }
@@ -942,13 +1014,15 @@ static PattOptionsList poptagpstack(TagPStack *s, int idx, unsigned serialnum)
   q= s;
   while((p= *q)) {
     if(p->idx==idx) {
-      PattOptionsListNode **last;
-      unwind_pattern_list(p->pattlist);
-      last= unwind_pattoptions_list(&p->pattoptslist);
+      PattOptionsListNode **last= unwind_pattoptions_list(&p->pattoptslist);
       if((retval.first= p->pattoptslist))
 	retval.last=last;
+      /* Important: call unwind_pattstate_list() after unwind_pattoptions_list(). */
+      unwind_pattstate_list(p->pattstatelist);
       if(p->serialnum>=serialnum && p->htoken)
 	p->htoken->tag.resolved=1;
+      if(p->parentserialnum>=serialnum && p->parenthtoken)
+	p->parenthtoken->tag.resolved=1;
       *q= p->next;
       free(p);
       break;
@@ -959,11 +1033,31 @@ static PattOptionsList poptagpstack(TagPStack *s, int idx, unsigned serialnum)
   return retval;
 }
 
-inline static void free_pattern_list(HTokenPattListNode *p)
+inline __attribute__((always_inline))
+static void free_pattern_list(HTokenPattListNode *p)
 {
   while(p) {
     HTokenPattListNode *next= p->next;
     /* Don't free p->pattn here, should be freed elsewhere. */
+    free(p);
+    p=next;
+  }
+}
+
+inline __attribute__((always_inline))
+static void free_pattstate_list(PattStateListNode *p)
+{
+  while(p) {
+    PattStateListNode *next;
+    StateRefListNode *pr= p->streflist;
+    /* Don't free p->pattn and p->pattopts here, should be freed elsewhere. */
+
+    while(pr) {
+      StateRefListNode *next= pr->next;
+      free(pr);
+      pr=next;
+    }
+    next= p->next;
     free(p);
     p=next;
   }
@@ -985,9 +1079,9 @@ inline static void free_tagpstack(TagPStack s)
 {
   while(s) {
     TagPStack next= s->next;
-    free_pattern_list(s->pattlist);
+    free_pattstate_list(s->pattstatelist);
     free_pattoptions_list(s->pattoptslist);
-    /* Don't free s->htoken here, should be freed elsewhere. */
+    /* Don't free s->htoken and s->parenthtoken here, should be freed elsewhere. */
     free(s);
     s=next;
   }
@@ -1043,7 +1137,7 @@ static HTokenPattNode *parse_htoken_pattern(const char **str, unsigned short *se
   HTokenPattNode *res=NULL;
   const char *s= *str, *p, *cbr, *eq, *cm;
 
-  p = strunescapepbrk(s," \t[]/,;");
+  p = strunescapepbrk(s," \t[]<>/,;");
 
   if(s<p) {
     size_t len=p-s;
@@ -1060,14 +1154,16 @@ static HTokenPattNode *parse_htoken_pattern(const char **str, unsigned short *se
       size_t tagnamesz;
       if(keywordmatch(s,len,"script"))
 	*seenstag=1;
-      else if(keywordmatch(s,len,"style")) 
+      else if(keywordmatch(s,len,"style"))
 	*seenstag=2;
       tagnamesz=strunescapelen2(s,p)+1;
       res =  (HTokenPattNode*)malloc(offsetof(HTokenPattNode,tagpattn)+sizeof(TagAttrPattNode)+tagnamesz);
       res->tokentype=tokentype;
       res->active=0;
-      res->last=0;
-      res->desc=NULL;
+      res->firstlinedesc=0;
+      res->targdesc=0;
+      res->hasdesc=0;
+      res->target=NULL;
       res->pattopts=NULL;
       res->next = NULL;
       res->tagpattn.attrpatts = NULL;
@@ -1109,8 +1205,10 @@ static HTokenPattNode *parse_htoken_pattern(const char **str, unsigned short *se
       res =  (HTokenPattNode*)malloc(offsetof(HTokenPattNode,txtpatt)+sizeof(PattNode*));
       res->tokentype=tokentype;
       res->active=0;
-      res->last=0;
-      res->desc=NULL;
+      res->firstlinedesc=0;
+      res->targdesc=0;
+      res->hasdesc=0;
+      res->target=NULL;
       res->pattopts=NULL;
       res->next = NULL;
       res->txtpatt = NULL;
@@ -1130,7 +1228,7 @@ static HTokenPattNode *parse_htoken_pattern(const char **str, unsigned short *se
 
 
 struct modifyoptions {
-  unsigned short disableflags;
+  unsigned short optionflags;
   const char *stylerepl;
 };
 
@@ -1157,17 +1255,17 @@ static struct modifyoptions parse_tag_modify_options(const char *str)
     else if(keywordmatch(s,len,"no-style"))
       res.stylerepl = "";
     else if(keywordmatch(s,len,"disable-tag"))
-      res.disableflags |= DISABLEMATCHINGTAG;
+      res.optionflags |= DISABLEMATCHINGTAG;
     else if(keywordmatch(s,len,"disable-script"))
-      res.disableflags |= DISABLEINNERSCRIPT;
+      res.optionflags |= DISABLEINNERSCRIPT;
     else if(keywordmatch(s,len,"disable-following-script"))
-      res.disableflags |= DISABLEFOLLOWINGSCRIPT;
+      res.optionflags |= DISABLEFOLLOWINGSCRIPT;
     else if(keywordmatch(s,len,"disable-all-following-scripts"))
-      res.disableflags |= DISABLEALLFOLLOWINGSCRIPTS;
+      res.optionflags |= DISABLEALLFOLLOWINGSCRIPTS;
     else if(keywordmatch(s,len,"reset-following-script"))
-      res.disableflags |= RESETFOLLOWINGSCRIPT;
+      res.optionflags |= RESETFOLLOWINGSCRIPT;
     else if(keywordmatch(s,len,"reset-all-following-scripts"))
-      res.disableflags |= RESETALLFOLLOWINGSCRIPTS;
+      res.optionflags |= RESETALLFOLLOWINGSCRIPTS;
     else if(keywordmatch(s,len,"pass"))
       /* No op */;
     else if(keywordmatch(s,len,"style") && *p=='=') {
@@ -1248,14 +1346,14 @@ static void sort_htoken_patt_list(HTokenPattNode **l)
 }
 
 
-/* Only use if opts->disableflags does not have the HASSIBLINGPATTERN bit set. */
+/* Only use if opts->optionflags does not have the HASSIBLINGPATTERN bit set. */
 static PattOptions *make_pattoptions(struct modifyoptions *opts, unsigned short disableattr)
 {
   PattOptions *retval= malloc(sizeof(PattOptions));
-  retval->disableflags= opts->disableflags;
-  if(disableattr) retval->disableflags|=DISABLEMATCHINGATTRIBUTES;
+  retval->optionflags= opts->optionflags;
+  if(disableattr) retval->optionflags|=DISABLEMATCHINGATTRIBUTES;
   retval->stylerepl= opts->stylerepl;
-  retval->toklist= NULL;
+  retval->stlist= NULL;
   return retval;
 }
 
@@ -1271,6 +1369,10 @@ static void make_tag_pattern_info(PattInfo *pattinfo, ConfigItem confitem,const 
   pattinfo->scrtxtpl= NULL;
   pattinfo->styltxtpl= NULL;
   pattinfo->compl= NULL;
+  pattinfo->activechildren= NULL;
+  pattinfo->parenthtoken= NULL;
+  pattinfo->parentserialnum= 0;
+  pattinfo->stateserialnum= 0;
   pattinfo->activesiblings= NULL;
   pattinfo->lastactivesibs= &pattinfo->activesiblings;
   pattinfo->stacktag= NULL;
@@ -1289,6 +1391,7 @@ static void make_tag_pattern_info(PattInfo *pattinfo, ConfigItem confitem,const 
 	HTokenPattNode *prevpatt=NULL, *target=NULL;
 	PattOptions *prevpattopts=NULL;
 	unsigned short seenstag=0, seendisableattr, disablematchingattrs=0;
+	unsigned short hasdesc=2;
 	/* Loop while there are tag-attribute patterns to parse. */
 	for(;;) {
 	  HTokenPattNode *pattval;
@@ -1301,14 +1404,19 @@ static void make_tag_pattern_info(PattInfo *pattinfo, ConfigItem confitem,const 
 	    break;
 	  if(prevpatt) {
 	    /* Make the previous HTokenPattNode point to this one as a descendant. */
-	    prevpatt->last=0;
+	    prevpatt->hasdesc=hasdesc;
 	    prevpatt->desc=pattval;
+	    if(prevpatt==target || prevpatt->targdesc) {
+	      pattval->targdesc= prevpatt->targdesc+1;
+	      pattval->pattopts=target->pattopts;
+	    }
+	    if(hasdesc==1 && (prevpatt==target || prevpatt->firstlinedesc))
+	      pattval->firstlinedesc=1;
 	  }
 	  else if(prevpattopts) {
 	    /* Make the PattOptions of the previous pattern sequence point to this one as a sibling. */
-	    prevpattopts->disableflags= HASSIBLINGPATTERN;
+	    prevpattopts->optionflags= HASSIBLINGPATTERN;
 	    prevpattopts->sibling= pattval;
-	    prevpattopts->pattoptsreflist =NULL;
 	  }
 	  else
 	    pattval->active=1;  /* Mark first pattern in sequence as active. */
@@ -1339,6 +1447,7 @@ static void make_tag_pattern_info(PattInfo *pattinfo, ConfigItem confitem,const 
 	    PrintMessage(Fatal,"Error in %s line %d: unhandled pattern type.",__FILE__,__LINE__);
 	  }
 	  prevpatt=pattval; disablematchingattrs=seendisableattr;
+	  hasdesc=2;
 	  while(*s && isspace(*s)) ++s;  /* Skip blanks. */
 	  if(*s == '/') {
 	    if(!target) {
@@ -1349,7 +1458,7 @@ static void make_tag_pattern_info(PattInfo *pattinfo, ConfigItem confitem,const 
 	  }
 	  else if(*s == ',' || *s == ';') {
 	    /* New patt data sequence, close off the previous one. */
-	    prevpatt->last=1;
+	    prevpatt->hasdesc=0;
 	    if(target)
 	      prevpatt->target=target;
 	    else {
@@ -1366,10 +1475,14 @@ static void make_tag_pattern_info(PattInfo *pattinfo, ConfigItem confitem,const 
 	    seenstag=0; disablematchingattrs=0;
 	    ++s;  /* Skip ',' or ';' */
 	  }
+	  if(*s == '>') {
+	    hasdesc=1;
+	    ++s; /* Skip '>' */
+	  }
 	}
 	if(prevpatt) {
 	  /* Close off patt data sequence. */
-	  prevpatt->last=1;
+	  prevpatt->hasdesc=0;
 	  if(target)
 	    prevpatt->target=target;
 	  else {
@@ -1402,47 +1515,75 @@ static void make_tag_pattern_info(PattInfo *pattinfo, ConfigItem confitem,const 
     pattinfo->ntag= ntag;
     i=0; q=tapl;
     taparr[i]=q;
-    if(!q->last || (q->pattopts && (q->pattopts->disableflags&HASSIBLINGPATTERN)))
-      stacktag[i]|=TAGPSTACK;
-    if(q->pattopts && (q->pattopts->disableflags&DISABLEMASK))
-      stacktag[i]|=TAGDSTACK;
-    q->tagpattn.idx = i;
-    for(p=tapl,q=p->next; q; q=q->next) {
+    for(;;) {
+      if(q->hasdesc || (q->pattopts && (q->pattopts->optionflags&HASSIBLINGPATTERN)))
+	stacktag[i]|=TAGPSTACK;
+      if(q->pattopts && (q->pattopts->optionflags&DISABLEMASK))
+	stacktag[i]|=TAGDSTACK;
+      q->tagpattn.idx = i;
+      p=q;
+      q=q->next;
+      if(!q) break;
+
       if(strcasecmp(p->tagpattn.tagname,q->tagpattn.tagname)) {
 	p->next=NULL;  /* Close off the list segment for the previous tag. */
 	++i;
 	taparr[i]=q;
       }
-      if(!q->last || (q->pattopts && (q->pattopts->disableflags&HASSIBLINGPATTERN)))
-	stacktag[i]|=TAGPSTACK;
-      if(q->pattopts && (q->pattopts->disableflags&DISABLEMASK))
-	stacktag[i]|=TAGDSTACK;
-      q->tagpattn.idx = i;
-      p=q;
     }
   }
 }
 
 
-/* De-activate all the patterns referred by the activesiblings list and free the list. */
-static void reset_siblingpatt_list(PattInfo *pattinfo)
+static void handle_mismatching_firstline_sequence(HTokenPattNode *pattn);
+
+
+/* De-activate all the patterns referred by the activechildren and activesiblings lists and free the lists.
+   Mark a possible parent token as resolved.
+   Then set the activechildren list to fchildlist and activate the patterns referred by the new list.
+*/
+static void reset_fchild_sibling_patt_lists(PattInfo *pattinfo, int tagidx, HTokenPattListNode *fchildlist,
+					    HToken *htoken, HTokenQueue *tokq)
 {
-  PattOptionsListNode *p= pattinfo->activesiblings;
+  {
+    PattOptionsListNode *p= pattinfo->activesiblings;
 
-  pattinfo->activesiblings= NULL;
-  pattinfo->lastactivesibs= &pattinfo->activesiblings;
+    pattinfo->activesiblings= NULL;
+    pattinfo->lastactivesibs= &pattinfo->activesiblings;
 
-  while(p) {
-    PattOptionsListNode *next= p->next;
-    p->pattopts->sibling->active=0;
-    free(p);
-    p=next;
+    while(p) {
+      PattOptionsListNode *next= p->next;
+      p->pattopts->sibling->active=0;
+      free(p);
+      p=next;
+    }
   }
+
+  /* Important: first de-activate the patterns on the old list, then activate the ones on the new list,
+     because the old list and the new list may overlap! */
+  {
+    HTokenPattListNode *p= pattinfo->activechildren, *next;
+    while(p) {
+      HTokenPattNode *pattn= p->pattn;
+      if((pattn->tokentype!=htokenTag || tagidx<0 || pattn->tagpattn.idx!=tagidx) && pattn->firstlinedesc)
+	handle_mismatching_firstline_sequence(pattn);
+      pattn->active=0;
+      next= p->next;
+      free(p);
+      p=next;
+    }
+  }
+  if(pattinfo->parentserialnum>=tokq->frontserialnum && pattinfo->parenthtoken)
+    pattinfo->parenthtoken->tag.resolved=1;
+  pattinfo->activechildren= fchildlist;
+  pattinfo->parenthtoken= htoken;
+  pattinfo->parentserialnum= tokq->nextserialnum;
+  activate_pattern_list(fchildlist);
 }
 
 
 inline __attribute__((always_inline))
-static void append_siblingpatt_list(PattInfo *pattinfo, PattOptionsListNode *slist, PattOptionsListNode **last)
+static void append_sibling_patt_list(PattInfo *pattinfo, PattOptionsListNode *slist, PattOptionsListNode **last)
 {
   if(slist) {
     *(pattinfo->lastactivesibs)= slist;
@@ -1488,25 +1629,14 @@ static int tag_match_index(const char* tag, PattInfo *l)
 inline static void free_pattoptions(PattOptions *pattopts)
 {
   if(pattopts) {
-    if(!(pattopts->disableflags&HASSIBLINGPATTERN)) {
-      /* pattopts->stylerepl points to configuration data, do not free here. */
-      HTokenListNode *tl= pattopts->toklist;
-      while(tl) {
-	HTokenListNode *nxt = tl->next;
-	/* tl->htoken should be freed elsewhere. */
-	free(tl);
-	tl=nxt;
-      }
-    }
-    else {
-      /* pattopts->sibling should be freed elsewhere. */
-      PattOptionsRefListNode *rl= pattopts->pattoptsreflist;
-      while(rl) {
-	PattOptionsRefListNode *nxt = rl->next;
-	/* rl->pattoptslistnode should be freed elsewhere. */
-	free(rl);
-	rl=nxt;
-      }
+    /* pattopts->stylerepl points to configuration data, do not free here. */
+    /* pattopts->sibling should be freed elsewhere. */
+    StateListNode *stl= pattopts->stlist;
+    while(stl) {
+      StateListNode *next = stl->next;
+      /* stl->numtok.htoken or stl->pattoptslistnode should be freed elsewhere. */
+      free(stl);
+      stl=next;
     }
     free(pattopts);
   }
@@ -1526,7 +1656,8 @@ static void free_htokenpatt_list(HTokenPattNode *p)
   while(p) {
     HTokenPattNode *next;
     /* Descendant patterns are freed elsewhere. */
-    free_pattoptions(p->pattopts);
+    if(p->targdesc==0)  /* If p->targdesc>0, p->pattopts points to the same PattOptions node as the target and should already have been freed! */
+      free_pattoptions(p->pattopts);
     if(p->tokentype==htokenTag) {
       /* Tag-attribute pattern */
       AttrPattNode* a;
@@ -1565,6 +1696,8 @@ static void free_pattern_info(PattInfo *l)
   free_htokenpatt_list(l->scrtxtpl);
   free_htokenpatt_list(l->styltxtpl);
   free_htokenpatt_list(l->compl);
+  free_pattern_list(l->activechildren);
+  /* l->parenthtoken should be freed elsewhere. */
   free_pattoptions_list(l->activesiblings);
 
   if(l->stacktag) free(l->stacktag);
@@ -2547,9 +2680,15 @@ inline static void tag_setbase_url(Tag *tag)
 }
 
 
+static void handle_last_targdesc_match(HTokenPattNode *target, unsigned targdesc, unsigned frontserialnum);
+
+
 struct activepattlists {
-  HTokenPattListNode *desclist;
+  PattStateListNode *pattstatelist;
+  HTokenPattListNode *fchildlist;
   PattOptionsListNode *siblist;
+  unsigned short maxhasdesc;
+  unsigned short fchildhasdesc;
 };
 
 /* match_tag_pattern_info() returns a list of descendant patterns that have been made active during the matching process
@@ -2559,21 +2698,23 @@ struct activepattlists {
 */
 static struct activepattlists match_tag_pattern_info(HToken *htok, PattInfo *pattinf, HTokenQueue *tokq)
 {
-  struct activepattlists pattlists= {NULL,NULL};
+  struct activepattlists pattlists= {NULL,NULL,NULL,0,0};
   unsigned short resolved=1;
   Tag *tag= &htok->tag;
 
   if(tag->idx>=0) {
     HTokenPattNode *p;
-    HTokenPattListNode **lastactdesc= &pattlists.desclist;
+    PattStateListNode **lastpattstate= &pattlists.pattstatelist;
+    HTokenPattListNode **lastactfchild= &pattlists.fchildlist;
     PattOptionsListNode **lastactsib= &pattlists.siblist;
+    unsigned targdesc;
     for(p=pattinf->taparr[tag->idx]; p; p=p->next) {
       /* Note: p->tokentype should equal htokenTag and tag->tagname should match p->tagname. */
       AttrNode *a;
       AttrPattNode *ap;
 
-      if(!p->active || (htok->matchingpatt && p->last && p->target==p &&
-			!(p->pattopts->disableflags&HASSIBLINGPATTERN)))
+      if(!p->active || (htok->matchingpatt && !p->hasdesc && p->target==p &&
+			!(p->pattopts->optionflags&HASSIBLINGPATTERN)))
 	continue; /* Skip pattern matching if nothing to be done anyway. */
       for(ap=p->tagpattn.attrpatts; ap; ap=ap->next) {
 	for(a=tag->attrl; a; a=a->next) {
@@ -2601,71 +2742,122 @@ static struct activepattlists match_tag_pattern_info(HToken *htok, PattInfo *pat
 	      goto nextattrpatt;
 	  }
 	}
-	goto nexttagattrpatt;
+	goto mismatch;
       nextattrpatt:;
       }
 
       /* The tag matched and all the patterns in attribute pattern list matched,
 	 process the tag. */
-      if(!p->last) {
+      targdesc= p->targdesc;
+
+      if(p->hasdesc) {
 	if(tag->ending==1) {
-	  /* Make descendant pattern active. */
 	  HTokenPattNode *desc= p->desc;
-	  PattOptions *pattopts;
 	  if(desc) {
-	    if(!desc->active) {
-	      HTokenPattListNode *new;
-	      desc->active=1;
-	      new= (HTokenPattListNode *)malloc(sizeof(HTokenPattListNode));
+	    PattOptions *pattopts= p->pattopts;
+
+	    if(targdesc==1 && p->firstlinedesc)
+	      pattlists.fchildhasdesc=1;
+
+	    /* Save pattern state information on the appropiate lists. */
+	    if(p->hasdesc==1) {
+	      /* Only applies to first children. */
+	      HTokenPattListNode *new= malloc(sizeof(HTokenPattListNode));
 	      new->next=NULL;
 	      new->pattn=desc;
-	      *lastactdesc=new;
-	      lastactdesc = &new->next;
+	      *lastactfchild=new;
+	      lastactfchild = &new->next;
 	    }
-	    pattopts= p->pattopts;
-	    if(pattopts) {
-	      if(!(pattopts->disableflags&HASSIBLINGPATTERN)) {
-		if(!htok->matchingpatt) {
-		  HTokenListNode *tp, **last;
-		  /* This token is an unresolved target, add it
-		     to the list of (unresolved) targets in the pattopts node. */
-		  resolved=0;
-		  tp= pattopts->toklist; last=&pattopts->toklist;
-		  while(tp) {
-		    HTokenListNode *next= tp->next;
-		    /* Remove members of the list that have been resolved in the meantime. */
-		    if(tp->serialnum<tokq->frontserialnum || tp->htoken->tag.resolved) {
-		      *last=next;
-		      free(tp);
-		    }
-		    else
-		      last=&tp->next;
-		    tp=next;
-		  }
-		  tp=(HTokenListNode *)malloc(sizeof(HTokenListNode));
-		  tp->next=NULL;
-		  tp->htoken= htok;
-		  tp->serialnum= tokq->nextserialnum;
-		  *last=tp;
+	    else {  /* general descendant */
+	      PattStateListNode *new= malloc(sizeof(PattStateListNode));
+	      new->next=NULL;
+	      new->pattn=desc;
+	      new->pattopts= pattopts;
+	      new->streflist= NULL;
+	      new->active=desc->active;
+	      *lastpattstate=new;
+	      lastpattstate = &new->next;
+
+	      if(pattopts) {
+		/* Create state reference list. */
+		StateListNode *stl;
+		StateRefListNode **lastref= &new->streflist;
+
+		for(stl= pattopts->stlist; stl; stl=stl->next) {
+		  StateRefListNode *new= malloc(sizeof(StateRefListNode));
+		  new->next=NULL;
+		  new->serialnum=stl->serialnum;
+		  new->lastm=stl->lastm;
+		  *lastref=new;
+		  lastref= &new->next;
 		}
 	      }
-	      else if(pattopts->sibling) {
-		/* Extend list of sibling patterns. */
-		PattOptionsListNode *new= malloc(sizeof(PattOptionsListNode));
-		PattOptionsRefListNode *newref= malloc(sizeof(PattOptionsRefListNode));
-		new->next=NULL;
-		new->pattopts=pattopts;
-		new->active=0; /* Now yet active, because descendant patterns still need to be matched. */
-		*lastactsib=new;
-		lastactsib = &new->next;
+	    }
 
-		newref->next= pattopts->pattoptsreflist;
-		newref->pattoptslistnode= new;
-		pattopts->pattoptsreflist= newref;
+	    if(targdesc==0) {
+	      if(pattopts) {
+		if(!(pattopts->optionflags&HASSIBLINGPATTERN)) {
+		  /* This pattern is a target with a descendant pattern. */
+		  if(p->hasdesc>pattlists.maxhasdesc) pattlists.maxhasdesc=p->hasdesc;
+
+		  if(!htok->matchingpatt) {
+		    StateListNode *stl, **last;
+		    /* This token is an unresolved target, add it
+		       to the list of (unresolved) targets in the pattopts node. */
+		    resolved=0;
+		    stl= pattopts->stlist; last=&pattopts->stlist;
+		    while(stl) {
+		      StateListNode *next= stl->next;
+		      /* Remove members of the list that have been resolved in the meantime. */
+		      if(stl->numtok.serialnum<tokq->frontserialnum || stl->numtok.htoken->tag.resolved) {
+			*last=next;
+			free(stl);
+		      }
+		      else
+			last=&stl->next;
+		      stl=next;
+		    }
+		    stl=(StateListNode *)malloc(sizeof(StateListNode));
+		    stl->next=NULL;
+		    stl->serialnum= pattinf->stateserialnum++;
+		    stl->lastm= targdesc;
+		    stl->numtok.htoken= htok;
+		    stl->numtok.serialnum= tokq->nextserialnum;
+		    *last=stl;
+		  }
+		}
+		else if(pattopts->sibling) {
+		  /* Extend list of sibling patterns. */
+		  PattOptionsListNode *new= malloc(sizeof(PattOptionsListNode));
+		  StateListNode *newst= malloc(sizeof(StateListNode));
+		  new->next=NULL;
+		  new->pattopts=pattopts;
+		  new->active=0; /* Now yet active, because descendant patterns still need to be matched. */
+		  *lastactsib=new;
+		  lastactsib = &new->next;
+
+		  newst->next= pattopts->stlist;
+		  newst->serialnum= pattinf->stateserialnum++;
+		  newst->lastm= targdesc;
+		  newst->pattoptslistnode= new;
+		  pattopts->stlist= newst;
+		}
+		else
+		  PrintMessage(Warning,"Error in %s line %d: invalid pattern sequence: expected sibling pattern."
+			       " Coding error in make_tag_pattern_info()?",__FILE__,__LINE__);
 	      }
-	      else
-		PrintMessage(Warning,"Error in %s line %d: invalid pattern sequence: expected sibling pattern."
-			     " Coding error in make_tag_pattern_info()?",__FILE__,__LINE__);
+	    }
+	    else /* targdesc!=0 */ {
+	      /* Update states of references to targets. */
+	      unsigned prev= targdesc-1;
+	      if(pattopts) {
+		StateListNode *stl;
+		for(stl= pattopts->stlist; stl; stl=stl->next) {
+		  if(stl->lastm==prev)
+		    stl->lastm=targdesc;
+		}
+	      }
+	      /* else PrintMessage(Warning,"pattopts missing"); */
 	    }
 	  }
 	  else
@@ -2675,65 +2867,48 @@ static struct activepattlists match_tag_pattern_info(HToken *htok, PattInfo *pat
 				 " Coding error in make_tag_pattern_info()?",__FILE__,__LINE__);
 	}
       }
-      else /* p->last */ {
+      else /* p->hasdesc==0 */ {
 	HTokenPattNode *target= p->target;
-	PattOptions *pattopts= target->pattopts;
-	if(target==p) {
-	  if(!(pattopts->disableflags&HASSIBLINGPATTERN)) {
-	    /* Direct match */
-	    /* if(!htok->matchingpatt) */ htok->matchingpatt= p;
-	    resolved=1;
+	if(target) {
+	  if(target==p) {
+	    PattOptions *pattopts= target->pattopts;
+	    if(!(pattopts->optionflags&HASSIBLINGPATTERN)) {
+	      /* Direct match */
+	      /* if(!htok->matchingpatt) */ htok->matchingpatt= p;
+	      resolved=1;
+	    }
+	    else if(pattopts->sibling) {
+	      /* Extend list of sibling patterns. */
+	      PattOptionsListNode *new= malloc(sizeof(PattOptionsListNode));
+	      new->next=NULL;
+	      new->pattopts=pattopts;
+	      new->active=1;
+	      *lastactsib=new;
+	      lastactsib = &new->next;
+	    }
+	    else
+	      PrintMessage(Warning,"Error in %s line %d: invalid pattern sequence: expected sibling pattern."
+			   " Coding error in make_tag_pattern_info()?",__FILE__,__LINE__);
 	  }
-	  else if(pattopts->sibling) {
-	    /* Extend list of sibling patterns. */
-	    PattOptionsListNode *new= malloc(sizeof(PattOptionsListNode));
-	    new->next=NULL;
-	    new->pattopts=pattopts;
-	    new->active=1;
-	    *lastactsib=new;
-	    lastactsib = &new->next;
-	  }
+	  else if(targdesc)
+	    handle_last_targdesc_match(target, targdesc-1, tokq->frontserialnum);
 	  else
-	    PrintMessage(Warning,"Error in %s line %d: invalid pattern sequence: expected sibling pattern."
+	    PrintMessage(Warning,"Error in %s line %d: invalid pattern sequence: expected nonzero target descendancy."
 			 " Coding error in make_tag_pattern_info()?",__FILE__,__LINE__);
 	}
-	else {
-	  if(!(pattopts->disableflags&HASSIBLINGPATTERN)) {
-	    /* Target token is a tag that is possibly queued. */
-	    HTokenListNode *tp= pattopts->toklist;
-	    pattopts->toklist=NULL;
-	    while(tp) {
-	      HTokenListNode *next;
-	      if(tp->serialnum>=tokq->frontserialnum) {
-		HToken *ht=tp->htoken;
-		if(!ht->tag.resolved) {
-		  ht->tag.resolved=1;
-		  ht->matchingpatt=target;
-		}
-	      }
-	      next= tp->next;
-	      free(tp);
-	      tp=next;
-	    }
-	  }
-	  else if(pattopts->sibling) {
-	    /* Activate the PattOptionsListNodes referenced by pattopts->pattoptsreflist. */
-	    PattOptionsRefListNode *pr= pattopts->pattoptsreflist;
-	    pattopts->pattoptsreflist= NULL;
-	    while(pr) {
-	      PattOptionsRefListNode *next= pr->next;
-	      pr->pattoptslistnode->active=1;
-	      free(pr);
-	      pr=next;
-	    }
-	  }
-	  else
-	    PrintMessage(Warning,"Error in %s line %d: invalid pattern sequence: expected sibling pattern."
-			 " Coding error in make_tag_pattern_info()?",__FILE__,__LINE__);
-	}
+	else
+	  PrintMessage(Warning,"Error in %s line %d: invalid pattern sequence: expected target pattern."
+		       " Coding error in make_tag_pattern_info()?",__FILE__,__LINE__);
       }
-    nexttagattrpatt:;
+      continue;
+
+    mismatch:
+      if(p->firstlinedesc)
+	handle_mismatching_firstline_sequence(p);
     }
+
+    /* Only activate descendant patterns after all the patterns have been matched against this tag. */
+    activate_pattstate_list(pattlists.pattstatelist);
   }
 
   tag->resolved=resolved;
@@ -2741,10 +2916,93 @@ static struct activepattlists match_tag_pattern_info(HToken *htok, PattInfo *pat
 }
 
 
-inline static int get_disableflags(HTokenPattNode *matchingpatt)
+/* In the case that all the patterns in a pattern sequence matched,
+   where the last pattern is a descendant of the target pattern,
+   scan the lists of references to the targets in the PattOptions node.
+   Mark as resolved or activate the targets of the references that have
+   reached the final state (as specified by targdesc argument), and
+   remove those references from the lists.
+*/
+static void handle_last_targdesc_match(HTokenPattNode *target, unsigned targdesc, unsigned frontserialnum)
+{
+  PattOptions *pattopts= target->pattopts;
+  StateListNode *stl= pattopts->stlist, **last=&pattopts->stlist;
+
+  if(!(pattopts->optionflags&HASSIBLINGPATTERN)) {
+    /* Target token is a tag that is possibly queued. */
+
+    while(stl) {
+      StateListNode *next= stl->next;
+      if(stl->lastm==targdesc && stl->numtok.serialnum>=frontserialnum) {
+	HToken *ht=stl->numtok.htoken;
+	if(!ht->tag.resolved) {
+	  ht->tag.resolved=1;
+	  ht->matchingpatt=target;
+	}
+      }
+      if(stl->lastm==targdesc || stl->numtok.serialnum<frontserialnum || stl->numtok.htoken->tag.resolved) {
+	/* Remove list node. */
+	*last=next;
+	free(stl);
+      }
+      else
+	last=&stl->next;
+      stl=next;
+    }
+  }
+  else {
+    if(!pattopts->sibling)
+      PrintMessage(Warning,"Error in %s line %d: invalid pattern sequence: expected sibling pattern."
+		   " Coding error in make_tag_pattern_info()?",__FILE__,__LINE__);
+
+    /* Activate the PattOptionsListNodes referenced by pattopts->stlist. */
+
+    while(stl) {
+      StateListNode *next= stl->next;
+      if(stl->lastm==targdesc) {
+	stl->pattoptslistnode->active=1;
+	*last=next;
+	free(stl);
+      }
+      else
+	last=&stl->next;
+      stl=next;
+    }
+  }
+}
+
+
+/* If a first-line descendancy pattern sequence mismatched, remove references to target in PattOptions node. */
+static void handle_mismatching_firstline_sequence(HTokenPattNode *pattn)
+{
+  unsigned targdesc= pattn->targdesc;
+
+  if(targdesc) {
+    unsigned prev=targdesc-1;
+    PattOptions *pattopts= pattn->pattopts;
+    if(pattopts) {
+      StateListNode *stl= pattopts->stlist, **last= &pattopts->stlist;
+      while(stl) {
+	StateListNode *next= stl->next;
+	if(stl->lastm==prev) {
+	  *last=next;
+	  free(stl);
+	  /* break; */  /* There should be at most one. */
+	}
+	else
+	  last=&stl->next;
+	stl=next;
+      }
+    }
+    /* else PrintMessage(Warning,"pattopts missing"); */
+  }
+}
+
+
+inline static int get_optionflags(HTokenPattNode *matchingpatt)
 {
   PattOptions *pattopts= matchingpatt->pattopts;
-  return pattopts? pattopts->disableflags: 0;
+  return pattopts? pattopts->optionflags: 0;
 }
 
 /* Modify a tag structure using the options contained in the matching pattern.
@@ -2760,9 +3018,9 @@ static void process_tag_style_replacement(Tag *tag, HTokenPattNode *matchingpatt
     PattOptions *pattopts= matchingpatt->pattopts;
     if(pattopts) {
       stylerepl= pattopts->stylerepl;
-      if((pattopts->disableflags&DISABLEMATCHINGTAG) && !tag->disable)
+      if((pattopts->optionflags&DISABLEMATCHINGTAG) && !tag->disable)
 	tag->disable=disabled_matching_tag;
-      if(pattopts->disableflags&DISABLEMATCHINGATTRIBUTES)
+      if(pattopts->optionflags&DISABLEMATCHINGATTRIBUTES)
 	disablematchingattrs=1;
     }
   }
@@ -2830,7 +3088,6 @@ static struct matchtextresult match_text_pattern_info(HTokenType type, const cha
   struct matchtextresult res= {NULL,NULL};
   PattOptionsListNode **lastactsib= &res.siblist;
   HTokenPattNode *p, *target;
-  PattOptions *pattopts;
 
   switch(type) {
   case htokenText:         p= pattinf->txtpl;     break;
@@ -2842,69 +3099,49 @@ static struct matchtextresult match_text_pattern_info(HTokenType type, const cha
 
   for(; p; p=p->next) {
     /* p->tokentype should equal htokenText, htokenScriptText, htokenStyleText or htokenComment. */
-    if(p->active && p->last && !(res.matchingpatt && p->target==p && !(p->pattopts->disableflags&HASSIBLINGPATTERN))) {
+    if(p->active && !p->hasdesc && !(res.matchingpatt && p->target==p && !(p->pattopts->optionflags&HASSIBLINGPATTERN))) {
       PattNode *q;
       for(q=p->txtpatt; q; q=q->next) {
 	if(strsegmentscasematch(txtstr,txtlen,q->patt,q->len))
 	  goto match;
       }
       continue;
+
     match:
-      /* This works because p->last=1. */
+      /* This works because p->hasdesc==0. */
       target= p->target;
-      pattopts= target->pattopts;
-      if(target==p) {
-	if(!(pattopts->disableflags&HASSIBLINGPATTERN)) {
-	  /* Direct match */
-	  /* if(!res.matchingpatt) */ res.matchingpatt= p;
-	}
-	else if(pattopts->sibling) {
-	  /* Extend list of sibling patterns. */
-	  PattOptionsListNode *new= malloc(sizeof(PattOptionsListNode));
-	  new->next=NULL;
-	  new->pattopts=pattopts;
-	  new->active=1;
-	  *lastactsib=new;
-	  lastactsib = &new->next;
-	}
-	else
-	  PrintMessage(Warning,"Error in %s line %d: invalid pattern sequence: expected sibling pattern."
-		       " Coding error in make_tag_pattern_info()?",__FILE__,__LINE__);
-      }
-      else {
-	if(!(pattopts->disableflags&HASSIBLINGPATTERN)) {
-	  /* Target token is a tag that is possibly queued. */
-	  HTokenListNode *tp= pattopts->toklist;
-	  pattopts->toklist=NULL;
-	  while(tp) {
-	    HTokenListNode *next;
-	    if(tp->serialnum>=tokq->frontserialnum) {
-	      HToken *ht=tp->htoken;
-	      if(!ht->tag.resolved) {
-		ht->tag.resolved=1;
-		ht->matchingpatt=target;
-	      }
-	    }
-	    next= tp->next;
-	    free(tp);
-	    tp=next;
+      if(target) {
+	if(target==p) {
+	  PattOptions *pattopts= target->pattopts;
+	  if(!(pattopts->optionflags&HASSIBLINGPATTERN)) {
+	    /* Direct match */
+	    /* if(!res.matchingpatt) */ res.matchingpatt= p;
 	  }
-	}
-	else if(pattopts->sibling) {
-	  /* Activate the PattOptionsListNodes referenced by pattopts->pattoptsreflist. */
-	  PattOptionsRefListNode *pr= pattopts->pattoptsreflist;
-	  pattopts->pattoptsreflist= NULL;
-	  while(pr) {
-	    PattOptionsRefListNode *next= pr->next;
-	    pr->pattoptslistnode->active=1;
-	    free(pr);
-	    pr=next;
+	  else if(pattopts->sibling) {
+	    /* Extend list of sibling patterns. */
+	    PattOptionsListNode *new= malloc(sizeof(PattOptionsListNode));
+	    new->next=NULL;
+	    new->pattopts=pattopts;
+	    new->active=1;
+	    *lastactsib=new;
+	    lastactsib = &new->next;
 	  }
+	  else
+	    PrintMessage(Warning,"Error in %s line %d: invalid pattern sequence: expected sibling pattern."
+			 " Coding error in make_tag_pattern_info()?",__FILE__,__LINE__);
 	}
-	else
-	  PrintMessage(Warning,"Error in %s line %d: invalid pattern sequence: expected sibling pattern."
-		       " Coding error in make_tag_pattern_info()?",__FILE__,__LINE__);
+	else {
+	  unsigned targdesc= p->targdesc;
+	  if(targdesc)
+	    handle_last_targdesc_match(target, targdesc-1, tokq->frontserialnum);
+	  else
+	    PrintMessage(Warning,"Error in %s line %d: invalid pattern sequence: expected nonzero target descendancy."
+			 " Coding error in make_tag_pattern_info()?",__FILE__,__LINE__);
+	}
       }
+      else
+	PrintMessage(Warning,"Error in %s line %d: invalid pattern sequence: expected target pattern."
+		     " Coding error in make_tag_pattern_info()?",__FILE__,__LINE__);
     }
   }
 
@@ -3018,7 +3255,7 @@ static void modify_html(URL *Url)
  Bool_t insertedfile=0,after_body=0;
  Bool_t is_endtag=0, tag_maybe_matchpatt=0, tagcomplexmodify=0;
  Bool_t disable_following_script=0, disable_all_following_scripts=0;
- int scriptdisablelevel=0, disableflags=0;
+ int scriptdisablelevel=0, optionflags=0;
  PattInfo tagpatterninfo;
 
  anchor_modify_begin[0]=ConfigStringURL(AnchorModifyBegin[0],Url);
@@ -3150,7 +3387,7 @@ static void modify_html(URL *Url)
 	 PattOptionsListNode **last;
 	 matchingpatt= matchres.matchingpatt;
 	 last= unwind_pattoptions_list(&matchres.siblist);
-	 append_siblingpatt_list(&tagpatterninfo,matchres.siblist,last);
+	 append_sibling_patt_list(&tagpatterninfo,matchres.siblist,last);
        }
        goto unwind_token_queue;
 
@@ -3163,27 +3400,29 @@ static void modify_html(URL *Url)
 
        reset_tagtoken(&tagtoken, tagcomplexmodify?htmlmodify_yylval:NULL, tagtype, tagidx);
        tagdata= &tagtoken->tag;
-       disableflags=0;
+       optionflags=0;
        commentout=0;
 
        if(!is_endtag) {
-	 if(tagidx>=0)
+	 if(tagidx>=0 || !htokenqueue_isempty(&tokenqueue))
 	   disable_output|=DISABLE_TAG;
        }
        else { /* end tag */
-	 reset_siblingpatt_list(&tagpatterninfo);
+	 reset_fchild_sibling_patt_lists(&tagpatterninfo,-1,NULL,NULL,&tokenqueue);
 	 if(tagidx>=0) {
 	   if(stackflags(&tagpatterninfo,tagidx)&TAGPSTACK) {
 	     PattOptionsList sl=poptagpstack(&tagpstack, tagidx, tokenqueue.frontserialnum);
-	     append_siblingpatt_list(&tagpatterninfo, sl.first, sl.last);
-	     /* Popping tagpstack may have resolved the front token in the queue. */
-	     if(!htokenqueue_isempty(&tokenqueue))
-	       goto unwind_token_queue;
-	   continue_end_tag:;
+	     append_sibling_patt_list(&tagpatterninfo, sl.first, sl.last);
 	   }
+	 }
+	 /* Popping tagpstack or calling reset_fchild_sibling_patt_lists() may have resolved the front token in the queue. */
+	 if(!htokenqueue_isempty(&tokenqueue) && (tokenqueue.front->tokentype!=htokenTag || tokenqueue.front->tag.resolved))
+	   goto unwind_token_queue;
+       continue_end_tag:
+	 if(tagidx>=0) {
 	   if(htokenqueue_isempty(&tokenqueue) && (stackflags(&tagpatterninfo,tagidx)&TAGDSTACK)) {
-	     disableflags=poptagstack(&tagdstack,tagidx);
-	     if((disableflags&DISABLEMATCHINGTAG) && !tagdata->disable)
+	     optionflags=poptagstack(&tagdstack,tagidx);
+	     if((optionflags&DISABLEMATCHINGTAG) && !tagdata->disable)
 	       tagdata->disable=disabled_matching_tag;
 	   }
 	 }
@@ -3377,57 +3616,42 @@ static void modify_html(URL *Url)
 	   yy_rawout("/>");
        }
 
-       /* matchingpatt=NULL; */
-
        if(tag_maybe_matchpatt && tagdata->ending) {
 	 struct activepattlists pattlists=match_tag_pattern_info(tagtoken,&tagpatterninfo,&tokenqueue);
-	 reset_siblingpatt_list(&tagpatterninfo);
+	 struct numberedhtoken parenttoken= {NULL,tagpatterninfo.parentserialnum};
+	 if(pattlists.fchildhasdesc && tagpatterninfo.parenthtoken) {
+	   /* Parent htoken may not be marked as resolved until the descendants of the child have been explored,
+	      place the parent htoken on the pattern stack with the child instead. */
+	   parenttoken.htoken= tagpatterninfo.parenthtoken;
+	   tagpatterninfo.parenthtoken=NULL;
+	 }
+	 reset_fchild_sibling_patt_lists(&tagpatterninfo, tagidx, pattlists.fchildlist,
+					 (tagdata->resolved || pattlists.maxhasdesc>1)?NULL:tagtoken,
+					 &tokenqueue);
 	 if(stackflags(&tagpatterninfo,tagidx)&TAGPSTACK) {
 	   if(tagdata->ending==1)
-	     pushtagpstack(&tagpstack, tagidx, pattlists.desclist, pattlists.siblist,
-			   tagdata->resolved?NULL:tagtoken, tokenqueue.nextserialnum);
-	   else if(tagdata->ending==2) {
-	     /* unwind_pattern_list(pattlists.desclist); */ /* pattlists.desclist should be NULL if tagdata->ending!=1. */
+	     pushtagpstack(&tagpstack, tagidx, pattlists.pattstatelist, pattlists.siblist,
+			   tagdata->resolved?NULL:tagtoken, tokenqueue.nextserialnum,
+			   parenttoken.htoken, parenttoken.serialnum);
+	   else /* if(tagdata->ending==2) */ {
+	     /* unwind_pattstate_list(pattlists.pattstatelist); */ /* pattlists.desclist and fchildlist should be NULL if tagdata->ending!=1. */
 	     PattOptionsListNode **last= unwind_pattoptions_list(&pattlists.siblist);
-	     append_siblingpatt_list(&tagpatterninfo, pattlists.siblist, last);
-	   }
-	   else { /* malformed tag */
-	     /* free_pattern_list(pattlists.desclist); */
-	     free_pattoptions_list(pattlists.siblist);
+	     append_sibling_patt_list(&tagpatterninfo, pattlists.siblist, last);
 	   }
 	 }
 	 /* else; */ /* pattlists should be empty if the TAGPSTACK flag is false. */
-
-	 /* Calling match_tag_pattern_info() may have resolved the front token in the queue. */
-	 if(!htokenqueue_isempty(&tokenqueue))
-	   goto unwind_token_queue;
-       continue_start_tag:
-	 if(tagdata->resolved && htokenqueue_isempty(&tokenqueue)) {
-	   matchingpatt= tagtoken->matchingpatt;
-	   if(matchingpatt) {
-	     disableflags= get_disableflags(matchingpatt);
-	     if(disableflags&RESETFOLLOWINGSCRIPT)
-	       disable_following_script=0;
-	     if(disableflags&RESETALLFOLLOWINGSCRIPTS)
-	       disable_all_following_scripts=0;
-	   }
-	   if(stackflags(&tagpatterninfo,tagidx)&TAGDSTACK)  {
-	     if(tagdata->ending==1) {
-	       pushtagstack(&tagdstack, tagidx, disableflags);
-	     }
-	   }
-	   disable_script= (disable_all_scripts || (after_body && disable_script_after_body) ||
-			     scriptdisablelevel>0 || (disableflags&DISABLEINNERSCRIPT) ||
-			     disable_all_following_scripts);
-	   if(matchingpatt || disable_script)
-	     process_tag_style_replacement(tagdata,matchingpatt,disable_script);
-	 }
        }
        else {
 	 tagdata->resolved=1;
 	 if(!is_endtag)
-	   reset_siblingpatt_list(&tagpatterninfo);
-       }	   
+	   reset_fchild_sibling_patt_lists(&tagpatterninfo,-1,NULL,NULL,&tokenqueue);
+       }
+
+       /* Calling match_tag_pattern_info() or reset_fchild_sibling_patt_lists()
+	  may have resolved the front token in the queue. */
+       if(!htokenqueue_isempty(&tokenqueue) && (tokenqueue.front->tokentype!=htokenTag || tokenqueue.front->tag.resolved))
+	 goto unwind_token_queue;
+     continue_start_tag:
 
        if(!(tagdata->resolved && htokenqueue_isempty(&tokenqueue))) {
 	 htokenqueue_push(&tokenqueue, tagtoken);
@@ -3438,6 +3662,27 @@ static void modify_html(URL *Url)
        else {
 	 /* tokenqueue remains empty. Nevertheless, simulate passing the token through the queue. */
 	 htokenqueue_serialincr(&tokenqueue);
+       }
+
+       if(tag_maybe_matchpatt) {
+	 matchingpatt= tagtoken->matchingpatt;
+	 if(matchingpatt) {
+	   optionflags= get_optionflags(matchingpatt);
+	   if(optionflags&RESETFOLLOWINGSCRIPT)
+	     disable_following_script=0;
+	   if(optionflags&RESETALLFOLLOWINGSCRIPTS)
+	     disable_all_following_scripts=0;
+	 }
+	 if(stackflags(&tagpatterninfo,tagidx)&TAGDSTACK)  {
+	   if(tagdata->ending==1) {
+	     pushtagstack(&tagdstack, tagidx, optionflags);
+	   }
+	 }
+	 disable_script= (disable_all_scripts || (after_body && disable_script_after_body) ||
+			  scriptdisablelevel>0 || (optionflags&DISABLEINNERSCRIPT) ||
+			  disable_all_following_scripts);
+	 if(matchingpatt || disable_script)
+	   process_tag_style_replacement(tagdata,matchingpatt,disable_script);
        }
 
        if(tagtype!=tag_script && tagtype!=tag__script)
@@ -3549,7 +3794,7 @@ static void modify_html(URL *Url)
 	     is_disabled_script= disabled_following_script;
 	   else if(scriptdisablelevel>0)
 	     is_disabled_script= disabled_inner_script;
-	   else if(disableflags&DISABLEINNERSCRIPT)
+	   else if(optionflags&DISABLEINNERSCRIPT)
 	     is_disabled_script=disabled_matching_script;
 	   else
 	     is_disabled_script=0;
@@ -3587,23 +3832,23 @@ static void modify_html(URL *Url)
        default: ;
        }
 
-       if(disableflags) {
+       if(optionflags) {
 	 if(is_endtag) {
-	   if((disableflags&DISABLEINNERSCRIPT) && scriptdisablelevel>0)
+	   if((optionflags&DISABLEINNERSCRIPT) && scriptdisablelevel>0)
 	     --scriptdisablelevel;
-	   if(disableflags&DISABLEFOLLOWINGSCRIPT)
+	   if(optionflags&DISABLEFOLLOWINGSCRIPT)
 	     disable_following_script=1;
-	   if(disableflags&DISABLEALLFOLLOWINGSCRIPTS)
+	   if(optionflags&DISABLEALLFOLLOWINGSCRIPTS)
 	     disable_all_following_scripts=1;
 	 }
 	 else if(tagdata->ending==1) {
-	   if(disableflags&DISABLEINNERSCRIPT)
+	   if(optionflags&DISABLEINNERSCRIPT)
 	     ++scriptdisablelevel;
 	 }
 	 else if(tagdata->ending==2) {
-	   if(disableflags&DISABLEFOLLOWINGSCRIPT)
+	   if(optionflags&DISABLEFOLLOWINGSCRIPT)
 	     disable_following_script=1;
-	   if(disableflags&DISABLEALLFOLLOWINGSCRIPTS)
+	   if(optionflags&DISABLEALLFOLLOWINGSCRIPTS)
 	     disable_all_following_scripts=1;
 	 }
        }
@@ -3675,28 +3920,28 @@ static void modify_html(URL *Url)
 	 case htokenTag: {
 	   Tag *tag= &htok->tag;
 	   HTokenPattNode *matchingpatt=NULL;
-	   int disableflags=0;
+	   int optionflags=0;
 	   Bool_t disable_script;
 
 	   if(tag->idx>=0) {
 	     if(!tag_is_endtag(tag)) {
 	       matchingpatt= htok->matchingpatt;
 	       if(matchingpatt) {
-		 disableflags= get_disableflags(matchingpatt);
-		 if(disableflags&RESETFOLLOWINGSCRIPT)
+		 optionflags= get_optionflags(matchingpatt);
+		 if(optionflags&RESETFOLLOWINGSCRIPT)
 		   disable_following_script=0;
-		 if(disableflags&RESETALLFOLLOWINGSCRIPTS)
+		 if(optionflags&RESETALLFOLLOWINGSCRIPTS)
 		   disable_all_following_scripts=0;
 	       }
 	       if(stackflags(&tagpatterninfo,tag->idx)&TAGDSTACK) {
 		 if(tag->ending==1) {
-		   pushtagstack(&tagdstack, tag->idx, disableflags);
+		   pushtagstack(&tagdstack, tag->idx, optionflags);
 		 }
 	       }
 	     }
 	     else if(stackflags(&tagpatterninfo,tag->idx)&TAGDSTACK) {
-	       disableflags=poptagstack(&tagdstack,tag->idx);
-	       if((disableflags&DISABLEMATCHINGTAG) && !tag->disable)
+	       optionflags=poptagstack(&tagdstack,tag->idx);
+	       if((optionflags&DISABLEMATCHINGTAG) && !tag->disable)
 		 tag->disable=disabled_matching_tag;
 	     }
 	   }
@@ -3705,7 +3950,7 @@ static void modify_html(URL *Url)
 	     disable_following_script=0;
 
 	   disable_script =  (disable_all_scripts || (after_body && disable_script_after_body) ||
-			       scriptdisablelevel>0 || (!tag_is_endtag(tag) && (disableflags&DISABLEINNERSCRIPT)) ||
+			       scriptdisablelevel>0 || (!tag_is_endtag(tag) && (optionflags&DISABLEINNERSCRIPT)) ||
 			       disable_all_following_scripts);
 
 	   if(matchingpatt || disable_script)
@@ -3843,7 +4088,7 @@ static void modify_html(URL *Url)
 	       is_disabled_script= disabled_following_script;
 	     else if(scriptdisablelevel>0)
 	       is_disabled_script= disabled_inner_script;
-	     else if(disableflags&DISABLEINNERSCRIPT)
+	     else if(optionflags&DISABLEINNERSCRIPT)
 	       is_disabled_script=disabled_matching_script;
 	     else
 	       is_disabled_script=0;
@@ -3882,23 +4127,23 @@ static void modify_html(URL *Url)
 	     output_tag(&htok->tag,NULL);
 	   }
 
-	   if(disableflags) {
+	   if(optionflags) {
 	     if(tag_is_endtag(tag)) {
-	       if((disableflags&DISABLEINNERSCRIPT) && scriptdisablelevel>0)
+	       if((optionflags&DISABLEINNERSCRIPT) && scriptdisablelevel>0)
 		 --scriptdisablelevel;
-	       if(disableflags&DISABLEFOLLOWINGSCRIPT)
+	       if(optionflags&DISABLEFOLLOWINGSCRIPT)
 		 disable_following_script=1;
-	       if(disableflags&DISABLEALLFOLLOWINGSCRIPTS)
+	       if(optionflags&DISABLEALLFOLLOWINGSCRIPTS)
 		 disable_all_following_scripts=1;
 	     }
 	     else if(tag->ending==1) {
-	       if(disableflags&DISABLEINNERSCRIPT)
+	       if(optionflags&DISABLEINNERSCRIPT)
 		 ++scriptdisablelevel;
 	     }
 	     else if(tag->ending==2) {
-	       if(disableflags&DISABLEFOLLOWINGSCRIPT)
+	       if(optionflags&DISABLEFOLLOWINGSCRIPT)
 		 disable_following_script=1;
-	       if(disableflags&DISABLEALLFOLLOWINGSCRIPTS)
+	       if(optionflags&DISABLEALLFOLLOWINGSCRIPTS)
 		 disable_all_following_scripts=1;
 	     }
 	   }
@@ -3907,7 +4152,7 @@ static void modify_html(URL *Url)
 
 	 case htokenText:
 	   handle_text(htok->text.str,htok->text.len);
-	   goto handle_disableflags;
+	   goto handle_optionflags;
 
 	 case htokenScriptText:
 	 case htokenStyleText: {
@@ -3934,17 +4179,17 @@ static void modify_html(URL *Url)
 
 	 case htokenComment:
 	   yy_write(htok->text.str, htok->text.len);
-	 handle_disableflags: {
+	 handle_optionflags: {
 	     HTokenPattNode *matchingpatt=htok->matchingpatt;
 	     if(matchingpatt) {
-	       int disableflags=get_disableflags(matchingpatt);
-	       if(disableflags&RESETFOLLOWINGSCRIPT)
+	       int optionflags=get_optionflags(matchingpatt);
+	       if(optionflags&RESETFOLLOWINGSCRIPT)
 		 disable_following_script=0;
-	       if(disableflags&RESETALLFOLLOWINGSCRIPTS)
+	       if(optionflags&RESETALLFOLLOWINGSCRIPTS)
 		 disable_all_following_scripts=0;
-	       if(disableflags&DISABLEFOLLOWINGSCRIPT)
+	       if(optionflags&DISABLEFOLLOWINGSCRIPT)
 		 disable_following_script=1;
-	       if(disableflags&DISABLEALLFOLLOWINGSCRIPTS)
+	       if(optionflags&DISABLEALLFOLLOWINGSCRIPTS)
 		 disable_all_following_scripts=1;
 	     }
 	   }
@@ -3971,7 +4216,7 @@ static void modify_html(URL *Url)
 	 case LEX_PLAINTEXT:
 	   if(prev_disable_output)
 	     handle_text(htmlmodify_yylval,htmlmodify_yylval_len);
-	   goto handle_disableflags2;
+	   goto handle_optionflags2;
 
 	 case LEX_SCRIPTTEXT:
 	 case LEX_STYLETEXT:
@@ -3994,16 +4239,16 @@ static void modify_html(URL *Url)
 	 case LEX_COMMENT:
 	   if(prev_disable_output)
 	     yy_write(htmlmodify_yylval,htmlmodify_yylval_len);
-	 handle_disableflags2:
+	 handle_optionflags2:
 	   if(matchingpatt) {
-	     int disableflags=get_disableflags(matchingpatt);
-	     if(disableflags&RESETFOLLOWINGSCRIPT)
+	     int optionflags=get_optionflags(matchingpatt);
+	     if(optionflags&RESETFOLLOWINGSCRIPT)
 	       disable_following_script=0;
-	     if(disableflags&RESETALLFOLLOWINGSCRIPTS)
+	     if(optionflags&RESETALLFOLLOWINGSCRIPTS)
 	       disable_all_following_scripts=0;
-	     if(disableflags&DISABLEFOLLOWINGSCRIPT)
+	     if(optionflags&DISABLEFOLLOWINGSCRIPT)
 	       disable_following_script=1;
-	     if(disableflags&DISABLEALLFOLLOWINGSCRIPTS)
+	     if(optionflags&DISABLEALLFOLLOWINGSCRIPTS)
 	       disable_all_following_scripts=1;
 	   }
 	   break;
