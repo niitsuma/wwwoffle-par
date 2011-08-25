@@ -382,6 +382,13 @@ typedef struct _HTokenQueue {
 }
 HTokenQueue;
 
+typedef struct _HTokenListNode {
+  struct _HTokenListNode *next;
+  HToken *htoken;
+  unsigned serialnum;
+}
+HTokenListNode;
+
 /*+ A stack for holding tags of possibly nested objects and their disabled status. +*/
 typedef struct _TagStackNode {
   struct _TagStackNode *next;
@@ -502,13 +509,13 @@ typedef struct _PattInfo {
   HTokenPattNode *styltxtpl; /* Points to list of style-text patterns. */
   HTokenPattNode *compl;     /* Points to list of comment patterns. */
   HTokenPattListNode *activechildren;  /* Points to list of activated first child patterns. */
-  HToken *parenthtoken;      /* If not null, points to unresolved token with child pattern. */
-  unsigned parentserialnum;  /* Serial number of parent token in queue. */
-  unsigned stateserialnum;   /* Counter used to generate serial numbers for StateListNodes. */
+  HTokenListNode *firstlinetarglist;   /* Points to list of unresolved target tokens which are first-line ancestors. */
+  HTokenListNode **lastfirstlinetarg;
   PattOptionsListNode *activesiblings; /* Points to list of activated sibling patterns. */
   PattOptionsListNode **lastactivesibs;
   unsigned char *stacktag;   /* Points to array of length ntag with flags specifying which tags need to be stacked. */
   int ntag;
+  unsigned stateserialnum;   /* Counter used to generate serial numbers for StateListNodes. */
 }
 PattInfo;
 
@@ -520,9 +527,10 @@ typedef struct _TagPStackNode {
   PattOptionsListNode *pattoptslist; /* List of sibling patterns that need to be activated
 					when this node is popped off the stack. */
   HToken *htoken;                    /* Reference to the HToken that is resolved when this node is popped off the stack. */
-  unsigned serialnum;                /* The serial number used to determine whether the HToken is still present in the queue. */
-  HToken *parenthtoken;              /* Reference to a possible parent HToken that is resolved when this node is popped off the stack. */
-  unsigned parentserialnum;          /* The serial number of the parent HToken. */
+  unsigned serialnum;                /* The serial number used to determine whether the HToken is
+					still present in the queue. */
+  HTokenListNode *parenthtoklist;    /* List of references to possible parent HTokens that are resolved
+					when this node is popped off the stack. */
 }
 TagPStackNode;
 
@@ -901,7 +909,7 @@ inline static void free_tagstack(TagStack s)
 static void pushtagpstack(TagPStack *s, int idx,
 			  PattStateListNode *pattstatelist, PattOptionsListNode *pattoptslist,
 			  HToken *htoken, unsigned serialnum,
-			  HToken *parenthtoken, unsigned parentserialnum)
+			  HTokenListNode *parenthtoklist)
 {
   TagPStack new=malloc(sizeof(TagPStackNode));
   new->next= *s;
@@ -910,9 +918,30 @@ static void pushtagpstack(TagPStack *s, int idx,
   new->pattoptslist= pattoptslist;
   new->htoken= htoken;
   new->serialnum= serialnum;
-  new->parenthtoken= parenthtoken;
-  new->parentserialnum= parentserialnum;
+  new->parenthtoklist= parenthtoklist;
   *s= new;
+}
+
+
+/* Make a copy of a token list, leaving out the nodes referring to tokens that are already resolved. */
+inline static HTokenListNode *copy_htoken_list(HTokenListNode *tl, unsigned frontserialnum)
+{
+  HTokenListNode *res;
+  HTokenListNode **last= &res;
+
+  while(tl) {
+    if(tl->serialnum>=frontserialnum && !tl->htoken->tag.resolved) {
+      HTokenListNode *new= malloc(sizeof(HTokenListNode));
+      new->next=NULL;
+      new->htoken=tl->htoken;
+      new->serialnum=tl->serialnum;
+      *last=new;
+      last= &new->next;
+    }
+    tl=tl->next;
+  }
+
+  return res;
 }
 
 /* Activate the patterns on a pattern list. */
@@ -971,6 +1000,19 @@ inline static void unwind_pattstate_list(PattStateListNode *pl) {
   }
 }
 
+inline __attribute__((always_inline))
+static void unwind_htoken_list(HTokenListNode *tl, unsigned frontserialnum)
+{
+  while(tl) {
+    HTokenListNode *next;
+    if(tl->serialnum>=frontserialnum)
+      tl->htoken->tag.resolved=1;
+    next=tl->next;
+    free(tl);
+    tl=next;
+  }
+}
+
 /* Activate siblings patterns referred by active nodes in PattOptions list and remove inactive nodes.
    All the PattOptions must have the HASSIBLINGPATTERN flag set!
    unwind_pattoptions_list() returns a pointer to the last 'next' field in the resulting list.
@@ -1021,8 +1063,7 @@ static PattOptionsList poptagpstack(TagPStack *s, int idx, unsigned serialnum)
       unwind_pattstate_list(p->pattstatelist);
       if(p->serialnum>=serialnum && p->htoken)
 	p->htoken->tag.resolved=1;
-      if(p->parentserialnum>=serialnum && p->parenthtoken)
-	p->parenthtoken->tag.resolved=1;
+      unwind_htoken_list(p->parenthtoklist,serialnum);
       *q= p->next;
       free(p);
       break;
@@ -1074,6 +1115,17 @@ static void free_pattoptions_list(PattOptionsListNode *p)
   }
 }
 
+inline __attribute__((always_inline))
+static void free_htoken_list(HTokenListNode *p)
+{
+  while(p) {
+    HTokenListNode* next= p->next;
+    /* p->htoken should be freed elsewhere. */
+    free(p);
+    p=next;
+  }
+}
+
 /* Free all the remaining nodes of a TagPStack */
 inline static void free_tagpstack(TagPStack s)
 {
@@ -1081,7 +1133,8 @@ inline static void free_tagpstack(TagPStack s)
     TagPStack next= s->next;
     free_pattstate_list(s->pattstatelist);
     free_pattoptions_list(s->pattoptslist);
-    /* Don't free s->htoken and s->parenthtoken here, should be freed elsewhere. */
+    /* Don't free s->htoken , should be freed elsewhere. */
+    free_htoken_list(s->parenthtoklist);
     free(s);
     s=next;
   }
@@ -1370,13 +1423,13 @@ static void make_tag_pattern_info(PattInfo *pattinfo, ConfigItem confitem,const 
   pattinfo->styltxtpl= NULL;
   pattinfo->compl= NULL;
   pattinfo->activechildren= NULL;
-  pattinfo->parenthtoken= NULL;
-  pattinfo->parentserialnum= 0;
-  pattinfo->stateserialnum= 0;
+  pattinfo->firstlinetarglist= NULL;
+  pattinfo->lastfirstlinetarg= &pattinfo->firstlinetarglist;
   pattinfo->activesiblings= NULL;
   pattinfo->lastactivesibs= &pattinfo->activesiblings;
   pattinfo->stacktag= NULL;
   pattinfo->ntag= 0;
+  pattinfo->stateserialnum= 0;
   lasttxtp= &pattinfo->txtpl;
   lastscrtxtp= &pattinfo->scrtxtpl;
   laststyltxtp= &pattinfo->styltxtpl;
@@ -1542,9 +1595,11 @@ static void handle_mismatching_firstline_sequence(HTokenPattNode *pattn);
    Mark a possible parent token as resolved.
    Then set the activechildren list to fchildlist and activate the patterns referred by the new list.
 */
-static void reset_fchild_sibling_patt_lists(PattInfo *pattinfo, int tagidx, HTokenPattListNode *fchildlist,
-					    HToken *htoken, HTokenQueue *tokq)
+static HTokenListNode *reset_fchild_sibling_patt_lists(PattInfo *pattinfo, int tagidx, HTokenPattListNode *fchildlist,
+						       unsigned maxfirstlinehasdesc, HToken *htoken, HTokenQueue *tokq)
 {
+  HTokenListNode *retval=NULL;
+
   {
     PattOptionsListNode *p= pattinfo->activesiblings;
 
@@ -1573,12 +1628,34 @@ static void reset_fchild_sibling_patt_lists(PattInfo *pattinfo, int tagidx, HTok
       p=next;
     }
   }
-  if(pattinfo->parentserialnum>=tokq->frontserialnum && pattinfo->parenthtoken)
-    pattinfo->parenthtoken->tag.resolved=1;
+  if(maxfirstlinehasdesc==0) {
+    /* Mark tokens in firstlinetarglist as resolved and throw away the list. */
+    unwind_htoken_list(pattinfo->firstlinetarglist,tokq->frontserialnum);
+    pattinfo->firstlinetarglist=NULL;
+    pattinfo->lastfirstlinetarg= &pattinfo->firstlinetarglist;
+  }
+  else if(maxfirstlinehasdesc==1) {
+    /* Keep firstlinetarglist and make a copy to put on pattern stack. */
+    retval= copy_htoken_list(pattinfo->firstlinetarglist,tokq->frontserialnum);
+  }
+  else /* maxfirstlinehasdesc > 1 */ {
+    /* First-line descendancy broken. Return firstlinetarglist to put on pattern stack. */
+    retval= pattinfo->firstlinetarglist;
+    pattinfo->firstlinetarglist=NULL;
+    pattinfo->lastfirstlinetarg= &pattinfo->firstlinetarglist;
+  }
   pattinfo->activechildren= fchildlist;
-  pattinfo->parenthtoken= htoken;
-  pattinfo->parentserialnum= tokq->nextserialnum;
+  if(htoken) {
+    HTokenListNode *new= malloc(sizeof(HTokenListNode));
+    new->next=NULL;
+    new->htoken=htoken;
+    new->serialnum= tokq->nextserialnum;
+    *(pattinfo->lastfirstlinetarg)= new;
+    pattinfo->lastfirstlinetarg = &new->next;
+  }
   activate_pattern_list(fchildlist);
+
+  return retval;
 }
 
 
@@ -1697,7 +1774,7 @@ static void free_pattern_info(PattInfo *l)
   free_htokenpatt_list(l->styltxtpl);
   free_htokenpatt_list(l->compl);
   free_pattern_list(l->activechildren);
-  /* l->parenthtoken should be freed elsewhere. */
+  free_htoken_list(l->firstlinetarglist);
   free_pattoptions_list(l->activesiblings);
 
   if(l->stacktag) free(l->stacktag);
@@ -2687,8 +2764,8 @@ struct activepattlists {
   PattStateListNode *pattstatelist;
   HTokenPattListNode *fchildlist;
   PattOptionsListNode *siblist;
-  unsigned short maxhasdesc;
-  unsigned short fchildhasdesc;
+  unsigned short maxtarghasdesc;
+  unsigned short maxfirstlinehasdesc;
 };
 
 /* match_tag_pattern_info() returns a list of descendant patterns that have been made active during the matching process
@@ -2756,8 +2833,8 @@ static struct activepattlists match_tag_pattern_info(HToken *htok, PattInfo *pat
 	  if(desc) {
 	    PattOptions *pattopts= p->pattopts;
 
-	    if(targdesc==1 && p->firstlinedesc)
-	      pattlists.fchildhasdesc=1;
+	    if(p->firstlinedesc && p->hasdesc > pattlists.maxfirstlinehasdesc)
+	      pattlists.maxfirstlinehasdesc= p->hasdesc;
 
 	    /* Save pattern state information on the appropiate lists. */
 	    if(p->hasdesc==1) {
@@ -2798,7 +2875,7 @@ static struct activepattlists match_tag_pattern_info(HToken *htok, PattInfo *pat
 	      if(pattopts) {
 		if(!(pattopts->optionflags&HASSIBLINGPATTERN)) {
 		  /* This pattern is a target with a descendant pattern. */
-		  if(p->hasdesc>pattlists.maxhasdesc) pattlists.maxhasdesc=p->hasdesc;
+		  if(p->hasdesc > pattlists.maxtarghasdesc) pattlists.maxtarghasdesc= p->hasdesc;
 
 		  if(!htok->matchingpatt) {
 		    StateListNode *stl, **last;
@@ -3408,7 +3485,7 @@ static void modify_html(URL *Url)
 	   disable_output|=DISABLE_TAG;
        }
        else { /* end tag */
-	 reset_fchild_sibling_patt_lists(&tagpatterninfo,-1,NULL,NULL,&tokenqueue);
+	 reset_fchild_sibling_patt_lists(&tagpatterninfo,-1,NULL,0,NULL,&tokenqueue);
 	 if(tagidx>=0) {
 	   if(stackflags(&tagpatterninfo,tagidx)&TAGPSTACK) {
 	     PattOptionsList sl=poptagpstack(&tagpstack, tagidx, tokenqueue.frontserialnum);
@@ -3618,21 +3695,15 @@ static void modify_html(URL *Url)
 
        if(tag_maybe_matchpatt && tagdata->ending) {
 	 struct activepattlists pattlists=match_tag_pattern_info(tagtoken,&tagpatterninfo,&tokenqueue);
-	 struct numberedhtoken parenttoken= {NULL,tagpatterninfo.parentserialnum};
-	 if(pattlists.fchildhasdesc && tagpatterninfo.parenthtoken) {
-	   /* Parent htoken may not be marked as resolved until the descendants of the child have been explored,
-	      place the parent htoken on the pattern stack with the child instead. */
-	   parenttoken.htoken= tagpatterninfo.parenthtoken;
-	   tagpatterninfo.parenthtoken=NULL;
-	 }
-	 reset_fchild_sibling_patt_lists(&tagpatterninfo, tagidx, pattlists.fchildlist,
-					 (tagdata->resolved || pattlists.maxhasdesc>1)?NULL:tagtoken,
-					 &tokenqueue);
+	 HTokenListNode *parenthtoklist=reset_fchild_sibling_patt_lists(&tagpatterninfo, tagidx,
+									pattlists.fchildlist, pattlists.maxfirstlinehasdesc,
+									(tagdata->resolved || pattlists.maxtarghasdesc>1)?NULL:tagtoken,
+									&tokenqueue);
 	 if(stackflags(&tagpatterninfo,tagidx)&TAGPSTACK) {
 	   if(tagdata->ending==1)
 	     pushtagpstack(&tagpstack, tagidx, pattlists.pattstatelist, pattlists.siblist,
 			   tagdata->resolved?NULL:tagtoken, tokenqueue.nextserialnum,
-			   parenttoken.htoken, parenttoken.serialnum);
+			   parenthtoklist);
 	   else /* if(tagdata->ending==2) */ {
 	     /* unwind_pattstate_list(pattlists.pattstatelist); */ /* pattlists.desclist and fchildlist should be NULL if tagdata->ending!=1. */
 	     PattOptionsListNode **last= unwind_pattoptions_list(&pattlists.siblist);
@@ -3644,7 +3715,7 @@ static void modify_html(URL *Url)
        else {
 	 tagdata->resolved=1;
 	 if(!is_endtag)
-	   reset_fchild_sibling_patt_lists(&tagpatterninfo,-1,NULL,NULL,&tokenqueue);
+	   reset_fchild_sibling_patt_lists(&tagpatterninfo,-1,NULL,0,NULL,&tokenqueue);
        }
 
        /* Calling match_tag_pattern_info() or reset_fchild_sibling_patt_lists()
