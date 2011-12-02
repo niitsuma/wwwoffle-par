@@ -2742,6 +2742,7 @@ static struct activepattlists match_tag_pattern_info(HToken *htok, PattInfo *pat
       if(!p->active || (htok->matchingpatt && !p->hasdesc && p->target==p &&
 			!(p->pattopts->optionflags&HASSIBLINGPATTERN)))
 	continue; /* Skip pattern matching if nothing to be done anyway. */
+
       for(ap=p->tagpattn.attrpatts; ap; ap=ap->next) {
 	for(a=tag->attrl; a; a=a->next) {
 	  if(!strcasecmp(a->key,ap->attrname)) {
@@ -2900,7 +2901,7 @@ static struct activepattlists match_tag_pattern_info(HToken *htok, PattInfo *pat
 	    /* else if(targdesc) PrintMessage(Warning,"pattopts missing"); */
 	  }
 	  else
-	    /* p->last is false but there is no descendant pattern.
+	    /* p->hasdesc is nonzero but there is no descendant pattern.
 	       Faulty pattern sequence, error in the pattern parsing algorithm? */
 	    PrintMessage(Warning,"Error in %s line %d: invalid pattern sequence: expected descendant pattern."
 				 " Coding error in make_tag_pattern_info()?",__FILE__,__LINE__);
