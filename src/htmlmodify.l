@@ -277,7 +277,8 @@ typedef enum _disabled_t
   disabled_dontget_script,
   disabled_matching_script,
   disabled_style,
-  disabled_matching_tag
+  disabled_matching_tag,
+  disabled_inner_tag
 }
 disabled_t;
 
@@ -304,7 +305,8 @@ static const char* const tagprefix[]=
   "!-- WWWOFFLE (disable-dontget-script) - ",
   "!-- WWWOFFLE (disable-matching-script) - ",
   "!-- WWWOFFLE (disable-style) - ",
-  "!-- WWWOFFLE (disable-matching-tag) - "
+  "!-- WWWOFFLE (disable-matching-tag) - ",
+  "!-- WWWOFFLE (disable-inner-tag) - "
 };
 
 
@@ -561,14 +563,15 @@ static int fix_mixed_cyrillic;
 #define TAGPSTACK         2
 
 #define DISABLEMATCHINGTAG            1
-#define DISABLEMATCHINGATTRIBUTES     2
-#define DISABLEINNERSCRIPT            4
-#define DISABLEFOLLOWINGSCRIPT        8
-#define DISABLEALLFOLLOWINGSCRIPTS 0x10
-#define RESETFOLLOWINGSCRIPT       0x20
-#define RESETALLFOLLOWINGSCRIPTS   0x40
-#define HASSIBLINGPATTERN          0x80
-#define DISABLEMASK (DISABLEMATCHINGTAG|DISABLEINNERSCRIPT|DISABLEFOLLOWINGSCRIPT|DISABLEALLFOLLOWINGSCRIPTS)
+#define DISABLEHTMLELEMENT            2
+#define DISABLEMATCHINGATTRIBUTES     4
+#define DISABLEINNERSCRIPT            8
+#define DISABLEFOLLOWINGSCRIPT     0x10
+#define DISABLEALLFOLLOWINGSCRIPTS 0x20
+#define RESETFOLLOWINGSCRIPT       0x40
+#define RESETALLFOLLOWINGSCRIPTS   0x80
+#define HASSIBLINGPATTERN         0x100
+#define DISABLEMASK (DISABLEMATCHINGTAG|DISABLEHTMLELEMENT|DISABLEINNERSCRIPT|DISABLEFOLLOWINGSCRIPT|DISABLEALLFOLLOWINGSCRIPTS)
 
 /* Local functions */
 
@@ -1289,6 +1292,8 @@ static struct modifyoptions parse_tag_modify_options(const char *str)
       res.stylerepl = "";
     else if(keywordmatch(s,len,"disable-tag"))
       res.optionflags |= DISABLEMATCHINGTAG;
+    else if(keywordmatch(s,len,"disable-element"))
+      res.optionflags |= DISABLEHTMLELEMENT;
     else if(keywordmatch(s,len,"disable-script"))
       res.optionflags |= DISABLEINNERSCRIPT;
     else if(keywordmatch(s,len,"disable-following-script"))
@@ -1881,31 +1886,67 @@ static void YY_OUTPUT(const char *text)
 }
 #endif
 
-/*+ A function to output the data possibly as part of a comment. +*/
+/*+ A function to output the data (a null-terminated string) possibly as part of a comment.
+    If iscomment==0 the text is output as is,
+    otherwise sequences of hyphens (-) are broken up so the text can be
+    safely used inside an HTML comment.
+    If iscomment<0, the text is additionally surrounded by "<!-- " and " -->",
+    provided the text contains non-blank chars.
++*/
 static void yy_comout(const char *text, int iscomment)
 {
   if(*text) {
     char *copy;
     size_t len;
-    if(iscomment)
-      {len= ~(size_t)0; copy= HTMLcommentstring((char*)text,&len);}
-    else
-      {copy= (char*)text; len=strlen(text);}
+    Bool_t addbrackets=0;
+    if(iscomment) {
+      if(iscomment<0) {
+	const char *p=text;
+	while(*p) {
+	  if(!isspace(*p++)) {
+	    yy_rawout("<!-- ");
+	    addbrackets=1;
+	    break;
+	  }
+	}
+      }
+      len= ~(size_t)0; copy= HTMLcommentstring((char*)text,&len);
+    }
+    else {
+      copy= (char*)text; len=strlen(text);
+    }
     yy_write(copy,len);
     if(copy!=text) free(copy);
+    if(addbrackets)
+      yy_rawout(" -->");
   }
 }
 
+/* This is similar to yy_comout(), but with a length argument for the text. */
 static void yy_comwrite(const char *text, size_t len, int iscomment)
 {
   if(len>0) {
     char *copy;
-    if(iscomment)
+    Bool_t addbrackets=0;
+    if(iscomment) {
+      if(iscomment<0) {
+	const char *p=text, *end=text+len;
+	while(p<end) {
+	  if(!isspace(*p++)) {
+	    yy_rawout("<!-- ");
+	    addbrackets=1;
+	    break;
+	  }
+	}
+      }
       copy= HTMLcommentstring((char*)text,&len);
+    }
     else
       copy= (char*)text;
     yy_write(copy,len);
     if(copy!=text) free(copy);
+    if(addbrackets)
+      yy_rawout(" -->");
   }
 }
 
@@ -3220,17 +3261,24 @@ static void output_attr_key_val(const char *key,const char *val, char quote, int
 static void output_tag(const Tag *tag,const char *prefix)
 {
  AttrNode *a;
- int iscomment;
+ int iscomment=0;
 
  yy_rawout("<");
 
  if(tag->disable && !prefix)
    prefix=tagprefix[tag->disable];
 
- if(prefix)
+ if(prefix) {
    yy_rawout(prefix);
+   iscomment=1;
+ }
 
- yy_comout(tag->tagname, iscomment=(prefix!=NULL));
+ if(tag->tagname)
+   yy_comout(tag->tagname, iscomment);
+ else {
+   PrintMessage(Warning, "output_tag in %s: tag argument has null tagname", __FILE__);
+   yy_rawout("wwwoffle-null-tag");
+ }
 
  for(a=tag->attrl; a; a=a->next)
    {
@@ -3298,7 +3346,7 @@ static void modify_html(URL *Url)
  Bool_t insertedfile=0,after_body=0;
  Bool_t is_endtag=0, tag_maybe_matchpatt=0, tagcomplexmodify=0;
  Bool_t disable_following_script=0, disable_all_following_scripts=0;
- int scriptdisablelevel=0, optionflags=0;
+ int tagdisablelevel=0, scriptdisablelevel=0, optionflags=0;
  PattInfo tagpatterninfo;
 
  anchor_modify_begin[0]=ConfigStringURL(AnchorModifyBegin[0],Url);
@@ -3444,7 +3492,6 @@ static void modify_html(URL *Url)
        reset_tagtoken(&tagtoken, tagcomplexmodify?htmlmodify_yylval:NULL, tagtype, tagidx);
        tagdata= &tagtoken->tag;
        optionflags=0;
-       commentout=0;
 
        if(!is_endtag) {
 	 if(tagidx>=0 || !htokenqueue_isempty(&tokenqueue))
@@ -3476,91 +3523,95 @@ static void modify_html(URL *Url)
 			    (!tag_maybe_matchpatt && (scriptdisablelevel>0 || disable_all_following_scripts)));
 	 maybe_disable_script = (disable_all_scripts || (after_body && disable_script_after_body) ||
 				 tag_maybe_matchpatt || scriptdisablelevel>0 || disable_all_following_scripts);
-	 switch (tagtype) {
-	   disabled_t disable;
-	 case tag__a:
-	   if((disable= popendtagstack(&tagstack,tagtype)))
-	     tagdata->disable= disable;
-	   if(anchor_modify) {
-	     if(!tagdata->disable) {
-	       if(url_cached==1)
-		 {if(anchor_modify_end[0]) {yy_rawout(anchor_modify_end[0]);}}
-	       else if(url_cached==2)
-		 {if(anchor_modify_end[1]) {yy_rawout(anchor_modify_end[1]);}}
-	       else if(url_cached==-1)
-		 {if(anchor_modify_end[2]) {yy_rawout(anchor_modify_end[2]);}}
+	 if(tagdisablelevel<=0 && !(optionflags&DISABLEHTMLELEMENT)) {
+	   switch (tagtype) {
+	     disabled_t disable;
+	   case tag__a:
+	     if((disable= popendtagstack(&tagstack,tagtype)))
+	       tagdata->disable= disable;
+	     if(anchor_modify) {
+	       if(!tagdata->disable) {
+		 if(url_cached==1)
+		   {if(anchor_modify_end[0]) {yy_rawout(anchor_modify_end[0]);}}
+		 else if(url_cached==2)
+		   {if(anchor_modify_end[1]) {yy_rawout(anchor_modify_end[1]);}}
+		 else if(url_cached==-1)
+		   {if(anchor_modify_end[2]) {yy_rawout(anchor_modify_end[2]);}}
+	       }
+	       url_cached=0;
 	     }
-	     url_cached=0;
-	   }
-	   break;
-	 case tag__applet:
-	   popendtagstack(&tagstack,tagtype);
-	   break;
-	 case tag__body: case tag__html:
-	   if(cache_info)
-	     {yy_rawout(cache_info); free(cache_info); cache_info=NULL;}
-	   /* Normally there should be only one /body tag, at the end,
-	      but I have seen broken HTML with multiple /body tags
-	      with text in between. */
-	   if(insertfile && (!insertedfile || tagtype==tag__body))
-	     {add_insertfile(insertfile); insertedfile=1;}
-	   after_body=1;
-	   break;
-	 case tag__embed:
-	 case tag__iframe:
-	 case tag__object:
-	   if((disable= popendtagstack(&tagstack,tagtype)))
-	     tagdata->disable= disable;
-	   break;
-	 case tag__head:
-	   if(insertheadfile)
-	     add_insertfile(insertheadfile);
-	   break;
-	 case tag_param:
-	   if(tagstack && tagstack->val)
-	     tagdata->disable= tagstack->val;
-	   break;
-	 case tag_script:
-	   if(!tag_maybe_matchpatt) {
-	     /* This tag cannot match a pattern */
-	     if(disable_all_scripts)
-	       is_disabled_script= disabled_script;
-	     else if(after_body && disable_script_after_body)
-	       is_disabled_script= disabled_script_after_body;
-	     else if(disable_all_following_scripts)
-	       is_disabled_script= disabled_all_following_scripts;
-	     else if(disable_following_script)
-	       is_disabled_script= disabled_following_script;
-	     else if(scriptdisablelevel>0)
-	       is_disabled_script= disabled_inner_script;
-	     else {
-	       is_disabled_script= 0;
-	       if(disable_dontget_script)
-		 disable_output|=DISABLE_SCRIPT;
+	     break;
+	   case tag__applet:
+	     popendtagstack(&tagstack,tagtype);
+	     break;
+	   case tag__body: case tag__html:
+	     if(cache_info)
+	       {yy_rawout(cache_info); free(cache_info); cache_info=NULL;}
+	     /* Normally there should be only one /body tag, at the end,
+		but I have seen broken HTML with multiple /body tags
+		with text in between. */
+	     if(insertfile && (!insertedfile || tagtype==tag__body))
+	       {add_insertfile(insertfile); insertedfile=1;}
+	     after_body=1;
+	     break;
+	   case tag__embed:
+	   case tag__iframe:
+	   case tag__object:
+	     if((disable= popendtagstack(&tagstack,tagtype)))
+	       tagdata->disable= disable;
+	     break;
+	   case tag__head:
+	     if(insertheadfile)
+	       add_insertfile(insertheadfile);
+	     break;
+	   case tag_param:
+	     if(tagstack && tagstack->val)
+	       tagdata->disable= tagstack->val;
+	     break;
+	   case tag_script:
+	     if(!tag_maybe_matchpatt) {
+	       /* This tag cannot match a pattern */
+	       if(disable_all_scripts)
+		 is_disabled_script= disabled_script;
+	       else if(after_body && disable_script_after_body)
+		 is_disabled_script= disabled_script_after_body;
+	       else if(disable_all_following_scripts)
+		 is_disabled_script= disabled_all_following_scripts;
+	       else if(disable_following_script)
+		 is_disabled_script= disabled_following_script;
+	       else if(scriptdisablelevel>0)
+		 is_disabled_script= disabled_inner_script;
+	       else {
+		 is_disabled_script= 0;
+		 if(disable_dontget_script)
+		   disable_output|=DISABLE_SCRIPT;
+	       }
+	       if(is_disabled_script) tagdata->disable= is_disabled_script;
 	     }
+	     else
+	       disable_output|=DISABLE_SCRIPT;
+	     break;
+	   case tag__script:
 	     if(is_disabled_script) tagdata->disable= is_disabled_script;
+	     is_disabled_script=0;
+	     commentout=0;
+	     break;
+	   case tag_style:
+	     if(disable_style)
+	       tagdata->disable=is_disabled_style= disabled_style;
+	     else {
+	       is_disabled_style= 0;
+	       if(maybe_disable_script) /* could be script pretending to be style */
+		 disable_output|=DISABLE_STYLE;
+	     }
+	     break;
+	   case tag__style:
+	     if(is_disabled_style) tagdata->disable= is_disabled_style;
+	     is_disabled_style=0;
+	     commentout=0;
+	     break;
+	   default: ;
 	   }
-	   else
-	     disable_output|=DISABLE_SCRIPT;
-	   break;
-	 case tag__script:
-	   if(is_disabled_script) tagdata->disable= is_disabled_script;
-	   is_disabled_script=0;
-	   break;
-	 case tag_style:
-	   if(disable_style)
-	     tagdata->disable=is_disabled_style= disabled_style;
-	   else {
-	     is_disabled_style= 0;
-	     if(maybe_disable_script) /* could be script pretending to be style */
-	       disable_output|=DISABLE_STYLE;
-	   }
-	   break;
-	 case tag__style:
-	   if(is_disabled_style) tagdata->disable= is_disabled_style;
-	   is_disabled_style=0;
-	   break;
-	 default: ;
 	 }
        }
        else {
@@ -3632,6 +3683,13 @@ static void modify_html(URL *Url)
        }
 
        if(!disable_output) {
+	 if(tagdisablelevel>0)
+	   tagdata->disable = ((is_endtag && (optionflags&DISABLEHTMLELEMENT) && tagdisablelevel==1)?
+			       disabled_matching_tag:
+			       disabled_inner_tag);
+	 else if(optionflags&DISABLEHTMLELEMENT)
+	   tagdata->disable = disabled_matching_tag;
+
 	 yy_rawout("<");
 	 if(tagdata->disable)
 	   yy_rawout(tagprefix[tagdata->disable]);
@@ -3715,159 +3773,179 @@ static void modify_html(URL *Url)
 	 disable_script= (disable_all_scripts || (after_body && disable_script_after_body) ||
 			  scriptdisablelevel>0 || (optionflags&DISABLEINNERSCRIPT) ||
 			  disable_all_following_scripts);
-	 if(matchingpatt || disable_script)
+	 if(tagdisablelevel<=0 && (matchingpatt || disable_script))
 	   process_tag_style_replacement(tagdata,matchingpatt,disable_script);
        }
 
        if(tagtype!=tag_script && tagtype!=tag__script)
 	 disable_following_script=0;
 
-       if(disable_output&DISABLE_TAG) {
-	 disable_output&=~DISABLE_TAG;
-	 if(!disable_output) output_tag(tagdata,NULL);
+       if(tagdisablelevel>0) {
+	 tagdata->disable = ((is_endtag && (optionflags&DISABLEHTMLELEMENT) && tagdisablelevel==1)?
+			     disabled_matching_tag:
+			     disabled_inner_tag);
+	 goto reset_output_tag;
        }
-
-       switch (tagtype) {
-	 disabled_t disable;
-       case tag_a:
-	 disable=0;
-	 if(disable_output&DISABLE_A) {
-	   disable_output&=~DISABLE_A;
-	   disable=handle_a_tag(tagdata,disable_dontget_anchors,disable_script);
-	 }
-
-	 if(tagdata->ending==1) {
-	   pushtagstack(&tagstack,tagtype,disable);
-
-	   if(!disable && anchor_modify) {
-	     if(url_cached==1)
-	       {if(anchor_modify_begin[0]) {yy_rawout(anchor_modify_begin[0]);}}
-	     else if(url_cached==2)
-	       {if(anchor_modify_begin[1]) {yy_rawout(anchor_modify_begin[1]);}}
-	     else if(url_cached==-1)
-	       {if(anchor_modify_begin[2]) {yy_rawout(anchor_modify_begin[2]);}}
-	   }
-	 }
-	 break;
-       case tag_applet:
-	 if(tagdata->ending==1)
-	   pushtagstack(&tagstack,tagtype,disable_applet?disabled_applet:0);
-	 break;
-       case tag_embed:
-       case tag_object:
-	 disable=0;
-	 if(disable_output&DISABLE_OBJECT)
-	   {
-	     disable_output&=~DISABLE_OBJECT;
-	     disable= handle_object_tag(tagdata,replace_html_dontget_images,replacement_html_dontget_image,
-					replace_html_webbug_images,replacement_html_webbug_image,
-					disable_applet,
-					disable_flash,
-					disable_dontget_iframes,
-					disable_script);
-	   }
-
-	 if(tagdata->ending==1)
-	   pushtagstack(&tagstack,tagtype,disable);
-	 break;
-       case tag_iframe:
-	 disable=0;
-	 if(disable_iframes)
-	   disable=disabled_iframe;
-	 else if(disable_output&DISABLE_IFRAME)
-	   {
-	     disable_output&=~DISABLE_IFRAME;
-	     disable=handle_iframe_tag(tagdata,disable_dontget_iframes,disable_script);
-	   }
-
-	 if(tagdata->ending==1)
-	   pushtagstack(&tagstack,tagtype,disable);
-	 break;
-       case tag_img:
-	 if(disable_output&DISABLE_IMG) {
-	   disable_output&=~DISABLE_IMG;
-	   handle_img_tag(tagdata,replace_html_dontget_images,replacement_html_dontget_image,
-			  replace_html_webbug_images,replacement_html_webbug_image,
-			  disable_script);
-	 }
-	 break;
-       case tag_link:
-	 if(disable_output&DISABLE_LINK) {
-	   disable_output&=~DISABLE_LINK;
-	   handle_link_tag(tagdata,disable_style,disable_script);
-	 }
-	 break;
-       case tag_meta:
-	 if((disable_output&DISABLE_META) ||
-	    demoronise_ms_chars || fix_mixed_cyrillic)
-	 {
-	   disable_output^=DISABLE_META;
-	   handle_meta_tag(tagdata,disable_meta_refresh,disable_meta_refresh_self,replacement_meta_refresh_time,disable_meta_set_cookie);
-	   disable_output&=~DISABLE_META;
-	 }
-	 break;
-       case tag_param:
-	 if(disable_output&DISABLE_PARAM) {
-	   disable_output&=~DISABLE_PARAM;
-	   if(tagstack && tagstack->val)
-	     tagdata->disable= tagstack->val;
+       else if(optionflags&DISABLEHTMLELEMENT) {
+	 tagdata->disable = disabled_matching_tag;
+       reset_output_tag:
+	 if(disable_output) {
+	   disable_output= DISABLE_NONE;
 	   output_tag(tagdata,NULL);
 	 }
-	 break;
-       case tag_script:
-	 if(disable_output&DISABLE_SCRIPT) {
-	   disable_output&=~DISABLE_SCRIPT;
-
-	   if(disable_all_scripts)
-	     is_disabled_script= disabled_script;
-	   else if(after_body && disable_script_after_body)
-	     is_disabled_script= disabled_script_after_body;
-	   else if(disable_all_following_scripts)
-	     is_disabled_script= disabled_all_following_scripts;
-	   else if(disable_following_script)
-	     is_disabled_script= disabled_following_script;
-	   else if(scriptdisablelevel>0)
-	     is_disabled_script= disabled_inner_script;
-	   else if(optionflags&DISABLEINNERSCRIPT)
-	     is_disabled_script=disabled_matching_script;
-	   else
-	     is_disabled_script=0;
-
-	   if(disable_dontget_script)
-	     is_disabled_script=handle_script_tag(tagdata,is_disabled_script);
-	   else {
-	     if(is_disabled_script) tagdata->disable= is_disabled_script;
-	     output_tag(tagdata,NULL);
-	   }
+       }
+       else {
+	 if(disable_output&DISABLE_TAG) {
+	   disable_output&=~DISABLE_TAG;
+	   if(!disable_output) output_tag(tagdata,NULL);
 	 }
-	 if(is_disabled_script && tagdata->ending==1)
-	   commentout=1;
-	 break;
-       case tag_style:
-	 if(disable_output&DISABLE_STYLE) {
-	   disable_output&=~DISABLE_STYLE;
 
-	   if(disable_style) {
-	     tagdata->disable= is_disabled_style= disabled_style;
+	 switch (tagtype) {
+	   disabled_t disable;
+	 case tag_a:
+	   disable=0;
+	   if(disable_output&DISABLE_A) {
+	     disable_output&=~DISABLE_A;
+	     disable=handle_a_tag(tagdata,disable_dontget_anchors,disable_script);
+	   }
+
+	   if(tagdata->ending==1) {
+	     pushtagstack(&tagstack,tagtype,disable);
+
+	     if(!disable && anchor_modify) {
+	       if(url_cached==1)
+		 {if(anchor_modify_begin[0]) {yy_rawout(anchor_modify_begin[0]);}}
+	       else if(url_cached==2)
+		 {if(anchor_modify_begin[1]) {yy_rawout(anchor_modify_begin[1]);}}
+	       else if(url_cached==-1)
+		 {if(anchor_modify_begin[2]) {yy_rawout(anchor_modify_begin[2]);}}
+	     }
+	   }
+	   break;
+	 case tag_applet:
+	   if(tagdata->ending==1)
+	     pushtagstack(&tagstack,tagtype,disable_applet?disabled_applet:0);
+	   break;
+	 case tag_embed:
+	 case tag_object:
+	   disable=0;
+	   if(disable_output&DISABLE_OBJECT)
+	     {
+	       disable_output&=~DISABLE_OBJECT;
+	       disable= handle_object_tag(tagdata,replace_html_dontget_images,replacement_html_dontget_image,
+					  replace_html_webbug_images,replacement_html_webbug_image,
+					  disable_applet,
+					  disable_flash,
+					  disable_dontget_iframes,
+					  disable_script);
+	     }
+
+	   if(tagdata->ending==1)
+	     pushtagstack(&tagstack,tagtype,disable);
+	   break;
+	 case tag_iframe:
+	   disable=0;
+	   if(disable_iframes)
+	     disable=disabled_iframe;
+	   else if(disable_output&DISABLE_IFRAME)
+	     {
+	       disable_output&=~DISABLE_IFRAME;
+	       disable=handle_iframe_tag(tagdata,disable_dontget_iframes,disable_script);
+	     }
+
+	   if(tagdata->ending==1)
+	     pushtagstack(&tagstack,tagtype,disable);
+	   break;
+	 case tag_img:
+	   if(disable_output&DISABLE_IMG) {
+	     disable_output&=~DISABLE_IMG;
+	     handle_img_tag(tagdata,replace_html_dontget_images,replacement_html_dontget_image,
+			    replace_html_webbug_images,replacement_html_webbug_image,
+			    disable_script);
+	   }
+	   break;
+	 case tag_link:
+	   if(disable_output&DISABLE_LINK) {
+	     disable_output&=~DISABLE_LINK;
+	     handle_link_tag(tagdata,disable_style,disable_script);
+	   }
+	   break;
+	 case tag_meta:
+	   if((disable_output&DISABLE_META) ||
+	      demoronise_ms_chars || fix_mixed_cyrillic)
+	     {
+	       disable_output^=DISABLE_META;
+	       handle_meta_tag(tagdata,disable_meta_refresh,disable_meta_refresh_self,replacement_meta_refresh_time,disable_meta_set_cookie);
+	       disable_output&=~DISABLE_META;
+	     }
+	   break;
+	 case tag_param:
+	   if(disable_output&DISABLE_PARAM) {
+	     disable_output&=~DISABLE_PARAM;
+	     if(tagstack && tagstack->val)
+	       tagdata->disable= tagstack->val;
 	     output_tag(tagdata,NULL);
 	   }
-	   else if(disable_script) {
-	     /* could be script pretending to be style */
-	     is_disabled_style=handle_style_script_tag(tagdata);
+	   break;
+	 case tag_script:
+	   if(disable_output&DISABLE_SCRIPT) {
+	     disable_output&=~DISABLE_SCRIPT;
+
+	     if(disable_all_scripts)
+	       is_disabled_script= disabled_script;
+	     else if(after_body && disable_script_after_body)
+	       is_disabled_script= disabled_script_after_body;
+	     else if(disable_all_following_scripts)
+	       is_disabled_script= disabled_all_following_scripts;
+	     else if(disable_following_script)
+	       is_disabled_script= disabled_following_script;
+	     else if(scriptdisablelevel>0)
+	       is_disabled_script= disabled_inner_script;
+	     else if(optionflags&DISABLEINNERSCRIPT)
+	       is_disabled_script=disabled_matching_script;
+	     else
+	       is_disabled_script=0;
+
+	     if(disable_dontget_script)
+	       is_disabled_script=handle_script_tag(tagdata,is_disabled_script);
+	     else {
+	       if(is_disabled_script) tagdata->disable= is_disabled_script;
+	       output_tag(tagdata,NULL);
+	     }
 	   }
-	   else {
-	     is_disabled_style=0;
-	     output_tag(tagdata,NULL);
+	   if(is_disabled_script && tagdata->ending==1)
+	     commentout=1;
+	   break;
+	 case tag_style:
+	   if(disable_output&DISABLE_STYLE) {
+	     disable_output&=~DISABLE_STYLE;
+
+	     if(disable_style) {
+	       tagdata->disable= is_disabled_style= disabled_style;
+	       output_tag(tagdata,NULL);
+	     }
+	     else if(disable_script) {
+	       /* could be script pretending to be style */
+	       is_disabled_style=handle_style_script_tag(tagdata);
+	     }
+	     else {
+	       is_disabled_style=0;
+	       output_tag(tagdata,NULL);
+	     }
 	   }
+	   if(is_disabled_style && tagdata->ending==1)
+	     commentout=1;
+	   break;
+	 default: ;
 	 }
-	 if(is_disabled_style && tagdata->ending==1)
-	   commentout=1;
-	 break;
-       default: ;
        }
 
        if(optionflags) {
 	 if(is_endtag) {
+	   if((optionflags&DISABLEHTMLELEMENT) && tagdisablelevel>0) {
+	     --tagdisablelevel;
+	     if(tagdisablelevel==0) commentout=0;
+	   }
 	   if((optionflags&DISABLEINNERSCRIPT) && scriptdisablelevel>0)
 	     --scriptdisablelevel;
 	   if(optionflags&DISABLEFOLLOWINGSCRIPT)
@@ -3876,6 +3954,10 @@ static void modify_html(URL *Url)
 	     disable_all_following_scripts=1;
 	 }
 	 else if(tagdata->ending==1) {
+	   if(optionflags&DISABLEHTMLELEMENT) {
+	     ++tagdisablelevel;
+	     commentout=1;
+	   }
 	   if(optionflags&DISABLEINNERSCRIPT)
 	     ++scriptdisablelevel;
 	 }
@@ -3987,182 +4069,197 @@ static void modify_html(URL *Url)
 			       scriptdisablelevel>0 || (!tag_is_endtag(tag) && (optionflags&DISABLEINNERSCRIPT)) ||
 			       disable_all_following_scripts);
 
-	   if(matchingpatt || disable_script)
-	     process_tag_style_replacement(tag, matchingpatt, disable_script);
-
-	   switch (tag->type) {
-	     disabled_t disable;
-	   case tag_a:
-	     if(anchor_modify)
-	       url_cached= tag_get_url_cached_type(tag);
-	     disable= handle_a_tag(tag,disable_dontget_anchors,disable_script);
-
-	     if(tag->ending==1) {
-	       pushtagstack(&tagstack,tag->type,disable);
-
-	       if(!tag->disable && anchor_modify) {
-		 if(url_cached==1)
-		   {if(anchor_modify_begin[0]) {yy_rawout(anchor_modify_begin[0]);}}
-		 else if(url_cached==2)
-		   {if(anchor_modify_begin[1]) {yy_rawout(anchor_modify_begin[1]);}}
-		 else if(url_cached==-1)
-		   {if(anchor_modify_begin[2]) {yy_rawout(anchor_modify_begin[2]);}}
-	       }
-	     }
-	     break;
-	   case tag__a:
-	     if((disable= popendtagstack(&tagstack,tag->type)))
-	       tag->disable= disable;
-	     if(anchor_modify) {
-	       if(!tag->disable) {
-		 if(url_cached==1)
-		   {if(anchor_modify_end[0]) {yy_rawout(anchor_modify_end[0]);}}
-		 else if(url_cached==2)
-		   {if(anchor_modify_end[1]) {yy_rawout(anchor_modify_end[1]);}}
-		 else if(url_cached==-1)
-		   {if(anchor_modify_end[2]) {yy_rawout(anchor_modify_end[2]);}}
-	       }
-	       url_cached=0;
-	     }
-	     goto call_output_tag;
-	   case tag_applet:
-	     if(tag->ending==1)
-	       pushtagstack(&tagstack,tag->type,disable_applet?disabled_applet:0);
-	     goto call_output_tag;
-	   case tag__applet:
-	     popendtagstack(&tagstack,tag->type);
-	     goto call_output_tag;
-	   case tag_base:
-	     tag_setbase_url(tag);
-	     goto call_output_tag;
-#if 0
-	   case tag_blink: case tag__blink:
-	     if(disable_blink)
-	       tag->disable= disabled_blink;
-	     goto call_output_tag;
-#endif
-	   case tag__body: case tag__html:
-	     if(cache_info)
-	       {yy_rawout(cache_info); free(cache_info); cache_info=NULL;}
-	     /* Normally there should be only one /body tag, at the end,
-		but I have seen broken HTML with multiple /body tags
-		with text in between. */
-	     if(insertfile && (!insertedfile || tag->type==tag__body))
-	       {add_insertfile(insertfile); insertedfile=1;}
-	     after_body=1;
-	     goto call_output_tag;
-	   case tag_embed:
-	   case tag_object:
-	     disable= handle_object_tag(tag,replace_html_dontget_images,replacement_html_dontget_image,
-					replace_html_webbug_images,replacement_html_webbug_image,
-					disable_applet,
-					disable_flash,
-					disable_dontget_iframes,
-					disable_script);
-	     if(tag->ending==1)
-	       pushtagstack(&tagstack,tag->type,disable);
-	     break;
-	   case tag__embed:
-	   case tag__iframe:
-	   case tag__object:
-	     if((disable= popendtagstack(&tagstack,tag->type)))
-	       tag->disable= disable;
-	     goto call_output_tag;
-	   case tag__head:
-	     if(insertheadfile)
-	       add_insertfile(insertheadfile);
-	     goto call_output_tag;
-	   case tag_iframe:
-	     disable=0;
-	     if(disable_iframes)
-	       tag->disable= disable=disabled_iframe;
-	     else
-	       disable=handle_iframe_tag(tag,disable_dontget_iframes,disable_script);
-
-	     if(tag->ending==1)
-	       pushtagstack(&tagstack,tag->type,disable);
-	     if(disable_iframes)
-	       goto call_output_tag;
-	     break;
-	   case tag_img:
-	     handle_img_tag(tag,replace_html_dontget_images,replacement_html_dontget_image,
-			    replace_html_webbug_images,replacement_html_webbug_image,
-			    disable_script);
-	     break;
-	   case tag_link:
-	     handle_link_tag(tag,disable_style,disable_script);
-	     break;
-#if 0
-	   case tag_marquee: case tag__marquee:
-	     if(disable_marquee)
-	       tag->disable= disabled_marquee;
-	     goto call_output_tag;
-#endif
-	   case tag_meta:
-	     handle_meta_tag(tag,disable_meta_refresh,disable_meta_refresh_self,replacement_meta_refresh_time,disable_meta_set_cookie);
-	     break;
-#if 0
-	   case tag_noscript: case tag__noscript:
-	     if(disable_all_scripts)
-	       tag->disable= disabled_script;
-	     goto call_output_tag;
-#endif
-	   case tag_param:
-	     if(tagstack && tagstack->val)
-	       tag->disable= tagstack->val;
-	     goto call_output_tag;
-	   case tag_script:
-	     if(disable_all_scripts)
-	       is_disabled_script= disabled_script;
-	     else if(after_body && disable_script_after_body)
-	       is_disabled_script= disabled_script_after_body;
-	     else if(disable_all_following_scripts)
-	       is_disabled_script= disabled_all_following_scripts;
-	     else if(disable_following_script)
-	       is_disabled_script= disabled_following_script;
-	     else if(scriptdisablelevel>0)
-	       is_disabled_script= disabled_inner_script;
-	     else if(optionflags&DISABLEINNERSCRIPT)
-	       is_disabled_script=disabled_matching_script;
-	     else
-	       is_disabled_script=0;
-
-	     if(disable_dontget_script)
-	       is_disabled_script=handle_script_tag(tag,is_disabled_script);
-	     else {
-	       if(is_disabled_script) tag->disable= is_disabled_script;
-	       goto call_output_tag;
-	     }
-	     break;
-	   case tag__script:
-	     if(is_disabled_script) tag->disable= is_disabled_script;
-	     is_disabled_script=0;
-	     goto call_output_tag;
-	   case tag_style:
-	     if(disable_style) {
-	       tag->disable= is_disabled_style= disabled_style;
-	       goto call_output_tag;
-	     }
-	     else if(disable_script) {
-	       /* could be script pretending to be style */
-	       is_disabled_style=handle_style_script_tag(tag);
+	   if(tagdisablelevel>0) {
+	     tag->disable = ((tag_is_endtag(tag) && (optionflags&DISABLEHTMLELEMENT) && tagdisablelevel==1)?
+			     disabled_matching_tag:
+			     disabled_inner_tag);
+	     output_tag(tag,NULL);
+	   }
+	   else {
+	     if(matchingpatt || disable_script)
+	       process_tag_style_replacement(tag, matchingpatt, disable_script);
+	     if(optionflags&DISABLEHTMLELEMENT) {
+	       tag->disable = disabled_matching_tag;
+	       output_tag(tag,NULL);
 	     }
 	     else {
-	       is_disabled_style=0;
-	       goto call_output_tag;
+	       switch (tag->type) {
+		 disabled_t disable;
+	       case tag_a:
+		 if(anchor_modify)
+		   url_cached= tag_get_url_cached_type(tag);
+		 disable= handle_a_tag(tag,disable_dontget_anchors,disable_script);
+
+		 if(tag->ending==1) {
+		   pushtagstack(&tagstack,tag->type,disable);
+
+		   if(!tag->disable && anchor_modify) {
+		     if(url_cached==1)
+		       {if(anchor_modify_begin[0]) {yy_rawout(anchor_modify_begin[0]);}}
+		     else if(url_cached==2)
+		       {if(anchor_modify_begin[1]) {yy_rawout(anchor_modify_begin[1]);}}
+		     else if(url_cached==-1)
+		       {if(anchor_modify_begin[2]) {yy_rawout(anchor_modify_begin[2]);}}
+		   }
+		 }
+		 break;
+	       case tag__a:
+		 if((disable= popendtagstack(&tagstack,tag->type)))
+		   tag->disable= disable;
+		 if(anchor_modify) {
+		   if(!tag->disable) {
+		     if(url_cached==1)
+		       {if(anchor_modify_end[0]) {yy_rawout(anchor_modify_end[0]);}}
+		     else if(url_cached==2)
+		       {if(anchor_modify_end[1]) {yy_rawout(anchor_modify_end[1]);}}
+		     else if(url_cached==-1)
+		       {if(anchor_modify_end[2]) {yy_rawout(anchor_modify_end[2]);}}
+		   }
+		   url_cached=0;
+		 }
+		 goto call_output_tag;
+	       case tag_applet:
+		 if(tag->ending==1)
+		   pushtagstack(&tagstack,tag->type,disable_applet?disabled_applet:0);
+		 goto call_output_tag;
+	       case tag__applet:
+		 popendtagstack(&tagstack,tag->type);
+		 goto call_output_tag;
+	       case tag_base:
+		 tag_setbase_url(tag);
+		 goto call_output_tag;
+#if 0
+	       case tag_blink: case tag__blink:
+		 if(disable_blink)
+		   tag->disable= disabled_blink;
+		 goto call_output_tag;
+#endif
+	       case tag__body: case tag__html:
+		 if(cache_info)
+		   {yy_rawout(cache_info); free(cache_info); cache_info=NULL;}
+		 /* Normally there should be only one /body tag, at the end,
+		    but I have seen broken HTML with multiple /body tags
+		    with text in between. */
+		 if(insertfile && (!insertedfile || tag->type==tag__body))
+		   {add_insertfile(insertfile); insertedfile=1;}
+		 after_body=1;
+		 goto call_output_tag;
+	       case tag_embed:
+	       case tag_object:
+		 disable= handle_object_tag(tag,replace_html_dontget_images,replacement_html_dontget_image,
+					    replace_html_webbug_images,replacement_html_webbug_image,
+					    disable_applet,
+					    disable_flash,
+					    disable_dontget_iframes,
+					    disable_script);
+		 if(tag->ending==1)
+		   pushtagstack(&tagstack,tag->type,disable);
+		 break;
+	       case tag__embed:
+	       case tag__iframe:
+	       case tag__object:
+		 if((disable= popendtagstack(&tagstack,tag->type)))
+		   tag->disable= disable;
+		 goto call_output_tag;
+	       case tag__head:
+		 if(insertheadfile)
+		   add_insertfile(insertheadfile);
+		 goto call_output_tag;
+	       case tag_iframe:
+		 disable=0;
+		 if(disable_iframes)
+		   tag->disable= disable=disabled_iframe;
+		 else
+		   disable=handle_iframe_tag(tag,disable_dontget_iframes,disable_script);
+
+		 if(tag->ending==1)
+		   pushtagstack(&tagstack,tag->type,disable);
+		 if(disable_iframes)
+		   goto call_output_tag;
+		 break;
+	       case tag_img:
+		 handle_img_tag(tag,replace_html_dontget_images,replacement_html_dontget_image,
+				replace_html_webbug_images,replacement_html_webbug_image,
+				disable_script);
+		 break;
+	       case tag_link:
+		 handle_link_tag(tag,disable_style,disable_script);
+		 break;
+#if 0
+	       case tag_marquee: case tag__marquee:
+		 if(disable_marquee)
+		   tag->disable= disabled_marquee;
+		 goto call_output_tag;
+#endif
+	       case tag_meta:
+		 handle_meta_tag(tag,disable_meta_refresh,disable_meta_refresh_self,replacement_meta_refresh_time,disable_meta_set_cookie);
+		 break;
+#if 0
+	       case tag_noscript: case tag__noscript:
+		 if(disable_all_scripts)
+		   tag->disable= disabled_script;
+		 goto call_output_tag;
+#endif
+	       case tag_param:
+		 if(tagstack && tagstack->val)
+		   tag->disable= tagstack->val;
+		 goto call_output_tag;
+	       case tag_script:
+		 if(disable_all_scripts)
+		   is_disabled_script= disabled_script;
+		 else if(after_body && disable_script_after_body)
+		   is_disabled_script= disabled_script_after_body;
+		 else if(disable_all_following_scripts)
+		   is_disabled_script= disabled_all_following_scripts;
+		 else if(disable_following_script)
+		   is_disabled_script= disabled_following_script;
+		 else if(scriptdisablelevel>0)
+		   is_disabled_script= disabled_inner_script;
+		 else if(optionflags&DISABLEINNERSCRIPT)
+		   is_disabled_script=disabled_matching_script;
+		 else
+		   is_disabled_script=0;
+
+		 if(disable_dontget_script)
+		   is_disabled_script=handle_script_tag(tag,is_disabled_script);
+		 else {
+		   if(is_disabled_script) tag->disable= is_disabled_script;
+		   goto call_output_tag;
+		 }
+		 break;
+	       case tag__script:
+		 if(is_disabled_script) tag->disable= is_disabled_script;
+		 is_disabled_script=0;
+		 goto call_output_tag;
+	       case tag_style:
+		 if(disable_style) {
+		   tag->disable= is_disabled_style= disabled_style;
+		   goto call_output_tag;
+		 }
+		 else if(disable_script) {
+		   /* could be script pretending to be style */
+		   is_disabled_style=handle_style_script_tag(tag);
+		 }
+		 else {
+		   is_disabled_style=0;
+		   goto call_output_tag;
+		 }
+		 break;
+	       case tag__style:
+		 if(is_disabled_style) tag->disable= is_disabled_style;
+		 is_disabled_style=0;
+		 goto call_output_tag;
+	       default:
+	       call_output_tag:
+		 output_tag(tag,NULL);
+	       }
 	     }
-	     break;
-	   case tag__style:
-	     if(is_disabled_style) tag->disable= is_disabled_style;
-	     is_disabled_style=0;
-	     goto call_output_tag;
-	   default:
-	   call_output_tag:
-	     output_tag(&htok->tag,NULL);
 	   }
 
 	   if(optionflags) {
 	     if(tag_is_endtag(tag)) {
+	       if((optionflags&DISABLEHTMLELEMENT) && tagdisablelevel>0)
+		 --tagdisablelevel;
 	       if((optionflags&DISABLEINNERSCRIPT) && scriptdisablelevel>0)
 		 --scriptdisablelevel;
 	       if(optionflags&DISABLEFOLLOWINGSCRIPT)
@@ -4171,6 +4268,8 @@ static void modify_html(URL *Url)
 		 disable_all_following_scripts=1;
 	     }
 	     else if(tag->ending==1) {
+	       if(optionflags&DISABLEHTMLELEMENT)
+		 ++tagdisablelevel;
 	       if(optionflags&DISABLEINNERSCRIPT)
 		 ++scriptdisablelevel;
 	     }
@@ -4185,7 +4284,10 @@ static void modify_html(URL *Url)
 	   break;
 
 	 case htokenText:
-	   handle_text(htok->text.str,htok->text.len);
+	   if(tagdisablelevel>0)
+	     yy_comwrite(htok->text.str,htok->text.len,-1);
+	   else
+	     handle_text(htok->text.str,htok->text.len);
 	   goto handle_optionflags;
 
 	 case htokenScriptText:
@@ -4194,7 +4296,7 @@ static void modify_html(URL *Url)
 	   unsigned len= htok->stext.len;
 	   unsigned flags= htok->stext.flags;
 
-	   if((is_disabled_script || is_disabled_style) && !(flags&STEXTISEMPTY)) {
+	   if((tagdisablelevel>0 || is_disabled_script || is_disabled_style) && !(flags&STEXTISEMPTY)) {
 	     unsigned begin=htok->stext.beginlen, closelen= htok->stext.closelen, end= len-closelen;
 	     if(begin>0) yy_write(str,begin);
 	     if(!(flags&STEXTCOMMOPEN)) yy_rawout("<!--\n");
@@ -4244,17 +4346,22 @@ static void modify_html(URL *Url)
        if(htokenqueue_isempty(&tokenqueue)) {
 	 int prev_disable_output=disable_output;
 	 disable_output &= ~DISABLE_ALLOUTPUT;
+	 commentout= (tagdisablelevel>0);
 
 	 /* Finish processing the current input token. */
 	 switch(yychar) {
 	 case LEX_PLAINTEXT:
-	   if(prev_disable_output)
-	     handle_text(htmlmodify_yylval,htmlmodify_yylval_len);
+	   if(prev_disable_output) {
+	     if(tagdisablelevel>0)
+	       yy_comwrite(htmlmodify_yylval,htmlmodify_yylval_len,-1);
+	     else
+	       handle_text(htmlmodify_yylval,htmlmodify_yylval_len);
+	   }
 	   goto handle_optionflags2;
 
 	 case LEX_SCRIPTTEXT:
 	 case LEX_STYLETEXT:
-	   if((is_disabled_script || is_disabled_style) && stextstart>=0) {
+	   if((tagdisablelevel>0 || is_disabled_script || is_disabled_style) && stextstart>=0) {
 	     if(stextstart>0) yy_write(htmlmodify_yylval,stextstart);
 	     if(!stextcommopen) yy_rawout("<!--\n");
 	     if(stextend>stextstart)
@@ -4505,6 +4612,7 @@ static void handle_text(const char *str, size_t len)
 
 #define WRITE_YYTEXT yy_write(htmlmodify_yytext,htmlmodify_yyleng)
 #define WRITE_COMMENT_YYTEXT yy_comwrite(htmlmodify_yytext,htmlmodify_yyleng,commentout)
+#define WRITE_YYTEXT_ASCOMMENT yy_comwrite(htmlmodify_yytext,htmlmodify_yyleng,-1)
 
 #define YY_RETURN(type,str,len) {htmlmodify_yylval=str; htmlmodify_yylval_len=len; return(type);}
 %}
@@ -4518,7 +4626,10 @@ static void handle_text(const char *str, size_t len)
 
  /* Handle comments and other tags */
 
-[^<]+                       { if(!disable_output) handle_text(htmlmodify_yytext,htmlmodify_yyleng);
+[^<]+                       { if(!disable_output) {
+                                if(commentout) {WRITE_YYTEXT_ASCOMMENT;}
+                                else handle_text(htmlmodify_yytext,htmlmodify_yyleng);
+                              }
                               YY_RETURN(LEX_PLAINTEXT,htmlmodify_yytext,htmlmodify_yyleng); }
 
 "<!DOCTYPE"                 { RESET_STRING; if(disable_output) {APPEND_STRING_YYTEXT;} else {WRITE_YYTEXT;}
