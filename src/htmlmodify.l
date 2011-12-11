@@ -96,22 +96,36 @@ typedef enum _HTMLTags
  tag__a          /* "/a"        */ ,
  tag_applet      /* "applet"    */ ,
  tag__applet     /* "/applet"   */ ,
+ tag_area        /* "area"      */ ,
+ tag__area       /* "/area"     */ ,
  tag_base        /* "base"      */ ,
  tag__base       /* "/base"     */ ,
  tag_blink       /* "blink"     */ ,
  tag__blink      /* "/blink"    */ ,
  tag_body        /* "body"      */ ,
  tag__body       /* "/body"     */ ,
+ tag_br          /* "br"        */ ,
+ tag__br         /* "/br"       */ ,
+ tag_col         /* "col"       */ ,
+ tag__col        /* "/col"      */ ,
+ tag_command     /* "command"   */ ,
+ tag__command    /* "/command"  */ ,
  tag_embed       /* "embed"     */ ,
  tag__embed      /* "/embed"    */ ,
  tag_head        /* "head"      */ ,
  tag__head       /* "/head"     */ ,
+ tag_hr          /* "hr"        */ ,
+ tag__hr         /* "/hr"       */ ,
  tag_html        /* "html"      */ ,
  tag__html       /* "/html"     */ ,
  tag_iframe      /* "iframe"    */ ,
  tag__iframe     /* "/iframe"   */ ,
  tag_img         /* "img"       */ ,
  tag__img        /* "/img"      */ ,
+ tag_input       /* "input"     */ ,
+ tag__input      /* "/input"    */ ,
+ tag_keygen      /* "keygen"    */ ,
+ tag__keygen     /* "/keygen"   */ ,
  tag_link        /* "link"      */ ,
  tag__link       /* "/link"     */ ,
  tag_marquee     /* "marquee"   */ ,
@@ -126,8 +140,14 @@ typedef enum _HTMLTags
  tag__param      /* "/param"    */ ,
  tag_script      /* "script"    */ ,
  tag__script     /* "/script"   */ ,
+ tag_source      /* "source"    */ ,
+ tag__source     /* "/source"   */ ,
  tag_style       /* "style"     */ ,
- tag__style      /* "/style"    */
+ tag__style      /* "/style"    */ ,
+ tag_track       /* "track"     */ ,
+ tag__track      /* "/track"    */ ,
+ tag_wbr         /* "wbr"       */ ,
+ tag__wbr        /* "/wbr"      */
 }
 HTMLTags;
 
@@ -137,14 +157,21 @@ static const char* const tags[]=
 {
   "a"          ,
   "applet"     ,
+  "area"       ,
   "base"       ,
   "blink"      ,
   "body"       ,
+  "br"         ,
+  "col"        ,
+  "command"    ,
   "embed"      ,
   "head"       ,
+  "hr"         ,
   "html"       ,
   "iframe"     ,
   "img"        ,
+  "input"      ,
+  "keygen"     ,
   "link"       ,
   "marquee"    ,
   "meta"       ,
@@ -152,30 +179,46 @@ static const char* const tags[]=
   "object"     ,
   "param"      ,
   "script"     ,
-  "style"
+  "source"     ,
+  "style"      ,
+  "track"      ,
+  "wbr"
 };
 
-/* Table for complex tags, which are stored and processed as a whole. */
-static const char complex_tag[]=
+/* Table of flags indicating which tags are complex tags (which are stored and processed as a whole),
+   and which correspond to void elements (which have no end tag and no content). */
+#define TAGCOMPLEX  1
+#define TAGVOIDELEM 2
+static const unsigned char tag_flags[]=
 {
-  1  /* "a"        */ ,
-  0  /* "applet"   */ ,
-  0  /* "base"     */ ,
-  0  /* "blink"    */ ,
-  0  /* "body"     */ ,
-  1  /* "embed"    */ ,
-  0  /* "head"     */ ,
-  0  /* "html"     */ ,
-  1  /* "iframe"   */ ,
-  1  /* "img"      */ ,
-  1  /* "link"     */ ,
-  0  /* "marquee"  */ ,
-  1  /* "meta"     */ ,
-  0  /* "noscript" */ ,
-  1  /* "object"   */ ,
-  0  /* "param"    */ ,
-  1  /* "script"   */ ,
-  1  /* "style"    */
+  TAGCOMPLEX               /* "a"        */ ,
+  0                        /* "applet"   */ ,
+             TAGVOIDELEM   /* "area"     */ ,
+             TAGVOIDELEM   /* "base"     */ ,
+  0                        /* "blink"    */ ,
+  0                        /* "body"     */ ,
+             TAGVOIDELEM   /* "br"       */ ,
+             TAGVOIDELEM   /* "col"      */ ,
+             TAGVOIDELEM   /* "command"  */ ,
+  TAGCOMPLEX|TAGVOIDELEM   /* "embed"    */ ,
+  0                        /* "head"     */ ,
+             TAGVOIDELEM   /* "hr"       */ ,
+  0                        /* "html"     */ ,
+  TAGCOMPLEX               /* "iframe"   */ ,
+  TAGCOMPLEX|TAGVOIDELEM   /* "img"      */ ,
+             TAGVOIDELEM   /* "input"    */ ,
+             TAGVOIDELEM   /* "keygen"   */ ,
+  TAGCOMPLEX|TAGVOIDELEM   /* "link"     */ ,
+  0                        /* "marquee"  */ ,
+  TAGCOMPLEX|TAGVOIDELEM   /* "meta"     */ ,
+  0                        /* "noscript" */ ,
+  TAGCOMPLEX               /* "object"   */ ,
+             TAGVOIDELEM   /* "param"    */ ,
+  TAGCOMPLEX               /* "script"   */ ,
+             TAGVOIDELEM   /* "source"   */ ,
+  TAGCOMPLEX               /* "style"    */ ,
+             TAGVOIDELEM   /* "track"    */ ,
+             TAGVOIDELEM   /* "wbr"      */
 };
 
 
@@ -321,8 +364,11 @@ typedef struct _Tag {
   char *tagname;              /*+ The Tag name. +*/
   short type;                 /*+ The type of the tag (enum HTMLTags, may be -1). +*/
   unsigned short resolved;    /*+ Flag which is false if there are unmatched descendent patterns. +*/
-  unsigned short ending;      /*+ Indicates whether tag ends with '>' (1), '/>' (2) or has no ending (0). +*/
   unsigned short disable;     /*+ tag disabled status (enum disabled_t). +*/
+  unsigned char ending;       /*+ Indicates whether tag ends with '>' (1), '/>' (2) or has no ending (0). +*/
+  unsigned char closing;      /*+ Indicates whether tag ends with '>' and is a normal tag (1),
+				  ends with '/>' or corresponds to a void element (2)
+				  or is malformed (0). +*/
   int idx;                    /*+ Tag index (for tag-attribute patterns) +*/
   unsigned refcount;          /* Total number of references to this tag in state lists.
 				 When this number decreases to zero, the tag can be marked as resolved. */
@@ -705,7 +751,7 @@ inline static int is_complex_tag(HTMLTags t)
 {
   if(t<0 || t&1) return 0;
   t /= 2;
-  return (t<ARRAYLEN(complex_tag))?complex_tag[t]:0;
+  return (t<ARRAYLEN(tag_flags))? (tag_flags[t]&TAGCOMPLEX): 0;
 }
 
 
@@ -752,12 +798,27 @@ static void reset_tagtoken(HToken **tokp, const char *tagname, HTMLTags type, in
   tok->tag.tagname= (tagname?strdup(tagname):NULL);
   tok->tag.type= type;
   tok->tag.resolved=0;
-  tok->tag.ending=0;
   tok->tag.disable=0;
+  tok->tag.ending=0;
+  tok->tag.closing=0;
   tok->tag.idx= idx;
   tok->tag.refcount=0;
   tok->tag.attrl=NULL;
   tok->tag.last= &tok->tag.attrl;
+}
+
+inline static void set_tag_ending(Tag *tag, unsigned short ending)
+{
+  tag->ending= ending;
+  tag->closing= ending;
+  if(ending==1) {
+    int type=tag->type;
+    if(type>=0 && !(type&1)) {
+      type /= 2;
+      if(type<ARRAYLEN(tag_flags) && (tag_flags[type]&TAGVOIDELEM))
+	tag->closing= 2;
+    }
+  }
 }
 
 static void add_attribute(Tag *tag, HTMLAttributes type, const char *key, const char *val, char quote, unsigned short disable)
@@ -2819,7 +2880,7 @@ static struct activepattlists match_tag_pattern_info(HToken *htok, PattInfo *pat
       targdesc= p->targdesc;
 
       if(p->hasdesc) {
-	if(tag->ending==1) {
+	if(tag->closing==1) {
 	  HTokenPattNode *desc= p->desc;
 	  if(desc) {
 	    PattOptions *pattopts;
@@ -3406,6 +3467,7 @@ static void modify_html(URL *Url)
    HTokenType htoktype=0;
    HTokenPattNode *matchingpatt=NULL;
    Bool_t maybe_disable_script, disable_key;
+   unsigned short tag_ending;
    char quote;
 
    yychar=htmlmodify_yylex();
@@ -3698,16 +3760,17 @@ static void modify_html(URL *Url)
        break;
 
       case LEX_TAG_END_TRUNC:
-       tagdata->ending=0;
+       tag_ending=0;
        goto case_tag_end;
 
       case LEX_TAG_END_XHTML:
-       tagdata->ending=2;
+       tag_ending=2;
        goto case_tag_end;
 
       case LEX_TAG_END:
-       tagdata->ending=1;
+       tag_ending=1;
       case_tag_end:
+       set_tag_ending(tagdata,tag_ending);
        if(!disable_output) {
 	 if(tagdata->disable)
 	   yy_rawout(" --");
@@ -3717,16 +3780,16 @@ static void modify_html(URL *Url)
 	   yy_rawout("/>");
        }
 
-       if(tag_maybe_matchpatt && tagdata->ending) {
+       if(tag_maybe_matchpatt && tagdata->closing) {
 	 struct activepattlists pattlists=match_tag_pattern_info(tagtoken,&tagpatterninfo,&tokenqueue);
 	 reset_fchild_sibling_patt_lists(&tagpatterninfo, tagidx,
 					 pattlists.fchildlist, &tokenqueue);
 	 if(stackflags(&tagpatterninfo,tagidx)&TAGPSTACK) {
-	   if(tagdata->ending==1)
+	   if(tagdata->closing==1)
 	     pushtagpstack(&tagpstack, tagidx, pattlists.desclist, pattlists.pattstatelist, pattlists.siblist,
 			   tagdata->resolved?NULL:tagtoken, tokenqueue.nextserialnum);
-	   else /* if(tagdata->ending==2) */ {
-	     /* unwind_pattstate_list(pattlists.pattstatelist); */ /* pattlists.desclist and fchildlist should be NULL if tagdata->ending!=1. */
+	   else /* if(tagdata->closing==2) */ {
+	     /* unwind_pattstate_list(pattlists.pattstatelist); */ /* pattlists.desclist and fchildlist should be NULL if tagdata->closing!=1. */
 	     PattOptionsListNode **last= unwind_pattoptions_list(&pattlists.siblist);
 	     append_sibling_patt_list(&tagpatterninfo, pattlists.siblist, last);
 	   }
@@ -3766,7 +3829,7 @@ static void modify_html(URL *Url)
 	     disable_all_following_scripts=0;
 	 }
 	 if(stackflags(&tagpatterninfo,tagidx)&TAGDSTACK)  {
-	   if(tagdata->ending==1) {
+	   if(tagdata->closing==1) {
 	     pushtagstack(&tagdstack, tagidx, optionflags);
 	   }
 	 }
@@ -3809,7 +3872,7 @@ static void modify_html(URL *Url)
 	     disable=handle_a_tag(tagdata,disable_dontget_anchors,disable_script);
 	   }
 
-	   if(tagdata->ending==1) {
+	   if(tagdata->closing==1) {
 	     pushtagstack(&tagstack,tagtype,disable);
 
 	     if(!disable && anchor_modify) {
@@ -3823,7 +3886,7 @@ static void modify_html(URL *Url)
 	   }
 	   break;
 	 case tag_applet:
-	   if(tagdata->ending==1)
+	   if(tagdata->closing==1)
 	     pushtagstack(&tagstack,tagtype,disable_applet?disabled_applet:0);
 	   break;
 	 case tag_embed:
@@ -3840,7 +3903,7 @@ static void modify_html(URL *Url)
 					  disable_script);
 	     }
 
-	   if(tagdata->ending==1)
+	   if(tagdata->closing==1)
 	     pushtagstack(&tagstack,tagtype,disable);
 	   break;
 	 case tag_iframe:
@@ -3853,7 +3916,7 @@ static void modify_html(URL *Url)
 	       disable=handle_iframe_tag(tagdata,disable_dontget_iframes,disable_script);
 	     }
 
-	   if(tagdata->ending==1)
+	   if(tagdata->closing==1)
 	     pushtagstack(&tagstack,tagtype,disable);
 	   break;
 	 case tag_img:
@@ -3953,7 +4016,7 @@ static void modify_html(URL *Url)
 	   if(optionflags&DISABLEALLFOLLOWINGSCRIPTS)
 	     disable_all_following_scripts=1;
 	 }
-	 else if(tagdata->ending==1) {
+	 else if(tagdata->closing==1) {
 	   if(optionflags&DISABLEHTMLELEMENT) {
 	     ++tagdisablelevel;
 	     commentout=1;
@@ -3961,7 +4024,7 @@ static void modify_html(URL *Url)
 	   if(optionflags&DISABLEINNERSCRIPT)
 	     ++scriptdisablelevel;
 	 }
-	 else if(tagdata->ending==2) {
+	 else if(tagdata->closing==2) {
 	   if(optionflags&DISABLEFOLLOWINGSCRIPT)
 	     disable_following_script=1;
 	   if(optionflags&DISABLEALLFOLLOWINGSCRIPTS)
@@ -4050,7 +4113,7 @@ static void modify_html(URL *Url)
 		   disable_all_following_scripts=0;
 	       }
 	       if(stackflags(&tagpatterninfo,tag->idx)&TAGDSTACK) {
-		 if(tag->ending==1) {
+		 if(tag->closing==1) {
 		   pushtagstack(&tagdstack, tag->idx, optionflags);
 		 }
 	       }
@@ -4090,7 +4153,7 @@ static void modify_html(URL *Url)
 		   url_cached= tag_get_url_cached_type(tag);
 		 disable= handle_a_tag(tag,disable_dontget_anchors,disable_script);
 
-		 if(tag->ending==1) {
+		 if(tag->closing==1) {
 		   pushtagstack(&tagstack,tag->type,disable);
 
 		   if(!tag->disable && anchor_modify) {
@@ -4119,7 +4182,7 @@ static void modify_html(URL *Url)
 		 }
 		 goto call_output_tag;
 	       case tag_applet:
-		 if(tag->ending==1)
+		 if(tag->closing==1)
 		   pushtagstack(&tagstack,tag->type,disable_applet?disabled_applet:0);
 		 goto call_output_tag;
 	       case tag__applet:
@@ -4152,7 +4215,7 @@ static void modify_html(URL *Url)
 					    disable_flash,
 					    disable_dontget_iframes,
 					    disable_script);
-		 if(tag->ending==1)
+		 if(tag->closing==1)
 		   pushtagstack(&tagstack,tag->type,disable);
 		 break;
 	       case tag__embed:
@@ -4172,7 +4235,7 @@ static void modify_html(URL *Url)
 		 else
 		   disable=handle_iframe_tag(tag,disable_dontget_iframes,disable_script);
 
-		 if(tag->ending==1)
+		 if(tag->closing==1)
 		   pushtagstack(&tagstack,tag->type,disable);
 		 if(disable_iframes)
 		   goto call_output_tag;
@@ -4267,13 +4330,13 @@ static void modify_html(URL *Url)
 	       if(optionflags&DISABLEALLFOLLOWINGSCRIPTS)
 		 disable_all_following_scripts=1;
 	     }
-	     else if(tag->ending==1) {
+	     else if(tag->closing==1) {
 	       if(optionflags&DISABLEHTMLELEMENT)
 		 ++tagdisablelevel;
 	       if(optionflags&DISABLEINNERSCRIPT)
 		 ++scriptdisablelevel;
 	     }
-	     else if(tag->ending==2) {
+	     else if(tag->closing==2) {
 	       if(optionflags&DISABLEFOLLOWINGSCRIPT)
 		 disable_following_script=1;
 	       if(optionflags&DISABLEALLFOLLOWINGSCRIPTS)
