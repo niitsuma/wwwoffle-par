@@ -362,7 +362,7 @@ typedef enum {htokenTag, htokenText, htokenScriptText, htokenStyleText, htokenCo
 
 typedef struct _Tag {
   char *tagname;              /*+ The Tag name. +*/
-  short type;                 /*+ The type of the tag (enum HTMLTags, may be -1). +*/
+  short type;                 /*+ The type of the tag (enum HTMLTags, may be -1 or -2). +*/
   unsigned short resolved;    /*+ Flag which is false if there are unmatched descendent patterns. +*/
   unsigned short disable;     /*+ tag disabled status (enum disabled_t). +*/
   unsigned char ending;       /*+ Indicates whether tag ends with '>' (1), '/>' (2) or has no ending (0). +*/
@@ -724,7 +724,7 @@ inline static int lookuptag(const char *s)
       return 2*k+endtag;
   }
 
-  return -1;
+  return -2+endtag;
 }
 
 inline static HTMLAttributes lookupattribute(const char *s)
@@ -749,18 +749,25 @@ inline static HTMLAttributes lookupattribute(const char *s)
 
 inline static int is_complex_tag(HTMLTags t)
 {
-  if(t<0 || t&1) return 0;
-  t /= 2;
-  return (t<ARRAYLEN(tag_flags))? (tag_flags[t]&TAGCOMPLEX): 0;
+  if(t>=0 && !(t&1)) {
+    t /= 2;
+    if(t<ARRAYLEN(tag_flags))
+      return tag_flags[t]&TAGCOMPLEX;
+  }
+  return 0;
 }
 
 
 /* Some functions to enable the handling of tag data in a more abstract style. */
 
-/* This is a little dangerous, because tag->tagname may be NULL! */
-inline static int tag_is_endtag(const Tag *tag)
+inline static Bool_t tagtype_is_endtag(HTMLTags t)
 {
-  return *(tag->tagname)=='/';
+  return t&1;
+}
+
+inline static Bool_t tag_is_endtag(const Tag *tag)
+{
+  return tagtype_is_endtag(tag->type);
 }
 
 inline __attribute__((always_inline))
@@ -3365,7 +3372,7 @@ static void output_tag(const Tag *tag,const char *prefix)
 
 static void modify_html(URL *Url)
 {
- HTMLTags tagtype=-1;
+ HTMLTags tagtype=-2;
  HTMLAttributes key=-1;
  int tagidx=-1;
  int url_cached=0;
@@ -3546,8 +3553,8 @@ static void modify_html(URL *Url)
 
       case LEX_TAG_BEGIN:
        tagtype=lookuptag(htmlmodify_yylval);
+       is_endtag= tagtype_is_endtag(tagtype);
        tagidx = tag_match_index(htmlmodify_yylval,&tagpatterninfo);
-       is_endtag= (*htmlmodify_yylval=='/');
        tag_maybe_matchpatt= (tagidx>=0 && !is_endtag);
        tagcomplexmodify= !htokenqueue_isempty(&tokenqueue) || is_complex_tag(tagtype) || tag_maybe_matchpatt;
 
@@ -4032,7 +4039,7 @@ static void modify_html(URL *Url)
 	 }
        }
 
-       /* tagtype=-1; */
+       /* tagtype=-2; */
        /* key=-1; */
        break;
 
